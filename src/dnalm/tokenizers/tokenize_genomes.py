@@ -26,7 +26,7 @@ def create_bpe_tokenizer(
 @click.option("--output_dir", type=click.Path(path_type=Path, dir_okay=True))
 def cli(input_dir, output_dir):
     output_dir.mkdir(parents=True)
-    # create_bpe_tokenizer(input_dir=input_dir, output_dir=output_dir)
+    create_bpe_tokenizer(input_dir=input_dir, output_dir=output_dir)
 
 if __name__ == "__main__":
     cli()

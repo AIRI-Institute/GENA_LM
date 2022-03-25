@@ -60,7 +60,7 @@ def generate_documents(
             d = Document()
             for _ in range(s):
                 l = random.randint(*lenghts_bounds)  # length of each sentence
-                d.append(str(chr_sequence[q : q + l]))
+                d.append(str(chr_sequence[q : q + l]).upper())
                 q += l  # update position for the new sentence
             yield d
 
