@@ -35,9 +35,11 @@ fi
 
 GENOME=$1
 if [[ $GENOME == "human" ]]; then
-    human_acc="GCF_000001405.39"
+    #human_acc="GCF_000001405.39"
+    human_acc="GCA_009914755.4" # switch to 2t2t-chm13 v2.0
     echo "Going to download human data with acc $human_acc"
-    ./datasets download genome accession $human_acc --filename genomes/human_GRCh38_dataset.zip
+    ./datasets download genome accession $human_acc --filename genomes/human_genome_dataset.zip
+    unzip genomes/human_genome_dataset.zip
 elif [[ $GENOME == "mouse" ]]; then
     echo "genome not supported"
 elif [[ $GENOME == "ape" ]]; then
