@@ -32,13 +32,13 @@ class Document:
         self.sentences.append(sentence)
 
     def to_text(self) -> str:
-        return "".join(self.sentences)
+        return "\n".join(self.sentences)
 
     def to_jsonl(self) -> None:
         if self.metadata:
-            return json.dumps({"text": self.to_text(), **self.metadata})
+            return json.dumps({"text": self.sentences, **self.metadata})
         else:
-            return json.dumps({"text": self.to_text()})
+            return json.dumps({"text": self.sentences})
 
 
 def generate_documents(
@@ -50,7 +50,7 @@ def generate_documents(
     From a single chromosome yield a set of documents that cover that chromosome.
     This operation is done ten-fold. 
     """
-    
+
     C = len(chr_sequence)  # chromosome length
 
     for _ in range(10):
@@ -73,7 +73,7 @@ def handle_chromosome(
     """
     For a given chromosome make documents and write them to corresponding files
     """
-    
+
     if io_mode == "single_txt":
         filename = outdir / f"{chr.name}_documents.txt"
         with filename.open(mode="w") as out:
@@ -81,10 +81,10 @@ def handle_chromosome(
                 out.write(document.to_text())
                 out.write("\n")
     elif io_mode == "jsonl":
-        filename = outdir / f"{chr.name}_documents.txt"
+        filename = outdir / f"{chr.name}_documents.jsonl"
         with filename.open(mode="w") as out:
             for document in tqdm(generate_documents(chr.seq), desc=chr.description):
-                out.write(document.to_text())
+                out.write(document.to_jsonl())
                 out.write("\n")
     elif io_mode == "multiple_txt":
         for idx, document in enumerate(generate_documents(chr.seq)):
@@ -93,22 +93,27 @@ def handle_chromosome(
                 out.write(document.to_text())
 
 
-def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None):
+def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
+                      io_mode: Literal["single_txt", "jsonl", "multiple_txt"] = "single_txt"):
     if not output_dir:
         output_dir = Path(".")
 
     with open(fna_file) as input_handle:
         for record in SeqIO.parse(input_handle, "fasta"):
             if "mitochondrion" not in record.description:
-                handle_chromosome(record, outdir=output_dir)
+                handle_chromosome(record, outdir=output_dir, io_mode=io_mode)
 
+# example usage:
+# python create_corpus.py --input_file ./ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna \
+#  --output_dir data/processed/human/ --io_mode jsonl
 
 @click.command()
 @click.option("--input_file", type=click.Path(path_type=Path, dir_okay=True))
 @click.option("--output_dir", type=click.Path(path_type=Path, dir_okay=True))
-def cli(input_file, output_dir):
+@click.option("--io_mode", type=click.Choice(["single_txt", "jsonl", "multiple_txt"]), default="single_txt")
+def cli(input_file, output_dir, io_mode):
     output_dir.mkdir(parents=True)
-    read_single_fasta(input_file, output_dir=output_dir)
+    read_single_fasta(input_file, output_dir=output_dir, io_mode=io_mode)
 
 
 if __name__ == "__main__":
