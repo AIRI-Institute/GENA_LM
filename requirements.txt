@@ -2,3 +2,5 @@ numpy
 biopython
 tokenizers
 tqdm
+torch">=1.7.1,<=1.9.1"
+transformers==4.17.0
