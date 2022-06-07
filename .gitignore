@@ -3,3 +3,9 @@
 data/genomes/*
 *.pyc
 .DS_Store/*
+.ipynb_checkpoints/*
+*.pth
+downstream_tasks/promoter_prediction/*.ipynb
+
+.ipynb_checkpoints
+.DS_Store
