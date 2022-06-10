@@ -1,8 +1,7 @@
 # DNALM
 
-The project is dedicated to the development of language model capable to work with DNA sequences.
+The project is dedicated to the development of language models capable to work with DNA sequences.
 
-DeepSpeed installation is needed to work with SparseAttention versions of language models.
 
 ## Examples
 ### How to load the model to fine-tune it on classification task
@@ -21,31 +20,37 @@ checkpoint = torch.load(ckpt_path, map_location='cpu')
 model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 ```
 
-## Installation
-### APEX
-Install APEX https://github.com/NVIDIA/apex#quick-start
+## Model description
+DNALM model is trained in a masked language model fashion, following the same guidelines as in BigBird paper by masking 85% of tokens, including slight changes they introduced in the paper. Model config is similar to bert_base is as follows:
+
+- 512 Maximum sequence length
+- 12 Layers, 12 Attention heads
+- 768 Hidden size
+- 32k Vocabulary size
+
+Hence, in the next sections, we'll be refering to it as dnalm-bert-base.
+We trained dnalm-bert-base for 500,000 iterations with same parameters as in BigBird, except sequence length was equal to 512 tokens and we used pre-layer normalization in Transformer.
+
+
+### Download and preprocess data
+In order to download human genome data one need to run the following script:
 ```
-git clone https://github.com/NVIDIA/apex
-cd apex
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+./download_data.sh human
 ```
 
-### DeepSpeed
-DeepSpeed Sparse attention supports only GPUs with compute compatibility >= 7 (V100, T4, A100), CUDA 10.1, 10.2, 11.0, or 11.1 and runs only in FP16 mode (as of DeepSpeed 0.6.0).
-```bash
-pip install triton==1.0.0
-DS_BUILD_SPARSE_ATTN=1 pip install deepspeed==0.6.0 --global-option="build_ext" --global-option="-j8" --no-cache
+For preprocessing, execute the following script:
+
 ```
-and check installation with
-```bash
-ds_report
+python src/dnalm/genome_tools/create_corpus.py --input_file data/ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna --output_dir data/processed/human/
 ```
+
+
 
 ## Downstream tasks
-DNALM is tested on a multiple downstream tasks. Its' performance is compared to previous SOTA results
+Our model dnalm-bert-base is tested on a multiple downstream tasks, such as promoter prediction. Its' performance is compared to previous SOTA results for those tasks
 
 ### Promoter Prediction
-Performance of DNALM is compared to 
+Performance of dnalm-bert-base is compared to 
 1. DeePromoter https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6460014/
 2. BigBird https://papers.nips.cc/paper/2020/hash/c8512d142a2d849725f31a9a7a361ab9-Abstract.html
 
@@ -78,3 +83,33 @@ hg38_promoters_len_300_dataset.csv
 Results in five csv files named from fold_1.csv to fold_5.csv that need to be saved into a specified directory
 
 ### Fine-tuning DNALM on our data and scoring
+After fine-tuning dnalm-bert-base on promoter prediction dataset, following results were achieved: 
+
+| model           | seq_len (bp) | F1    |
+|-----------------|--------------|-------|
+| DeePromoter     | 300          | 95.60 |
+| DNALM bert_base | 2000         | 95.72 |
+| BigBird         | 16000        | 99.90 |
+
+We can conclude that our model achieves comparable performance to the previously published results for promoter prediction task.
+
+## Installation
+For models with sparse attention FP16 support and DeepSpeed is needed.
+### APEX for FP16
+Install APEX https://github.com/NVIDIA/apex#quick-start
+```
+git clone https://github.com/NVIDIA/apex
+cd apex
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+```
+
+### DeepSpeed
+DeepSpeed installation is needed to work with SparseAttention versions of language models. DeepSpeed Sparse attention supports only GPUs with compute compatibility >= 7 (V100, T4, A100), CUDA 10.1, 10.2, 11.0, or 11.1 and runs only in FP16 mode (as of DeepSpeed 0.6.0).
+```bash
+pip install triton==1.0.0
+DS_BUILD_SPARSE_ATTN=1 pip install deepspeed==0.6.0 --global-option="build_ext" --global-option="-j8" --no-cache
+```
+and check installation with
+```bash
+ds_report
+```
