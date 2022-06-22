@@ -1,8 +1,8 @@
-# DNALM
+# GENA-LM
 
-DNALM is a transformer masked language model trained on human DNA sequence.
+GENA-LM is a transformer masked language model trained on human DNA sequence.
 
-Differences between DNALM and DNABERT:
+Differences between GENA-LM and DNABERT:
 - BPE tokenization instead of k-mers;
 - input sequence size is about 3000 nucleotides (512 BPE tokens) compared to 510 nucleotides of DNABERT
 - pre-training on T2T vs. GRCh38.p13 human genome assembly.
@@ -11,22 +11,22 @@ Differences between DNALM and DNABERT:
 ## Examples
 ### How to load the model to fine-tune it on classification task
 ```python
-from src.dnalm.modeling_bert import BertForSequenceClassification
+from src.gena_lm.modeling_bert import BertForSequenceClassification
 from transformers import AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/dnalm-bert-base')
-model = BertForSequenceClassification.from_pretrained('AIRI-Institute/dnalm-bert-base')
+tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bert-base')
+model = BertForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bert-base')
 ```
 
 ## Model description
-DNALM model is trained in a masked language model (MLM) fashion, following the methods proposed in the BigBird paper by masking 85% of tokens. Model config for `dnalm-bert-base` is similar to the bert-base:
+GENA-LM model is trained in a masked language model (MLM) fashion, following the methods proposed in the BigBird paper by masking 85% of tokens. Model config for `gena-lm-bert-base` is similar to the bert-base:
 
 - 512 Maximum sequence length
 - 12 Layers, 12 Attention heads
 - 768 Hidden size
 - 32k Vocabulary size
 
-We pre-trained dnalm-bert-base using the latest T2T human genome assembly (https://www.ncbi.nlm.nih.gov/assembly/GCA_009914755.3/). Pre-training was performed for 500,000 iterations with the same parameters as in BigBird, except sequence length was equal to 512 tokens and we used pre-layer normalization in Transformer.
+We pre-trained `gena-lm-bert-base` using the latest T2T human genome assembly (https://www.ncbi.nlm.nih.gov/assembly/GCA_009914755.3/). Pre-training was performed for 500,000 iterations with the same parameters as in BigBird, except sequence length was equal to 512 tokens and we used pre-layer normalization in Transformer.
 
 
 ### Download and preprocess data
@@ -38,16 +38,16 @@ In order to download human genome please run the following script:
 For preprocessing, execute the following script:
 
 ```
-python src/dnalm/genome_tools/create_corpus.py --input_file data/ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna --output_dir data/processed/human/
+python src/gena_lm/genome_tools/create_corpus.py --input_file data/ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna --output_dir data/processed/human/
 ```
 
 
 
 ## Downstream tasks
-Currently, dnalm-bert-base model has been finetuned  and tested on promoter prediction task.  Its' performance is comparable to previous SOTA results. We plan to fine-tune and make available models for other downstream tasks in the near future.
+Currently, gena-lm-bert-base model has been finetuned  and tested on promoter prediction task.  Its' performance is comparable to previous SOTA results. We plan to fine-tune and make available models for other downstream tasks in the near future.
 
 ### Promoter Prediction
-Performance of dnalm-bert-base is compared to 
+Performance of gena-lm-bert-base is compared to 
 1. DeePromoter https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6460014/
 2. BigBird https://papers.nips.cc/paper/2020/hash/c8512d142a2d849725f31a9a7a361ab9-Abstract.html
 
@@ -79,14 +79,14 @@ hg38_promoters_len_300_dataset.csv
 ```
 Results in five csv files named from fold_1.csv to fold_5.csv that need to be saved into a specified directory.
 
-### Fine-tuning DNALM on our data and scoring
-After fine-tuning dnalm-bert-base on promoter prediction dataset, following results were achieved: 
+### Fine-tuning GENA-LM on our data and scoring
+After fine-tuning gena-lm-bert-base on promoter prediction dataset, following results were achieved: 
 
-| model                  | seq_len (bp) | F1    |
-|------------------------|--------------|-------|
-| DeePromoter            | 300          | 95.60 |
-| DNALM bert_base (ours) | 2000         | 95.72 |
-| BigBird                | 16000        | 99.90 |
+| model                    | seq_len (bp) | F1    |
+|--------------------------|--------------|-------|
+| DeePromoter              | 300          | 95.60 |
+| GENA-LM bert-base (ours) | 2000         | 95.72 |
+| BigBird                  | 16000        | 99.90 |
 
 We can conclude that our model achieves comparable performance to the previously published results for promoter prediction task.
 
