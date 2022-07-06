@@ -19,4 +19,4 @@ class TestDeepSTARRDataset:
         )
         res = dataset.__getitem__(2)
         assert len(res["input_ids"]) == seq_len
-        assert res["targets"].shape[0] == 2
+        assert res["labels"].shape[0] == 2

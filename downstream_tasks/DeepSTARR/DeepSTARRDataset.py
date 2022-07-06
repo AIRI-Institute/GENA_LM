@@ -47,12 +47,10 @@ class DeepSTARRDataset(Dataset):
             max_length=self.max_seq_len,
             return_tensors="np",
         )
-        targets = sample[["Dev_log2_enrichment", "Hk_log2_enrichment"]].values.astype(
-            "float"
-        )
+        targets = sample[["Dev_log2_enrichment", "Hk_log2_enrichment"]].values.astype("float32")
         return {
             "input_ids": results["input_ids"][0],
             "token_type_ids": results["token_type_ids"][0],
             "attention_mask": results["attention_mask"][0],
-            "targets": targets,
+            "labels": targets,
         }
