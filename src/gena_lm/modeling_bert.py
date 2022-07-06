@@ -1949,6 +1949,9 @@ class BertForTokenClassification(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
+        self.config = config
+        if getattr(self.config, 'problem_type', None) is None:
+            self.config.problem_type = 'single_label_classification'
 
         self.bert = BertModel(config, add_pooling_layer=False)
         classifier_dropout = (
@@ -1976,6 +1979,8 @@ class BertForTokenClassification(BertPreTrainedModel):
         head_mask=None,
         inputs_embeds=None,
         labels=None,
+        labels_mask=None,
+        label_weights=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -2005,8 +2010,18 @@ class BertForTokenClassification(BertPreTrainedModel):
 
         loss = None
         if labels is not None:
-            loss_fct = CrossEntropyLoss()
-            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            if self.config.problem_type == 'single_label_classification':
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == 'multi_label_classification':
+                if labels_mask is None:
+                    loss_fct = BCEWithLogitsLoss(pos_weight=label_weights)
+                    loss = loss_fct(logits, labels)
+                else:
+                    loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=label_weights)
+                    loss = loss_fct(logits, labels)
+                    loss = loss * labels_mask.unsqueeze(-1)
+                    loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else 0.0
 
         if not return_dict:
             output = (logits,) + outputs[2:]

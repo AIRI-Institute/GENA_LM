@@ -6,6 +6,8 @@ data/genomes/*
 .ipynb_checkpoints/*
 *.pth
 downstream_tasks/promoter_prediction/*.ipynb
+runs/*
+.vscode/*
 
 .ipynb_checkpoints
 .DS_Store
