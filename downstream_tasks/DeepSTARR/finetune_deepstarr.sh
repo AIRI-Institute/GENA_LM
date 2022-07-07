@@ -12,11 +12,9 @@ BASE_CKPT=model_500000
 OPT=AdamW
 SCHEDULER=constant_with_warmup
 TASK=deepstarr
-LR=1e-04
+LR=5e-05
 
-for LR in 3e-04 1e-04 5e-05 1e-05
-do
-for N in 1
+for N in 1 2 3
 do
 horovodrun --gloo -np $NP python -m downstream_tasks.DeepSTARR.run_deepstarr_finetuning \
         --data_path /home/jovyan/data/downstream_tasks/DeepSTARR/Sequences_activity_Train.txt \
@@ -39,6 +37,5 @@ horovodrun --gloo -np $NP python -m downstream_tasks.DeepSTARR.run_deepstarr_fin
         --data_n_workers 2 \
         --log_interval 250 --valid_interval 1000 \
         --seed $(($N+42))
-done
 done
 echo "done"
