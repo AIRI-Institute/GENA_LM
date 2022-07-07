@@ -141,8 +141,8 @@ class SpliceAIDataset(Dataset):
             assert np.all(encoding["token_type_ids"][0] == 0)
 
         labels = self.get_token_classes(mid_encoding, target, 0)
-        token_type_ids = np.zeros(shape=self.max_seq_len, dtype=np.long)
-        attention_mask = np.ones(shape=self.max_seq_len, dtype=np.long)
+        token_type_ids = np.zeros(shape=self.max_seq_len, dtype=np.int64)
+        attention_mask = np.ones(shape=self.max_seq_len, dtype=np.int64)
 
         boundary_pos = int(
             np.where(
