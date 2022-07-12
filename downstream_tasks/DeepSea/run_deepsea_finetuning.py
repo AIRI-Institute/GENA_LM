@@ -39,6 +39,8 @@ parser.add_argument('--data_path', type=str, help='path to the training data')
 parser.add_argument('--valid_data_path', type=str, help='path to the valid data')
 parser.add_argument('--test_data_path', type=str, help='path to the test data (dataset_test_0.csv)')
 parser.add_argument('--seed', type=int, default=42, help='random seed')
+parser.add_argument('--validate_only', action='store_true', default=False,
+                    help='Skip training and run only validation. (default: False)')
 
 # data args
 parser.add_argument('--input_seq_len', type=int, default=64, help='input sequnce length (default: 64).')
@@ -159,7 +161,7 @@ if __name__ == '__main__':
         metrics = {}
         y, p = data['labels'], torch.sigmoid(data['predictions'])
         # compute auc for each class independetly, https://github.com/jimmyyhwu/deepsea/blob/master/compute_aucs.py#L46
-        aucs = np.zeros(model_cfg.num_labels, dtype=np.float)
+        aucs = np.zeros(model_cfg.num_labels, dtype=np.float32)
         for i in range(model_cfg.num_labels):
             try:
                 aucs[i] = roc_auc_score(y[:, i], p[:, i])
@@ -174,17 +176,22 @@ if __name__ == '__main__':
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
                       train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,
                       keep_for_metrics_fn=keep_for_metrics_fn, metrics_fn=metrics_fn)
-    # train loop
-    trainer.train()
-    # make sure all workers are done
-    hvd.barrier()
-    # run validation after training
-    if args.save_best:
-        best_model_path = str(Path(args.model_path) / 'model_best.pth')
-        if hvd.rank() == 0:
-            logger.info(f'Loading best saved model from {best_model_path}')
-        trainer.load(best_model_path)
 
+    if not args.validate_only:
+        # train loop
+        trainer.train()
+        # make sure all workers are done
+        hvd.barrier()
+        # run validation after training
+        if args.save_best:
+            best_model_path = str(Path(args.model_path) / 'model_best.pth')
+            if hvd.rank() == 0:
+                logger.info(f'Loading best saved model from {best_model_path}')
+            trainer.load(best_model_path)
+
+    # if we validate after training -- we take the best ckpt for evaluation
+    # if we run only validation -- validation ckpt should be specified with init_checkpoint.
+    #   also, model_path could be set None to not save logs
     if args.valid_data_path:
         if hvd.rank() == 0:
             logger.info('Runnning validation on valid data:')
