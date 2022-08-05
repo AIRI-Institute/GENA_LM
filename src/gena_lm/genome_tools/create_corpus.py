@@ -1,12 +1,15 @@
-# import pandas as pd
 # import numpy as np
+import ast
+import gzip
 import json
 import random
-import click
 from pathlib import Path
 from typing import Generator, List, Literal, Optional, Tuple
 
+import click
+import pandas as pd
 from Bio import Seq, SeqIO
+from Bio.SeqRecord import SeqRecord
 from tqdm import tqdm
 
 # reproducible randomness
@@ -60,8 +63,12 @@ def generate_documents(
             d = Document()
             for _ in range(s):
                 l = random.randint(*lenghts_bounds)  # length of each sentence
+                if q+l > C:
+                    l = C - q
                 d.append(str(chr_sequence[q : q + l]).upper())
                 q += l  # update position for the new sentence
+                if q>=C: # we reached the end of seq, no more sentences available
+                    break
             yield d
 
 
@@ -77,13 +84,13 @@ def handle_chromosome(
     if io_mode == "single_txt":
         filename = outdir / f"{chr.name}_documents.txt"
         with filename.open(mode="w") as out:
-            for document in tqdm(generate_documents(chr.seq), desc=chr.description):
+            for document in generate_documents(chr.seq):
                 out.write(document.to_text())
                 out.write("\n")
     elif io_mode == "jsonl":
         filename = outdir / f"{chr.name}_documents.jsonl"
-        with filename.open(mode="w") as out:
-            for document in tqdm(generate_documents(chr.seq), desc=chr.description):
+        with open(filename, mode="w") as out:
+            for document in generate_documents(chr.seq):
                 out.write(document.to_jsonl())
                 out.write("\n")
     elif io_mode == "multiple_txt":
@@ -94,26 +101,73 @@ def handle_chromosome(
 
 
 def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
-                      io_mode: Literal["single_txt", "jsonl", "multiple_txt"] = "single_txt"):
+                      contigs_split_file: Optional[Path] = None,
+                      io_mode: Literal["single_txt", "jsonl", "multiple_txt"] = "single_txt",
+                      min_len: Optional[int] = 10000,
+                      rc: Optional[bool] = False):
     if not output_dir:
         output_dir = Path(".")
 
-    with open(fna_file) as input_handle:
-        for record in SeqIO.parse(input_handle, "fasta"):
-            if "mitochondrion" not in record.description:
-                handle_chromosome(record, outdir=output_dir, io_mode=io_mode)
+    if contigs_split_file is not None:
+        contigs = pd.read_csv(contigs_split_file, dtype=str)
+        if len(contigs) == 0: # no contig split data available
+            contigs_split_file = None
+        else:
+            contigs = contigs.set_index("name")
+            contigs["intervals"] = contigs["intervals"].apply(ast.literal_eval)
+
+    if fna_file.endswith(".gz"):
+        fasta_open = gzip.open
+    else:
+        fasta_open = open
+    
+    with fasta_open(fna_file,"rt") as input_handle:
+        for record in tqdm(SeqIO.parse(input_handle, "fasta")):
+            if rc:
+                record.name  = "rc_" + record.name # modify record name to have different names of rc-files later
+            if ("mitochondrion" not in record.description) and len(record.seq) >= min_len:
+                if contigs_split_file is not None:
+                    chr_contigs = contigs.loc[record.id,"intervals"]
+                    for contig in chr_contigs:
+                        contig_start = contig[0]
+                        contig_end = contig[1]
+                        if contig_end-contig_start < min_len:
+                            continue
+                        contig_name = "_c"+str(contig_start)+"_"+str(contig_end)
+                        if rc:
+                            seq = record.seq[contig_start:contig_end]
+                        else:
+                            seq = Seq.reverse_complement(record.seq[contig_start:contig_end])
+                        seq_record = SeqRecord(seq = seq,
+                                                id = record.id+contig_name,
+                                                name = record.name+contig_name,
+                                                description = record.description+contig_name)
+                        handle_chromosome(seq_record, outdir=output_dir, io_mode=io_mode)
+                else:
+                    if rc:
+                        record.seq = record.seq.reverse_complement()
+                    handle_chromosome(record, outdir=output_dir, io_mode=io_mode)
 
 # example usage:
 # python create_corpus.py --input_file ./ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna \
-#  --output_dir data/processed/human/ --io_mode jsonl
+#  --output_dir data/processed/human/ --io_mode jsonl --min_len 10000
 
 @click.command()
-@click.option("--input_file", type=click.Path(path_type=Path, dir_okay=True))
+@click.option("--input_file", type=str)
+@click.option("--contigs_split_file", type=str)
 @click.option("--output_dir", type=click.Path(path_type=Path, dir_okay=True))
 @click.option("--io_mode", type=click.Choice(["single_txt", "jsonl", "multiple_txt"]), default="single_txt")
-def cli(input_file, output_dir, io_mode):
+@click.option("--min_len", type=click.INT, default=10000, help="Minimum contig length to be included")
+#@click.option("--rc", is_flag=True, show_default=True, default=False, help="Reverse-complement all sequences")
+
+def cli(input_file, contigs_split_file, output_dir, io_mode, min_len):
     output_dir.mkdir(parents=True)
-    read_single_fasta(input_file, output_dir=output_dir, io_mode=io_mode)
+    read_single_fasta(input_file, contigs_split_file=contigs_split_file, 
+                        output_dir=output_dir, io_mode=io_mode,
+                        min_len=min_len, rc=True)
+    read_single_fasta(input_file, contigs_split_file=contigs_split_file, 
+                        output_dir=output_dir, io_mode=io_mode,
+                        min_len=min_len, rc=False)
 
 
 if __name__ == "__main__":
