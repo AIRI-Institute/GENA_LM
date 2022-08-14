@@ -1,7 +1,7 @@
 import random
 
 import numpy as np
-from SpliceAIDataset import SpliceAIDataset
+from downstream_tasks.SpliceAI.SpliceAIDataset import SpliceAIDataset
 from transformers import AutoTokenizer
 
 
@@ -26,9 +26,9 @@ class TestSpliceAIDataset:
         )
         seq = "".join(seq)
 
-        # Add N to imitate any service token
+        # Add X to imitate any service token
         encoding = tokenizer(
-            "".join(left + ["N"] + mid + ["N"] + right + ["N"]),
+            "".join(left + ["X"] + mid + ["X"] + right + ["X"]),
             add_special_tokens=False,
             padding=False,
             return_offsets_mapping=True,
@@ -46,7 +46,7 @@ class TestSpliceAIDataset:
             2,
         ]  # ~1% probability for class 1 or 2, 98% of class 0
         for ind, val in enumerate(encoding["offset_mapping"][0]):
-            if encoding["input_ids"][0][ind] == 0:  # reach "N" (or ["UNK"]) token
+            if encoding["input_ids"][0][ind] == 0:  # reach "X" (or ["UNK"]) token
                 token_targets.append([-100, -100])  # add SEP token labels
                 mid_token_targets.append([-100, -100])  # add SEP token labels
                 within_target = not within_target
@@ -99,7 +99,8 @@ class TestSpliceAIDataset:
         targets_offset = 5000
         random.seed(42)
 
-        tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base")
+        tokenizer = AutoTokenizer.from_pretrained("data/tokenizers/t2t_1000h_multi_32k/",
+                                                    )
         datafile = "downstream_tasks/SpliceAI/test_Dataset_data.csv"
 
         for max_seq_len in range(12, 1000, 61):
