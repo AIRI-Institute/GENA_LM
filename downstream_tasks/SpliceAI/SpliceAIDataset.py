@@ -161,7 +161,7 @@ class SpliceAIDataset(Dataset):
         L_right = len(context_encoding["token_type_ids"][0]) - L_left - 1
 
         # case I. target's encoding >= max_seq_len; don't add context & trim target if needed
-        if L_mid + n_service_tokens > self.max_seq_len:
+        if L_mid + n_service_tokens >= self.max_seq_len:
             # st = (L_mid // 2) - (self.max_seq_len - n_service_tokens) // 2
             # en = st + (self.max_seq_len - n_service_tokens)
             st = 0
@@ -202,8 +202,7 @@ class SpliceAIDataset(Dataset):
                     labels,
                     [[-100, -100]]
                     * (len(context_encoding["input_ids"][0]) - boundary_pos -1 + 1),
-                    [[-100, -100]] * n_pads,
-                    [[-100, -100]],
+                    [[-100, -100]] * (n_pads + 1)
                 ]
             )
         # case III. target+context encoding > max_seq_len, we need to trim
