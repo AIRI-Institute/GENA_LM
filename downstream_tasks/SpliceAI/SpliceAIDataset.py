@@ -128,7 +128,7 @@ class SpliceAIDataset(Dataset):
             return_tensors="np",
         )
         context_encoding = self.tokenizer(
-            left + "N" + right,
+            left + "X" + right,
             add_special_tokens=False,
             padding=False,
             return_offsets_mapping=True,
