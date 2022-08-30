@@ -268,7 +268,7 @@ class SpliceAIDataset(Dataset):
         labels_mask[labels_ohe.sum(axis=-1) == 0.0] = 0.0
 
         attention_mask = np.array(input_ids!=self.tokenizer.pad_token_id, 
-                                  dtype=np.int8
+                                  dtype=np.int64
                                 )
         return {
             "input_ids": input_ids,
