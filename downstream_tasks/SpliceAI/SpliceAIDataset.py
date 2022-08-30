@@ -141,7 +141,6 @@ class SpliceAIDataset(Dataset):
 
         labels = self.get_token_classes(mid_encoding, target, 0)
         token_type_ids = np.zeros(shape=self.max_seq_len, dtype=np.int64)
-        attention_mask = np.ones(shape=self.max_seq_len, dtype=np.int64)
 
         boundary_pos = int(
             np.where(
@@ -267,6 +266,9 @@ class SpliceAIDataset(Dataset):
         labels_mask = np.ones(len(labels))
         labels_mask[labels_ohe.sum(axis=-1) == 0.0] = 0.0
 
+        attention_mask = np.array(input_ids!=self.tokenizer.pad_token_id, 
+                                  dtype=np.int64
+                                )
         return {
             "input_ids": input_ids,
             "token_type_ids": token_type_ids,
