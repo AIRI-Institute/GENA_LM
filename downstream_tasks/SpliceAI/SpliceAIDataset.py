@@ -18,8 +18,7 @@ class SpliceAIDataset(Dataset):
         self.targets_offset = targets_offset
         self.targets_len = targets_len
 
-        self.data['targets'] = self.data[self.data.columns[1:]].values.tolist()
-        self.data['targets'] = self.data['targets'].apply(np.array)
+        self.data['targets'] = list(self.data.iloc[:, 1:].values)
         self.data = self.data[[0, 'targets']]
         self.data.columns = ['seq', 'targets']
 

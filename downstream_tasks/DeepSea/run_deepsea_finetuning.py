@@ -7,14 +7,14 @@ import torch
 from torch.utils.data import DataLoader, DistributedSampler
 import transformers
 from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import roc_auc_score
 import numpy as np
 
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
 from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration
 import lm_experiments_tools.optimizers as optimizers
 
-from downstream_tasks.SpliceAI.SpliceAIDataset import SpliceAIDataset
+from downstream_tasks.DeepSea.DeepSeaDataset import DeepSeaDataset
 
 import horovod.torch as hvd
 
@@ -39,12 +39,12 @@ parser.add_argument('--data_path', type=str, help='path to the training data')
 parser.add_argument('--valid_data_path', type=str, help='path to the valid data')
 parser.add_argument('--test_data_path', type=str, help='path to the test data (dataset_test_0.csv)')
 parser.add_argument('--seed', type=int, default=42, help='random seed')
+parser.add_argument('--validate_only', action='store_true', default=False,
+                    help='Skip training and run only validation. (default: False)')
 
 # data args
 parser.add_argument('--input_seq_len', type=int, default=64, help='input sequnce length (default: 64).')
 parser.add_argument('--data_n_workers', type=int, default=2, help='number of dataloader workers (default: 2)')
-parser.add_argument('--targets_ofsset', type=int, default=5000, help='default: 5000')
-parser.add_argument('--targets_len', type=int, default=5000, help='default: 5000')
 
 # model args
 parser.add_argument('--model_cfg', type=str, help='path to model configuration file (default: None)')
@@ -84,8 +84,7 @@ if __name__ == '__main__':
     if hvd.rank() == 0:
         logger.info(f'preparing training data from: {args.data_path}')
     data_path = Path(args.data_path).expanduser().absolute()
-    train_dataset = SpliceAIDataset(data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                    targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+    train_dataset = DeepSeaDataset(data_path, tokenizer, max_seq_len=args.input_seq_len)
     if hvd.rank() == 0:
         logger.info(f'len(train_dataset): {len(train_dataset)}')
     # shuffle train data each epoch (one loop over train_dataset)
@@ -97,8 +96,7 @@ if __name__ == '__main__':
         if hvd.rank() == 0:
             logger.info(f'preparing validation data from: {args.valid_data_path}')
         valid_data_path = Path(args.valid_data_path).expanduser().absolute()
-        valid_dataset = SpliceAIDataset(valid_data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                        targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+        valid_dataset = DeepSeaDataset(valid_data_path, tokenizer, max_seq_len=args.input_seq_len)
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, sampler=valid_sampler, **kwargs)
         if args.valid_interval is None:
@@ -112,8 +110,7 @@ if __name__ == '__main__':
 
     # define model
     model_cfg = AutoConfig.from_pretrained(args.model_cfg)
-    # labels: 0, 1, 2; multi-class multi-label classification
-    model_cfg.num_labels = 3
+    model_cfg.num_labels = 919
     model_cfg.problem_type = 'multi_label_classification'
     model_cls = get_cls_by_name(args.model_cls)
     if hvd.rank() == 0:
@@ -139,19 +136,17 @@ if __name__ == '__main__':
     else:
         optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    # label counts in test set: [8378616.,    9842.,   10258.])
-    # upweight class 1 and 2
-    pos_weight = torch.tensor([1.0, 100.0, 100.0])
+    # upweight positive examples like in BigBird paper (see App. F3)
+    pos_weight = torch.tensor([8.0] * model_cfg.num_labels)
 
     def batch_transform_fn(batch):
-        bs, seq_len = batch['input_ids'].shape
+        bs, _ = batch['input_ids'].shape
         return {
             'input_ids': batch['input_ids'],
             'token_type_ids': batch['token_type_ids'],
             'attention_mask': batch['attention_mask'],
-            'labels': batch['labels_ohe'],
-            'labels_mask': batch['labels_mask'],
-            'pos_weight': pos_weight.repeat(bs, seq_len, 1),
+            'labels': batch['labels'],
+            'pos_weight': pos_weight.repeat(bs, 1),
         }
 
     def keep_for_metrics_fn(batch, output):
@@ -159,39 +154,44 @@ if __name__ == '__main__':
         data = {}
         data['labels'] = batch['labels']
         data['predictions'] = output['logits'].detach()
-        data['labels_mask'] = batch['labels_mask']
         return data
 
     def metrics_fn(data):
         # compute metrics based on stored labels, predictions, ...
         metrics = {}
         y, p = data['labels'], torch.sigmoid(data['predictions'])
-        y = y[data['labels_mask'] == 1.0]
-        p = p[data['labels_mask'] == 1.0]
-        # compute pr-auc for each class independetly
-        for label in [0, 1, 2]:
-            y_label = y[:, label]
-            p_label = p[:, label]
-            pr_auc = average_precision_score(y_label, p_label, pos_label=1)
-            # to be compatible with sklearn 1.1+
-            metrics[f'pr_auc_{label}'] = pr_auc if not np.isnan(pr_auc) else 0.0
-        metrics['pr_auc_mean'] = (metrics['pr_auc_1'] + metrics['pr_auc_2']) / 2
+        # compute auc for each class independetly, https://github.com/jimmyyhwu/deepsea/blob/master/compute_aucs.py#L46
+        aucs = np.zeros(model_cfg.num_labels, dtype=np.float32)
+        for i in range(model_cfg.num_labels):
+            try:
+                aucs[i] = roc_auc_score(y[:, i], p[:, i])
+            except ValueError:
+                aucs[i] = 0.5
+        metrics['TF_median_auc'] = np.median(aucs[125:125 + 690])
+        metrics['DHS_median_auc'] = np.median(aucs[:125])
+        metrics['HM_median_auc'] = np.median(aucs[125 + 690:125 + 690 + 104])
+        metrics['mean_auc'] = (metrics['TF_median_auc'] + metrics['DHS_median_auc'] + metrics['HM_median_auc']) / 3.0
         return metrics
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
                       train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,
                       keep_for_metrics_fn=keep_for_metrics_fn, metrics_fn=metrics_fn)
-    # train loop
-    trainer.train()
-    # make sure all workers are done
-    hvd.barrier()
-    # run validation after training
-    if args.save_best:
-        best_model_path = str(Path(args.model_path) / 'model_best.pth')
-        if hvd.rank() == 0:
-            logger.info(f'Loading best saved model from {best_model_path}')
-        trainer.load(best_model_path)
 
+    if not args.validate_only:
+        # train loop
+        trainer.train()
+        # make sure all workers are done
+        hvd.barrier()
+        # run validation after training
+        if args.save_best:
+            best_model_path = str(Path(args.model_path) / 'model_best.pth')
+            if hvd.rank() == 0:
+                logger.info(f'Loading best saved model from {best_model_path}')
+            trainer.load(best_model_path)
+
+    # if we validate after training -- we take the best ckpt for evaluation
+    # if we run only validation -- validation ckpt should be specified with init_checkpoint.
+    #   also, model_path could be set None to not save logs
     if args.valid_data_path:
         if hvd.rank() == 0:
             logger.info('Runnning validation on valid data:')
@@ -202,8 +202,7 @@ if __name__ == '__main__':
         if hvd.rank() == 0:
             logger.info(f'preparing test data from: {args.test_data_path}')
         test_data_path = Path(args.test_data_path).expanduser().absolute()
-        test_dataset = SpliceAIDataset(test_data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                       targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+        test_dataset = DeepSeaDataset(test_data_path, tokenizer, max_seq_len=args.input_seq_len)
         test_sampler = DistributedSampler(test_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         test_dataloader = DataLoader(test_dataset, batch_size=per_worker_batch_size, sampler=test_sampler, **kwargs)
         if hvd.rank() == 0:

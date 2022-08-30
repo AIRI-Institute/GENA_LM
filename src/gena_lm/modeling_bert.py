@@ -1777,6 +1777,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         head_mask=None,
         inputs_embeds=None,
         labels=None,
+        pos_weight=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -1826,7 +1827,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
-                loss_fct = BCEWithLogitsLoss()
+                loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
                 loss = loss_fct(logits, labels)
         if not return_dict:
             output = (logits,) + outputs[2:]
@@ -1980,7 +1981,7 @@ class BertForTokenClassification(BertPreTrainedModel):
         inputs_embeds=None,
         labels=None,
         labels_mask=None,
-        label_weights=None,
+        pos_weight=None,
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
@@ -2015,10 +2016,10 @@ class BertForTokenClassification(BertPreTrainedModel):
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == 'multi_label_classification':
                 if labels_mask is None:
-                    loss_fct = BCEWithLogitsLoss(pos_weight=label_weights)
+                    loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
                     loss = loss_fct(logits, labels)
                 else:
-                    loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=label_weights)
+                    loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=pos_weight)
                     loss = loss_fct(logits, labels)
                     loss = loss * labels_mask.unsqueeze(-1)
                     loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else 0.0
