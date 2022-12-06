@@ -13,6 +13,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score, matthews_co
 
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
 from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration
+from lm_experiments_tools.utils import get_git_diff
 import lm_experiments_tools.optimizers as optimizers
 
 import horovod.torch as hvd
@@ -55,6 +56,7 @@ parser.add_argument('--model_cls', type=str, default='transformers:BertForPreTra
 
 # tokenizer
 parser.add_argument('--tokenizer', type=str, default=None, help='path or name of pre-trained HF Tokenizer')
+parser.add_argument('--bpe_dropout', type=float, default=None, help='bpe dropout value, used during training only')
 
 # optimizer args
 parser.add_argument('--optimizer', type=str, default='AdamW', help='optimizer name: AdamW, Adafactor. (default: AdamW)')
@@ -127,8 +129,17 @@ if __name__ == '__main__':
         args_dict = collect_run_configuration(args)
         # todo: if model path exists and there is config file, write new config file aside
         json.dump(args_dict, open(model_path/'config.json', 'w'), indent=4)
+        open(model_path / 'git.diff', 'w').write(get_git_diff())
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+    if args.bpe_dropout is not None and args.bpe_dropout > 0.0:
+        train_tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
+        if hasattr(train_tokenizer._tokenizer.model, 'dropout'):
+            train_tokenizer._tokenizer.model.dropout = args.bpe_dropout
+        elif hvd.rank() == 0:
+            logger.warning('BPE dropout is not set as tokenizer does not support it.')
+    else:
+        train_tokenizer = tokenizer
 
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
     global_batch_size = per_worker_batch_size * hvd.size()
@@ -169,7 +180,8 @@ if __name__ == '__main__':
     if hvd.rank() == 0:
         logger.info(f'preparing training data from: {args.data_path}')
     data_path = Path(args.data_path).expanduser().absolute()
-    train_dataset = EPDnewPromoterDataset(data_path, tokenizer, x_field='sequence', label_field='promoter_presence',
+    train_dataset = EPDnewPromoterDataset(data_path, train_tokenizer, x_field='sequence',
+                                          label_field='promoter_presence',
                                           max_seq_len=args.input_seq_len, pad_to_max=args.pad_to_max_seq_len)
 
     # shuffle train data each epoch (one loop over train_dataset)
@@ -247,6 +259,7 @@ if __name__ == '__main__':
         metrics['accuracy'] = (p == y).sum() / len(y)
         # f1, precision, recall, mcc
         metrics['f1'] = f1_score(y, p)
+        metrics['f1_macro'] = f1_score(y, p, average='macro')
         metrics['precision'] = precision_score(y, p)
         metrics['recall'] = recall_score(y, p)
         metrics['mcc'] = matthews_corrcoef(y, p)
