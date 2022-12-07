@@ -16,7 +16,6 @@
   "num_hidden_layers": 12,
   "pad_token_id": 3,
   "pre_layer_norm": true,
-  "last_layer_norm": false,
   "position_embedding_type": "absolute",
   "transformers_version": "4.6.0.dev0",
   "type_vocab_size": 2,
