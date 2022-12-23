@@ -48,6 +48,8 @@ parser.add_argument('--input_seq_len', type=int, default=128, help='input sequnc
 parser.add_argument('--data_n_workers', type=int, default=2, help='number of dataloader workers (default: 2)')
 parser.add_argument('--pad_to_max_seq_len', action='store_true', default=False,
                     help='pad all examples to input_seq_len (default: False)')
+parser.add_argument('--truncate', type=str, default='right',
+                    help='truncate input sequence to input_seq_len from right|mid|left (default: right)')
 
 # model args
 parser.add_argument('--model_cfg', type=str, help='path to model configuration file (default: None)')
@@ -68,9 +70,13 @@ parser.add_argument('--relative_step', action='store_true', default=False,
 parser.add_argument('--warmup_init', action='store_true', default=False,
                     help='Adafactor warmup_init (default: False)')
 
+parser.add_argument('--body_lr_multiplier', type=float, default=1.0,
+                    help='multiplier to lr to set learning rate for pre-trained body (default: 1.0)')
+
 
 class EPDnewPromoterDataset(Dataset):
-    def __init__(self, datafiles, tokenizer, x_field='x', label_field='label', max_seq_len=512, pad_to_max=True):
+    def __init__(self, datafiles, tokenizer, x_field='x', label_field='label', max_seq_len=512, pad_to_max=True,
+                 truncate='right'):
         if isinstance(datafiles, str):
             # convert str path to folder to Path
             datafiles = Path(datafiles)
@@ -86,10 +92,21 @@ class EPDnewPromoterDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_seq_len = max_seq_len
         self.pad_to_max = pad_to_max
+        self.truncate = truncate
 
     @staticmethod
-    def get_features(x, tokenizer, max_seq_len=512, pad_to_max=True):
-        tokens = [tokenizer.cls_token] + tokenizer.tokenize(x)[:max_seq_len-2] + [tokenizer.sep_token]
+    def get_features(x, tokenizer, max_seq_len=512, pad_to_max=True, truncate='right'):
+        tokens = tokenizer.tokenize(x)
+        if truncate == 'right':
+            tokens = tokens[:max_seq_len-2]
+        elif truncate == 'left':
+            tokens = tokens[-(max_seq_len-2):]
+        elif truncate == 'mid':
+            mid = len(tokens) // 2
+            left_ctx = (max_seq_len-2) // 2
+            right_ctx = (max_seq_len-2) - left_ctx
+            tokens = tokens[max(0, mid - left_ctx): min(mid + right_ctx, len(tokens))]
+        tokens = [tokenizer.cls_token] + tokens + [tokenizer.sep_token]
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
         seq_len = len(tokens)
         token_type_ids = [0] * seq_len
@@ -107,7 +124,8 @@ class EPDnewPromoterDataset(Dataset):
 
     def __getitem__(self, idx):
         x = self.data[self.x_field][idx]
-        features = EPDnewPromoterDataset.get_features(x, self.tokenizer, self.max_seq_len, self.pad_to_max)
+        features = EPDnewPromoterDataset.get_features(x, self.tokenizer, self.max_seq_len, self.pad_to_max,
+                                                      self.truncate)
         label = {'labels': self.data[self.label_field][idx]}
         return {**features, **label}
 
@@ -181,8 +199,8 @@ if __name__ == '__main__':
         logger.info(f'preparing training data from: {args.data_path}')
     data_path = Path(args.data_path).expanduser().absolute()
     train_dataset = EPDnewPromoterDataset(data_path, train_tokenizer, x_field='sequence',
-                                          label_field='promoter_presence',
-                                          max_seq_len=args.input_seq_len, pad_to_max=args.pad_to_max_seq_len)
+                                          label_field='promoter_presence', max_seq_len=args.input_seq_len,
+                                          pad_to_max=args.pad_to_max_seq_len, truncate=args.truncate)
 
     # shuffle train data each epoch (one loop over train_dataset)
     train_sampler = DistributedSampler(train_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=True,
@@ -196,7 +214,7 @@ if __name__ == '__main__':
         valid_data_path = Path(args.valid_data_path).expanduser().absolute()
         valid_dataset = EPDnewPromoterDataset(valid_data_path, tokenizer, x_field='sequence',
                                               label_field='promoter_presence', max_seq_len=args.input_seq_len,
-                                              pad_to_max=args.pad_to_max_seq_len)
+                                              pad_to_max=args.pad_to_max_seq_len, truncate=args.truncate)
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, sampler=valid_sampler, **kwargs)
         if args.valid_interval is None:
@@ -212,7 +230,7 @@ if __name__ == '__main__':
         test_data_path = Path(args.test_data_path).expanduser().absolute()
         test_dataset = EPDnewPromoterDataset(test_data_path, tokenizer, x_field='sequence',
                                              label_field='promoter_presence', max_seq_len=args.input_seq_len,
-                                             pad_to_max=args.pad_to_max_seq_len)
+                                             pad_to_max=args.pad_to_max_seq_len, truncate=args.truncate)
         test_sampler = DistributedSampler(test_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         test_dataloader = DataLoader(test_dataset, batch_size=per_worker_batch_size, sampler=test_sampler, **kwargs)
 
@@ -241,8 +259,16 @@ if __name__ == '__main__':
                                   relative_step=args.relative_step,
                                   warmup_init=args.warmup_init,
                                   weight_decay=args.weight_decay)
+        if args.body_lr_multiplier != 1.0:
+            raise RuntimeError('Adafactor optimizer and body_lr_multiplier != 1.0 is not supported')
     else:
-        optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        if args.body_lr_multiplier == 1.0:
+            optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        else:
+            optimizer = optimizer_cls(
+                    [{'params': model.bert.parameters(), 'lr': args.lr * args.body_lr_multiplier},
+                     {'params': model.classifier.parameters()}],
+                    lr=args.lr, weight_decay=args.weight_decay)
 
     def keep_for_metrics_fn(batch, output):
         # select data from batch and model output that would be used to compute metrics
