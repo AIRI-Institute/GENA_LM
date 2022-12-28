@@ -6,34 +6,38 @@ cd ../..
 CUBLAS_WORKSPACE_CONFIG=:4096:2
 CUDA_LAUNCH_BLOCKING=1
 
-BASE_MODEL=bert_base_512_bs256_lr_1e-04_fp16
-# BASE_MODEL=bert_base_512_lastln_t2t_1000G_bs256_lr_1e-04_linear_fp16
-# BASE_MODEL=bert_base_512_t2t_1000G_multi_from_1M_bs256_lr_1e-04_fp16
+#BASE_MODEL=bert_base_512_bs256_lr_1e-04_fp16
 # BASE_MODEL=bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16
+# BASE_MODEL=bert_base_512_t2t_1000G_multi_from_1M_bs256_lr_1e-04_fp16
 # BASE_CKPTS=(model_500000 model_1000000 model_2000000)
-BASE_CKPTS=(model_500000 model_1000000)
-# BASE_CKPTS=(model_1000000 model_2000000)
+# BASE_MODEL=bert_base_sparse_rope_4096_bs256_lr_5e-05_wd0.01_fp16_from_425k
+BASE_MODEL=bert_base_sparse_4096_t2t_1000G_bs256_FusedAdam_lr_3e-06_fp16_2x8_8
+# BASE_CKPTS=(model_800000_reset_pooler)
+# BASE_CKPTS=(model_450000)
 # BASE_CKPTS=(model_1500000 model_1900000)
 TOKENIZER=./data/tokenizers/human/BPE_32k/
 # TOKENIZER=./data/tokenizers/t2t_1000h_multi_32k/
-CONFIG=./data/configs/L12-H768-A12-V32k-preln.json
-# CONFIG=./data/configs/L12-H768-A12-V32k-preln-lastln.json
+CONFIG=./data/configs/L12-H768-A12-V32k-L4096-preln-sparse-rope.json
 
 OPT=AdamW
 SCHEDULER=constant_with_warmup
 TASK=epdnew_promoter
 
-LEN=2000_fxd
+LEN=16000_fxd
 
 ITERS=10000
 TBS=256
-BS=64
+BS=16
+
 PATIENCE=7
 WD=0.0
 LR=1e-04
-CLIP_NORM=10000  # 10000 is like no clipping
+CLIP_NORM=1.0
 BPE_DROPOUT=0.0
-BODY_LR_MULT=0.1
+SEQ_LEN=4096
+TRUNC=right
+BODY_LR_MULT=1.0
+
 
 HOME_PATH=/home/jovyan
 DATA_PATH=${HOME_PATH}/data
@@ -54,7 +58,8 @@ horovodrun --gloo -np $NP python -m downstream_tasks.promoter_prediction.run_pro
         --init_checkpoint ${PRETRAINED_PATH}/${BASE_MODEL}/${BASE_CKPT}.pth \
         --tokenizer $TOKENIZER --model_cfg $CONFIG \
         --model_cls src.gena_lm.modeling_bert:BertForSequenceClassification \
-        --input_seq_len 512 --data_n_workers 2 \
+        --input_seq_len $SEQ_LEN --data_n_workers 4 \
+        --truncate $TRUNC \
         --iters $ITERS \
         --batch_size $BS --gradient_accumulation_steps $(($TBS/($BS*$NP))) \
         --lr $LR --lr_scheduler $SCHEDULER --num_warmup_steps 250 \
