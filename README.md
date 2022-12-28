@@ -58,7 +58,8 @@ EPDNew https://epd.epfl.ch/get_promoters.php database is used to select human pr
 Three different sequence lengths are used:
 1) Length 300. From -249 to 50. Results in a file hg38_len_300.fa.txt
 2) Length 2000. From -1000 to 999. Results in a file hg38_len_2000.fa.txt
-3) Length 16000. From -8000 to 7999. Results in a file hg38_len_16000.fa.txt
+3) Length 8000 (like in BigBird paper). From -5000 to  2999. Results in a file hg38_len_8000.fa.txt
+4) Length 16000. From -8000 to 7999. Results in a file hg38_len_16000.fa.txt
 
 ##### Step 2. Create a dataset
 Run the script dataset_generator.py with fasta files obtained in previous step.
@@ -77,7 +78,7 @@ Run the dataset_fold_split.py script with csv files obtained from dataset genera
 >> python dataset_fold_split.py
 hg38_promoters_len_300_dataset.csv
 ```
-Results in five csv files named from fold_1.csv to fold_5.csv that need to be saved into a specified directory.
+Results in five csv files named from fold_1.csv to fold_5.csv and corresponding train/valid/test splits.
 
 ### Fine-tuning GENA-LM on our data and scoring
 After fine-tuning gena-lm-bert-base on promoter prediction dataset, following results were achieved: 

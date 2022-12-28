@@ -1,8 +1,8 @@
-import os
-import Bio
 from Bio import SeqIO
 import numpy as np
 import pandas as pd
+
+np.random.seed(42)
 
 print('Please, input fasta filename: ')
 path = input()
@@ -20,17 +20,17 @@ if len(sequences[0]) > 16000:
 else:
     positive_seqs = [str(sequence) for sequence in sequences]
 
+
 def sample_negative(sequence):
-    np.random.seed(42)
-    assert len(sequence)%20==0, 'Sequence length should be divisible by 20. E.g. 300 = epdnew from -249 to 50'
     n = len(sequence)
+    assert n % 20 == 0, f'Sequence length {n} should be divisible by 20. E.g. 300 = epdnew from -249 to 50'
     step = n//20
     subs = [ sequence[i:i+step] for i in range(0, n, step) ]
     selected_inds = list(np.random.choice(20, 12, replace=False))
     selected = [subs[i] for i in selected_inds]
     not_selected_inds = list(set(range(20)).difference(selected_inds))
     not_selected = [subs[i] for i in not_selected_inds]
-    
+
     new_s = ''
     np.random.shuffle(selected)
     for i in range(20):
@@ -39,6 +39,7 @@ def sample_negative(sequence):
         else:
             new_s += not_selected.pop(0)
     return new_s
+
 
 negative_seqs = []
 for s in positive_seqs:
@@ -52,4 +53,4 @@ len(all_seqs)
 
 df = pd.DataFrame.from_dict({'sequence' : all_seqs, 'promoter_presence' : [1]*l + [0]*l})
 df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-df.to_csv(f'hg38_{length}_promoters_dataset.csv', index=False)
+df.to_csv(f'hg38_promoters_{length}_dataset.csv', index=False)
