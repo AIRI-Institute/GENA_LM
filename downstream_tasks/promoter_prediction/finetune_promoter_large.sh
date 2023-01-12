@@ -4,12 +4,12 @@ set -e
 cd ../..
 
 # BASE_MODEL=bert_base_512_bs256_lr_1e-04_fp16
-BASE_MODEL=bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16
+BASE_MODEL=bert_large_512_lastln_t2t_1000G_bs256_lr_1e-04_fp16
 # BASE_MODEL=bert_base_512_t2t_1000G_multi_from_1M_bs256_lr_1e-04_fp16
-BASE_CKPTS=(model_500000 model_1000000 model_2000000)
+BASE_CKPTS=(model_500000 model_1000000 model_1500000)
 #TOKENIZER=./data/tokenizers/human/BPE_32k/
 TOKENIZER=./data/tokenizers/t2t_1000h_multi_32k/
-CONFIG=./data/configs/L12-H768-A12-V32k-preln.json
+CONFIG=./data/configs/L24-H1024-A16-V32k-preln-lastln.json
 
 OPT=AdamW
 SCHEDULER=constant_with_warmup
@@ -34,6 +34,8 @@ PRETRAINED_PATH=${HOME_PATH}/t5-experiments/runs
 for N in 1 2 3 4 5
 do
 for (( i=0; i<${#BASE_CKPTS[@]}; i++ ))
+do
+for LR in 1e-04 5e-05
 do
 for BODY_LR_MULT in 1.0 0.1
 do
@@ -60,6 +62,7 @@ horovodrun --gloo -np $NP python -m downstream_tasks.promoter_prediction.run_pro
         --log_interval 100 --valid_interval 100 --early_stopping_patience $PATIENCE \
         --clip_grad_norm $CLIP_NORM \
         --seed $(($N+42))
+done
 done
 done
 done
