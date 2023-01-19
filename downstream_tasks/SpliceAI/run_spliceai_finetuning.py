@@ -11,7 +11,7 @@ from sklearn.metrics import average_precision_score
 import numpy as np
 
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
-from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration
+from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration, get_git_diff
 import lm_experiments_tools.optimizers as optimizers
 
 from downstream_tasks.SpliceAI.SpliceAIDataset import SpliceAIDataset
@@ -43,7 +43,7 @@ parser.add_argument('--seed', type=int, default=42, help='random seed')
 # data args
 parser.add_argument('--input_seq_len', type=int, default=64, help='input sequnce length (default: 64).')
 parser.add_argument('--data_n_workers', type=int, default=2, help='number of dataloader workers (default: 2)')
-parser.add_argument('--targets_ofsset', type=int, default=5000, help='default: 5000')
+parser.add_argument('--targets_offset', type=int, default=5000, help='default: 5000')
 parser.add_argument('--targets_len', type=int, default=5000, help='default: 5000')
 
 # model args
@@ -73,6 +73,7 @@ if __name__ == '__main__':
             Path(model_path).mkdir(parents=True)
         args_dict = collect_run_configuration(args)
         json.dump(args_dict, open(model_path/'config.json', 'w'), indent=4)
+        open(model_path / 'git.diff', 'w').write(get_git_diff())
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
@@ -85,7 +86,7 @@ if __name__ == '__main__':
         logger.info(f'preparing training data from: {args.data_path}')
     data_path = Path(args.data_path).expanduser().absolute()
     train_dataset = SpliceAIDataset(data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                    targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+                                    targets_offset=args.targets_offset, targets_len=args.targets_len)
     if hvd.rank() == 0:
         logger.info(f'len(train_dataset): {len(train_dataset)}')
     # shuffle train data each epoch (one loop over train_dataset)
@@ -98,7 +99,7 @@ if __name__ == '__main__':
             logger.info(f'preparing validation data from: {args.valid_data_path}')
         valid_data_path = Path(args.valid_data_path).expanduser().absolute()
         valid_dataset = SpliceAIDataset(valid_data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                        targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+                                        targets_offset=args.targets_offset, targets_len=args.targets_len)
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, sampler=valid_sampler, **kwargs)
         if args.valid_interval is None:
@@ -203,7 +204,7 @@ if __name__ == '__main__':
             logger.info(f'preparing test data from: {args.test_data_path}')
         test_data_path = Path(args.test_data_path).expanduser().absolute()
         test_dataset = SpliceAIDataset(test_data_path, tokenizer, max_seq_len=args.input_seq_len,
-                                       targets_offset=args.targets_ofsset, targets_len=args.targets_len)
+                                       targets_offset=args.targets_offset, targets_len=args.targets_len)
         test_sampler = DistributedSampler(test_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         test_dataloader = DataLoader(test_dataset, batch_size=per_worker_batch_size, sampler=test_sampler, **kwargs)
         if hvd.rank() == 0:

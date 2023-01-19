@@ -8,13 +8,12 @@ CUDA_LAUNCH_BLOCKING=1
 
 TASK=spliceai
 
-# BASE_MODEL=bert_base_512_lastln_t2t_1000G_bs256_lr_1e-04_linear_fp16
-BASE_MODEL=bert_base_512_t2t_1000G_multi_from_1M_bs256_lr_1e-04_fp16
+BASE_MODEL=bert_large_512_lastln_t2t_1000G_bs256_lr_1e-04_fp16
 # BASE_CKPTS=(model_500000 model_1000000 model_2000000)
-BASE_CKPTS=(model_1500000 model_1900000)
+BASE_CKPTS=(model_500000 model_1000000 model_1500000 model_1750000)
 TOKENIZER=./data/tokenizers/t2t_1000h_multi_32k/
 # CONFIG=./data/configs/L12-H768-A12-V32k-preln-lastln.json
-CONFIG=./data/configs/L12-H768-A12-V32k-preln.json
+CONFIG=./data/configs/L24-H1024-A16-V32k-preln-lastln.json
 
 # SCHEDULER=constant_with_warmup
 SCHEDULER=cosine

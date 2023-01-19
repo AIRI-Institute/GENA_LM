@@ -270,9 +270,9 @@ class SpliceAIDataset(Dataset):
                                   dtype=np.int64
                                 )
         return {
-            "input_ids": input_ids,
-            "token_type_ids": token_type_ids,
-            "attention_mask": attention_mask,
+            "input_ids": input_ids.astype(np.int64),
+            "token_type_ids": token_type_ids.astype(np.int64),
+            "attention_mask": attention_mask.astype(np.int64),
             "labels": labels,
             "labels_ohe": labels_ohe,
             "labels_mask": labels_mask,

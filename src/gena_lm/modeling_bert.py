@@ -518,8 +518,18 @@ class BertSelfAttention(nn.Module):
             if self.position_embedding_type == 'relative_attention_bias':
                 position_bias = self.get_relative_attention_bias(position_bias, bs, seq_len, seq_len)
 
+            query_dtype = query_layer.dtype
+            if query_dtype != torch.half:
+                # deepspeed sparse_self_attention supports only fp16 inputs
+                # manually cast to half in case if running in fp32 or O1 modes
+                query_layer, key_layer, value_layer = query_layer.half(), key_layer.half(), value_layer.half()
+                # attention_mask = attention_mask.half()
+                if position_bias is not None:
+                    position_bias = position_bias.half()
             context_layer = self.sparse_self_attention(query_layer, key_layer, value_layer, rpe=position_bias,
                                                        key_padding_mask=attention_mask)
+            if query_dtype == torch.float:
+                context_layer = context_layer.float()
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
