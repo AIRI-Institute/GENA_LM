@@ -173,7 +173,10 @@ if __name__ == '__main__':
         for label in [0, 1, 2]:
             y_label = y[:, label]
             p_label = p[:, label]
-            pr_auc = average_precision_score(y_label, p_label, pos_label=1)
+            if not np.isnan(p_label).any():
+                pr_auc = average_precision_score(y_label, p_label, pos_label=1)
+            else:
+                pr_auc = np.nan
             # to be compatible with sklearn 1.1+
             metrics[f'pr_auc_{label}'] = pr_auc if not np.isnan(pr_auc) else 0.0
         metrics['pr_auc_mean'] = (metrics['pr_auc_1'] + metrics['pr_auc_2']) / 2
