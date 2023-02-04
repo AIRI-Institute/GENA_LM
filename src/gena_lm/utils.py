@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 
@@ -117,11 +119,14 @@ def symmetric_pad_and_truncate_context(
     }
 
     for encoding in [mid_encoding, left_encoding, right_encoding]:
-        if encoding is None:
-            encoding = empty_array
-        else:
+        if encoding is not None:
             assert np.all(encoding["attention_mask"][0] == 1)
             assert np.all(encoding["token_type_ids"][0] == 0)
+
+    if left_encoding is None:
+        left_encoding = copy.deepcopy(empty_array)
+    if right_encoding is None:
+        right_encoding = copy.deepcopy(empty_array)
 
     L_mid = len(mid_encoding["input_ids"][0])
     L_left = len(left_encoding["input_ids"][0])
@@ -129,10 +134,10 @@ def symmetric_pad_and_truncate_context(
 
     # case I. mid encoding >= max_seq_len; don't add context & trim target if needed
     if L_mid + n_service_tokens >= max_seq_len:
-        trim_length = L_mid - n_service_tokens - max_seq_len
+        trim_length = L_mid + n_service_tokens - max_seq_len
         assert trim_length >= 0
         if trim_length == 0:
-            return safe_return(empty_array, mid_encoding, empty_array, padding)
+            return safe_return(empty_array, mid_encoding, empty_array, empty_array)
         trim_left = trim_length // 2
         trim_right = trim_length - trim_left
         truncated = {}
@@ -140,17 +145,19 @@ def symmetric_pad_and_truncate_context(
         for key in mid_encoding.keys():
             truncated[key] = mid_encoding[key][0][trim_left : L_mid - trim_right].reshape(1, -1)
 
+        return safe_return(empty_array, truncated, empty_array, empty_array)
+
     # case II. target+context encoding < max_seq_len, we need to pad
     elif L_mid + L_left + L_right + n_service_tokens <= max_seq_len:
         n_pads = max_seq_len - (L_mid + L_left + L_right + n_service_tokens)
         if n_pads == 0:
-            padding = empty_array
+            padding = copy.deepcopy(empty_array)
             return safe_return(left_encoding, mid_encoding, right_encoding, padding)
         assert n_pads > 0
 
         padding = {
             "input_ids": np.array([PAD_id] * n_pads, dtype=np.int32).reshape(1, -1),
-            "token_type_ids": np.array([right_encoding["token_type_ids"][0][0]] * n_pads).reshape(1, -1),
+            "token_type_ids": np.array([mid_encoding["token_type_ids"][0][0]] * n_pads).reshape(1, -1),
             "attention_mask": np.array([0] * n_pads, dtype=np.int32).reshape(1, -1),
         }
 
@@ -208,6 +215,7 @@ def symmetric_pad_and_truncate_context(
             left_encoding[key] = left_encoding[key][0][trim_left:].reshape(1, -1)
             right_encoding[key] = right_encoding[key][0][:trim_right].reshape(1, -1)
 
+        padding = copy.deepcopy(empty_array)
         return safe_return(left_encoding, mid_encoding, right_encoding, padding)
     else:
         raise ValueError("Unexpected encoding length")
