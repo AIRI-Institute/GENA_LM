@@ -2,13 +2,14 @@ import argparse
 import gzip
 import os
 import subprocess
+
 import pysam
 from tqdm import tqdm
 
+
 def get_region(fasta, chrom, mid, size):
     start = mid - size // 2
-    if start < 0:
-        return None
+    start = max(start, 0)
     end = start + size
     seq = fasta.fetch(chrom, start, end).upper()
     if len(seq) < size:
@@ -49,7 +50,7 @@ for fname in ["test", "valid", "train"]:
             + os.path.join(path, fname + ".csv.gz")
             + " | "
             + 'awk -F "," \'BEGIN{i=0}{print ">" i "\\n" $1; i++}\''
-            + " | bwa fastmap "
+            + " | bwa fastmap -l 1000 "
             + args.fasta
             + " - 2> /dev/null 1>"
             + fastmap_file_path
