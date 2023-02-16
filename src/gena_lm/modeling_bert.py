@@ -2052,7 +2052,7 @@ class BertForTokenClassification(BertPreTrainedModel):
                     loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=pos_weight)
                     loss = loss_fct(logits, labels)
                     loss = loss * labels_mask.unsqueeze(-1)
-                    loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else 0.0
+                    loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else torch.tensor(0.0, device=logits.device)
 
         if not return_dict:
             output = (logits,) + outputs[2:]
