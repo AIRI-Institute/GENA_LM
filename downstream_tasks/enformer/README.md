@@ -1,5 +1,18 @@
 # Enformer
 
+Predict CAGE signal (=gene expression) based on DNA sequence.
+
+Input sequence length: 196608 bps = left context (40960 bps) + 128 bps * 896 bins + right context (40960 bps).
+
+Target: 896 x 5313. 5313 values for 896 bins. Each bin corresponds to 128bps.
+
+## Resources and useful links:
+
+1. Enformer paper: [https://www.nature.com/articles/s41592-021-01252-x](https://www.nature.com/articles/s41592-021-01252-x#Sec17)
+2. Basenji github: [https://github.com/calico/basenji/tree/master/manuscripts/cross2020](https://github.com/calico/basenji/tree/master/manuscripts/cross2020)
+3. Model usage example: [https://tfhub.dev/deepmind/enformer/1](https://tfhub.dev/deepmind/enformer/1)
+4. enformer-pytorch: [https://github.com/lucidrains/enformer-pytorch](https://github.com/lucidrains/enformer-pytorch)
+
 ## Convert Basenji dataset
 
 Enformer is trained and tested on the 
