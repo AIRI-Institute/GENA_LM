@@ -22,7 +22,7 @@ class EnformerDataset(Dataset):
                  remove_context=True, n_samples=None):
         self.h5_file = h5py.File(path, "r")
         self.h5_keys = np.asarray(list(self.h5_file.keys()))
-        if n_samples:
+        if n_samples and n_samples > 0:
             self.h5_keys = self.h5_keys[:n_samples]
 
         self.tokenizer = tokenizer
