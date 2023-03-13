@@ -54,7 +54,7 @@ Performance of gena-lm-bert-base is compared to
 #### Dataset Preparation
 
 ##### Step 1. Download data
-EPDNew https://epd.epfl.ch/get_promoters.php database is used to select human promoters (hg38)
+EPDNew https://epd.epfl.ch/EPDnew_select.php database is used to select human promoters (hg38)
 Three different sequence lengths are used:
 1) Length 300. From -249 to 50. Results in a file hg38_len_300.fa.txt
 2) Length 2000. From -1000 to 999. Results in a file hg38_len_2000.fa.txt
