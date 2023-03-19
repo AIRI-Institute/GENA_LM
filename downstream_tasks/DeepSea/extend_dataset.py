@@ -69,7 +69,7 @@ for fname in ["test", "valid", "train"]:
         fastmap_file_path
     ) as fastmap_in, gzip.open(os.path.join(path, fname + "." + str(new_seq_len) + ".csv.gz"), "w") as out:
         for ind, line in tqdm(enumerate(target_in)):
-            line = target_in.readline().decode()
+            line = line.decode()
             split = line.find(",")
             seq = line[:split]
             targets = line[split:]  # includes starting coma and newline char
