@@ -5,13 +5,16 @@ import subprocess
 
 import pysam
 from tqdm import tqdm
+from Bio.Seq import Seq 
 
-
-def get_region(fasta, chrom, mid, size):
+def get_region(fasta, chrom, mid, size, strand):
     start = mid - size // 2
     start = max(start, 0)
     end = start + size
     seq = fasta.fetch(chrom, start, end).upper()
+    if strand == "-":
+        seq = Seq(seq).reverse_complement()
+
     if len(seq) < size:
         return None
     elif len(seq) == size:
@@ -98,9 +101,10 @@ for fname in ["test", "valid", "train"]:
                     unmapped_count += 1
                 else:
                     chrom, pos = fmap_aln[4].split(":")
-                    assert pos[0] == "+"
-                    pos = int(pos)
-                    new_seq = get_region(fasta, chrom, pos + 500, new_seq_len)
+                    assert pos[0] in ["+","-"], str(fmap_aln)
+                    strand = pos[0]
+                    pos = abs(int(pos))
+                    new_seq = get_region(fasta, chrom, pos + 500, new_seq_len, strand)
 
             assert new_seq is not None, str(ind)
             out.write((new_seq + targets).encode())
