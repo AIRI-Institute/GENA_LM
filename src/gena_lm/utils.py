@@ -111,6 +111,9 @@ def symmetric_pad_and_truncate_context(
 
         return left_encoding, right_encoding, mid_encoding, padding
 
+    assert mid_encoding["input_ids"].shape[1] > 0, """Mid part of encoding has 0 length. 
+    This may happen if input sequence was an empty string."""
+
     # initialize default empty padding (=no padding)
     empty_array = {
         "input_ids": np.array([], dtype=np.int32).reshape(1, -1),
