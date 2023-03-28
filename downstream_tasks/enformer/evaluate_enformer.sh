@@ -23,14 +23,12 @@ HOME_PATH=/home/jovyan
 DATA_PATH=${HOME_PATH}/data
 EXP_PATH=${HOME_PATH}/dnalm/runs/enformer
 # --data_path ${DATA_PATH}/downstream_tasks/enformer/human/h5/human_train.h5 \
-
 python -m downstream_tasks.enformer.run_enformer_evaluation \
         --valid_data_path ${DATA_PATH}/downstream_tasks/enformer/human/h5/human_valid.h5 \
         --test_data_path ${DATA_PATH}/downstream_tasks/enformer/human/h5/human_test.h5 \
-        --experiment_cfg ${EXP_PATH}/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_2000000/lr2e-04_AdamW_cosine_wd0.0_p15_bs64_it100000/run_4/config.json \
         --tokenizer $TOKENIZER --model_cfg $CONFIG \
         --model_cls downstream_tasks.enformer.enformer_model:BertForEnformer \
-        --init_checkpoint ${EXP_PATH}/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_2000000/lr2e-04_AdamW_cosine_wd0.0_p15_bs64_it100000/run_4/model_best.pth \
+        --init_checkpoint ${EXP_PATH}/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_2000000/lr3e-04_AdamW_cosine_wd0.0_p15_bs64_it50000/run_2/model_best.pth \
         --input_seq_len 512 --bins_per_sample 24 --data_n_workers 2 \
         --n_samples -1 \
         --batch_size $BS

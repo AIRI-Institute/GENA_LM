@@ -201,5 +201,5 @@ if __name__ == '__main__':
                     output = model(**batch)
                     pred = torch.nn.functional.softplus(output['logits'].detach())
                     labels = batch['labels'][batch['labels_mask']]
-                    corr_coef(preds=pred.cpu(), target=labels.cpu())
+                    corr_coef(preds=pred.cpu().unsqueeze(1), target=labels.cpu().unsqueeze(1))
             logger.info(f'{sn} corr_coef: {corr_coef.compute().mean()}')
