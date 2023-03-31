@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, DistributedSampler, Dataset
 import transformers
 from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
 import numpy as np
+import pandas as pd
 from sklearn.metrics import f1_score, precision_score, recall_score, matthews_corrcoef
 
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
@@ -56,6 +57,20 @@ parser.add_argument('--truncate', type=str, default='right',
 parser.add_argument('--model_cfg', type=str, help='path to model configuration file (default: None)')
 parser.add_argument('--model_cls', type=str, default='transformers:BertForPreTraining',
                     help='model class name to use (default: transformers:BertForPreTraining)')
+
+# rmt args
+parser.add_argument('--backbone_cls', type=str, default=None,
+                    help='backbone class name to use for RMT')
+parser.add_argument('--backbone_trainable', action='store_true', default=False,
+                    help='make all model weights trainable, not only task-specific head.')
+parser.add_argument('--backbone_checkpoint', type=str,
+                    help='pre-trained backbone checkpoint (default: None).')
+parser.add_argument('--input_size', type=int, default=None, help='maximal input size of the backbone model')
+parser.add_argument('--num_mem_tokens', type=int, default=None, help='number of memory tokens.')
+parser.add_argument('--max_n_segments', type=int, default=1, help='maximal segment number')
+parser.add_argument('--sum_loss', action='store_true', default=False,
+                    help='with this flag task loss from all segments is summed')
+parser.add_argument('--bptt_depth', type=int, default=-1, help='max number of previous segments in gradient computation.')
 
 # tokenizer
 parser.add_argument('--tokenizer', type=str, default=None, help='path or name of pre-trained HF Tokenizer')
@@ -183,10 +198,43 @@ if __name__ == '__main__':
     model_cfg = AutoConfig.from_pretrained(args.model_cfg)
     # classification with two labels
     model_cfg.num_labels = 2
-    model_cls = get_cls_by_name(args.model_cls)
+    model_cls = get_cls_by_name(args.backbone_cls)
     if hvd.rank() == 0:
-        logger.info(f'Using model class: {model_cls}')
+        logger.info(f'Using backbone model class: {model_cls}')
     model = model_cls(config=model_cfg)
+
+    if args.backbone_checkpoint is not None:
+        if hvd.rank() == 0:
+            logger.info(f'loading pre-trained backbone from {args.backbone_checkpoint}')
+        checkpoint = torch.load(args.backbone_checkpoint, map_location='cpu')
+        missing_k, unexpected_k = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+        if len(missing_k) != 0 and hvd.rank() == 0:
+            logger.info(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+        if len(unexpected_k) != 0 and hvd.rank() == 0:
+            logger.info(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
+
+    # Aydar # Pass memory settings to pretrained model
+    if args.num_mem_tokens is not None:
+        rmt_config = {
+            'num_mem_tokens': args.num_mem_tokens,
+            'max_n_segments': args.max_n_segments,
+            # 'segment_ordering': args.segment_ordering,
+            'input_size': args.input_size,
+            'bptt_depth': args.bptt_depth,
+            'sum_loss': args.sum_loss,
+            'tokenizer': tokenizer,
+        }
+        rmt_cls = get_cls_by_name(args.model_cls)
+        if hvd.rank() == 0:
+            logger.info(f'Wrapping in: {rmt_cls}')
+        model = rmt_cls(model, **rmt_config)
+
+    if not args.backbone_trainable:
+        for name, param in model.named_parameters():
+            if 'classifier' not in name:
+                if hvd.rank() == 0:
+                    logger.info(f'{name} is frozen')
+                param.requires_grad = False
 
     # define optimizer
     optimizer_cls = get_optimizer(args.optimizer)
@@ -211,8 +259,8 @@ if __name__ == '__main__':
             optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
         else:
             optimizer = optimizer_cls(
-                    [{'params': model.bert.parameters(), 'lr': args.lr * args.body_lr_multiplier},
-                     {'params': model.classifier.parameters()}],
+                    [{'params': model.model.bert.parameters(), 'lr': args.lr * args.body_lr_multiplier},
+                     {'params': model.model.classifier.parameters()}],
                     lr=args.lr, weight_decay=args.weight_decay)
 
     def keep_for_metrics_fn(batch, output):
@@ -236,8 +284,10 @@ if __name__ == '__main__':
         metrics['mcc'] = matthews_corrcoef(y, p)
         return metrics
 
+    batch_metrics_fn = lambda _, y: {key: y[key] for key in y.keys() if (('loss' in key) or ('!log' in key))}
+
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader, train_sampler,
-                      keep_for_metrics_fn=keep_for_metrics_fn, metrics_fn=metrics_fn)
+                      batch_metrics_fn=batch_metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn, metrics_fn=metrics_fn)
 
     if not args.validate_only:
         # train loop
