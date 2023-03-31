@@ -91,7 +91,7 @@ class RMTEncoderForSequenceClassification(torch.nn.Module):
             out[f'loss_{i}'] = l.mean()
 
         if self.rmt_config['sum_loss']:
-            out['loss'] = torch.stack(losses).sum(dim=0)
+            out['loss'] = torch.stack(losses).mean(dim=0)
 
         mem_token_ids = self.mem_token_ids
         memory_tokens = self.model.embeddings(mem_token_ids)
