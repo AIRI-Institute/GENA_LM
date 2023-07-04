@@ -1,32 +1,76 @@
 # GENA-LM
 
-GENA-LM is a transformer masked language model trained on human DNA sequence.
+GENA-LM is a family of Open-Source Foundational Models for Long DNA Sequences.
 
-Differences between GENA-LM and DNABERT:
-- BPE tokenization instead of k-mers;
-- input sequence size is about 3000 nucleotides (512 BPE tokens) compared to 510 nucleotides of DNABERT
-- pre-training on T2T vs. GRCh38.p13 human genome assembly.
+GENA-LM models are transformer masked language models trained on human DNA sequence.
+
+Key features of our GENA-LM models:
+- BPE tokenization instead of k-mers (DNABERT, Nucleotide Transformer)
+- max input sequence size ranges from 4.5k to 36k bp, compared to 512bp in DNABERT and 1000bp in Nucleotide Transformer
+- pre-training on the latest [T2T](https://www.ncbi.nlm.nih.gov/assembly/GCF_009914755.1/) human genome assembly vs GRCh38/hg38
+
+
+## Pre-trained models
+
+| Model                                                                                            | Architecture                         | Max SeqLen, tokens (bp) | Params | Tokenizer data              | Training data               |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------ | ----------------------- | ------ | --------------------------- | --------------------------- |
+| [bert-base](https://huggingface.co/AIRI-Institute/gena-lm-bert-base)                             | BERT-12L                             | 512(4500)               | 110M   | T2T split v1                | T2T split v1                |
+| [bert-base-t2t](https://huggingface.co/AIRI-Institute/gena-lm-bert-base-t2t)                     | BERT-12L                             | 512(4500)               | 110M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs              |
+| [bert-base-lastln-t2t](https://huggingface.co/AIRI-Institute/gena-lm-bert-base-lastln-t2t)       | BERT-12L                             | 512(4500)               | 110M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs              |
+| [bert-base-t2t-multi](https://huggingface.co/AIRI-Institute/gena-lm-bert-base-t2t-multi)         | BERT-12L                             | 512(4500)               | 110M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs+Multispecies |
+| [bert-large-t2t](https://huggingface.co/AIRI-Institute/gena-lm-bert-large-t2t)                   | BERT-24L                             | 512(4500)               | 336M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs              |
+| [bigbird-base-sparse](https://huggingface.co/AIRI-Institute/gena-lm-bigbird-base-sparse)         | BERT-12L, DeepSpeed Sparse Ops, RoPE | 4096(36000)             | 110M   | T2T split v1                | T2T split v1                |
+| [bigbird-base-sparse-t2t](https://huggingface.co/AIRI-Institute/gena-lm-bigbird-base-sparse-t2t) | BERT-12L, DeepSpeed Sparse Ops, RoPE | 4096(36000)             | 110M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs              |
+| [bigbird-base-t2t](https://huggingface.co/AIRI-Institute/gena-lm-bigbird-base-t2t)               | BERT-12L, HF BigBird                 | 4096(36000)             | 110M   | T2T+1000G SNPs+Multispecies | T2T+1000G SNPs              |
+
+T2T split v1 refers to preliminary models with a non-augmented T2T human genome assembly split. BERT-based models employ [Pre-Layer Normalization](https://arxiv.org/abs/2002.04745) and lastln explicitly denotes that layer normalization is also applied to the final layer. RoPE indicates the use of [rotary position embeddings](https://arxiv.org/abs/2104.09864) in place of BERT-like absolute positional embeddings.
+
+For our first models (gena-lm-bert-base and gena-lm-bigbird-base-sparse) we hold out human chromosomes 22 and Y (CP068256.2 and CP086569.2) as the test dataset for the masked language modeling task. For all other models, we hold out human chromosomes 7 and 10 (CP068271.2 and CP068268.2); these models have the suffix "t2t" in their names. Other data was used for training. Human-only models were trained on pre-processed Human T2T v2 genome assembly and its 1000-genome SNP augmentations making in a total of ≈ 480 x 10^9 base pairs. Multispecies models were trained on human-only and multispecies data making in a total of ≈ 1072×109 base pairs.
 
 
 ## Examples
-### How to load the model to fine-tune it on classification task
+### How to load pre-trained GENA-LM for Masked Language Modeling
 ```python
-from src.gena_lm.modeling_bert import BertForSequenceClassification
+from transformers import AutoTokenizer, AutoModel
+
+tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t')
+model = AutoModel.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', trust_remote_code=True)
+
+```
+
+### How to load pre-trained GENA-LM to fine-tune it on classification task
+
+
+Get model class from GENA-LM repository:
+```bash
+git clone https://github.com/AIRI-Institute/GENA_LM.git
+```
+
+```python
+from GENA_LM.src.gena_lm.modeling_bert import BertForSequenceClassification
 from transformers import AutoTokenizer
 
 tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bert-base')
 model = BertForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bert-base')
 ```
+or you can just download [modeling_bert.py](https://github.com/AIRI-Institute/GENA_LM/tree/main/src/gena_lm) and put it close to your code.
 
-## Model description
-GENA-LM model is trained in a masked language model (MLM) fashion, following the methods proposed in the BigBird paper by masking 85% of tokens. Model config for `gena-lm-bert-base` is similar to the bert-base:
+OR you can get model class from HuggingFace AutoModel:
+```python
+model = AutoModel.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', trust_remote_code=True)
+gena_module_name = model.__class__.__module__
+print(gena_module_name)
+import importlib
+# available class names:
+# - BertModel, BertForPreTraining, BertForMaskedLM, BertForNextSentencePrediction,
+# - BertForSequenceClassification, BertForMultipleChoice, BertForTokenClassification,
+# - BertForQuestionAnswering
+# check https://huggingface.co/docs/transformers/model_doc/bert
+cls = getattr(importlib.import_module(gena_module_name), 'BertForSequenceClassification')
+print(cls)
+model = cls.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', num_labels=2)
+```
 
-- 512 Maximum sequence length
-- 12 Layers, 12 Attention heads
-- 768 Hidden size
-- 32k Vocabulary size
-
-We pre-trained `gena-lm-bert-base` using the latest T2T human genome assembly (https://www.ncbi.nlm.nih.gov/assembly/GCA_009914755.3/). Pre-training was performed for 500,000 iterations with the same parameters as in BigBird, except sequence length was equal to 512 tokens and we used pre-layer normalization in Transformer.
 
 ## Citation
 ```
@@ -98,7 +142,7 @@ Results in five csv files named from fold_1.csv to fold_5.csv and corresponding 
 After fine-tuning gena-lm-bert-base on promoter prediction dataset, following results were achieved: 
 
 | model                    | seq_len (bp) | F1    |
-|--------------------------|--------------|-------|
+| ------------------------ | ------------ | ----- |
 | DeePromoter              | 300          | 95.60 |
 | GENA-LM bert-base (ours) | 2000         | 95.72 |
 | BigBird                  | 16000        | 99.90 |
@@ -124,4 +168,14 @@ DS_BUILD_SPARSE_ATTN=1 pip install deepspeed==0.6.0 --global-option="build_ext" 
 and check installation with
 ```bash
 ds_report
+```
+
+### Finetuning with lm-experiments-tools
+We use Trainer and multi-gpu training from [lm-experiments-tools](https://github.com/yurakuratov/t5-experiments) repository as the basis for our finetuning scripts. However, you can use  HF Trainer, PyTorch Lighting, or Accelerate and PyTorch with custom training loops instead.
+
+Install lm-experiments-tools according to https://github.com/yurakuratov/t5-experiments#install-only-lm_experiments_tools:
+```
+git clone https://github.com/yurakuratov/t5-experiments
+cd t5-experiments
+pip install -e .
 ```
