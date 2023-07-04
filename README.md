@@ -28,6 +28,20 @@ GENA-LM model is trained in a masked language model (MLM) fashion, following the
 
 We pre-trained `gena-lm-bert-base` using the latest T2T human genome assembly (https://www.ncbi.nlm.nih.gov/assembly/GCA_009914755.3/). Pre-training was performed for 500,000 iterations with the same parameters as in BigBird, except sequence length was equal to 512 tokens and we used pre-layer normalization in Transformer.
 
+## Citation
+```
+@article {GENA_LM,
+	author = {Veniamin Fishman and Yuri Kuratov and Maxim Petrov and Aleksei Shmelev and Denis Shepelin and Nikolay Chekanov and Olga Kardymon and Mikhail Burtsev},
+	title = {GENA-LM: A Family of Open-Source Foundational Models for Long DNA Sequences},
+	elocation-id = {2023.06.12.544594},
+	year = {2023},
+	doi = {10.1101/2023.06.12.544594},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2023/06/13/2023.06.12.544594},
+	eprint = {https://www.biorxiv.org/content/early/2023/06/13/2023.06.12.544594.full.pdf},
+	journal = {bioRxiv}
+}
+```
 
 ### Download and preprocess data
 In order to download human genome please run the following script:
