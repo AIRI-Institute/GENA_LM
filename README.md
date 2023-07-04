@@ -57,6 +57,7 @@ or you can just download [modeling_bert.py](https://github.com/AIRI-Institute/GE
 
 OR you can get model class from HuggingFace AutoModel:
 ```python
+from transformers import AutoTokenizer, AutoModel
 model = AutoModel.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', trust_remote_code=True)
 gena_module_name = model.__class__.__module__
 print(gena_module_name)
@@ -71,6 +72,12 @@ print(cls)
 model = cls.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', num_labels=2)
 ```
 
+GENA-LM `bigbird-base-t2t` model uses the HuggingFace BigBird implementation. Therefore, default classes from the Transformers library could be used:
+```python
+from transformers import AutoTokenizer, BigBirdForSequenceClassification
+tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
+model = BertForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
+```
 
 ## Citation
 ```
@@ -87,6 +94,8 @@ model = cls.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', num_labels=2
 }
 ```
 
+## Pre-training data
+
 ### Download and preprocess data
 In order to download human genome please run the following script:
 ```
@@ -94,7 +103,6 @@ In order to download human genome please run the following script:
 ```
 
 For preprocessing, execute the following script:
-
 ```
 python src/gena_lm/genome_tools/create_corpus.py --input_file data/ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna --output_dir data/processed/human/
 ```
@@ -102,52 +110,14 @@ python src/gena_lm/genome_tools/create_corpus.py --input_file data/ncbi_dataset/
 
 
 ## Downstream tasks
-Currently, gena-lm-bert-base model has been finetuned  and tested on promoter prediction task.  Its' performance is comparable to previous SOTA results. We plan to fine-tune and make available models for other downstream tasks in the near future.
+Downstream tasks for model evaluation encompass the prediction of promoter and enhancer activity, splicing sites, chromatin profiles, and polyadenylation site strength.
+Check `downstream_tasks` folder for code and data preprocessing scripts we used:
+- [Promoters prediction](./downstream_tasks/promoter_prediction/)
+- [Splice cite prediction (SpliceAI)](./downstream_tasks/SpliceAI/)
+- [Drosophila enhancers prediction (DeepSTARR)](./downstream_tasks/DeepSTARR/)
+- [Chromatin profiling (DeepSea)](./downstream_tasks/DeepSea/)
+- Polyadenylation sites prediction (APARENT)
 
-### Promoter Prediction
-Performance of gena-lm-bert-base is compared to 
-1. DeePromoter https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6460014/
-2. BigBird https://papers.nips.cc/paper/2020/hash/c8512d142a2d849725f31a9a7a361ab9-Abstract.html
-
-#### Dataset Preparation
-
-##### Step 1. Download data
-EPDNew https://epd.epfl.ch/EPDnew_select.php database is used to select human promoters (hg38)
-Four different sequence lengths are used:
-1) Length 300. From -249 to 50. Results in a file hg38_len_300.fa.txt
-2) Length 2000. From -1000 to 999. Results in a file hg38_len_2000.fa.txt
-3) Length 8000 (like in BigBird paper). From -5000 to  2999. Results in a file hg38_len_8000.fa.txt
-4) Length 16000. From -8000 to 7999. Results in a file hg38_len_16000.fa.txt
-
-##### Step 2. Create a dataset
-Run the script dataset_generator.py with fasta files obtained in previous step.
-```
->> python dataset_generator.py
-hg38_len_300.fa.txt
-```
-The script treats promoter sequences as positive targets and generates negative samples, following the same procedure as in DeePromoter paper.
-Results in:
-```
-hg38_promoters_len_300_dataset.csv
-```
-##### Step 3. Split to 5 folds
-Run the dataset_fold_split.py script with csv files obtained from dataset generator
-```
->> python dataset_fold_split.py
-hg38_promoters_len_300_dataset.csv
-```
-Results in five csv files named from fold_1.csv to fold_5.csv and corresponding train/valid/test splits.
-
-### Fine-tuning GENA-LM on our data and scoring
-After fine-tuning gena-lm-bert-base on promoter prediction dataset, following results were achieved: 
-
-| model                    | seq_len (bp) | F1    |
-| ------------------------ | ------------ | ----- |
-| DeePromoter              | 300          | 95.60 |
-| GENA-LM bert-base (ours) | 2000         | 95.72 |
-| BigBird                  | 16000        | 99.90 |
-
-We can conclude that our model achieves comparable performance to the previously published results for promoter prediction task.
 
 ## Installation
 For models with sparse attention FP16 support and DeepSpeed is needed.
