@@ -304,7 +304,11 @@ class BertSelfAttention(nn.Module):
             self.rotary_emb = RotaryEmbedding(self.rotary_dim, base=self.rotary_base)
 
         if self.is_sparse:
-            from deepspeed.ops.sparse_attention import SparseSelfAttention
+            try:
+                from deepspeed.ops.sparse_attention import SparseSelfAttention
+            except ImportError as e:
+                logger.error(f'DeepSpeed is required for Sparse Ops: {e}')
+                raise
             self.sparse_self_attention = SparseSelfAttention(self.sparse_config, max_seq_length=self.max_seq_len)
 
     def transpose_for_scores(self, x):
