@@ -141,7 +141,7 @@ ds_report
 ```
 
 ### Finetuning with lm-experiments-tools
-We use Trainer and multi-gpu training from [lm-experiments-tools](https://github.com/yurakuratov/t5-experiments) repository as the basis for our finetuning scripts. However, you can use  HF Trainer, PyTorch Lighting, or Accelerate and PyTorch with custom training loops instead.
+We use Trainer and multi-gpu training from [lm-experiments-tools](https://github.com/yurakuratov/t5-experiments) repository as the basis for our finetuning scripts. However, you can use  HF Transformers Trainer, PyTorch Lightning, or Accelerate and PyTorch with custom training loops instead.
 
 Install lm-experiments-tools according to https://github.com/yurakuratov/t5-experiments#install-only-lm_experiments_tools:
 ```
