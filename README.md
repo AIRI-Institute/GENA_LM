@@ -40,7 +40,7 @@ To get a pre-trained model on a downstream task, replace `model_name` and `branc
 ```python
 from transformers import AutoTokenizer, AutoModel
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModel.from_pretrained(model_name, revision=branch_name, trust_remote_code=True
+model = AutoModel.from_pretrained(model_name, revision=branch_name, trust_remote_code=True)
 ```
 
 ## Examples
