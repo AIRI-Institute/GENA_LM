@@ -91,7 +91,7 @@ GENA-LM `bigbird-base-t2t` model uses the HuggingFace BigBird implementation. Th
 ```python
 from transformers import AutoTokenizer, BigBirdForSequenceClassification
 tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
-model = BertForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
+model = BigBirdForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
 ```
 
 ## Citation
