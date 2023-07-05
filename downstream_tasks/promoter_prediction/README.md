@@ -1,14 +1,13 @@
 # Promoter prediction
 
 We compared performance of GENA-LM models to 
-1. DeePromoter https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6460014/
-2. BigBird https://papers.nips.cc/paper/2020/hash/c8512d142a2d849725f31a9a7a361ab9-Abstract.html
-3. DNABERT https://pubmed.ncbi.nlm.nih.gov/33538820/
+1. BigBird https://papers.nips.cc/paper/2020/hash/c8512d142a2d849725f31a9a7a361ab9-Abstract.html
+2. DNABERT https://pubmed.ncbi.nlm.nih.gov/33538820/
 
 ## Dataset Preparation
 
 ### Step 1. Download data
-EPDNew https://epd.epfl.ch/EPDnew_select.php database is used to select human promoters (hg38)
+Original data was from EPDNew: https://epd.epfl.ch/EPDnew_select.php; note that the EPDnew database was recently moved [here](https://epd.expasy.org/epd/EPDnew_select.php). We used EPDNew select tool to fetch human promoter sequences (hg38).
 Four different sequence lengths are used:
 1) Length 300. From -249 to 50. Results in a file hg38_len_300.fa.txt
 2) Length 2000. From -1000 to 999. Results in a file hg38_len_2000.fa.txt
