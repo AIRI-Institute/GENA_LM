@@ -1,9 +1,10 @@
 # DeepSTARR
 Predict drosophila enhancer activity based on DNA sequence
 
-Dataset: https://data.starklab.org/almeida/DeepSTARR/Data/
+Dataset can be downloaded from [Stark lab](https://data.starklab.org/almeida/DeepSTARR/Data/), repo for original DeepSTARR CNN solution [here](https://github.com/bernardo-de-almeida/DeepSTARR)
 
-Code: https://github.com/bernardo-de-almeida/DeepSTARR
+To download data run:
+
 ```bash
 # FASTA files with DNA sequences of genomic regions from train/val/test sets
 wget 'https://data.starklab.org/almeida/DeepSTARR/Data/Sequences_Train.fa'
@@ -16,9 +17,10 @@ wget 'https://data.starklab.org/almeida/DeepSTARR/Data/Sequences_activity_Val.tx
 wget 'https://data.starklab.org/almeida/DeepSTARR/Data/Sequences_activity_Test.txt'
 ```
 
-
-data split: train/valid/test = 402296/40570/41186 samples
-
+No preporcessing is needed, we use train/valid/test as in the original dataset:
+```
+train/valid/test = 402296/40570/41186 samples
+```
 
 ## Finetuning on DeepSTARR
 Set paths to the data, edit hyperparameters in example script `finetune_deepstarr.sh` and run training:

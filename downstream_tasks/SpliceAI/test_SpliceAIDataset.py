@@ -147,58 +147,58 @@ class TestSpliceAIDataset:
                     max_seq_len,
                 )
 
-    # def test_tokens_class_computation(self):
-    #     datafile = "test_Dataset_data.gz.df.pkl"
-    #     tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base")
-    #     targets_offset = 5000
-    #     max_seq_len = 512
+    def longrun_tokens_class_computation(self):
+        datafile = "test_Dataset_data.gz.df.pkl"
+        tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base")
+        targets_offset = 5000
+        max_seq_len = 512
 
-    #     self.dataset = SpliceAIDataset(
-    #         datafile, tokenizer, max_seq_len=max_seq_len, targets_offset=targets_offset
-    #     )
+        self.dataset = SpliceAIDataset(
+            datafile, tokenizer, max_seq_len=max_seq_len, targets_offset=targets_offset
+        )
 
-    #     dataset_results = self.dataset.__getitem__(0)
+        dataset_results = self.dataset.__getitem__(0)
 
-    #     seq, targets = self.dataset.data.iloc[0].values
+        seq, targets = self.dataset.data.iloc[0].values
 
-    #     seq_encoding = tokenizer(
-    #         seq,
-    #         add_special_tokens=True,
-    #         padding="max_length",
-    #         max_length=max_seq_len,
-    #         return_offsets_mapping=True,
-    #         return_tensors="np",
-    #     )
+        seq_encoding = tokenizer(
+            seq,
+            add_special_tokens=True,
+            padding="max_length",
+            max_length=max_seq_len,
+            return_offsets_mapping=True,
+            return_tensors="np",
+        )
 
-    #     token_targets_class1 = []
-    #     token_targets_class2 = []
+        token_targets_class1 = []
+        token_targets_class2 = []
 
-    #     for om in seq_encoding["offset_mapping"][0]:
-    #         st, en = om
-    #         if en == 0 or st < targets_offset or st > targets_offset + len(targets):
-    #             token_targets_class1.append(-100)
-    #             token_targets_class2.append(-100)
-    #         elif targets_offset + len(targets) >= st >= targets_offset:
-    #             token_targets = np.unique(
-    #                 targets[st - targets_offset : en - targets_offset]
-    #             )
-    #             if 1 in token_targets.tolist():
-    #                 token_targets_class1.append(1)
-    #             else:
-    #                 token_targets_class1.append(0)
-    #             if 2 in token_targets.tolist():
-    #                 token_targets_class2.append(2)
-    #             else:
-    #                 token_targets_class2.append(0)
-    #         else:
-    #             raise ValueError
+        for om in seq_encoding["offset_mapping"][0]:
+            st, en = om
+            if en == 0 or st < targets_offset or st > targets_offset + len(targets):
+                token_targets_class1.append(-100)
+                token_targets_class2.append(-100)
+            elif targets_offset + len(targets) >= st >= targets_offset:
+                token_targets = np.unique(
+                    targets[st - targets_offset : en - targets_offset]
+                )
+                if 1 in token_targets.tolist():
+                    token_targets_class1.append(1)
+                else:
+                    token_targets_class1.append(0)
+                if 2 in token_targets.tolist():
+                    token_targets_class2.append(2)
+                else:
+                    token_targets_class2.append(0)
+            else:
+                raise ValueError
 
-    #     for pos, (q, v) in enumerate(
-    #         zip(token_targets_class1, dataset_results["labels"][:, 0])
-    #     ):
-    #         assert q == v, print("Class mismatch at pos ", pos, ":", q, v)
+        for pos, (q, v) in enumerate(
+            zip(token_targets_class1, dataset_results["labels"][:, 0])
+        ):
+            assert q == v, print("Class mismatch at pos ", pos, ":", q, v)
 
-    #     for pos, (q, v) in enumerate(
-    #         zip(token_targets_class2, dataset_results["labels"][:, 1])
-    #     ):
-    #         assert q == v, print("Class mismatch at pos ", pos, ":", q, v)
+        for pos, (q, v) in enumerate(
+            zip(token_targets_class2, dataset_results["labels"][:, 1])
+        ):
+            assert q == v, print("Class mismatch at pos ", pos, ":", q, v)

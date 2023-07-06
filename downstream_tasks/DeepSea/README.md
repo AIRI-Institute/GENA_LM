@@ -1,8 +1,8 @@
 # DeepSea Chromatin-Profile
 
-data src: http://deepsea.princeton.edu/media/code/deepsea_train_bundle.v0.9.tar.gz
+Original DeepSea dataset can be downloaded [here](http://deepsea.princeton.edu/media/code/deepsea_train_bundle.v0.9.tar.gz)
 
-Sequence length: 1000bp ~ 192 bpe tokens
+Sequence length for original dataset: 1000bp ~ 192 bpe tokens
 
 ## Targets
 - Transcription factors: [125:125 + 690]
@@ -11,12 +11,22 @@ Sequence length: 1000bp ~ 192 bpe tokens
 https://github.com/jimmyyhwu/deepsea/blob/4f9fdcfdaa1fec2a93d15047aa1d18f84292220d/compute_aucs.py#L46
 
 
-## Prepare data
-The script below converts files in .mat format to .csv.gz with `sequence` and target columns.
+## Data preprocessing
+The script below converts files from .mat format to .csv.gz with `sequence` and target columns.
 ```python
 python prepare_dataset.py --train_path ./train.mat--valid_path ./valid.mat --test_path ./test.mat
 ```
 as result `train.csv.gz`, `valid.csv.gz`, and `test.csv.gz` should be generated.
+
+### Extend context length (optional)
+Original DeepSea dataset includes 1-kb sequences. To add additional context, use 
+[extend_dataset.py](extend_dataset.py):
+
+```bash 
+python extend_dataset.py --path /path/to/folder/with/1kb/csv/files --fasta /path/to/hg19.genome.fasta --seqlen required_output_seq_length
+```
+
+note that extend_dataset.py requires [bwa](https://github.com/lh3/bwa) to be installed and located in PATH
 
 ## Finetuning
 We follow the BigBird paper:

@@ -28,7 +28,3 @@ class TestDeepSeaDataset:
 
         print("short:\n", " ".join(map(str, sample["input_ids"])))
         print("long:\n", " ".join(map(str, long_sample["input_ids"][0])))
-
-
-# TestDeepSeaDataset().print_sample(seq_length=4096)
-# TestDeepSeaDataset().test_different_seqlengths()

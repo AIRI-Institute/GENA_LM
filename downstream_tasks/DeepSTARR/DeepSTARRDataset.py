@@ -1,7 +1,6 @@
 import pandas as pd
 from torch.utils.data import Dataset
 
-
 class DeepSTARRDataset(Dataset):
     def __init__(
         self,
