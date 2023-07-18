@@ -1,3 +1,4 @@
+#!/bin/bash
 # create_multigenome_corpus.sh metadata_table fasta_dir contigs_dir out_folder
 
 set -e
@@ -21,5 +22,5 @@ do
 	contigs_split_file=$contigs_dir"/"${spname::-1}".breaks.csv"
 
 	echo "Processing $spname"
-	python create_corpus.py --input_file $fastafile --contigs_split_file $contigs_split_file --output_dir $spoutdir
+	python create_corpus.py --input-file $fastafile --contigs-split-file $contigs_split_file --output-dir $spoutdir
 done
