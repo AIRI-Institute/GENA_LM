@@ -1,4 +1,4 @@
-# import numpy as np
+#!/usr/bin/env python
 import ast
 import gzip
 import json
@@ -149,15 +149,15 @@ def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
                     handle_chromosome(record, outdir=output_dir, io_mode=io_mode)
 
 # example usage:
-# python create_corpus.py --input_file ./ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna \
-#  --output_dir data/processed/human/ --io_mode jsonl --min_len 10000
+# python create_corpus.py --input-file ./ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna \
+#  --output-dir data/processed/human/ --io-mode jsonl --min-len 10000
 
 @click.command()
-@click.option("--input_file", type=str)
-@click.option("--contigs_split_file", type=str)
-@click.option("--output_dir", type=click.Path(path_type=Path, dir_okay=True))
-@click.option("--io_mode", type=click.Choice(["single_txt", "jsonl", "multiple_txt"]), default="single_txt")
-@click.option("--min_len", type=click.INT, default=10000, help="Minimum contig length to be included")
+@click.option("--input-file", type=str)
+@click.option("--contigs-split-file", type=str)
+@click.option("--output-dir", type=click.Path(path_type=Path, dir_okay=True))
+@click.option("--io-mode", type=click.Choice(["single_txt", "jsonl", "multiple_txt"]), default="single_txt")
+@click.option("--min-len", type=click.INT, default=10000, help="Minimum contig length to be included")
 #@click.option("--rc", is_flag=True, show_default=True, default=False, help="Reverse-complement all sequences")
 
 def cli(input_file, contigs_split_file, output_dir, io_mode, min_len):
