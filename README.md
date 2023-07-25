@@ -92,6 +92,9 @@ tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t
 model = BigBirdForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm-bigbird-base-t2t')
 ```
 
+### Notebooks
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AIRI-Institute/GENA_LM/blob/main/notebooks/GENA_sequence_classification_example.ipynb) Sequence classification with GENA-LM and Huggingface Transformers
+
 ## Citation
 ```
 @article {GENA_LM,
