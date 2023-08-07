@@ -28,11 +28,13 @@ T2T split v1 refers to preliminary models with a non-augmented T2T human genome 
 For our first models (`gena-lm-bert-base` and `gena-lm-bigbird-base-sparse`) we hold out human chromosomes 22 and Y (CP068256.2 and CP086569.2) as the test dataset for the masked language modeling task. For all other models, we hold out human chromosomes 7 and 10 (CP068271.2 and CP068268.2); these models have the suffix "t2t" in their names. Other data was used for training. Human-only models were trained on pre-processed Human T2T v2 genome assembly and its 1000-genome SNP augmentations making in a total of ≈ 480 x 10^9 base pairs. Multispecies models were trained on human-only and multispecies data making in a total of ≈ 1072 x 10^9 base pairs.
 
 ## Pre-trained models on downstream tasks
-| Model                  | Task      | Task seq len | Metric         | HF branch name       |
-| ---------------------- | --------- | ------------ | -------------- | -------------------- |
-| gena-lm-bert-base-t2t  | promoters | 300bp        | 74.56+-0.36 F1 | promoters_300_run_1  |
-| gena-lm-bert-large-t2t | promoters | 300bp        | 76.44+-0.16 F1 | promoters_300_run_1  |
-| gena-lm-bert-large-t2t | promoters | 2000bp       | 93.70+-0.44 F1 | promoters_2000_run_1 |
+| Model                  | Task        | Task seq len | Metric             | HF branch name       |
+| ---------------------- | ----------- | ------------ | ------------------ | -------------------- |
+| gena-lm-bert-base-t2t  | promoters   | 300bp        | 74.56+-0.36 F1     | promoters_300_run_1  |
+| gena-lm-bert-large-t2t | promoters   | 300bp        | 76.44+-0.16 F1     | promoters_300_run_1  |
+| gena-lm-bert-large-t2t | promoters   | 2000bp       | 93.70+-0.44 F1     | promoters_2000_run_1 |
+| gena-lm-bert-base-t2t  | splice cite | 15000bp      | 92.63+-0.09 PR AUC | spliceai_run_1       |
+| gena-lm-bert-large-t2t | splice cite | 15000bp      | 93.59+-0.11 PR AUC | spliceai_run_1       |
 
 To get a pre-trained model on a downstream task, replace `model_name` and `branch_name` with values from the table. The metrics in the table are averaged over multiple runs. Therefore, the values for each checkpoint may differ from those reported here.
 
