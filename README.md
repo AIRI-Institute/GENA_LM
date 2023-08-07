@@ -33,8 +33,8 @@ For our first models (`gena-lm-bert-base` and `gena-lm-bigbird-base-sparse`) we 
 | gena-lm-bert-base-t2t  | promoters   | 300bp        | 74.56+-0.36 F1     | promoters_300_run_1  |
 | gena-lm-bert-large-t2t | promoters   | 300bp        | 76.44+-0.16 F1     | promoters_300_run_1  |
 | gena-lm-bert-large-t2t | promoters   | 2000bp       | 93.70+-0.44 F1     | promoters_2000_run_1 |
-| gena-lm-bert-base-t2t  | splice cite | 15000bp      | 92.63+-0.09 PR AUC | spliceai_run_1       |
-| gena-lm-bert-large-t2t | splice cite | 15000bp      | 93.59+-0.11 PR AUC | spliceai_run_1       |
+| gena-lm-bert-base-t2t  | splice site | 15000bp      | 92.63+-0.09 PR AUC | spliceai_run_1       |
+| gena-lm-bert-large-t2t | splice site | 15000bp      | 93.59+-0.11 PR AUC | spliceai_run_1       |
 
 To get a pre-trained model on a downstream task, replace `model_name` and `branch_name` with values from the table. The metrics in the table are averaged over multiple runs. Therefore, the values for each checkpoint may differ from those reported here.
 
@@ -116,7 +116,7 @@ model = BigBirdForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm
 Downstream tasks for model evaluation encompass the prediction of promoter and enhancer activity, splicing sites, chromatin profiles, and polyadenylation site strength.
 Check `downstream_tasks` folder for code and data preprocessing scripts we used:
 - [Promoters prediction](./downstream_tasks/promoter_prediction/)
-- [Splice cite prediction (SpliceAI)](./downstream_tasks/SpliceAI/)
+- [Splice site prediction (SpliceAI)](./downstream_tasks/SpliceAI/)
 - [Drosophila enhancers prediction (DeepSTARR)](./downstream_tasks/DeepSTARR/)
 - [Chromatin profiling (DeepSea)](./downstream_tasks/DeepSea/)
 - Polyadenylation sites prediction (APARENT)
