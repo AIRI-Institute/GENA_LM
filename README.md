@@ -97,7 +97,9 @@ model = BigBirdForSequenceClassification.from_pretrained('AIRI-Institute/gena-lm
 ### Notebooks
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AIRI-Institute/GENA_LM/blob/main/notebooks/GENA_sequence_classification_example.ipynb) Sequence classification with GENA-LM and Huggingface Transformers
 
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AIRI-Institute/GENA_LM/blob/main/notebooks/public_gena_clusters.ipynb) Clusterization of DNA embeddings generated with GENA LM
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AIRI-Institute/GENA_LM/blob/main/notebooks/public_gena_clusters_task.ipynb) Clusterization of DNA embeddings generated with GENA LM
+
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/AIRI-Institute/GENA_LM/blob/main/notebooks/gena_enformer_usage.ipynb) Explore GENA-LM model fine-tuned on Enformer dataset for gene expression
 
 ## Citation
 ```
