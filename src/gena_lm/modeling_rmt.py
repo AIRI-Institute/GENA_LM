@@ -53,6 +53,7 @@ class RMTEncoderForSequenceClassification(torch.nn.Module):
         segmented = self.pad_and_segment(input_ids)
 
         losses = []
+        hidden_states = []
         for seg_num, segment_input_ids in enumerate(segmented):
             if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
                 memory = memory.detach()
@@ -66,7 +67,8 @@ class RMTEncoderForSequenceClassification(torch.nn.Module):
             input_ids = torch.stack([s for s in segment_input_ids if s is not None])
             attention_mask = self.get_attention_mask(input_ids)
             token_type_ids = self.get_token_type_ids(input_ids)
-            seg_kwargs['labels'] = seg_kwargs['labels'][non_empty_mask]
+            if seg_kwargs['labels'] is not None:
+                seg_kwargs['labels'] = seg_kwargs['labels'][non_empty_mask]
 
             inputs_embeds = self.model.embeddings(input_ids)
             inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
@@ -79,13 +81,18 @@ class RMTEncoderForSequenceClassification(torch.nn.Module):
             out = self.model(**seg_kwargs)
             memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
 
-            losses.append(out['loss'])
+            losses.append(out.get('loss', torch.tensor(0.0)))
+            if seg_kwargs.get('output_hidden_states'):
+                hidden_states += [out['hidden_states']]
 
         # drop unnecessary hiddens to save memory
         if not kwargs.get('output_hidden_states'):
             for key in out.keys():
                 if 'hidden_state' in key:
                     out[key] = None
+        else:
+            for i in range(len(hidden_states)):
+                out[f'hidden_states_{i}'] = hidden_states[i]
 
         for i, l in enumerate(losses):
             out[f'loss_{i}'] = l.mean()
