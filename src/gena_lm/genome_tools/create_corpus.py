@@ -46,6 +46,7 @@ class Document:
 
 def generate_documents(
     chr_sequence: Seq,
+    n_augmentations: int,    
     sentences_bounds: Tuple[int] = (50, 100),
     lenghts_bounds: Tuple[int] = (500, 1000),
 ) -> Generator[Document, None, None]:
@@ -56,7 +57,7 @@ def generate_documents(
 
     C = len(chr_sequence)  # chromosome length
 
-    for _ in range(10):
+    for _ in range(n_augmentations):
         q = random.randint(0, 5000)  # random start position from the 5' end
         while q < C:
             s = random.randint(*sentences_bounds)  # number of sentences per document
@@ -75,6 +76,7 @@ def generate_documents(
 def handle_chromosome(
     chr: SeqIO.SeqRecord,
     outdir: Path,
+    n_augmentations: int,
     io_mode: Literal["single_txt", "jsonl", "multiple_txt"] = "single_txt",
 ):
     """
@@ -84,27 +86,28 @@ def handle_chromosome(
     if io_mode == "single_txt":
         filename = outdir / f"{chr.name}_documents.txt"
         with filename.open(mode="w") as out:
-            for document in generate_documents(chr.seq):
+            for document in generate_documents(chr.seq, n_augmentations=n_augmentations):
                 out.write(document.to_text())
                 out.write("\n")
     elif io_mode == "jsonl":
         filename = outdir / f"{chr.name}_documents.jsonl"
         with open(filename, mode="w") as out:
-            for document in generate_documents(chr.seq):
+            for document in generate_documents(chr.seq, n_augmentations=n_augmentations):
                 out.write(document.to_jsonl())
                 out.write("\n")
     elif io_mode == "multiple_txt":
-        for idx, document in enumerate(generate_documents(chr.seq)):
+        for idx, document in enumerate(generate_documents(chr.seq, n_augmentations=n_augmentations)):
             filename = outdir / f"{chr.name}_document_{idx}.txt"
             with filename.open(mode="w") as out:
                 out.write(document.to_text())
 
 
-def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
+def read_single_fasta(fna_file: Path, n_augmentations: int, output_dir: Optional[Path] = None,
                       contigs_split_file: Optional[Path] = None,
                       io_mode: Literal["single_txt", "jsonl", "multiple_txt"] = "single_txt",
                       min_len: Optional[int] = 10000,
-                      rc: Optional[bool] = False):
+                      rc: Optional[bool] = False,
+                      ):
     if not output_dir:
         output_dir = Path(".")
 
@@ -142,11 +145,12 @@ def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
                                                 id = record.id+contig_name,
                                                 name = record.name+contig_name,
                                                 description = record.description+contig_name)
-                        handle_chromosome(seq_record, outdir=output_dir, io_mode=io_mode)
+                        handle_chromosome(seq_record, outdir=output_dir, io_mode=io_mode,
+                                          n_augmentations=n_augmentations)
                 else:
                     if rc:
                         record.seq = record.seq.reverse_complement()
-                    handle_chromosome(record, outdir=output_dir, io_mode=io_mode)
+                    handle_chromosome(record, outdir=output_dir, io_mode=io_mode, n_augmentations=n_augmentations)
 
 # example usage:
 # python create_corpus.py --input-file ./ncbi_dataset/data/GCA_009914755.4/GCA_009914755.4_T2T-CHM13v2.0_genomic.fna \
@@ -158,16 +162,18 @@ def read_single_fasta(fna_file: Path, output_dir: Optional[Path] = None,
 @click.option("--output-dir", type=click.Path(path_type=Path, dir_okay=True))
 @click.option("--io-mode", type=click.Choice(["single_txt", "jsonl", "multiple_txt"]), default="single_txt")
 @click.option("--min-len", type=click.INT, default=10000, help="Minimum contig length to be included")
+@click.option("--n_augmentations", type=click.INT, default=10, help="Number of times each sequence is randomly shifted")
 #@click.option("--rc", is_flag=True, show_default=True, default=False, help="Reverse-complement all sequences")
 
-def cli(input_file, contigs_split_file, output_dir, io_mode, min_len):
+def cli(input_file, contigs_split_file, output_dir, io_mode, min_len, n_augmentations):
     output_dir.mkdir(parents=True)
+    assert n_augmentations>0, "The number of augmentations should be > 0"
     read_single_fasta(input_file, contigs_split_file=contigs_split_file, 
                         output_dir=output_dir, io_mode=io_mode,
-                        min_len=min_len, rc=True)
+                        min_len=min_len, rc=True, n_augmentations=n_augmentations)
     read_single_fasta(input_file, contigs_split_file=contigs_split_file, 
                         output_dir=output_dir, io_mode=io_mode,
-                        min_len=min_len, rc=False)
+                        min_len=min_len, rc=False, n_augmentations=n_augmentations)
 
 
 if __name__ == "__main__":
