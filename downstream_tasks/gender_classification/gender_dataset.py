@@ -21,16 +21,16 @@ class GenderDataChunkedDataset(IterableDataset):
 
     dataloader = DataLoader(dataset, batch_size=2, num_workers=2, worker_init_fn=worker_init_fn, collate_fn=collate_fn)
     """
-    def __init__(self, data_path, labels_path, n_chunks=128, chunk_size=512, max_n_samples=None, seed=None):
+    def __init__(self, data_path, labels_path, n_chunks=128, chunk_size=512, force_sampling_from_y=False,
+                 max_n_samples=None, seed=None):
         # chunk_size is in base pairs
         self.data_path = Path(data_path)
         self.labels_path = Path(labels_path)
         self.n_chunks = n_chunks
         self.chunk_size = chunk_size
+        self.force_sampling_from_y = force_sampling_from_y
         self.max_n_samples = max_n_samples
         self.seed = seed
-
-        self.epoch = 0
 
         # 1 - male, 2 - female
         self.labels = pd.read_csv(self.labels_path, index_col=0).set_index('sample')
@@ -41,7 +41,7 @@ class GenderDataChunkedDataset(IterableDataset):
         self.seed = seed
         np.random.seed(seed)
 
-    def get_chunk_from_sample(self, sample_id):
+    def get_chunks_from_sample(self, sample_id):
         sample_data = self.data[sample_id]
         # get chromosome lengths for the selected sample
         chr_lengths = {k: sample_data[k].shape[0] for k in sample_data.keys()}
@@ -52,7 +52,14 @@ class GenderDataChunkedDataset(IterableDataset):
         probs = [chr_lengths[k] / total_bp for k in chr_lengths]
 
         # about 1% chance to sample from whole genome one chunk from chrY
-        sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
+        if self.force_sampling_from_y and 'chrY' in chr_lengths:
+            while True:
+                sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
+                if 'chrY' in sampled_chrs:
+                    break
+        else:
+            sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
+
         chunks = []
         for chr in sampled_chrs:
             start = np.random.randint(0, chr_lengths[chr] - self.chunk_size)
@@ -75,7 +82,7 @@ class GenderDataChunkedDataset(IterableDataset):
             # randomly select a sample_id
             sample_id = np.random.choice(self.sample_ids)
 
-            chunks, sampled_chrs, chr_lengths = self.get_chunk_from_sample(sample_id)
+            chunks, sampled_chrs, chr_lengths = self.get_chunks_from_sample(sample_id)
 
             yield {
                 'labels': self.labels.loc[sample_id]['sex'] - 1,
@@ -103,3 +110,7 @@ def worker_init_fn(worker_id):
     # initialize the seed for each worker
     seed = dataset.seed + worker_id + global_rank * worker_info.num_workers if dataset.seed is not None else None
     dataset.set_seed(seed)
+
+    # if max_n_samples is set update it acording to number of dataloader workers
+    if dataset.max_n_samples is not None:
+        dataset.max_n_samples = dataset.max_n_samples // worker_info.num_workers
