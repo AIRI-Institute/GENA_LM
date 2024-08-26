@@ -22,13 +22,15 @@ class GenderDataChunkedDataset(IterableDataset):
     dataloader = DataLoader(dataset, batch_size=2, num_workers=2, worker_init_fn=worker_init_fn, collate_fn=collate_fn)
     """
     def __init__(self, data_path, labels_path, n_chunks=128, chunk_size=512, force_sampling_from_y=False,
-                 max_n_samples=None, seed=None):
+                 chrY_name='chrY', chrY_ratio=None, max_n_samples=None, seed=None):
         # chunk_size is in base pairs
         self.data_path = Path(data_path)
         self.labels_path = Path(labels_path)
         self.n_chunks = n_chunks
         self.chunk_size = chunk_size
         self.force_sampling_from_y = force_sampling_from_y
+        self.chrY_name = chrY_name
+        self.chrY_ratio = chrY_ratio
         self.max_n_samples = max_n_samples
         self.seed = seed
 
@@ -41,21 +43,42 @@ class GenderDataChunkedDataset(IterableDataset):
         self.seed = seed
         np.random.seed(seed)
 
+    def filter_chr_names(self, names, chrY_name):
+        # choose only one from [chrY, chrY_with_SNPs] as chrY
+        chrY_names = [k for k in names if 'chrY' in k]
+        non_chrY_names = [k for k in names if 'chrY' not in k]
+
+        if chrY_name in chrY_names:
+            chrY_names = [chrY_name]
+        else:
+            chrY_names = []
+        return chrY_names + non_chrY_names
+
     def get_chunks_from_sample(self, sample_id):
         sample_data = self.data[sample_id]
+        chr_names = self.filter_chr_names(sample_data.keys(), self.chrY_name)
         # get chromosome lengths for the selected sample
-        chr_lengths = {k: sample_data[k].shape[0] for k in sample_data.keys()}
-        idx_to_chr = [k for k in chr_lengths]
+        chr_lengths = {k: sample_data[k].shape[0] for k in chr_names}
         total_bp = sum(chr_lengths.values())
 
         # get chromosome sampling probabilities
-        probs = [chr_lengths[k] / total_bp for k in chr_lengths]
+        chr_probs = {k: chr_lengths[k] / total_bp for k in chr_lengths}
+
+        # upsample/subsample chrY if self.chrY_ratio is set
+        if self.chrY_name in chr_lengths and self.chrY_ratio is not None:
+            old_val = chr_probs[self.chrY_name]
+            chr_probs[self.chrY_name] = self.chrY_ratio
+            for k in chr_probs:
+                if k != self.chrY_name:
+                    chr_probs[k] *= (1 - self.chrY_ratio) / (1 - old_val)
+
+        idx_to_chr, probs = zip(*chr_probs.items())
 
         # about 1% chance to sample from whole genome one chunk from chrY
-        if self.force_sampling_from_y and 'chrY' in chr_lengths:
+        if self.force_sampling_from_y and self.chrY_name in chr_lengths:
             while True:
                 sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
-                if 'chrY' in sampled_chrs:
+                if self.chrY_name in sampled_chrs:
                     break
         else:
             sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
@@ -89,8 +112,8 @@ class GenderDataChunkedDataset(IterableDataset):
                 'sample_id': sample_id,
                 'sampled_chromosomes': sampled_chrs,
                 'chunks': chunks,
-                'full_sample_has_y_chr': 'chrY' in chr_lengths,
-                'has_y_chr_sampled': 'chrY' in sampled_chrs,
+                'full_sample_has_y_chr': self.chrY_name in chr_lengths,
+                'has_y_chr_sampled': self.chrY_name in sampled_chrs,
                 }
 
 

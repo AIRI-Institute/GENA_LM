@@ -122,6 +122,8 @@ class ExperimentArgs:
     n_chunks: Optional[int] = field(default=8)
     chunk_size: Optional[int] = field(default=3072)
     force_sampling_from_y: Optional[bool] = field(default=False)
+    chrY_name: Optional[str] = field(default='chrY')
+    chrY_ratio: Optional[float] = field(default=None)
     n_valid_samples: Optional[int] = field(default=4096)
     gradient_accumulation_steps: Optional[int] = field(default=1)
     total_batch_size: Optional[int] = field(default=None)
@@ -175,13 +177,14 @@ if __name__ == '__main__':
 
     args.data_path = Path(args.data_path)
     dataset = GenderDataChunkedDataset(args.data_path / 'train.h5', args.data_path / 'train.csv',
-                                       n_chunks=args.n_chunks, chunk_size=args.chunk_size,
-                                       force_sampling_from_y=args.force_sampling_from_y, seed=args.seed)
+                                       n_chunks=args.n_chunks, chunk_size=args.chunk_size, chrY_name=args.chrY_name,
+                                       force_sampling_from_y=args.force_sampling_from_y, chrY_ratio=args.chrY_ratio,
+                                       seed=args.seed)
 
     max_n_samples_per_gpu = args.n_valid_samples // accel.num_processes
     valid_dataset = GenderDataChunkedDataset(args.data_path / 'valid.h5', args.data_path / 'valid.csv',
                                              n_chunks=args.n_chunks, chunk_size=args.chunk_size,
-                                             force_sampling_from_y=True,
+                                             force_sampling_from_y=True, chrY_name=args.chrY_name,
                                              max_n_samples=max_n_samples_per_gpu, seed=args.seed+1)
 
     def preprocess_collate_fn(samples):
