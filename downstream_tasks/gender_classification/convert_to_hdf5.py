@@ -25,7 +25,7 @@ def convert_folders_to_hdf5(hdf5_path, folders_paths):
                 dset[:] = np.frombuffer(seq.encode('utf-8'), dtype='S1')
 
 
-def main(data_path, train_csv, valid_csv, test_csv, save_folder):
+def main(data_path, train_csv, valid_csv, test_csv, save_folder, sample_id_column):
     data_path = Path(data_path)
     save_folder = Path(save_folder)
 
@@ -45,7 +45,7 @@ def main(data_path, train_csv, valid_csv, test_csv, save_folder):
 
     for split_name in tqdm(data_splits, desc="Creating HDF5 datasets"):
         hdf5_path = save_folder / f'{split_name}.h5'
-        folders_paths = [data_path / sample_id for sample_id in data_splits[split_name]['sample']]
+        folders_paths = [data_path / sample_id for sample_id in data_splits[split_name][sample_id_column]]
         convert_folders_to_hdf5(hdf5_path, folders_paths)
 
 
@@ -70,7 +70,8 @@ if __name__ == "__main__":
     parser.add_argument('--valid_csv', type=str, help='Path to the validation CSV file')
     parser.add_argument('--test_csv', type=str, help='Path to the test CSV file')
     parser.add_argument('--save_folder', type=str, required=True, help='Folder to save the HDF5 files')
+    parser.add_argument('--sample_id_column', type=str, default='sample', help='column name with sample id')
 
     args = parser.parse_args()
 
-    main(args.data_path, args.train_csv, args.valid_csv, args.test_csv, args.save_folder)
+    main(args.data_path, args.train_csv, args.valid_csv, args.test_csv, args.save_folder, args.sample_id_column)
