@@ -1,6 +1,10 @@
-import copy
-
+import copy, string
 import numpy as np
+
+tab = str.maketrans("ACTGN", "TGACN")
+
+def reverse_complement(seq):
+    return seq.translate(tab)[::-1]
 
 
 def get_service_token_encodings(tokenizer):

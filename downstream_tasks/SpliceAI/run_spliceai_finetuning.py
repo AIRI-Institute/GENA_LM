@@ -214,3 +214,5 @@ if __name__ == '__main__':
             logger.info(f'len(test_dataset): {len(test_dataset)}')
             logger.info('Runnning validation on test data:')
         trainer.validate(test_dataloader, split='test', write_tb=True)
+
+    trainer.save_metrics(save_path=args.model_path)

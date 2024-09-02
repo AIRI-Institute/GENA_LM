@@ -6,4 +6,6 @@ torch">=1.7.1,<=1.9.1"
 transformers==4.17.0
 pysam>=0.19.1
 biopython>=1.79
-pandas>=1.5.0
+pandas>=1.5.0,<2.0.0
+pybedtools==0.10.0
+pybigwig==0.3.22

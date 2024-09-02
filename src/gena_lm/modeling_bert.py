@@ -1843,6 +1843,9 @@ class BertForSequenceClassification(BertPreTrainedModel):
 
         loss = None
         if labels is not None:
+            # print (f"self.config.problem_type from init: {self.config.problem_type}")
+            # print (f"self.num_labels from init: {self.num_labels}")
+            # print (f"labels.dtype {labels.dtype}")
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
@@ -1850,7 +1853,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
                     self.config.problem_type = "single_label_classification"
                 else:
                     self.config.problem_type = "multi_label_classification"
-
+            # print (f"self.config.problem_type from init: {self.config.problem_type}")
             if self.config.problem_type == "regression":
                 loss_fct = MSELoss()
                 if self.num_labels == 1:
@@ -1858,6 +1861,8 @@ class BertForSequenceClassification(BertPreTrainedModel):
                 else:
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
+                # print (logits)
+                # print (labels)
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
@@ -1987,7 +1992,6 @@ class BertForTokenClassification(BertPreTrainedModel):
         self.config = config
         if getattr(self.config, 'problem_type', None) is None:
             self.config.problem_type = 'single_label_classification'
-
         self.bert = BertModel(config, add_pooling_layer=False)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
