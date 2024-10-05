@@ -26,3 +26,27 @@ python convert_to_hdf5.py --data_path /mnt/20tb/vsfishman/nn_interpretator/1000g
 ```
 CUDA_VISIBLE_DEVICES=0,1 NP=2 ./run_finetuning.sh
 ```
+
+
+## Prepare mouse data
+```bash
+python split_dataset.py --data_path /mnt/20tb/vsfishman/nn_interpretator/mouse_fasta_dataset/dataset \
+--labels_path /mnt/20tb/vsfishman/nn_interpretator/mouse_fasta_dataset/mouse_lines_metadata.txt \
+--save_folder /mnt/20tb/ykuratov/mouse_gender_data/ \
+--train_size 16 --valid_size 10 --test_size 10 --label_column gender
+```
+output:
+```
+size of train: 16 / 36 = 0.444
+size of valid: 10 / 36 = 0.278
+size of test: 10 / 36 = 0.278
+```
+
+```bash
+python convert_to_hdf5.py --data_path /mnt/20tb/vsfishman/nn_interpretator/mouse_fasta_dataset/dataset \
+--train_csv /mnt/20tb/ykuratov/mouse_gender_data/train.csv \
+--valid_csv /mnt/20tb/ykuratov/mouse_gender_data/valid.csv \
+--test_csv /mnt/20tb/ykuratov/mouse_gender_data/test.csv \
+--save_folder /mnt/20tb/ykuratov/mouse_gender_data/ \
+--sample_id_column strain_name
+```

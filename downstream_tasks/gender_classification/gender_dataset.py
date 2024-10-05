@@ -22,7 +22,8 @@ class GenderDataChunkedDataset(IterableDataset):
     dataloader = DataLoader(dataset, batch_size=2, num_workers=2, worker_init_fn=worker_init_fn, collate_fn=collate_fn)
     """
     def __init__(self, data_path, labels_path, n_chunks=128, chunk_size=512, force_sampling_from_y=False,
-                 chrY_name='chrY', chrY_ratio=None, max_n_samples=None, seed=None):
+                 chrY_name='chrY', label_column='sex', sample_column='sample',
+                 chrY_ratio=None, max_n_samples=None, seed=None):
         # chunk_size is in base pairs
         self.data_path = Path(data_path)
         self.labels_path = Path(labels_path)
@@ -30,12 +31,20 @@ class GenderDataChunkedDataset(IterableDataset):
         self.chunk_size = chunk_size
         self.force_sampling_from_y = force_sampling_from_y
         self.chrY_name = chrY_name
+        self.label_column = label_column
+        self.sample_column = sample_column
         self.chrY_ratio = chrY_ratio
         self.max_n_samples = max_n_samples
         self.seed = seed
 
-        # 1 - male, 2 - female
-        self.labels = pd.read_csv(self.labels_path, index_col=0).set_index('sample')
+        # 1 - male, 2 - female  # in human data
+        # M - male, F - female  # in mouse data
+        # map labels to
+        # 0 - male, 1 - female
+        labels_map = {1: 0, 2: 1, 'M': 0, 'F': 1}
+
+        self.labels = pd.read_csv(self.labels_path, index_col=0).set_index(self.sample_column)
+        self.labels[self.label_column] = self.labels[self.label_column].map(labels_map)
 
         self.set_seed(seed)
 
@@ -108,7 +117,7 @@ class GenderDataChunkedDataset(IterableDataset):
             chunks, sampled_chrs, chr_lengths = self.get_chunks_from_sample(sample_id)
 
             yield {
-                'labels': self.labels.loc[sample_id]['sex'] - 1,
+                'labels': self.labels.loc[sample_id][self.label_column],
                 'sample_id': sample_id,
                 'sampled_chromosomes': sampled_chrs,
                 'chunks': chunks,
