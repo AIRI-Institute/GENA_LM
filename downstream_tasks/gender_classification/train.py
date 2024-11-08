@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.distributed
 import transformers
-from gender_dataset import GenderDataChunkedDataset, collate_fn, worker_init_fn
+from gender_dataset import MultiSpeciesGenderDataChunkedDataset, collate_fn, worker_init_fn
 from model import GenderChunkedClassifier
 from safetensors.torch import load_model
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
@@ -176,15 +176,15 @@ if __name__ == '__main__':
     model = cls.from_pretrained(args.from_pretrained, add_pooling_layer=False)
 
     args.data_path = Path(args.data_path)
-    dataset = GenderDataChunkedDataset(args.data_path / 'train.h5', args.data_path / 'train.csv',
-                                       n_chunks=args.n_chunks, chunk_size=args.chunk_size, chrY_name=args.chrY_name,
+    dataset = MultiSpeciesGenderDataChunkedDataset(split_name='train',
+                                       n_chunks=args.n_chunks, chunk_size=args.chunk_size,
                                        force_sampling_from_y=args.force_sampling_from_y, chrY_ratio=args.chrY_ratio,
                                        seed=args.seed)
 
     max_n_samples_per_gpu = args.n_valid_samples // accel.num_processes
-    valid_dataset = GenderDataChunkedDataset(args.data_path / 'valid.h5', args.data_path / 'valid.csv',
+    valid_dataset = MultiSpeciesGenderDataChunkedDataset(split_name='valid',
                                              n_chunks=args.n_chunks, chunk_size=args.chunk_size,
-                                             force_sampling_from_y=True, chrY_name=args.chrY_name,
+                                             force_sampling_from_y=True, 
                                              max_n_samples=max_n_samples_per_gpu, seed=args.seed+1)
 
     def preprocess_collate_fn(samples):
