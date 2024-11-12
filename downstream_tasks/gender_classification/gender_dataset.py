@@ -155,6 +155,9 @@ class SpeciesSampler:
                 self.labels = pd.read_csv(self.labels_path, index_col=0).set_index(self.sample_column)
                 self.labels[self.label_column] = self.labels[self.label_column].map(labels_map)
 
+                self.data = h5py.File(self.data_path, 'r')
+                self.size = len(self.data)
+
                 self.set_seed(seed)
 
         def set_seed(self, seed):
@@ -177,7 +180,7 @@ class SpeciesSampler:
         def get_species_chunk(self, chunk_size, n_chunks):
                 
                 # choosing random sample
-                self.data = h5py.File(self.data_path, 'r')
+                
                 self.sample_ids = list(self.data.keys())
                 sample_id = np.random.choice(self.sample_ids)
 
@@ -241,19 +244,30 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         
         self.species2metadata = {"homo_sapiens": 
                                     {
-                                        "data_path": "/mnt/20tb/ykuratov/gender_data/",
-                                        "chrY_name": "chrY",
+                                        "data_path": "/home/jovyan/data/downstream_tasks/gender_classification/human_gender_data",
+                                        "chrY_name": "chrY_with_SNPs",
                                         "sample_column": "sample",
                                         "label_column": "sex"
                                     },
                                 "mus_musculus":
                                     {
-                                        "data_path": "/mnt/20tb/ykuratov/mouse_gender_data/",
-                                        "chrY_name": "chrY",
+                                        "data_path": "/home/jovyan/data/downstream_tasks/gender_classification/mouse_gender_data",
+                                        "chrY_name": "chrY_with_SNPs",
                                         "sample_column": "strain_name",
                                         "label_column": "gender"
                                     }
                                 }
+
+        
+        self.set_seed(seed)
+
+
+    def set_seed(self, seed):
+        self.seed = seed
+        np.random.seed(seed)
+
+    def __iter__(self):
+        # read the data once per worker (not to share h5py file object between workers)
 
         self.species2sampler = {}
         species2size = {}
@@ -265,16 +279,6 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
                         
         total_samples = sum(species2size.values())
         self.species2prob = {species: species2size[species] / total_samples for species in species2size}
-                
-        self.set_seed(seed)
-
-
-    def set_seed(self, seed):
-        self.seed = seed
-        np.random.seed(seed)
-
-    def __iter__(self):
-        # read the data once per worker (not to share h5py file object between workers)
 
         species, probs = zip(*self.species2prob.items())
 
