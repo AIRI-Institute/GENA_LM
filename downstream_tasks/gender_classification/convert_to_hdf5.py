@@ -39,7 +39,7 @@ def main(data_path, train_csv, valid_csv, test_csv, save_folder, sample_id_colum
 
     if test_csv is not None:
         data_splits['test'] = pd.read_csv(test_csv)
-
+              
     if not save_folder.exists():
         save_folder.mkdir(parents=True)
 
