@@ -1,5 +1,8 @@
 #!/bin/bash
 
+
+# TODO add cuda_visible_devices as the parameter is not used in the script !!
+
 # Define arguments for the script
 N_CHUNKS=16
 CHUNK_SIZE=3072
@@ -13,7 +16,7 @@ TBS=128
 PER_DEVICE_BATCH_SIZE=8
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
 
-EXP_PATH="./runs/${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
+EXP_PATH="./runs/human_and_mouse_fixed_chromosome_ratios_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
 
 if [ -n "$CHRY_RATIO" ]; then
   EXP_PATH="${EXP_PATH}_chrY_ratio_${CHRY_RATIO}"

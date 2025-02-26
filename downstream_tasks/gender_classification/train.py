@@ -22,7 +22,7 @@ from transformers.integrations.integration_utils import TensorBoardCallback, rew
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-log_lvl = logging.INFO
+log_lvl = logging.DEBUG
 logging.basicConfig(format=logger_fmt, level=log_lvl)
 logger = logging.getLogger('')
 
