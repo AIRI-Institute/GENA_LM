@@ -161,7 +161,7 @@ class SpeciesSampler:
             chunks = []
             for chr in sampled_chrs:
                     start = np.random.randint(0, chr_lengths[chr] - chunk_size)
-                    chunk = ''.join(sample_data[chr][start:start + chunk_size].astype(str))
+                    chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
                     chunks.append(chunk)
 
             labels = self.labels.loc[sample_id][self.label_column]
