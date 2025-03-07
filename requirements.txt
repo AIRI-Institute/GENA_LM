@@ -2,7 +2,7 @@ numpy
 cyvcf2
 tokenizers
 tqdm
-torch">=1.7.1,<=1.9.1"
+torch
 transformers==4.17.0
 pysam>=0.19.1
 biopython>=1.79

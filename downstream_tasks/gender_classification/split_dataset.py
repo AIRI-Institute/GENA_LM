@@ -20,6 +20,7 @@ def main(data_path, labels_path, save_folder, label_column='sex', train_size=35,
     valid_ratio = valid_size / total_size
     test_ratio = test_size / total_size
 
+
     train_df, remaining_df = train_test_split(df, train_size=train_ratio, stratify=df[label_column],
                                               random_state=random_seed)
 

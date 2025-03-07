@@ -9,8 +9,8 @@ CHRY_NAME=chrY_with_SNPs
 #CHRY_RATIO=0.001
 
 LR=1e-05
-TBS=128
-PER_DEVICE_BATCH_SIZE=8
+TBS=4
+PER_DEVICE_BATCH_SIZE=2
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
 
 EXP_PATH="./runs/${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
@@ -38,7 +38,7 @@ accelerate launch \
   --main_process_port $((29500+N_CHUNKS*100+CHUNK_SIZE+TBS+N+1)) \
   --num_processes $NP \
   --mixed_precision bf16 \
-  --config_file accelerate.yaml \
+  --config_file default_config.yaml \
   ./train.py \
   --exp_path $EXP_PATH \
   --n_chunks $N_CHUNKS \

@@ -14,7 +14,7 @@ def convert_folders_to_hdf5(hdf5_path, folders_paths):
                 seq = SeqIO.read(file_path, format='fasta')
                 seq = str(seq.seq).strip('N').upper()
 
-                dataset_name = folder_path.name + '/' + '_'.join(file_path.stem.split('_')[1:])
+                dataset_name = folder_path.name + '/' + '_'.join(file_path.stem.split('_')[1:].strip())
                 dset = hdf5_file.create_dataset(
                     dataset_name,
                     shape=(len(seq),),
