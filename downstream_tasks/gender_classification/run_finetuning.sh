@@ -1,11 +1,14 @@
 #!/bin/bash
 
+
+# TODO add cuda_visible_devices as the parameter is not used in the script !!
+
 # Define arguments for the script
 N_CHUNKS=16
 CHUNK_SIZE=3072
 FORCE_SAMPLING_FROM_Y=false
 FREEZE_BACKBONE=false
-CHRY_NAME=chrY_with_SNPs
+CHRY_NAME=Y
 #CHRY_RATIO=0.001
 
 LR=1e-05
@@ -13,7 +16,7 @@ TBS=4
 PER_DEVICE_BATCH_SIZE=2
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
 
-EXP_PATH="./runs/${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
+EXP_PATH="./runs/mammals_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
 
 if [ -n "$CHRY_RATIO" ]; then
   EXP_PATH="${EXP_PATH}_chrY_ratio_${CHRY_RATIO}"
@@ -41,6 +44,7 @@ accelerate launch \
   --config_file default_config.yaml \
   ./train.py \
   --exp_path $EXP_PATH \
+  --data_path /home/jovyan/mammals_gender_data/ \
   --n_chunks $N_CHUNKS \
   --chunk_size $CHUNK_SIZE \
   --chrY_name $CHRY_NAME \

@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.distributed
 import transformers
-from gender_dataset import MultiSpeciesGenderDataChunkedDataset, collate_fn, worker_init_fn
+from mammals_gender_dataset import MultiSpeciesGenderDataChunkedDataset, collate_fn, worker_init_fn
 from model import GenderChunkedClassifier
 from safetensors.torch import load_model
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
@@ -22,7 +22,7 @@ from transformers.integrations.integration_utils import TensorBoardCallback, rew
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-log_lvl = logging.INFO
+log_lvl = logging.DEBUG
 logging.basicConfig(format=logger_fmt, level=log_lvl)
 logger = logging.getLogger('')
 
@@ -117,7 +117,7 @@ class ExperimentArgs:
     exp_path: str = field()
     per_device_batch_size: int = field()
     data_path: str = field(
-        default='/home/jovyan/data/downstream_tasks/gender_classification/',
+        default='/home/jovyan/mammals_gender_data/',
     )
     n_chunks: Optional[int] = field(default=8)
     chunk_size: Optional[int] = field(default=3072)
@@ -176,13 +176,13 @@ if __name__ == '__main__':
     model = cls.from_pretrained(args.from_pretrained, add_pooling_layer=False)
 
     args.data_path = Path(args.data_path)
-    dataset = MultiSpeciesGenderDataChunkedDataset(split_name='train',
+    dataset = MultiSpeciesGenderDataChunkedDataset(data_path=args.data_path, split_name='train',
                                        n_chunks=args.n_chunks, chunk_size=args.chunk_size,
                                        force_sampling_from_y=args.force_sampling_from_y, chrY_ratio=args.chrY_ratio,
                                        seed=args.seed)
 
     max_n_samples_per_gpu = args.n_valid_samples // accel.num_processes
-    valid_dataset = MultiSpeciesGenderDataChunkedDataset(split_name='valid',
+    valid_dataset = MultiSpeciesGenderDataChunkedDataset(data_path=args.data_path, split_name='valid',
                                              n_chunks=args.n_chunks, chunk_size=args.chunk_size,
                                              force_sampling_from_y=True, 
                                              max_n_samples=max_n_samples_per_gpu, seed=args.seed+1)

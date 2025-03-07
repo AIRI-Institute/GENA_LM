@@ -9,7 +9,7 @@ import json
 import logging
 import os
 
-log_lvl = logging.DEBUG
+log_lvl = logging.INFO
 logging.basicConfig(level=log_lvl)
 logger = logging.getLogger('mammals_gender_dataset')
 
