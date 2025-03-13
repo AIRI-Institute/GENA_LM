@@ -183,10 +183,17 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
 
         chunks = []
-        for chr in sampled_chrs:
+        chunk_dtype = sample_data[list(sample_data.keys())[0]].dtype
+        chunks = np.empty((self.n_chunks, self.chunk_size), dtype=chunk_dtype)
+
+        for i, chr in enumerate(sampled_chrs):
             start = np.random.randint(0, sample_data[chr].shape[0] - self.chunk_size)
-            chunk = ''.join(sample_data[chr][start:start + self.chunk_size].astype(str))
-            chunks.append(chunk)
+            # chunk = sample_data[chr][start:start + self.chunk_size].tobytes().decode('ascii')
+            sample_data[chr].read_direct(chunks[i], source_sel=np.s_[start:start + self.chunk_size])
+            # chunks.append(chunk)
+        chunks = [row.tobytes().decode('ascii') for row in chunks]
+
+
 
         full_sample_has_y_chr = any([self.chrY_name in chr for chr in chr_lengths])
         has_y_chr_sampled = any([self.chrY_name in chr for chr in sampled_chrs])
