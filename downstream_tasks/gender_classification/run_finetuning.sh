@@ -44,7 +44,7 @@ accelerate launch \
   --config_file default_config.yaml \
   ./train.py \
   --exp_path $EXP_PATH \
-  --data_path /home/jovyan/mammals_gender_data/ \
+  --data_path /mnt/nfs_dna/chepurova/merged_data/ \
   --n_chunks $N_CHUNKS \
   --chunk_size $CHUNK_SIZE \
   --chrY_name $CHRY_NAME \

@@ -117,7 +117,7 @@ class ExperimentArgs:
     exp_path: str = field()
     per_device_batch_size: int = field()
     data_path: str = field(
-        default='/home/jovyan/mammals_gender_data/',
+        default='/mnt/nfs_dna/chepurova/merged_data/',
     )
     n_chunks: Optional[int] = field(default=8)
     chunk_size: Optional[int] = field(default=3072)
