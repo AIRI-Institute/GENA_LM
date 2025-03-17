@@ -159,9 +159,10 @@ class SpeciesSampler:
                 sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(n_chunks)]
 
             chunks = []
-            for chr in sampled_chrs:
+            for i, chr in enumerate(sampled_chrs):
                     start = np.random.randint(0, chr_lengths[chr] - chunk_size)
                     chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
+                    sampled_chrs[i] = (chr, start, start + chunk_size)
                     chunks.append(chunk)
 
             labels = self.labels.loc[sample_id][self.label_column]
@@ -198,7 +199,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
 
         self.species2metadata = {"homo_sapiens": 
                                     {
-                                        "data_path": "/home/jovyan/data/downstream_tasks/gender_classification/human_gender_data",
+                                        "data_path": "/mnt/nfs_dna/chepurova/human_data",
                                         "chromosome_number": 46,
                                         "chrY_name": "chrY_with_SNPs",
                                         "chrX_name": 'chrX',
@@ -207,7 +208,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
                                     },
                                 "mus_musculus":
                                     {
-                                        "data_path": "/home/jovyan/data/downstream_tasks/gender_classification/mouse_gender_data",
+                                        "data_path": "/mnt/nfs_dna/chepurova/mouse_data",
                                         "chromosome_number": 40,
                                         "chrY_name": "chrY",
                                         "chrX_name": 'chrX',
