@@ -98,11 +98,9 @@ class SpeciesSampler:
                 logger.debug(f"Haploid chromosomes set")
                 autosome_lengths = {k: sample_data[k].shape[0] * 2 for k in autosomes}
                 autosome_bp = sum(autosome_lengths.values())
-
                 # for male we can just sum up the length of sex chromosomes as both X and Y are already presented
                 if any([self.chrY_name in chr for chr in sex_chromosomes]):
                     sex_chromosome_lengths = {k: sample_data[k].shape[0] for k in sex_chromosomes}
-                
                 # for females in case of haploid chromosome set we need to double the length of X chromosome
                 else:
                     # if only one X chromosomes are presented in case of a female sample - we double it
@@ -160,10 +158,11 @@ class SpeciesSampler:
 
             chunks = []
             for i, chr in enumerate(sampled_chrs):
-                    start = np.random.randint(0, chr_lengths[chr] - chunk_size)
-                    chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
-                    sampled_chrs[i] = (chr, start, start + chunk_size)
-                    chunks.append(chunk)
+                start = np.random.randint(0, sample_data[chr].shape[0] - chunk_size)
+                chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
+                sampled_chrs[i] = (chr, start, start + chunk_size)
+                # assert len(chunk) == chunk_size
+                chunks.append(chunk)
 
             labels = self.labels.loc[sample_id][self.label_column]
 
@@ -199,7 +198,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
 
         self.species2metadata = {"homo_sapiens": 
                                     {
-                                        "data_path": "/mnt/nfs_dna/chepurova/human_data",
+                                        "data_path": "/disk/10tb/home/chepurova/chepurova/human_data",
                                         "chromosome_number": 46,
                                         "chrY_name": "chrY_with_SNPs",
                                         "chrX_name": 'chrX',
@@ -208,7 +207,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
                                     },
                                 "mus_musculus":
                                     {
-                                        "data_path": "/mnt/nfs_dna/chepurova/mouse_data",
+                                        "data_path": "/disk/10tb/home/chepurova/chepurova/mouse_data",
                                         "chromosome_number": 40,
                                         "chrY_name": "chrY",
                                         "chrX_name": 'chrX',
@@ -240,7 +239,6 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         # self.species2prob = {species: species2size[species] / total_samples for species in species2size}
         self.species2prob = {species: 1 / len(species2size) for species in species2size}
         logger.debug(f"Species probabilities: {self.species2prob}")
-
 
         logger.debug(f"Species probabilities: {self.species2prob}")
 
