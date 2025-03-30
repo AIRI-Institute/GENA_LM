@@ -12,9 +12,9 @@ logging.basicConfig(level=log_lvl)
 logger = logging.getLogger('')
 
 class SpeciesSampler:
-    def __init__(self, data_path, split_name="train", chromosome_number=42, force_sampling_from_y=False,
-            chrX_name='chrX', chrY_name='chrY', label_column='sex', sample_column='sample',
-            chrX_ratio=None, chrY_ratio=None, seed=None):
+    def __init__(self, data_path, split_name="train", chromosome_number=42, force_sampling_from_y=False, 
+            force_label=[0, 1], chrX_name='chrX', chrY_name='chrY', label_column='sex', 
+            sample_column='sample', chrX_ratio=None, chrY_ratio=None, seed=None):
 
             self.chromosome_number = chromosome_number
             self.data_path = Path(data_path + "/" + split_name + ".h5")
@@ -26,6 +26,7 @@ class SpeciesSampler:
             self.chrY_name = chrY_name
             self.chrY_ratio = chrY_ratio
             self.force_sampling_from_y = force_sampling_from_y
+            self.force_label = force_label
 
             self.chrX_name = chrX_name
             self.chrX_ratio = chrX_ratio
@@ -40,6 +41,8 @@ class SpeciesSampler:
 
             self.labels = pd.read_csv(self.labels_path, index_col=0).set_index(self.sample_column)
             self.labels[self.label_column] = self.labels[self.label_column].map(labels_map)
+
+            self.labels = self.labels[self.labels[self.label_column].apply(lambda x: x in self.force_label)]
 
             self.data = h5py.File(self.data_path, 'r')
             self.size = len(self.data)
@@ -69,7 +72,8 @@ class SpeciesSampler:
     def get_species_chunk(self, chunk_size, n_chunks):
             
             # choosing random sample
-            self.sample_ids = list(self.data.keys())
+            # self.sample_ids = list(self.data.keys())
+            self.sample_ids = list(self.labels.index)
             sample_id = np.random.choice(self.sample_ids)
 
             logger.debug(f"Sample id: {sample_id}")
@@ -182,7 +186,7 @@ class SpeciesSampler:
 
 class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
     def __init__(self, split_name='train', n_chunks=128, chunk_size=512, force_sampling_from_y=False, 
-                chrY_ratio=None, chrX_ratio=None, max_n_samples=None, seed=None):
+            force_label=[0,1], chrY_ratio=None, chrX_ratio=None, max_n_samples=None, seed=None):
         
         self.max_n_samples = max_n_samples
         self.n_chunks = n_chunks
@@ -191,6 +195,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         self.common_params = {
             "split_name": split_name,
             "force_sampling_from_y": force_sampling_from_y,
+            "force_label": force_label,
             "chrY_ratio": chrY_ratio, 
             "chrX_ratio": chrX_ratio,
             "seed": seed
@@ -205,15 +210,15 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
                                         "sample_column": "sample",
                                         "label_column": "sex"
                                     },
-                                "mus_musculus":
-                                    {
-                                        "data_path": "/disk/10tb/home/chepurova/chepurova/mouse_data",
-                                        "chromosome_number": 40,
-                                        "chrY_name": "chrY",
-                                        "chrX_name": 'chrX',
-                                        "sample_column": "strain_name",
-                                        "label_column": "gender"
-                                    }
+                                # "mus_musculus":
+                                #     {
+                                #         "data_path": "/disk/10tb/home/chepurova/chepurova/mouse_data",
+                                #         "chromosome_number": 40,
+                                #         "chrY_name": "chrY",
+                                #         "chrX_name": 'chrX',
+                                #         "sample_column": "strain_name",
+                                #         "label_column": "gender"
+                                #     }
                                 }
 
         self.set_seed(seed)
