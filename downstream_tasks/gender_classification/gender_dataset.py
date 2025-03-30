@@ -12,9 +12,9 @@ logging.basicConfig(level=log_lvl)
 logger = logging.getLogger('')
 
 class SpeciesSampler:
-    def __init__(self, data_path, split_name="train", chromosome_number=42, force_sampling_from_y=False,
-            chrX_name='chrX', chrY_name='chrY', label_column='sex', sample_column='sample',
-            chrX_ratio=None, chrY_ratio=None, seed=None):
+    def __init__(self, data_path, split_name="train", chromosome_number=42, force_sampling_from_y=False, 
+            force_label=[0, 1], chrX_name='chrX', chrY_name='chrY', label_column='sex', 
+            sample_column='sample', chrX_ratio=None, chrY_ratio=None, seed=None):
 
             self.chromosome_number = chromosome_number
             self.data_path = Path(data_path + "/" + split_name + ".h5")
@@ -26,6 +26,7 @@ class SpeciesSampler:
             self.chrY_name = chrY_name
             self.chrY_ratio = chrY_ratio
             self.force_sampling_from_y = force_sampling_from_y
+            self.force_label = force_label
 
             self.chrX_name = chrX_name
             self.chrX_ratio = chrX_ratio
@@ -40,6 +41,8 @@ class SpeciesSampler:
 
             self.labels = pd.read_csv(self.labels_path, index_col=0).set_index(self.sample_column)
             self.labels[self.label_column] = self.labels[self.label_column].map(labels_map)
+
+            self.labels = self.labels[self.labels[self.label_column].apply(lambda x: x in self.force_label)]
 
             self.data = h5py.File(self.data_path, 'r')
             self.size = len(self.data)
@@ -69,7 +72,8 @@ class SpeciesSampler:
     def get_species_chunk(self, chunk_size, n_chunks):
             
             # choosing random sample
-            self.sample_ids = list(self.data.keys())
+            # self.sample_ids = list(self.data.keys())
+            self.sample_ids = list(self.labels.index)
             sample_id = np.random.choice(self.sample_ids)
 
             logger.debug(f"Sample id: {sample_id}")
@@ -98,11 +102,9 @@ class SpeciesSampler:
                 logger.debug(f"Haploid chromosomes set")
                 autosome_lengths = {k: sample_data[k].shape[0] * 2 for k in autosomes}
                 autosome_bp = sum(autosome_lengths.values())
-
                 # for male we can just sum up the length of sex chromosomes as both X and Y are already presented
                 if any([self.chrY_name in chr for chr in sex_chromosomes]):
                     sex_chromosome_lengths = {k: sample_data[k].shape[0] for k in sex_chromosomes}
-                
                 # for females in case of haploid chromosome set we need to double the length of X chromosome
                 else:
                     # if only one X chromosomes are presented in case of a female sample - we double it
@@ -160,10 +162,11 @@ class SpeciesSampler:
 
             chunks = []
             for i, chr in enumerate(sampled_chrs):
-                    start = np.random.randint(0, chr_lengths[chr] - chunk_size)
-                    chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
-                    sampled_chrs[i] = (chr, start, start + chunk_size)
-                    chunks.append(chunk)
+                start = np.random.randint(0, sample_data[chr].shape[0] - chunk_size)
+                chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
+                sampled_chrs[i] = (chr, start, start + chunk_size)
+                # assert len(chunk) == chunk_size
+                chunks.append(chunk)
 
             labels = self.labels.loc[sample_id][self.label_column]
 
@@ -183,7 +186,7 @@ class SpeciesSampler:
 
 class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
     def __init__(self, split_name='train', n_chunks=128, chunk_size=512, force_sampling_from_y=False, 
-                chrY_ratio=None, chrX_ratio=None, max_n_samples=None, seed=None):
+            force_label=[0,1], chrY_ratio=None, chrX_ratio=None, max_n_samples=None, seed=None):
         
         self.max_n_samples = max_n_samples
         self.n_chunks = n_chunks
@@ -192,6 +195,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         self.common_params = {
             "split_name": split_name,
             "force_sampling_from_y": force_sampling_from_y,
+            "force_label": force_label,
             "chrY_ratio": chrY_ratio, 
             "chrX_ratio": chrX_ratio,
             "seed": seed
@@ -199,22 +203,22 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
 
         self.species2metadata = {"homo_sapiens": 
                                     {
-                                        "data_path": "/mnt/nfs_dna/chepurova/human_data",
+                                        "data_path": "/disk/10tb/home/chepurova/chepurova/human_data",
                                         "chromosome_number": 46,
                                         "chrY_name": "chrY_with_SNPs",
                                         "chrX_name": 'chrX',
                                         "sample_column": "sample",
                                         "label_column": "sex"
                                     },
-                                "mus_musculus":
-                                    {
-                                        "data_path": "/mnt/nfs_dna/chepurova/mouse_data",
-                                        "chromosome_number": 40,
-                                        "chrY_name": "chrY",
-                                        "chrX_name": 'chrX',
-                                        "sample_column": "strain_name",
-                                        "label_column": "gender"
-                                    }
+                                # "mus_musculus":
+                                #     {
+                                #         "data_path": "/disk/10tb/home/chepurova/chepurova/mouse_data",
+                                #         "chromosome_number": 40,
+                                #         "chrY_name": "chrY",
+                                #         "chrX_name": 'chrX',
+                                #         "sample_column": "strain_name",
+                                #         "label_column": "gender"
+                                #     }
                                 }
 
         self.set_seed(seed)
@@ -240,7 +244,6 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         # self.species2prob = {species: species2size[species] / total_samples for species in species2size}
         self.species2prob = {species: 1 / len(species2size) for species in species2size}
         logger.debug(f"Species probabilities: {self.species2prob}")
-
 
         logger.debug(f"Species probabilities: {self.species2prob}")
 
