@@ -95,4 +95,4 @@ class GenderChunkedClassifier(torch.nn.Module):
             loss = self.loss_fn(logits, labels).mean()
             return {'loss': loss, 'predictions': predictions}
 
-        return {'predictions': predictions}
+        return {'predictions': predictions, 'attention_scores': attention_scores}

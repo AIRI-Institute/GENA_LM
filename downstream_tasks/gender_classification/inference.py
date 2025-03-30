@@ -4,7 +4,7 @@ import os
 import pickle
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 import torch
 import transformers
@@ -92,14 +92,15 @@ for param in params:
 
     dataloader = valid_dataloader
 
-    N = 100000 // bs
+    N = 10000 // bs
 
     labels = []
     probs = []
     sample_ids_list = []
     contain_y_list = []
     sampled_chromosomes_list = []
-
+    attn_scores = []
+    
     for b in tqdm(dataloader, total=N):
 
         # assert all(('chrX' not in chr) and ('chrY' not in chr) for chr in b['sampled_chromosomes'])
@@ -117,6 +118,7 @@ for param in params:
                 outputs = gender_model(b['input_ids'], b['attention_mask'])
                 labels += list(b['labels'].cpu().numpy())
                 probs += list(outputs['predictions'].float().cpu().numpy())
+                attn_scores += list(outputs['attention_scores'].float().cpu().numpy())
                 sample_ids_list += b['sample_ids']
                 sampled_chromosomes_list += b['sampled_chromosomes']
         N -= 1
