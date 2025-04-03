@@ -1,11 +1,6 @@
-import os
 import pickle
 import numpy as np
 from tqdm.auto import tqdm
-
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-
 import torch
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast
@@ -13,14 +8,15 @@ from torch.cuda.amp import autocast
 from gender_dataset import MultiSpeciesGenderDataChunkedDataset, worker_init_fn, collate_fn
 
 
-def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, seed=142, batch_size=64, 
-            chrX_ratio = None, chrY_ratio = None, force_sampling_from_y=False):
+def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, seed=142, batch_size=8, 
+            chrX_ratio = None, chrY_ratio = None, force_sampling_from_y=False, force_label=[0,1], N=100000):
 
     gender_model = gender_model.cuda()
 
     dataset = MultiSpeciesGenderDataChunkedDataset(split_name=split_name, n_chunks=n_chunks,
                                         chunk_size=chunk_size,
                                         force_sampling_from_y=force_sampling_from_y,
+                                        force_label=force_label,
                                         chrY_ratio=chrY_ratio,
                                         chrX_ratio=chrX_ratio,
                                         seed=seed+1)
@@ -55,13 +51,13 @@ def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, see
                           num_workers=1, pin_memory=True,
                           worker_init_fn=worker_init_fn)
     
-    N = 100000 // batch_size
+    N = N // batch_size
 
     labels = []
     probs = []
     sample_ids_list = []
-    contain_y_list = []
     sampled_chromosomes_list = []
+    attn_scores = []
 
     for b in tqdm(dataloader, total=N):
 
@@ -80,6 +76,7 @@ def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, see
                 outputs = gender_model(b['input_ids'], b['attention_mask'])
                 labels += list(b['labels'].cpu().numpy())
                 probs += list(outputs['predictions'].float().cpu().numpy())
+                attn_scores += list(outputs['attention_scores'].float().cpu().numpy())
                 sample_ids_list += b['sample_ids']
                 sampled_chromosomes_list += b['sampled_chromosomes']
         N -= 1
@@ -88,19 +85,20 @@ def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, see
     
     labels = np.array(labels)
     probs = np.array(probs)
+    attn_scores = np.array(attn_scores)
 
     sample_ids_labels = {sample_id: label for sample_id, label in zip(sample_ids_list, labels)}
 
     sample_ids_sampled_chromosomes = {}
-
     sample_ids_probs = {}
+    sample_ids_attn_scores = {}
 
     # aggregating sampled chromosomes for each sample 
     for i, chrs in zip(sample_ids_list, sampled_chromosomes_list):
         if i in sample_ids_sampled_chromosomes:
-            sample_ids_sampled_chromosomes[i] += chrs
+            sample_ids_sampled_chromosomes[i] += [chrs]
         else:
-            sample_ids_sampled_chromosomes[i] = chrs
+            sample_ids_sampled_chromosomes[i] = [chrs]
 
     # aggregating probabilities for each sample 
     for i, p in zip(sample_ids_list, probs):
@@ -109,21 +107,31 @@ def infer(gender_model, tokenizer, split_name, n_chunks=16, chunk_size=3072, see
         else:
             sample_ids_probs[i] = [p]
 
+    for i, score in zip(sample_ids_list, attn_scores):
+        if i in sample_ids_attn_scores:
+            sample_ids_attn_scores[i] += [score]
+        else:
+            sample_ids_attn_scores[i] = [score]
+
     # converting prob arrays to numpy
     for k in sample_ids_probs:
-        sample_ids_probs[k] = np.array(sample_ids_probs[k])
+        sample_ids_probs[k] = np.array(sample_ids_probs[k]).reshape(-1)
 
-    for k in sample_ids_probs:
-        probs = sample_ids_probs[k]
-        print(f'{k}: [{sample_ids_labels[k]}] {(probs>0.5).sum() / len(probs):.2f}')
+    for k in sample_ids_sampled_chromosomes:
+        sample_ids_sampled_chromosomes[k] = np.array(sample_ids_sampled_chromosomes[k])
+
+    for k in sample_ids_attn_scores:
+        sample_ids_attn_scores[k] = np.array(sample_ids_attn_scores[k])
+
     
-    return sample_ids_labels, sample_ids_probs, sample_ids_sampled_chromosomes
+    return sample_ids_labels, sample_ids_probs, sample_ids_sampled_chromosomes, sample_ids_attn_scores
 
 
 def load_generated_output(dumps):
     sample_ids_probs = None
     sample_ids_labels = None
     sample_ids_sampled_chromosomes = None
+    sample_ids_attn_scores = None
 
     for dump in dumps:
 
@@ -137,6 +145,9 @@ def load_generated_output(dumps):
 
         if sample_ids_sampled_chromosomes is None:
             sample_ids_sampled_chromosomes = d['sample_ids_sampled_chromosomes']
+        
+        if sample_ids_attn_scores is None:
+            sample_ids_attn_scores = d['sample_ids_attn_scores']
             
         else:
             sample_ids_labels.update(d['sample_ids_labels'])
@@ -152,8 +163,14 @@ def load_generated_output(dumps):
                     sample_ids_sampled_chromosomes[k] = np.concatenate([sample_ids_sampled_chromosomes[k], d['sample_ids_sampled_chromosomes'][k]])
                 else:
                     sample_ids_sampled_chromosomes[k] = d['sample_ids_sampled_chromosomes'][k]
+            
+            for k in d['sample_ids_attn_scores']:
+                if k in sample_ids_attn_scores:
+                    sample_ids_attn_scores[k] = np.concatenate([sample_ids_attn_scores[k], d['sample_ids_attn_scores'][k]])
+                else:
+                    sample_ids_attn_scores[k] = d['sample_ids_attn_scores'][k]
 
-    return sample_ids_probs, sample_ids_labels, sample_ids_sampled_chromosomes
+    return sample_ids_probs, sample_ids_labels, sample_ids_sampled_chromosomes, sample_ids_attn_scores
 
 
 def find_threshold_for_N(sample_ids_labels, sample_ids_probs, Ns=[25, 50, 100, 200, 500, 1000, 5000, 8000, 15000, 30000], sampling_freq=200):
