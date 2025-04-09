@@ -95,6 +95,9 @@ class ExpressionDataset(Dataset):
             for key, (v1 ,v2) in self.paths.items():
                 tpm = pd.read_csv(v2)
                 self.tpm_cache[key] = tpm
+            self.tpm_lookup = {}
+            for key, tpm_df in self.tpm_cache.items():
+                self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
 
     #путь для токенов
     def get_hash_path(self):
@@ -131,6 +134,22 @@ class ExpressionDataset(Dataset):
                     k, v1, v2 = line.split()  
                     assert k not in self.paths, f"Found repeated name {k}"
                     self.paths[k] = (v1, v2)  
+        self.files_opened = False
+
+    def read_paths(self):
+        self.paths = {} 
+        df = pd.read_csv(self.targets_path)
+        for _, row in df.iterrows():
+            k = row["id"]
+            v2 = row["csv"]
+            if self.reverse == 0:
+                v1 = row["forward_bw"]
+            else:
+                v1 = row["reverse_bw"]
+            
+            assert k not in self.paths, f"Found repeated name {k}"
+            self.paths[k] = (v1, v2)  
+        
         self.files_opened = False
 
     # Записываем токены
@@ -433,18 +452,13 @@ class ExpressionDataset(Dataset):
 
         
         tpm_values = []
+
         
         if not self.tpm:
             tpm_values = [torch.nan] * len(self.paths)
             features["tpm"] = torch.tensor(tpm_values)
         else:
-            for key in self.paths.keys():
-                tpm = self.tpm_cache[key]
-                if gene_id in tpm.columns:
-                    value = tpm.iloc[0][gene_id]
-                else:
-                    value = 0
-                tpm_values.append(value)
+            tpm_values = [self.tpm_lookup[key].loc[gene_id].iloc[0] if gene_id in self.tpm_lookup[key].index else 0 for key in self.paths.keys()]
             tpm_values = np.array(tpm_values, dtype=np.float32)
             if self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
