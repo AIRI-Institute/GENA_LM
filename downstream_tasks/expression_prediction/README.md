@@ -38,9 +38,9 @@ train_dataset_forward:
 Within a single dataset, it is not recommended to include keys for samples of different types. Samples are considered different types based on the presence of coverage data, TPM values, or both.
 For example:
 
-Dataset 1 should include all keys with coverage data.
-Dataset 2 should include all keys with TPM values.
-Dataset 3 could include keys with both TPM and coverage (bw) data.
+- Dataset 1 should include all keys with coverage data.
+- Dataset 2 should include all keys with TPM values.
+- Dataset 3 should include keys with both TPM and coverage (bw) data.
 
 Each `file_mappings` entry must contain the same number of keys across datasets.
 
