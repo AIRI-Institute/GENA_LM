@@ -1,6 +1,6 @@
 # Fine-Tuning the Expression Model
 
-## Model Execution
+## Model
 To fine-tune the model, run the following command:
 
 ```bash
