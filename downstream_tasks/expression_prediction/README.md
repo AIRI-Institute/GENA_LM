@@ -1,5 +1,3 @@
-# Fine-Tuning the Expression Model
-
 ## Model
 To fine-tune the model, run the following command:
 
