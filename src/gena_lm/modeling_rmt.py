@@ -915,7 +915,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
     
             masked_labels = torch.zeros((1, feat_dim), device=device)
             
-            if not torch.isnan(tpm).any():
+            if tpm is not None and not torch.isnan(tpm).all():
                 cls_label = tpm.unsqueeze(0)  
             else:
                 cls_label = masked_labels
@@ -938,7 +938,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
     
             mask_value = torch.zeros((1,), device=device)
             
-            if not torch.isnan(tpm).any():
+            if tpm is not None and not torch.isnan(tpm).all():
                 cls_mask_value = torch.ones((1,), device=device)
             else:
                 cls_mask_value = mask_value

@@ -16,7 +16,7 @@ args_params:
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
-  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model_weight_loss:ExpressionCounts"
 
   model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression"
 
@@ -112,7 +112,7 @@ train_dataset_forward:
 
   bw: True
 
-  tpm: False
+  tpm: True
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -153,7 +153,7 @@ valid_dataset_forward:
 
   bw: True
 
-  tpm: False
+  tpm: True
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -196,7 +196,7 @@ train_dataset_reverse:
 
   bw: True
 
-  tpm: False
+  tpm: True
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -239,7 +239,7 @@ valid_dataset_reverse:
 
   bw: True
 
-  tpm: False
+  tpm: True
   
   loglevel: 
     "_target_": "logging.getLevelName"

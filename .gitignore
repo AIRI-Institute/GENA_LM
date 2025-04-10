@@ -74,3 +74,4 @@ downstream_tasks/promoter_prediction/*.ipynb
 runs/*
 .vscode/*
 *.h5
+*.temp

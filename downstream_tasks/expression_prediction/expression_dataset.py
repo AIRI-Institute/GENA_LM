@@ -454,15 +454,32 @@ class ExpressionDataset(Dataset):
         tpm_values = []
 
         
+        # if not self.tpm:
+        #     tpm_values = [torch.nan] * len(self.paths)
+        #     features["tpm"] = torch.tensor(tpm_values)
+        # else:
+        #     tpm_values = [self.tpm_lookup[key].loc[gene_id].iloc[0] if gene_id in self.tpm_lookup[key].index else 0 for key in self.paths.keys()]
+        #     tpm_values = np.array(tpm_values, dtype=np.float32)
+        #     if self.transform_targets_tpm is not None:
+        #         tpm_values = self.transform_targets_tpm(tpm_values)
+        #     features["tpm"] = torch.tensor(tpm_values, dtype=torch.float)
+
         if not self.tpm:
-            tpm_values = [torch.nan] * len(self.paths)
-            features["tpm"] = torch.tensor(tpm_values)
+            features["tpm"] = torch.full((len(self.paths),), float('nan'), dtype=torch.float32)
         else:
-            tpm_values = [self.tpm_lookup[key].loc[gene_id].iloc[0] if gene_id in self.tpm_lookup[key].index else 0 for key in self.paths.keys()]
-            tpm_values = np.array(tpm_values, dtype=np.float32)
-            if self.transform_targets_tpm is not None:
+            # Создаем массив сразу с nan значениями
+            tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
+            
+            # Заполняем только существующие значения
+            for i, key in enumerate(self.paths.keys()):
+                if gene_id in self.tpm_lookup[key].index:
+                    tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
+            
+            # Проверяем наличие хотя бы одного не-nan значения
+            if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
-            features["tpm"] = torch.tensor(tpm_values, dtype=torch.float)
+            
+            features["tpm"] = torch.from_numpy(tpm_values)
 
 
         # Получаем desc_vectors
