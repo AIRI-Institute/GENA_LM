@@ -29,10 +29,11 @@ class ExpressionCounts(BertPreTrainedModel):
         config,
         loss_fct=nn.MSELoss(reduction="none"),
         activation = nn.Identity(),
-        hidden_size_desc=768,
-        hidden_ff=1024,
-        num_encoder_layers=3,
-        nhead=8,
+        hidden_size_desc = 768,
+        hidden_ff = 1024,
+        num_encoder_layers = 3,
+        nhead = 8,
+        weight = 1
     ):
         super().__init__(config)
         self.config = config
@@ -74,6 +75,7 @@ class ExpressionCounts(BertPreTrainedModel):
         # 5) Loss
         self.activation = activation
         self.loss_fct = loss_fct
+        self.weight = weight
 
         self.post_init()
 
@@ -178,11 +180,11 @@ class ExpressionCounts(BertPreTrainedModel):
 
                 # Объединяем лоссы
                 if cls_loss is not None and other_loss is not None:
-                    loss = cls_loss + other_loss
+                    loss = cls_loss + self.weight * other_loss
                 elif cls_loss is not None:
                     loss = cls_loss
                 elif other_loss is not None:
-                    loss = other_loss
+                    loss = self.weight * other_loss
 
         if not return_dict:
             return (loss, logits)

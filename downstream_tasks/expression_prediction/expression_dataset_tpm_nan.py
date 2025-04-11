@@ -76,6 +76,7 @@ class ExpressionDataset(Dataset):
         else:
             self.precompute_tokenization()
 
+
         # Достаем описания
         with open(text_data_path, "rb") as f:
             self.desc_data = pickle.load(f)
@@ -92,39 +93,14 @@ class ExpressionDataset(Dataset):
         if self.tpm:
             self.tpm_cache = {}
             for key, (v1 ,v2) in self.paths.items():
+                print(key, v1, v2)
                 tpm = pd.read_csv(v2)
                 self.tpm_cache[key] = tpm
             self.tpm_lookup = {}
             for key, tpm_df in self.tpm_cache.items():
                 self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
 
-        # Добавляем список валидных индексов
-        self.valid_indices = []
-        if not self.bw:  # Вычисляем валидные индексы только если bw=False
-            self._compute_valid_indices()
-        else:
-            # Если bw=True, все индексы валидны
-            self.valid_indices = list(range(len(self.genes)))
-
-    def _compute_valid_indices(self):
-        """Предварительно вычисляем список валидных индексов"""
-        self.logger.info("Computing valid indices...")
-        for idx in tqdm.tqdm(range(len(self.genes)), desc="Checking samples"):
-            gene_id = self.genes.iloc[idx]['gene_id']
-            
-            # Проверяем TPM значения
-            has_tpm_data = False
-            for key in self.paths.keys():
-                if gene_id in self.tpm_lookup[key].index:
-                    has_tpm_data = True
-                    break
-                
-            # Добавляем индекс только если есть TPM данные
-            if has_tpm_data:
-                self.valid_indices.append(idx)
-                
-        self.logger.info(f"Found {len(self.valid_indices)} valid samples out of {len(self.genes)}")
-
+    #путь для токенов
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('tokens').encode("utf-8"))
@@ -136,6 +112,7 @@ class ExpressionDataset(Dataset):
         hash_path = str(self.intervals_path) + "." + hash_suffix
         return hash_path
 
+    #путь для bw
     def get_signals_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
@@ -161,13 +138,16 @@ class ExpressionDataset(Dataset):
             # Обрабатываем пути для v2
             if pd.isna(row["csv"]):  
                 v2 = row["CPM"]  # оставляем как есть (может быть NaN)
+
             else:
                 v2 = row["csv"]  # оставляем как есть (может быть NaN)
+
                 
-            # Если путь существует и не NaN, делаем его абсолютным
+           # Если путь существует и не NaN, делаем его абсолютным
             if not pd.isna(v2) and not str(v2).startswith('/'):
                 v2 = os.path.join(base_dir, str(v2))
 
+                
             # Обрабатываем пути для v1
             if self.reverse == 0:
                 v1 = row["forward_bw"]  # оставляем как есть (может быть NaN)
@@ -183,6 +163,7 @@ class ExpressionDataset(Dataset):
         
         self.files_opened = False
 
+    # Записываем токены
     def precompute_tokenization(self):
         self.logger.info(f"Precomputing tokenization to {self.h5_cache_path}")
         temp_path = f"{self.h5_cache_path}.{os.getpid()}.temp"
@@ -218,21 +199,26 @@ class ExpressionDataset(Dataset):
                 os.remove(temp_path)
             raise
 
+    # Открываем файлы с bw
     def open_files(self):
-        if self.bw:
-            self.bigWigHandlers = {}
-            for k, (v1, v2) in self.paths.items():
-                try:
-                    self.bigWigHandlers[k] = bw.open(v1)
-                except Exception as e:
-                    self.logger.error(f"Error opening bigwig file {v1}")
-                    print(e.__traceback__)
-            self.files_opened = True
+        # self.logger.info("opening bigWig file handlers")
+        self.bigWigHandlers = {}
+        for k, (v1, v2) in self.paths.items():
+            try:
+                # self.logger.info(f"opening bigWig {v}")
+                self.bigWigHandlers[k] = bw.open(v1)
+            except Exception as e:
+                self.logger.error(f"Error opening bigwig file {v1}")
+                print(e.__traceback__)
+        self.files_opened = True
 
+    # reverse_complement
     def reverse_complement(self, sequence):
         complement = str.maketrans('ACGTN', 'TGCAN')
         return sequence.translate(complement)[::-1]
 
+
+    # Токенизируем последовательности
     def tokenize_genome(self, i):
         row = self.genes.iloc[i]  
         chrom = row["chromosome"] 
@@ -253,32 +239,77 @@ class ExpressionDataset(Dataset):
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
-
-        tokens = []
-        for i in range(0, len(sequence), 6):
-            kmer = sequence[i:i+6]
-            if len(kmer) == 6:
-                tokens.append(kmer)
-
-        token_ids = self.gen_tokenizer.convert_tokens_to_ids(tokens)
+            
+        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+        encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
+        encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+        tokens_before = encoded_sequence['input_ids'][-self.num_before:]
+        mapping = encoded_sequence['offset_mapping'][-self.num_before:]
         
-        starts = []
-        ends = []
-        for i in range(0, len(sequence), 6):
-            if i + 6 <= len(sequence):
-                starts.append(i)
-                ends.append(i + 6)
+        token_lengths = []
+        for i, (start_i, end_i) in enumerate(mapping):
+            token_id = tokens_before[i]
+            if (token_id == 5):
+                if i > 0:
+                    length = end_i - mapping[i-1][1] 
+                else:
+                    length = end_i
+            else:
+                length = end_i - start_i  
+            token = self.gen_tokenizer.decode([token_id])  
+            token_lengths.append((token_id, token, length))
+    
+        if self.reverse == 0:
+            start_gene = start - sum(t[2] for t in token_lengths)
+        else:
+            start_gene = end
+    
+        if (self.reverse == 0):
+            try:
+                sequence = self.sequences.fetch(chrom, start, end).upper()
+            except ValueError as e:
+                self.logger.error(f"Error sequence {i}")
+                print(e.__traceback__)
+        else:
+            try:
+                sequence = self.sequences.fetch(chrom, end, start).upper()
+                sequence = self.reverse_complement(sequence)
+            except ValueError as e:
+                self.logger.error(f"Error sequence {i}")
+                print(e.__traceback__)
+        
+        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+        tokens_before = encoded_sequence['input_ids'][1:-1]
+        mapping = encoded_sequence['offset_mapping'][1:-1]
+       
+        for i, (start_i, end_i) in enumerate(mapping):
+            token_id = tokens_before[i]
+            if (token_id == 5):
+                if i > 0:
+                    length = end_i - mapping[i-1][1] 
+                else:
+                    length = end_i
+            else:
+                length = end_i - start_i 
+            token = self.gen_tokenizer.decode([token_id])  
+            token_lengths.append((token_id, token, length))
+            
+        if self.reverse == 1:
+            token_lengths.reverse()
+        token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
+        token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
+        token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
+        token_lengths_df['chrom'] = chrom
+        if self.reverse == 1:
+            token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
+        return start_gene, token_lengths_df
 
-        tokens_df = pd.DataFrame({
-            "token_id": token_ids,
-            "start": starts,
-            "end": ends,
-            "chrom": [chrom] * len(token_ids)
-        })
-
-        return start, tokens_df
-
+    # Вычисляем сигнал для интервала
     def process_region_signals(self, bw, chrom, starts, ends, l):
+        if l == 0:
+            return np.zeros(0, dtype=np.float32)
+            
+        # Создаем массив для результатов
         signals = np.zeros(l, dtype=np.float32)
         
         # Определяем границы всего региона
@@ -325,6 +356,7 @@ class ExpressionDataset(Dataset):
             
         return signals
 
+    # Записываем сигнал для всех интервалов
     def precompute_signals(self):
         self.logger.info(f"Precomputing signals to {self.signals_cache_path}")
         temp_path = f"{self.signals_cache_path}.{os.getpid()}.temp"
@@ -374,16 +406,13 @@ class ExpressionDataset(Dataset):
             raise
 
     def __len__(self):
-        return len(self.valid_indices)
+        return len(self.genes)
 
     def __getitem__(self, idx):
-        # Преобразуем индекс в исходный индекс гена
-        original_idx = self.valid_indices[idx]
-        
         if not self.files_opened and self.bw:
             self.open_files()
 
-        gene_id = self.genes.iloc[original_idx]['gene_id']
+        gene_id = self.genes.iloc[idx]['gene_id']
         gene_group = self.h5_cache[gene_id]
         
         input_ids = np.array(gene_group['input_ids'])
@@ -399,13 +428,13 @@ class ExpressionDataset(Dataset):
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
             "gene_id": gene_id,
-            "name": self.genes.iloc[original_idx]['gene_name'],
+            "name": self.genes.iloc[idx]['gene_name'],
         }
 
         if self.bw:
             # Загружаем сигналы из кэша 
             if self.signals_cache is not None:
-                gene_id = self.genes.iloc[original_idx]['gene_id']
+                gene_id = self.genes.iloc[idx]['gene_id']
                 signals_group = self.signals_cache[gene_id]
                 bigwig_signals = np.array(signals_group['signals'])
             else:
@@ -432,19 +461,37 @@ class ExpressionDataset(Dataset):
             features["start"] = starts[l-1]
             features["end"] = ends[0]
 
-        # Получаем TPM значения
+        
+        tpm_values = []
+
+        
+        # if not self.tpm:
+        #     tpm_values = [torch.nan] * len(self.paths)
+        #     features["tpm"] = torch.tensor(tpm_values)
+        # else:
+        #     tpm_values = [self.tpm_lookup[key].loc[gene_id].iloc[0] if gene_id in self.tpm_lookup[key].index else 0 for key in self.paths.keys()]
+        #     tpm_values = np.array(tpm_values, dtype=np.float32)
+        #     if self.transform_targets_tpm is not None:
+        #         tpm_values = self.transform_targets_tpm(tpm_values)
+        #     features["tpm"] = torch.tensor(tpm_values, dtype=torch.float)
+
         if not self.tpm:
-            tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
+            features["tpm"] = torch.full((len(self.paths),), float('nan'), dtype=torch.float32)
         else:
+            # Создаем массив сразу с nan значениями
             tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
+            
+            # Заполняем только существующие значения
             for i, key in enumerate(self.paths.keys()):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
             
+            # Проверяем наличие хотя бы одного не-nan значения
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
-        
-        features["tpm"] = torch.from_numpy(tpm_values)
+            
+            features["tpm"] = torch.from_numpy(tpm_values)
+
 
         # Получаем desc_vectors
         desc_vectors_list = []
@@ -456,6 +503,25 @@ class ExpressionDataset(Dataset):
 
         desc_vectors = np.stack(desc_vectors_list, axis=0)
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
+
+        # # Паддинг если нужно
+        # if l < self.gen_max_seq_len:
+        #     pad_len = self.gen_max_seq_len - l
+        #     features["input_ids"] = torch.nn.functional.pad(
+        #         features["input_ids"], (0, pad_len), value=self.gen_tokenizer.pad_token_id
+        #     )
+        #     features["attention_mask"] = torch.nn.functional.pad(
+        #         features["attention_mask"], (0, pad_len), value=0
+        #     )
+        #     features["token_type_ids"] = torch.nn.functional.pad(
+        #         features["token_type_ids"], (0, pad_len), value=0
+        #     )
+        #     features["labels"] = torch.nn.functional.pad(
+        #         features["labels"], (0, 0, 0, pad_len), value=0
+        #     )
+        #     features["labels_mask"] = torch.nn.functional.pad(
+        #         features["labels_mask"], (0, pad_len), value=0
+        #     )
 
         return features
 

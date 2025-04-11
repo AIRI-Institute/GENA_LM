@@ -15,7 +15,7 @@ NP=2
 
 #CUDA_VISIBLE_DEVICES=0 python3 -m downstream_tasks.expression_meta_prediction.run_expression_meta_finetuning_rmt \
 horovodrun --gloo -np $NP python -m downstream_tasks.expression_prediction.run_expression_finetuning \
-    --experiment_config "downstream_tasks/expression_prediction/configs/run_config_Expression_dataset_v1_CPM.yaml" \
+    --experiment_config "downstream_tasks/expression_prediction/configs/run_config_Expression_dataset_v1_csv.yaml" \
     --backbone_trainable \
     --batch_size $BS \
     --gradient_accumulation_steps $(($TBS / ($BS * $NP)))

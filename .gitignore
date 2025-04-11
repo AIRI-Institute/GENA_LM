@@ -75,3 +75,4 @@ runs/*
 .vscode/*
 *.h5
 *.temp
+*.bed

@@ -90,6 +90,7 @@ model_kwargs:
 
     _target_: builtins.dict
 
+  weight: 1
 
 
 train_dataset_forward:

@@ -1,4 +1,4 @@
-TASK_NAME: expression_bozoi
+TASK_NAME: expression
 
 HOME_PATH: /mnt/nfs_dna/aspeedok/github
 
@@ -90,13 +90,14 @@ model_kwargs:
 
     _target_: builtins.dict
 
+  weight: 10
 
 
 train_dataset_forward:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/train.forward.csv"
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -104,7 +105,7 @@ train_dataset_forward:
 
   num_before: 250
   
-  genome: "/mnt/nfs_dna/aspeedok/genome/hg38/hg38.fna"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
@@ -137,7 +138,7 @@ valid_dataset_forward:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/valid.forward.csv"
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -145,7 +146,7 @@ valid_dataset_forward:
 
   num_before: 250
   
-  genome: "/mnt/nfs_dna/aspeedok/genome/hg38/hg38.fna"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
@@ -178,7 +179,7 @@ train_dataset_reverse:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/train.reverse.csv"
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -186,7 +187,7 @@ train_dataset_reverse:
 
   num_before: 250
   
-  genome: "/mnt/nfs_dna/aspeedok/genome/hg38/hg38.fna"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
@@ -220,7 +221,7 @@ valid_dataset_reverse:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/valid.reverse.csv"
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -228,7 +229,7 @@ valid_dataset_reverse:
 
   num_before: 250
   
-  genome: "/mnt/nfs_dna/aspeedok/genome/hg38/hg38.fna"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
