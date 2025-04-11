@@ -233,6 +233,7 @@ class ExpressionDataset(Dataset):
         complement = str.maketrans('ACGTN', 'TGCAN')
         return sequence.translate(complement)[::-1]
 
+    # Токенизируем последовательности
     def tokenize_genome(self, i):
         row = self.genes.iloc[i]  
         chrom = row["chromosome"] 
@@ -253,30 +254,70 @@ class ExpressionDataset(Dataset):
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
-
-        tokens = []
-        for i in range(0, len(sequence), 6):
-            kmer = sequence[i:i+6]
-            if len(kmer) == 6:
-                tokens.append(kmer)
-
-        token_ids = self.gen_tokenizer.convert_tokens_to_ids(tokens)
+            
+        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+        encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
+        encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+        tokens_before = encoded_sequence['input_ids'][-self.num_before:]
+        mapping = encoded_sequence['offset_mapping'][-self.num_before:]
         
-        starts = []
-        ends = []
-        for i in range(0, len(sequence), 6):
-            if i + 6 <= len(sequence):
-                starts.append(i)
-                ends.append(i + 6)
-
-        tokens_df = pd.DataFrame({
-            "token_id": token_ids,
-            "start": starts,
-            "end": ends,
-            "chrom": [chrom] * len(token_ids)
-        })
-
-        return start, tokens_df
+        token_lengths = []
+        for i, (start_i, end_i) in enumerate(mapping):
+            token_id = tokens_before[i]
+            if (token_id == 5):
+                if i > 0:
+                    length = end_i - mapping[i-1][1] 
+                else:
+                    length = end_i
+            else:
+                length = end_i - start_i  
+            token = self.gen_tokenizer.decode([token_id])  
+            token_lengths.append((token_id, token, length))
+    
+        if self.reverse == 0:
+            start_gene = start - sum(t[2] for t in token_lengths)
+        else:
+            start_gene = end
+    
+        if (self.reverse == 0):
+            try:
+                sequence = self.sequences.fetch(chrom, start, end).upper()
+            except ValueError as e:
+                self.logger.error(f"Error sequence {i}")
+                print(e.__traceback__)
+        else:
+            try:
+                sequence = self.sequences.fetch(chrom, end, start).upper()
+                sequence = self.reverse_complement(sequence)
+            except ValueError as e:
+                self.logger.error(f"Error sequence {i}")
+                print(e.__traceback__)
+        
+        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+        tokens_before = encoded_sequence['input_ids'][1:-1]
+        mapping = encoded_sequence['offset_mapping'][1:-1]
+       
+        for i, (start_i, end_i) in enumerate(mapping):
+            token_id = tokens_before[i]
+            if (token_id == 5):
+                if i > 0:
+                    length = end_i - mapping[i-1][1] 
+                else:
+                    length = end_i
+            else:
+                length = end_i - start_i 
+            token = self.gen_tokenizer.decode([token_id])  
+            token_lengths.append((token_id, token, length))
+            
+        if self.reverse == 1:
+            token_lengths.reverse()
+        token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
+        token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
+        token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
+        token_lengths_df['chrom'] = chrom
+        if self.reverse == 1:
+            token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
+        return start_gene, token_lengths_df
 
     def process_region_signals(self, bw, chrom, starts, ends, l):
         signals = np.zeros(l, dtype=np.float32)
