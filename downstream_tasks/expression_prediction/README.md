@@ -1,7 +1,19 @@
+## Necessary Actions
+1. Download the hg38 and mm10 genomes:
+```
+cd downstream_tasks/expression_prediction/datasets/src/
+bash download_genome.sh
+```
+2. Generate embeddings for descriptions
+```
+cd downstream_tasks/expression_prediction/datasets/src/
+python3 process_descriptions.py (путь к full_combined_file_mappings.csv) /GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings.csv
+```
+
 ## Model
 To fine-tune the model, run the following command:
 
-```bash
+```
 bash finetune_expression_rm.sh
 ```
 
@@ -11,6 +23,9 @@ Model and dataset parameters are specified in the `run_config.yaml` file:
 ```
 expression_prediction/configs/run_config.yaml
 ```
+Configs
+- run_config_Expression_dataset_v1_CPM.yaml (CPM, mouse)
+- run_config_Expression_dataset_v1_csv.yaml (tpm + bw, human)
 
 ## Dataset Configuration
 The dataset configuration in the YAML file includes the following fields:
