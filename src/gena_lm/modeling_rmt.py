@@ -770,7 +770,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             out[f'loss_{i}'] = l.mean()
 
         # aggregate losses from all segments
-        out['loss'] = torch.stack(losses).mean()
+        if out_loss is not None:
+            out['loss'] = torch.stack(losses).mean()
 
         # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
         # this may lead to different order of samples in the batch, but we modify order of labels and masks as well

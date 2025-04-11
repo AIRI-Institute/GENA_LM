@@ -1,0 +1,260 @@
+TASK_NAME: expression_bozoi
+
+HOME_PATH: /mnt/nfs_dna/aspeedok/github
+
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+
+
+
+args_params:
+
+  _target_: builtins.dict
+  
+#  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
+
+  resume: 
+
+  model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
+
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+
+  model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression"
+
+  model_path: ${MODEL_PATH_ROOT}
+
+  clip_grad_norm: 1
+
+  input_seq_len: 1008
+  
+  input_size: 512  
+  
+  num_mem_tokens: 5
+
+  mixed_length_ratio: 0.0
+  
+  max_n_segments: 2
+
+  bptt_depth: -1 
+
+  optimizer: "AdamW"
+
+  weight_decay: 1e-4
+
+  seed: 43
+
+  num_warmup_steps: 5000
+
+  log_interval: 250
+
+  valid_interval: 250
+
+  save_best: True
+
+  save_interval: 5000
+
+  data_n_workers: 2
+
+  lr: 3e-05
+
+  lr_scheduler: "constant_with_warmup"
+
+  reset_lr: True
+
+  reset_optimizer: True
+
+  reset_iteration: True
+
+  early_stopping_patience: 50000
+
+  iters: 350000
+
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+
+
+model_kwargs:
+
+  _target_: builtins.dict
+
+  loss_fct:
+
+    _target_: torch.nn.MSELoss
+
+    reduction: 'none'
+
+  activation:
+
+    _target_: torch.nn.Identity
+
+  config:
+
+    _target_: builtins.dict
+
+
+
+train_dataset_forward:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  bw: False
+
+  tpm: True
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+
+
+valid_dataset_forward:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  bw: False
+
+  tpm: True
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+  
+
+train_dataset_reverse:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  bw: False
+
+  tpm: True
+
+  reverse: 1
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+
+valid_dataset_reverse:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  bw: False
+
+  tpm: True
+
+  reverse: 1
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+  

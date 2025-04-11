@@ -93,6 +93,7 @@ class ExpressionDataset(Dataset):
         if self.tpm:
             self.tpm_cache = {}
             for key, (v1 ,v2) in self.paths.items():
+                print(key, v1, v2)
                 tpm = pd.read_csv(v2)
                 self.tpm_cache[key] = tpm
             self.tpm_lookup = {}
@@ -123,29 +124,39 @@ class ExpressionDataset(Dataset):
         m.update(str(self.gen_max_seq_len).encode("utf-8"))  
         hash_suffix = m.hexdigest()
         return str(self.intervals_path) + ".signal." + hash_suffix
-
-    # Читаем пути к bw и tpm из targets_path
-    def read_paths(self):
-        self.paths = {}    
-        with open(self.targets_path) as fin:
-            for line in fin:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    k, v1, v2 = line.split()  
-                    assert k not in self.paths, f"Found repeated name {k}"
-                    self.paths[k] = (v1, v2)  
-        self.files_opened = False
-
+        
     def read_paths(self):
         self.paths = {} 
         df = pd.read_csv(self.targets_path)
+        
+        # Получаем директорию, в которой находится targets_path
+        base_dir = os.path.dirname(os.path.abspath(self.targets_path))
+        
         for _, row in df.iterrows():
             k = row["id"]
-            v2 = row["csv"]
-            if self.reverse == 0:
-                v1 = row["forward_bw"]
+            
+            # Обрабатываем пути для v2
+            if pd.isna(row["csv"]):  
+                v2 = row["CPM"]  # оставляем как есть (может быть NaN)
+
             else:
-                v1 = row["reverse_bw"]
+                v2 = row["csv"]  # оставляем как есть (может быть NaN)
+
+                
+           # Если путь существует и не NaN, делаем его абсолютным
+            if not pd.isna(v2) and not str(v2).startswith('/'):
+                v2 = os.path.join(base_dir, str(v2))
+
+                
+            # Обрабатываем пути для v1
+            if self.reverse == 0:
+                v1 = row["forward_bw"]  # оставляем как есть (может быть NaN)
+            else:
+                v1 = row["reverse_bw"]  # оставляем как есть (может быть NaN)
+                
+            # Если путь существует и не NaN, делаем его абсолютным
+            if not pd.isna(v1) and not str(v1).startswith('/'):
+                v1 = os.path.join(base_dir, str(v1))
             
             assert k not in self.paths, f"Found repeated name {k}"
             self.paths[k] = (v1, v2)  
@@ -398,7 +409,7 @@ class ExpressionDataset(Dataset):
         return len(self.genes)
 
     def __getitem__(self, idx):
-        if not self.files_opened:
+        if not self.files_opened and self.bw:
             self.open_files()
 
         gene_id = self.genes.iloc[idx]['gene_id']
@@ -484,7 +495,7 @@ class ExpressionDataset(Dataset):
 
         # Получаем desc_vectors
         desc_vectors_list = []
-        for key in self.bigWigHandlers.keys():
+        for key in self.paths.keys():
             if key not in self.desc_data:
                 raise KeyError(f"Track ID '{key}' not found in desc_data")
             desc_vec = self.desc_data[key]

@@ -414,7 +414,7 @@ def main():
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
                       train_sampler=train_sampler, batch_transform_fn=batch_transform_fn) #,
-                     # batch_metrics_fn=batch_metrics_fn, metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
+                    #  batch_metrics_fn=batch_metrics_fn, metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
     # train loop
     trainer.train()
     # make sure all workers are done
