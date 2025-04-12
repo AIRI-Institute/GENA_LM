@@ -39,6 +39,7 @@ class ExpressionDataset(Dataset):
         bw = True,
         tpm = True,
         hash_prefix = None,
+        n_keys: int = None,
     ):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
@@ -51,6 +52,9 @@ class ExpressionDataset(Dataset):
 
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
+
+        self.n_keys = n_keys
+        self.selected_keys = None
         
         self.seed = seed
         np.random.seed(self.seed)
@@ -60,6 +64,7 @@ class ExpressionDataset(Dataset):
         self.targets_path = targets_path
 
         self.read_paths()
+
 
         # read list of intervals (a.k.a. genes associated with intervals)
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
@@ -124,8 +129,18 @@ class ExpressionDataset(Dataset):
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
 
+        # Отбираем нужные ключи
+        if self.n_keys is not None:
+            np.random.seed(self.seed)
+            self.selected_keys = np.random.choice(len(self.paths), self.n_keys, replace=False)
+            # Сохраняем список выбранных ключей
+            self.selected_keys_names = [list(self.paths.keys())[i] for i in self.selected_keys]
+        else:
+            self.selected_keys = None
+            self.selected_keys_names = list(self.paths.keys())
+
+    # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
-        """Предварительно вычисляем список валидных индексов"""
         self.logger.info("Computing valid indices...")
         for idx in tqdm.tqdm(range(len(self.genes)), desc="Checking samples"):
             gene_id = self.genes.iloc[idx]['gene_id']
@@ -467,18 +482,24 @@ class ExpressionDataset(Dataset):
             "name": self.genes.iloc[original_idx]['gene_name'],
         }
 
+        n_cell_types = self.n_keys if self.n_keys is not None else len(self.paths)
+
         if self.bw:
             # Load from cache 
             if self.signals_cache is not None:
                 gene_id = self.genes.iloc[original_idx]['gene_id']
                 signals_group = self.signals_cache[gene_id]
                 bigwig_signals = np.array(signals_group['signals'])
+
             else:
                 # If cache is not found, compute signals 
                 bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
                 for i, (key, bw) in enumerate(self.bigWigHandlers.items()):
                     track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
                     bigwig_signals[:, i] = track_signals
+
+            if self.n_keys is not None:
+                bigwig_signals = bigwig_signals[:, self.selected_keys]
     
             if self.transform_targets_bw is not None:
                 bigwig_signals = self.transform_targets_bw(bigwig_signals)
@@ -487,7 +508,7 @@ class ExpressionDataset(Dataset):
             features["labels_mask"] = torch.ones(l, dtype=torch.bool)
         
         else:
-            features["labels"] = torch.zeros((l, len(self.paths)), dtype=torch.float)
+            features["labels"] = torch.zeros((l, n_cell_types), dtype=torch.float)
             features["labels_mask"] = torch.zeros(l, dtype=torch.bool)
 
         reverse = 0 if strand == "+" else 1
@@ -500,12 +521,15 @@ class ExpressionDataset(Dataset):
 
         # Получаем TPM значения
         if not self.tpm:
-            tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
+            tpm_values = np.full(n_cell_types, np.nan, dtype=np.float32)
         else:
             tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
             for i, key in enumerate(self.paths.keys()):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
+            
+            if self.n_keys is not None:
+                tpm_values = tpm_values[self.selected_keys]
             
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
@@ -521,7 +545,12 @@ class ExpressionDataset(Dataset):
             desc_vectors_list.append(desc_vec)
 
         desc_vectors = np.stack(desc_vectors_list, axis=0)
+        
+        if self.n_keys is not None:
+            desc_vectors = desc_vectors[self.selected_keys]
+        
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
+        features["selected_keys"] = self.selected_keys_names
 
         return features
 
