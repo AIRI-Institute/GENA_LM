@@ -7,13 +7,14 @@ bash download_genome.sh
 2. Generate embeddings for descriptions
 ```
 cd downstream_tasks/expression_prediction/datasets/src/
-python3 process_descriptions.py (путь к full_combined_file_mappings.csv) /GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings.csv
+python3 process_descriptions.py ../data/file_mappings/full_combined_file_mappings.csv
 ```
 
 ## Model
 To fine-tune the model, run the following command:
 
 ```
+cd downstream_tasks/expression_prediction/
 bash finetune_expression_rm.sh
 ```
 

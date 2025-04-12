@@ -76,6 +76,8 @@ runs/*
 *.h5
 *.temp
 *.bed
+*.log
 
 # expression task
 downstream_tasks/expression_prediction/intervals/*
+downstream_tasks/expression_prediction/runs/*

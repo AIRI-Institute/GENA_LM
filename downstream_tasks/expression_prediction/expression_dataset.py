@@ -19,24 +19,26 @@ import tempfile
 import sys
 from transformers import AutoTokenizer
 from multiprocessing import Pool
+from downstream_tasks.expression_prediction.datasets.src.utils import convert_fm_relative_path_to_absolute_path
 
 class ExpressionDataset(Dataset):
     def __init__(
         self,
         gen_tokenizer,
         targets_path: str,
-        intervals_path: str,
         text_data_path: str,
         genome: str,
+        forward_intervals_path: str = None,
+        reverse_intervals_path: str = None,
         loglevel: int = logging.WARNING,
         seed: int = 42,
         num_before: int = 100,
         gen_max_seq_len: int = 1008,
-        reverse: int = 0,
         transform_targets_bw=None,
         transform_targets_tpm=None,
         bw = True,
         tpm = True,
+        hash_prefix = None,
     ):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
@@ -48,9 +50,8 @@ class ExpressionDataset(Dataset):
             self.gen_tokenizer = gen_tokenizer
 
         self.gen_max_seq_len = gen_max_seq_len
-        self.reverse = reverse
         self.genome = genome
-        self.intervals_path = intervals_path
+        
         self.seed = seed
         np.random.seed(self.seed)
         self.num_before = num_before
@@ -59,7 +60,24 @@ class ExpressionDataset(Dataset):
         self.targets_path = targets_path
 
         self.read_paths()
-        self.genes = pd.read_csv(intervals_path, sep = '\t')
+
+        # read list of intervals (a.k.a. genes associated with intervals)
+        assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
+        self.intervals_hash = str(forward_intervals_path) + str(reverse_intervals_path)
+        if hash_prefix is None:
+            self.hash_prefix = os.path.dirname(forward_intervals_path) if forward_intervals_path is not None else os.path.dirname(reverse_intervals_path)
+            self.hash_prefix = os.path.join(self.hash_prefix, "dataset_hash")
+        else:
+            self.hash_prefix = hash_prefix
+
+        forward_genes = pd.read_csv(forward_intervals_path, sep = '\t') if forward_intervals_path is not None else pd.DataFrame()
+        assert not "strand" in forward_genes.columns, "forward_intervals_path must not contain strand column"
+        forward_genes["strand"] = "+"
+        reverse_genes = pd.read_csv(reverse_intervals_path, sep = '\t') if reverse_intervals_path is not None else pd.DataFrame()
+        assert not "strand" in reverse_genes.columns, "reverse_intervals_path must not contain strand column"
+        reverse_genes["strand"] = "-"
+        self.genes = pd.concat([forward_genes, reverse_genes])
+
         self.files_opened = False
         self.bw = bw
         self.tpm = tpm
@@ -91,7 +109,7 @@ class ExpressionDataset(Dataset):
         # Работаем с tpm, если tpm = True      
         if self.tpm:
             self.tpm_cache = {}
-            for key, (v1 ,v2) in self.paths.items():
+            for key, (v1, v2) in self.paths.items():
                 tpm = pd.read_csv(v2)
                 self.tpm_cache[key] = tpm
             self.tpm_lookup = {}
@@ -128,25 +146,23 @@ class ExpressionDataset(Dataset):
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('tokens').encode("utf-8"))
-        m.update(str(self.intervals_path).encode("utf-8"))
-        m.update(str(self.reverse).encode("utf-8"))
+        m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
         hash_suffix = m.hexdigest()
-        hash_path = str(self.intervals_path) + "." + hash_suffix
+        hash_path = str(self.hash_prefix) + "." + hash_suffix
         return hash_path
 
     def get_signals_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
-        m.update(str(self.intervals_path).encode("utf-8"))
+        m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.targets_path).encode("utf-8"))
-        m.update(str(self.reverse).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
         m.update(str(self.gen_max_seq_len).encode("utf-8"))  
         hash_suffix = m.hexdigest()
-        return str(self.intervals_path) + ".signal." + hash_suffix
+        return str(self.hash_prefix) + ".signal." + hash_suffix
         
     def read_paths(self):
         self.paths = {} 
@@ -160,24 +176,16 @@ class ExpressionDataset(Dataset):
             
             # Обрабатываем пути для v2
             if pd.isna(row["csv"]):  
-                v2 = row["CPM"]  # оставляем как есть (может быть NaN)
+                v2 = convert_fm_relative_path_to_absolute_path(row["CPM"], self.targets_path)  # оставляем как есть (может быть NaN)
             else:
-                v2 = row["csv"]  # оставляем как есть (может быть NaN)
+                v2 = convert_fm_relative_path_to_absolute_path(row["csv"], self.targets_path)  # оставляем как есть (может быть NaN)
                 
-            # Если путь существует и не NaN, делаем его абсолютным
-            if not pd.isna(v2) and not str(v2).startswith('/'):
-                v2 = os.path.join(base_dir, str(v2))
-
             # Обрабатываем пути для v1
-            if self.reverse == 0:
-                v1 = row["forward_bw"]  # оставляем как есть (может быть NaN)
-            else:
-                v1 = row["reverse_bw"]  # оставляем как есть (может быть NaN)
-                
-            # Если путь существует и не NaN, делаем его абсолютным
-            if not pd.isna(v1) and not str(v1).startswith('/'):
-                v1 = os.path.join(base_dir, str(v1))
-            
+            v1 = {
+                  "+": convert_fm_relative_path_to_absolute_path(row["forward_bw"], self.targets_path), 
+                  "-": convert_fm_relative_path_to_absolute_path(row["reverse_bw"], self.targets_path)
+                  }
+                            
             assert k not in self.paths, f"Found repeated name {k}"
             self.paths[k] = (v1, v2)  
         
@@ -192,7 +200,7 @@ class ExpressionDataset(Dataset):
                 pbar = tqdm.tqdm(total=len(self.genes), desc="Tokenizing sequences")
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
-                    start_gene, tokens_df = self.tokenize_genome(idx)
+                    _, tokens_df = self.tokenize_genome(idx)
                     
                     gene_group = h5f.create_group(gene_id)
                     
@@ -200,6 +208,7 @@ class ExpressionDataset(Dataset):
                     gene_group.create_dataset('starts', data=tokens_df["start"].values.astype(np.int64))
                     gene_group.create_dataset('ends', data=tokens_df["end"].values.astype(np.int64))
                     gene_group.create_dataset('chrom', data=tokens_df["chrom"].iloc[0].encode('utf-8'))
+                    gene_group.attrs['strand'] = self.genes.iloc[idx]['strand'].encode('utf-8')
                     
                     if idx % 100 == 0:  
                         h5f.flush()
@@ -223,7 +232,7 @@ class ExpressionDataset(Dataset):
             self.bigWigHandlers = {}
             for k, (v1, v2) in self.paths.items():
                 try:
-                    self.bigWigHandlers[k] = bw.open(v1)
+                    self.bigWigHandlers[k] = {strand: bw.open(path) for strand, path in v1.items()}
                 except Exception as e:
                     self.logger.error(f"Error opening bigwig file {v1}")
                     print(e.__traceback__)
@@ -233,20 +242,22 @@ class ExpressionDataset(Dataset):
         complement = str.maketrans('ACGTN', 'TGCAN')
         return sequence.translate(complement)[::-1]
 
-    # Токенизируем последовательности
+    # tokenize genomic sequence
     def tokenize_genome(self, i):
         row = self.genes.iloc[i]  
         chrom = row["chromosome"] 
         start = row["TSS"]
         end = row["TES"] 
-        
-        if (self.reverse == 0):
+        strand = row["strand"]
+        reverse = 0 if strand == "+" else 1
+
+        if (reverse == 0): # forward strand
             try:
                 sequence = self.sequences.fetch(chrom, max(start - self.num_before * 9, 0), start).upper()
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
-        else:
+        else: # reverse strand
             chrom_length = self.sequences.get_reference_length(chrom)
             try:
                 sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * 9, chrom_length)).upper()
@@ -274,12 +285,12 @@ class ExpressionDataset(Dataset):
             token = self.gen_tokenizer.decode([token_id])  
             token_lengths.append((token_id, token, length))
     
-        if self.reverse == 0:
+        if reverse == 0:
             start_gene = start - sum(t[2] for t in token_lengths)
         else:
             start_gene = end
     
-        if (self.reverse == 0):
+        if reverse == 0:
             try:
                 sequence = self.sequences.fetch(chrom, start, end).upper()
             except ValueError as e:
@@ -309,21 +320,24 @@ class ExpressionDataset(Dataset):
             token = self.gen_tokenizer.decode([token_id])  
             token_lengths.append((token_id, token, length))
             
-        if self.reverse == 1:
+        if reverse == 1: # reverse strand
             token_lengths.reverse()
         token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
         token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
         token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
         token_lengths_df['chrom'] = chrom
-        if self.reverse == 1:
+        if reverse == 1: # reverse strand
             token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
         return start_gene, token_lengths_df
 
-    def process_region_signals(self, bw, chrom, starts, ends, l):
+    def process_region_signals(self, bw, chrom, starts, ends, l, strand):
+
+        reverse = 0 if strand == "+" else 1
+
         signals = np.zeros(l, dtype=np.float32)
         
         # Определяем границы всего региона
-        if self.reverse == 0:
+        if reverse == 0:
             region_start = int(starts[0])
             region_end = int(ends[-1])
         else:
@@ -385,13 +399,18 @@ class ExpressionDataset(Dataset):
                     starts = np.array(gene_group['starts'])
                     ends = np.array(gene_group['ends'])
                     chrom = gene_group['chrom'][()].decode('utf-8')
-                    
+                    strand = gene_group.attrs['strand']
+
+                    # sanity check
+                    assert strand == self.genes.iloc[idx]['strand']
+                    assert chrom[0] == self.genes.iloc[idx]['chromosome'][0]
+
                     l = min(len(input_ids), self.gen_max_seq_len)
                     
                     bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
                     
                     for i, (key, bw) in enumerate(self.bigWigHandlers.items()):
-                        track_signals = self.process_region_signals(bw, chrom, starts[:l], ends[:l], l)
+                        track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
                         bigwig_signals[:, i] = track_signals
                     
                     signals_group = h5f.create_group(gene_id)
@@ -431,7 +450,12 @@ class ExpressionDataset(Dataset):
         starts = np.array(gene_group['starts'])
         ends = np.array(gene_group['ends'])
         chrom = gene_group['chrom'][()].decode('utf-8')
-                
+        strand = gene_group.attrs['strand']
+
+        # sanity check
+        assert strand == self.genes.iloc[original_idx]['strand']
+        assert chrom == self.genes.iloc[original_idx]['chromosome']
+
         l = min(len(input_ids), self.gen_max_seq_len)
 
         features = {
@@ -444,16 +468,16 @@ class ExpressionDataset(Dataset):
         }
 
         if self.bw:
-            # Загружаем сигналы из кэша 
+            # Load from cache 
             if self.signals_cache is not None:
                 gene_id = self.genes.iloc[original_idx]['gene_id']
                 signals_group = self.signals_cache[gene_id]
                 bigwig_signals = np.array(signals_group['signals'])
             else:
-                # Если кэша нет, вычисляем сигналы 
+                # If cache is not found, compute signals 
                 bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
                 for i, (key, bw) in enumerate(self.bigWigHandlers.items()):
-                    track_signals = self.process_region_signals(bw, chrom, starts[:l], ends[:l], l)
+                    track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
                     bigwig_signals[:, i] = track_signals
     
             if self.transform_targets_bw is not None:
@@ -466,7 +490,8 @@ class ExpressionDataset(Dataset):
             features["labels"] = torch.zeros((l, len(self.paths)), dtype=torch.float)
             features["labels_mask"] = torch.zeros(l, dtype=torch.bool)
 
-        if self.reverse == 0 :
+        reverse = 0 if strand == "+" else 1
+        if reverse == 0 :
             features["start"] = starts[0]
             features["end"] = ends[l-1]
         else:

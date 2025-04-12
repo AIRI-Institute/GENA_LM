@@ -154,17 +154,17 @@ def main():
 
     # get train datasets
     if hvd.rank() == 0:
-        logger.info(f'preparing training data from forward: {experiment_config["train_dataset_forward"]["targets_path"]} and reverse: {experiment_config["train_dataset_reverse"]["targets_path"]}')
+        logger.info(f'preparing training data from: {experiment_config["train_dataset"]["targets_path"]}')
     
-    # Instantiate forward and reverse training datasets
-    train_dataset_forward = instantiate(experiment_config["train_dataset_forward"])
-    train_dataset_reverse = instantiate(experiment_config["train_dataset_reverse"])
-    
-    # Combine forward and reverse datasets into one
-    train_dataset = ConcatDataset([train_dataset_forward, train_dataset_reverse])
+    # Instantiate training dataset
+    # Note that dataset may save data to disk
+    # to make it safe, we instantiate it on rank 0 and then broadcast to all other ranks
+    if hvd.rank() == 0:
+        train_dataset = instantiate(experiment_config["train_dataset"])
+    hvd.barrier()
+    train_dataset = instantiate(experiment_config["train_dataset"])
     
     if hvd.rank() == 0:
-        logger.info(f'len(train_dataset_forward): {len(train_dataset_forward)}, len(train_dataset_reverse): {len(train_dataset_reverse)}')
         logger.info(f'total len(train_dataset): {len(train_dataset)}')
     
     # shuffle train data each epoch (one loop over train_dataset)
@@ -175,18 +175,16 @@ def main():
                                   sampler=train_sampler, worker_init_fn=worker_init_fn, **kwargs)
     
     # get valid datasets if specified
-    if "valid_dataset_forward" in experiment_config and "valid_dataset_reverse" in experiment_config:
+    if "valid_dataset" in experiment_config:
         if hvd.rank() == 0:
-            logger.info(f'preparing validation data from forward: {experiment_config["valid_dataset_forward"]["targets_path"]} and reverse: {experiment_config["valid_dataset_reverse"]["targets_path"]}')
+            logger.info(f'preparing validation data from: {experiment_config["valid_dataset"]["targets_path"]}')
 
-        
-        # Instantiate forward and reverse validation datasets
-        valid_dataset_forward = instantiate(experiment_config["valid_dataset_forward"])
-        valid_dataset_reverse = instantiate(experiment_config["valid_dataset_reverse"])
-        
-        # Combine forward and reverse validation datasets into one
-        valid_dataset = ConcatDataset([valid_dataset_forward, valid_dataset_reverse])
-        
+        # Instantiate validation dataset
+        if hvd.rank() == 0:
+            valid_dataset = instantiate(experiment_config["valid_dataset"])
+        hvd.barrier()
+        valid_dataset = instantiate(experiment_config["valid_dataset"])
+
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, 
                                       sampler=valid_sampler, worker_init_fn=worker_init_fn, **kwargs)
@@ -195,7 +193,6 @@ def main():
             args.valid_interval = args.log_interval
         
         if hvd.rank() == 0:
-            logger.info(f'len(valid_dataset_forward): {len(valid_dataset_forward)}, len(valid_dataset_reverse): {len(valid_dataset_reverse)}')
             logger.info(f'total len(valid_dataset): {len(valid_dataset)}')
     else:
         valid_dataloader = None
