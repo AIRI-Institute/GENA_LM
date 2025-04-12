@@ -5,7 +5,6 @@ HOME_PATH: /mnt/nfs_dna/aspeedok/github
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
 
 
-
 args_params:
 
   _target_: builtins.dict
@@ -95,11 +94,13 @@ model_kwargs:
   weight: 10
 
 
-train_dataset_forward:
+train_dataset:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -134,13 +135,13 @@ train_dataset_forward:
     
   seed: ${args_params.seed}
 
-
-
-valid_dataset_forward:
+valid_dataset:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
   
@@ -174,90 +175,3 @@ valid_dataset_forward:
     pseudocount: 0.01
     
   seed: ${args_params.seed}
-
-  
-
-train_dataset_reverse:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
-
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
-  
-  gen_max_seq_len: ${args_params.input_seq_len}
-
-  num_before: 250
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
-  
-  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
-  
-  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
-
-  bw: True
-
-  tpm: True
-
-  reverse: 1
-  
-  loglevel: 
-    "_target_": "logging.getLevelName"
-    
-    "level": "DEBUG"
-    
-  transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
-    
-    pseudocount: 1
-
-  transform_targets_tpm:
-    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
-    
-    pseudocount: 0.01
-    
-  seed: ${args_params.seed}
-
-
-valid_dataset_reverse:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
-
-  intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
-  
-  gen_max_seq_len: ${args_params.input_seq_len}
-
-  num_before: 250
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
-  
-  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
-  
-  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
-
-  bw: True
-
-  tpm: True
-
-  reverse: 1
-  
-  loglevel: 
-    "_target_": "logging.getLevelName"
-    
-    "level": "DEBUG"
-    
-  transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
-    
-    pseudocount: 1
-
-  transform_targets_tpm:
-    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
-    
-    pseudocount: 0.01
-    
-  seed: ${args_params.seed}
-
-  
