@@ -78,4 +78,4 @@ runs/*
 *.bed
 
 # expression task
-expression/downstream_tasks/expression_prediction/intervals/*
+downstream_tasks/expression_prediction/intervals/*
