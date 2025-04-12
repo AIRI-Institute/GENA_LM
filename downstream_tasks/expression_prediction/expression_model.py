@@ -33,7 +33,8 @@ class ExpressionCounts(BertPreTrainedModel):
         hidden_ff = 1024,
         num_encoder_layers = 3,
         nhead = 8,
-        weight = 1
+        weight = 1,
+        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth'
     ):
         super().__init__(config)
         self.config = config
@@ -42,7 +43,7 @@ class ExpressionCounts(BertPreTrainedModel):
         # 1) GENA
         self.bert = BertModel(config, add_pooling_layer=False)
 
-        checkpoint = torch.load('/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth', map_location='cpu')
+        checkpoint = torch.load(bert_cpt, map_location='cpu')
         state_dict = checkpoint['model_state_dict']
         updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
         missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)

@@ -76,6 +76,8 @@ model_kwargs:
 
   _target_: builtins.dict
 
+  bert_cpt: "/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth"
+
   loss_fct:
 
     _target_: torch.nn.MSELoss
