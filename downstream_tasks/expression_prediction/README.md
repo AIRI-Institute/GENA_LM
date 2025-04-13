@@ -1,6 +1,8 @@
+# Minimal steps to start
+
 ## Data prep
 
-Follow steps in [datasets/README.md](datasets/README.md#download-preprocessed-data-and-generate-annotations-starting-from-scratch) (section *Download preprocessed data and generate annotations starting from scratch*)
+Follow steps in [datasets-->README.md](https://github.com/minjaf/ExpressionPredict/blob/main/README.md#download-preprocessed-data-and-generate-annotations-starting-from-scratch) (section *Download preprocessed data and generate annotations starting from scratch*)
 
 ## Configuration
 Model and dataset parameters are specified in `*.yaml` files
@@ -9,7 +11,7 @@ Model and dataset parameters are specified in `*.yaml` files
 expression_prediction/configs/*.yaml
 ```
 
-For v1 dataset (14 mouse and 14 human cell types), we use `run_config_Expression_dataset_v1.yaml`. Don't forget to modify at least following:
+For v1 dataset (14 mouse and 14 human cell types), we use `run_config_Expression_dataset_v1.yaml`. Don't forget to modify at least the following:
 
 - `HOME_PATH` (this is a base path and we expect GENA_LM folder inside)
 - `bert_cpt` (path to pre-trained backbone GENALM model, i.e. _/path/to/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth_)
@@ -22,7 +24,11 @@ cd downstream_tasks/expression_prediction/
 bash finetune_expression_rm.sh
 ```
 
-Batch size, config path, gradient_accumulation_steps, and whether to train backbone - these params are set directly in .sh script. Otheres are set in config.
+Batch size, gradient_accumulation_steps, and config path - these params are set directly in .sh script. Others are set in config.
+
+---
+
+# More info
 
 ## Dataset Configuration
 The dataset configuration in the YAML file includes the following fields:
