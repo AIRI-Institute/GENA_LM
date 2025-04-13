@@ -1,14 +1,18 @@
-## Necessary Actions
-1. Download the hg38 and mm10 genomes:
+## Data prep
+
+Follow steps in [datasets/README.md](datasets/README.md#download-preprocessed-data-and-generate-annotations-starting-from-scratch) (section *Download preprocessed data and generate annotations starting from scratch*)
+
+## Configuration
+Model and dataset parameters are specified in `*.yaml` files
+
 ```
-cd downstream_tasks/expression_prediction/datasets/src/
-bash download_genome.sh
+expression_prediction/configs/*.yaml
 ```
-2. Generate embeddings for descriptions
-```
-cd downstream_tasks/expression_prediction/datasets/src/
-python3 process_descriptions.py ../data/file_mappings/full_combined_file_mappings.csv
-```
+
+For v1 dataset (14 mouse and 14 human cell types), we use `run_config_Expression_dataset_v1.yaml`. Don't forget to modify at least following:
+
+- `HOME_PATH` (this is a base path and we expect GENA_LM folder inside)
+- `bert_cpt` (path to pre-trained backbone GENALM model, i.e. _/path/to/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth_)
 
 ## Model
 To fine-tune the model, run the following command:
@@ -18,15 +22,7 @@ cd downstream_tasks/expression_prediction/
 bash finetune_expression_rm.sh
 ```
 
-## Configuration
-Model and dataset parameters are specified in the `run_config.yaml` file:
-
-```
-expression_prediction/configs/run_config.yaml
-```
-Configs
-- run_config_Expression_dataset_v1_CPM.yaml (CPM, mouse)
-- run_config_Expression_dataset_v1_csv.yaml (tpm + bw, human)
+Batch size, config path, gradient_accumulation_steps, and whether to train backbone - these params are set directly in .sh script. Otheres are set in config.
 
 ## Dataset Configuration
 The dataset configuration in the YAML file includes the following fields:

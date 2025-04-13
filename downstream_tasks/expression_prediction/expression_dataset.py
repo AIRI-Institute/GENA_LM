@@ -62,9 +62,10 @@ class ExpressionDataset(Dataset):
         self.transform_targets_bw = transform_targets_bw
         self.transform_targets_tpm = transform_targets_tpm
         self.targets_path = targets_path
+        self.bw = bw
+        self.tpm = tpm
 
         self.read_paths()
-
 
         # read list of intervals (a.k.a. genes associated with intervals)
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
@@ -76,16 +77,14 @@ class ExpressionDataset(Dataset):
             self.hash_prefix = hash_prefix
 
         forward_genes = pd.read_csv(forward_intervals_path, sep = '\t') if forward_intervals_path is not None else pd.DataFrame()
-        assert not "strand" in forward_genes.columns, "forward_intervals_path must not contain strand column"
+        assert not "strand" in forward_genes.columns.values, "forward_intervals_path must not contain strand column"
         forward_genes["strand"] = "+"
         reverse_genes = pd.read_csv(reverse_intervals_path, sep = '\t') if reverse_intervals_path is not None else pd.DataFrame()
-        assert not "strand" in reverse_genes.columns, "reverse_intervals_path must not contain strand column"
+        assert not "strand" in reverse_genes.columns.values, "reverse_intervals_path must not contain strand column"
         reverse_genes["strand"] = "-"
         self.genes = pd.concat([forward_genes, reverse_genes])
-
+        
         self.files_opened = False
-        self.bw = bw
-        self.tpm = tpm
 
         # Открываем Fasta один раз
         self.sequences = FastaFile(self.genome)
@@ -196,10 +195,14 @@ class ExpressionDataset(Dataset):
                 v2 = convert_fm_relative_path_to_absolute_path(row["csv"], self.targets_path)  # оставляем как есть (может быть NaN)
                 
             # Обрабатываем пути для v1
-            v1 = {
-                  "+": convert_fm_relative_path_to_absolute_path(row["forward_bw"], self.targets_path), 
-                  "-": convert_fm_relative_path_to_absolute_path(row["reverse_bw"], self.targets_path)
-                  }
+            if pd.isna(row["forward_bw"]):
+                assert not self.bw, "bw is True, but forward_bw is NaN for target {k}"
+                v1 = {"+": None, "-": None}
+            else:
+                v1 = {
+                      "+": convert_fm_relative_path_to_absolute_path(row["forward_bw"], self.targets_path), 
+                      "-": convert_fm_relative_path_to_absolute_path(row["reverse_bw"], self.targets_path)
+                      }
                             
             assert k not in self.paths, f"Found repeated name {k}"
             self.paths[k] = (v1, v2)  
@@ -222,7 +225,11 @@ class ExpressionDataset(Dataset):
                     gene_group.create_dataset('input_ids', data=tokens_df["token_id"].values.astype(np.int32))
                     gene_group.create_dataset('starts', data=tokens_df["start"].values.astype(np.int64))
                     gene_group.create_dataset('ends', data=tokens_df["end"].values.astype(np.int64))
-                    gene_group.create_dataset('chrom', data=tokens_df["chrom"].iloc[0].encode('utf-8'))
+                    if len(tokens_df["chrom"]) > 0:
+                        gene_group.create_dataset('chrom', data=tokens_df["chrom"].iloc[0].encode('utf-8'))
+                    else:
+                        self.logger.warning(f"No chromosomes found for gene {gene_id}:\n {self.genes.iloc[idx]}")
+                        raise ValueError(f"No chromosomes found for gene {gene_id}:\n {self.genes.iloc[idx]}. \n Possible reason - genome mismatch.")
                     gene_group.attrs['strand'] = self.genes.iloc[idx]['strand'].encode('utf-8')
                     
                     if idx % 100 == 0:  
@@ -561,6 +568,10 @@ class ExpressionDataset(Dataset):
             self.h5_cache.close()
         if hasattr(self, 'signals_cache'):
             self.signals_cache.close()
+
+    # return main info about dataset for logging
+    def describe(self):
+        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.selected_keys_names)}, bw={self.bw}, tpm={self.tpm})"
 
 def worker_init_fn(worker_id):
     worker_info = torch.utils.data.get_worker_info()

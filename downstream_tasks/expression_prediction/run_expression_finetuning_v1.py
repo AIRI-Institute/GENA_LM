@@ -173,7 +173,7 @@ def main():
     
     if hvd.rank() == 0:
         for i, dataset in enumerate(train_datasets):
-            logger.info(f'len(train_dataset_{i}): {len(dataset)}')
+            logger.info(f'dataset {i}: {dataset.describe()}')
         logger.info(f'total len(train_dataset): {len(train_dataset)}')
     
     # shuffle train data each epoch (one loop over train_dataset)
@@ -197,7 +197,7 @@ def main():
             valid_dataset = ConcatDataset(valid_datasets)
         
         for i, dataset in enumerate(valid_datasets):
-            logger.info(f'len(valid_dataset_{i}): {len(dataset)}')
+            logger.info(f'dataset {i}: {dataset.describe()}')
         logger.info(f'total len(valid_dataset): {len(valid_dataset)}')
                 
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)

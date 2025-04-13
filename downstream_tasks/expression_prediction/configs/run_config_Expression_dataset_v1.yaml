@@ -1,6 +1,6 @@
 TASK_NAME: expression
 
-HOME_PATH: /mnt/nfs_dna/aspeedok/github
+HOME_PATH: /mnt/10tb/home/vsfishman/DNALM/
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
 
@@ -16,6 +16,8 @@ args_params:
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
   backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+
+  backbone_trainable: True
 
   model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression"
 
@@ -150,7 +152,7 @@ train_dataset_mouse:
 
   num_before: 250
   
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
@@ -234,7 +236,7 @@ valid_dataset_mouse:
 
   num_before: 250
   
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
