@@ -156,15 +156,24 @@ def main():
     if hvd.rank() == 0:
         logger.info(f'preparing training data')
     
-    # Instantiate forward and reverse training datasets
-    train_dataset_human = instantiate(experiment_config["train_dataset_human"])
-    train_dataset_mouse = instantiate(experiment_config["train_dataset_mouse"])
-    
-    # Combine forward and reverse datasets into one
-    train_dataset = ConcatDataset([train_dataset_human, train_dataset_mouse])
+    # Instantiate training datasets
+    train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
+    if hvd.rank() == 0:
+        train_datasets = [instantiate(config) for config in train_datasets_configs]
+    hvd.barrier()
+    train_datasets = [instantiate(config) for config in train_datasets_configs]
+ 
+    if len(train_datasets) == 0:
+        raise ValueError("No training datasets found")
+    elif len(train_datasets) == 1:
+        train_dataset = train_datasets[0]
+    else:
+        # Combine datasets into one
+        train_dataset = ConcatDataset(train_datasets)
     
     if hvd.rank() == 0:
-        logger.info(f'len(train_dataset_human): {len(train_dataset_human)}, len(train_dataset_mouse): {len(train_dataset_mouse)}')
+        for i, dataset in enumerate(train_datasets):
+            logger.info(f'len(train_dataset_{i}): {len(dataset)}')
         logger.info(f'total len(train_dataset): {len(train_dataset)}')
     
     # shuffle train data each epoch (one loop over train_dataset)
@@ -175,17 +184,22 @@ def main():
                                   sampler=train_sampler, worker_init_fn=worker_init_fn, **kwargs)
     
     # get valid datasets if specified
-    if "valid_dataset_human" in experiment_config and "valid_dataset_mouse" in experiment_config:
+    valid_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('valid_dataset')]
+    if len(valid_datasets_configs) > 0:
         if hvd.rank() == 0:
             logger.info(f'preparing validation data')
+            valid_datasets = [instantiate(config) for config in valid_datasets_configs]
+        hvd.barrier()
+        valid_datasets = [instantiate(config) for config in valid_datasets_configs]
+        if len(valid_datasets) == 1:
+            valid_dataset = valid_datasets[0]
+        else:
+            valid_dataset = ConcatDataset(valid_datasets)
         
-        # Instantiate forward and reverse validation datasets
-        valid_dataset_human = instantiate(experiment_config["valid_dataset_human"])
-        valid_dataset_mouse = instantiate(experiment_config["valid_dataset_mouse"])
-        
-        # Combine forward and reverse validation datasets into one
-        valid_dataset = ConcatDataset([valid_dataset_human, valid_dataset_mouse])
-        
+        for i, dataset in enumerate(valid_datasets):
+            logger.info(f'len(valid_dataset_{i}): {len(dataset)}')
+        logger.info(f'total len(valid_dataset): {len(valid_dataset)}')
+                
         valid_sampler = DistributedSampler(valid_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, 
                                       sampler=valid_sampler, worker_init_fn=worker_init_fn, **kwargs)
@@ -193,9 +207,6 @@ def main():
         if args.valid_interval is None:
             args.valid_interval = args.log_interval
         
-        if hvd.rank() == 0:
-            logger.info(f'len(valid_dataset_human): {len(valid_dataset_human)}, len(valid_dataset_mouse): {len(valid_dataset_mouse)}')
-            logger.info(f'total len(valid_dataset): {len(valid_dataset)}')
     else:
         valid_dataloader = None
         if hvd.rank() == 0:
