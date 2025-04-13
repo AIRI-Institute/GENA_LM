@@ -116,9 +116,9 @@ train_dataset_human:
   
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
-  bw: False
+  tpm: csv
 
-  tpm: True
+#  bw: bw
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -158,9 +158,7 @@ train_dataset_mouse:
   
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
-  bw: False
-
-  tpm: True
+  tpm: CPM
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -200,10 +198,10 @@ valid_dataset_human:
   
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
-  bw: False
+  tpm: csv
 
-  tpm: True
-  
+#  bw: bw
+
   loglevel: 
     "_target_": "logging.getLevelName"
     
@@ -242,9 +240,7 @@ valid_dataset_mouse:
   
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
-  bw: False
-
-  tpm: True
+  tpm: CPM
   
   loglevel: 
     "_target_": "logging.getLevelName"

@@ -10,7 +10,7 @@ export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:$LD_LIBRARY_PATH"
 export CUDA_VISIBLE_DEVICES=0,1
 
 TBS=4
-BS=1
+BS=1  
 NP=2    
 
 #CUDA_VISIBLE_DEVICES=0 python3 -m downstream_tasks.expression_meta_prediction.run_expression_meta_finetuning_rmt \

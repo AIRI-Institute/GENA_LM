@@ -36,11 +36,16 @@ class ExpressionDataset(Dataset):
         gen_max_seq_len: int = 1008,
         transform_targets_bw=None,
         transform_targets_tpm=None,
-        bw = True,
-        tpm = True,
+        bw : str = "",
+        tpm : str = "",
         hash_prefix = None,
         n_keys: int = None,
     ):
+        """
+        Args:
+            bw (str): Name of the bigwig field suffix in targets_path. I.e. `bw` -> `forward_bw` and `reverse_bw`. If empty, bw will be False.
+            tpm (str): Name of the tpm field in targets_path. If empty, tpm will be False.
+        """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
         self.logger.info("Initializing dataset")
@@ -174,39 +179,36 @@ class ExpressionDataset(Dataset):
         m.update(str(self.targets_path).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
-        m.update(str(self.gen_max_seq_len).encode("utf-8"))  
+        m.update(str(self.gen_max_seq_len).encode("utf-8"))
+        target_ids = "".join(sorted(list(self.paths.keys())))
+        m.update(str(target_ids).encode("utf-8"))
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + ".signal." + hash_suffix
         
     def read_paths(self):
         self.paths = {} 
         df = pd.read_csv(self.targets_path)
-        
-        # Получаем директорию, в которой находится targets_path
-        base_dir = os.path.dirname(os.path.abspath(self.targets_path))
-        
-        for _, row in df.iterrows():
-            k = row["id"]
-            
-            # Обрабатываем пути для v2
-            if pd.isna(row["csv"]):  
-                v2 = convert_fm_relative_path_to_absolute_path(row["CPM"], self.targets_path)  # оставляем как есть (может быть NaN)
-            else:
-                v2 = convert_fm_relative_path_to_absolute_path(row["csv"], self.targets_path)  # оставляем как есть (может быть NaN)
-                
-            # Обрабатываем пути для v1
-            if pd.isna(row["forward_bw"]):
-                assert not self.bw, "bw is True, but forward_bw is NaN for target {k}"
-                v1 = {"+": None, "-": None}
-            else:
-                v1 = {
-                      "+": convert_fm_relative_path_to_absolute_path(row["forward_bw"], self.targets_path), 
-                      "-": convert_fm_relative_path_to_absolute_path(row["reverse_bw"], self.targets_path)
-                      }
-                            
-            assert k not in self.paths, f"Found repeated name {k}"
-            self.paths[k] = (v1, v2)  
-        
+
+        assert not df["id"].duplicated().any(), "Found duplicated id in targets_path"
+
+        if self.bw:
+            forward_colname = "forward_"+self.bw
+            reverse_colname = "reverse_"+self.bw
+            assert not pd.isna(df[forward_colname]).any(), f"{forward_colname} is NaN for some targets"
+            assert not pd.isna(df[reverse_colname]).any(), f"{reverse_colname} is NaN for some targets"
+            forward_paths = df[forward_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
+            reverse_paths = df[reverse_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
+            self.paths = {k:[{"+": forward_paths[ind], "-": reverse_paths[ind]}] for ind,k in enumerate(df["id"])}
+        else:
+            self.paths = {k:[{"+": None, "-": None}] for ind,k in enumerate(df["id"])}
+
+        if self.tpm:
+            tpm_colname = self.tpm
+            assert not pd.isna(df[tpm_colname]).any(), f"{tpm_colname} is NaN for some targets"
+            tpm_paths = df[tpm_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
+            for ind,k in enumerate(df["id"]):
+                self.paths[k].append(tpm_paths[ind])
+
         self.files_opened = False
 
     def precompute_tokenization(self):
@@ -248,16 +250,35 @@ class ExpressionDataset(Dataset):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             raise
+    
+    # Check if bigwig file is consistent with genome
+    def check_bw_genome_consistency(self, bw_handler, sequences):
+        # get reference names and lengths from sequences
+        fasta_ref_lengths = {k:v for k, v in zip(sequences.references, sequences.lengths)}
+        
+        # get reference names and lengths from bw_handler
+        bw_ref_lengths = {k:v for k, v in bw_handler.chroms().items()}
 
+        # intersect keys of fasta_ref_lengths and bw_ref_lengths
+        common_refs = set(fasta_ref_lengths.keys()) & set(bw_ref_lengths.keys())
+        assert len(common_refs) > 0, f"No common references found in genome and bigwig file. Genome: {fasta_ref_lengths.keys()}, Bigwig: {bw_ref_lengths.keys()}. Genome mismatch?"
+
+        # check if lengths are the same
+        for ref in common_refs:
+            if fasta_ref_lengths[ref] != bw_ref_lengths[ref]:
+                raise ValueError(f"Length of {ref} in genome and bigwig file are different. Ref: {ref}, Genome: {fasta_ref_lengths[ref]}, Bigwig: {bw_ref_lengths[ref]}")
+    
     def open_files(self):
         if self.bw:
             self.bigWigHandlers = {}
             for k, (v1, v2) in self.paths.items():
                 try:
                     self.bigWigHandlers[k] = {strand: bw.open(path) for strand, path in v1.items()}
+                    for bw_handler in self.bigWigHandlers[k].values():
+                        self.check_bw_genome_consistency(bw_handler, self.sequences)
                 except Exception as e:
                     self.logger.error(f"Error opening bigwig file {v1}")
-                    print(e.__traceback__)
+                    print(e.__traceback__.format_exc())
             self.files_opened = True
 
     def reverse_complement(self, sequence):
