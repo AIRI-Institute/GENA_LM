@@ -830,7 +830,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             segs_labels_padded = []
             segs_mask_padded = []
         
-            current_tpm = tpm[batch_index] if tpm is not None else None
+            current_tpm = tpm[batch_index] #if tpm is not None else None
         
             for i, seg in enumerate(input_segments):
                 segs_padded.append(
@@ -916,7 +916,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
     
             masked_labels = torch.zeros((1, feat_dim), device=device)
             
-            if tpm is not None and not torch.isnan(tpm).all():
+#            if tpm is not None and not torch.isnan(tpm).all():
+            if not torch.isnan(tpm).all():
                 cls_label = tpm.unsqueeze(0)  
             else:
                 cls_label = masked_labels
@@ -935,25 +936,25 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             return final_tensor
     
         elif add_to == 'labels_mask':
-            seq_len = tensor.shape[0]
+            # shape [seq_len, n]
+            seq_len, feat_dim = tensor.shape
+            mask_value = torch.zeros((1, feat_dim), device=device)
     
-            mask_value = torch.zeros((1,), device=device)
-            
-            if tpm is not None and not torch.isnan(tpm).all():
-                cls_mask_value = torch.ones((1,), device=device)
+#            if tpm is not None and not torch.isnan(tpm).all():
+            if not torch.isnan(tpm).all():
+                cls_mask_value = (~torch.isnan(tpm)).float().unsqueeze(0)
             else:
                 cls_mask_value = mask_value
     
             input_elements = [
                 cls_mask_value,
-                mask_value.repeat(self.num_mem_tokens),
+                mask_value.repeat(self.num_mem_tokens, 1),
                 mask_value,
                 tensor,
                 mask_value
             ]
-            final_tensor = torch.cat(input_elements)
+            final_tensor = torch.cat(input_elements, dim=0)
             pad_size = segment_size - final_tensor.shape[0]
             if pad_size > 0:
-                final_tensor = F.pad(final_tensor, (0, pad_size), value=0)
+                final_tensor = F.pad(final_tensor, (0, 0, 0, pad_size), value=0)
             return final_tensor
-

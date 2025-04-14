@@ -148,17 +148,13 @@ class ExpressionCounts(BertPreTrainedModel):
         # Loss
         loss = None
         if labels is not None:
-            # labels: (B, seq_len, N)
+            # labels, labels_mask: (B, seq_len, N)
             # Нужно:   (B*N, seq_len, 1)
             # 1) permute(0,2,1) -> (B, N, seq_len)
             # 2) reshape -> (B*N, seq_len)
             # 3) unsqueeze -> (B*N, seq_len, 1)
             labels_reshaped = labels.permute(0, 2, 1).reshape(B*N, seq_len, 1).to(logits.device)
-
-            # labels_mask: (B, seq_len) -> (B, seq_len, N)
-            labels_mask_expanded = labels_mask.unsqueeze(-1).expand(-1, -1, N)  # (B, seq_len, N)
-            # Приводим к (B*N, seq_len, 1)
-            labels_mask_reshaped = labels_mask_expanded.permute(0, 2, 1).reshape(B*N, seq_len, 1).to(logits.device)
+            labels_mask_reshaped = labels_mask.permute(0, 2, 1).reshape(B*N, seq_len, 1).to(logits.device)
 
             # loss
             # Cчитаем общий лосс

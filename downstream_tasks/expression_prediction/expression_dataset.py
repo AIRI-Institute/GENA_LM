@@ -71,6 +71,7 @@ class ExpressionDataset(Dataset):
         self.tpm = tpm
 
         self.read_paths()
+        self.n_cell_chunks = (len(self.paths.keys()) // n_keys) + 1 if n_keys is not None else 1
 
         # read list of intervals (a.k.a. genes associated with intervals)
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
@@ -133,15 +134,17 @@ class ExpressionDataset(Dataset):
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
 
-        # Отбираем нужные ключи
+        # Создаем список выбранных ключей для каждого чанка
         if self.n_keys is not None:
             np.random.seed(self.seed)
-            self.selected_keys = np.random.choice(len(self.paths), self.n_keys, replace=False)
-            # Сохраняем список выбранных ключей
-            self.selected_keys_names = [list(self.paths.keys())[i] for i in self.selected_keys]
+            all_keys = list(self.paths.keys())
+            self.selected_keys_chunks = []
+            for i in range(self.n_cell_chunks):
+                start_idx = i * n_keys
+                end_idx = min((i + 1) * n_keys, len(all_keys))
+                self.selected_keys_chunks.append(all_keys[start_idx:end_idx])
         else:
-            self.selected_keys = None
-            self.selected_keys_names = list(self.paths.keys())
+            self.selected_keys_chunks = [list(self.paths.keys())]
 
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
@@ -477,11 +480,15 @@ class ExpressionDataset(Dataset):
             raise
 
     def __len__(self):
-        return len(self.valid_indices)
+        return len(self.valid_indices) * self.n_cell_chunks
 
     def __getitem__(self, idx):
         # Преобразуем индекс в исходный индекс гена
-        original_idx = self.valid_indices[idx]
+        original_idx = idx // self.n_cell_chunks
+        chunk_idx = idx % self.n_cell_chunks
+
+        # Получаем выбранные ключи для текущего чанка
+        selected_keys = self.selected_keys_chunks[chunk_idx]
         
         if not self.files_opened and self.bw:
             self.open_files()
@@ -526,18 +533,23 @@ class ExpressionDataset(Dataset):
                     track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
                     bigwig_signals[:, i] = track_signals
 
-            if self.n_keys is not None:
-                bigwig_signals = bigwig_signals[:, self.selected_keys]
+            chunk_signals = np.zeros((l, self.n_keys), dtype=np.float32)
+            chunk_mask = np.zeros((l, self.n_keys), dtype=bool)
+            
+            for i, key in enumerate(selected_keys):
+                if key in self.bigWigHandlers:
+                    chunk_signals[:, i] = bigwig_signals[:, list(self.bigWigHandlers.keys()).index(key)]
+                    chunk_mask[:, i] = True
     
             if self.transform_targets_bw is not None:
-                bigwig_signals = self.transform_targets_bw(bigwig_signals)
+                chunk_signals = self.transform_targets_bw(chunk_signals)
         
-            features["labels"] = torch.tensor(bigwig_signals, dtype=torch.float)
-            features["labels_mask"] = torch.ones(l, dtype=torch.bool)
+            features["labels"] = torch.tensor(chunk_signals, dtype=torch.float)
+            features["labels_mask"] = torch.tensor(chunk_mask, dtype=torch.bool)
         
         else:
-            features["labels"] = torch.zeros((l, n_cell_types), dtype=torch.float)
-            features["labels_mask"] = torch.zeros(l, dtype=torch.bool)
+            features["labels"] = torch.zeros((l, self.n_keys), dtype=torch.float)
+            features["labels_mask"] = torch.zeros((l, self.n_keys), dtype=torch.bool)
 
         reverse = 0 if strand == "+" else 1
         if reverse == 0 :
@@ -549,36 +561,34 @@ class ExpressionDataset(Dataset):
 
         # Получаем TPM значения
         if not self.tpm:
-            tpm_values = np.full(n_cell_types, np.nan, dtype=np.float32)
+            tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
         else:
-            tpm_values = np.full(len(self.paths), np.nan, dtype=np.float32)
-            for i, key in enumerate(self.paths.keys()):
+            tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
+            for i, key in enumerate(selected_keys):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
-            
-            if self.n_keys is not None:
-                tpm_values = tpm_values[self.selected_keys]
             
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
         
         features["tpm"] = torch.from_numpy(tpm_values)
+        
 
-        # Получаем desc_vectors
+        # Получаем desc_vectors только для текущего чанка
         desc_vectors_list = []
-        for key in self.paths.keys():
+        for key in selected_keys:
             if key not in self.desc_data:
                 raise KeyError(f"Track ID '{key}' not found in desc_data")
             desc_vec = self.desc_data[key]
             desc_vectors_list.append(desc_vec)
 
-        desc_vectors = np.stack(desc_vectors_list, axis=0)
-        
-        if self.n_keys is not None:
-            desc_vectors = desc_vectors[self.selected_keys]
-        
+        # Дополняем desc_vectors нулями до n_keys
+        desc_vectors = np.zeros((self.n_keys, len(desc_vectors_list[0])), dtype=np.float32)
+        for i, vec in enumerate(desc_vectors_list):
+            desc_vectors[i] = vec
+
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
-        features["selected_keys"] = self.selected_keys_names
+        features["selected_keys"] = selected_keys
 
         return features
 
