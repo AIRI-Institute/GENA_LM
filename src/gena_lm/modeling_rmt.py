@@ -830,7 +830,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             segs_labels_padded = []
             segs_mask_padded = []
         
-            current_tpm = tpm[batch_index] #if tpm is not None else None
+            current_tpm = tpm[batch_index] if tpm is not None else None
         
             for i, seg in enumerate(input_segments):
                 segs_padded.append(
@@ -916,8 +916,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
     
             masked_labels = torch.zeros((1, feat_dim), device=device)
             
-#            if tpm is not None and not torch.isnan(tpm).all():
-            if not torch.isnan(tpm).all():
+            if tpm is not None and not torch.isnan(tpm).all():
+#            if not torch.isnan(tpm).all():
                 cls_label = tpm.unsqueeze(0)  
             else:
                 cls_label = masked_labels
@@ -940,8 +940,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             seq_len, feat_dim = tensor.shape
             mask_value = torch.zeros((1, feat_dim), device=device)
     
-#            if tpm is not None and not torch.isnan(tpm).all():
-            if not torch.isnan(tpm).all():
+            if tpm is not None and not torch.isnan(tpm).all():
+#            if not torch.isnan(tpm).all():
                 cls_mask_value = (~torch.isnan(tpm)).float().unsqueeze(0)
             else:
                 cls_mask_value = mask_value

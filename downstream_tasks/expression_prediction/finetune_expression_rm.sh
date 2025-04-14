@@ -9,7 +9,7 @@ export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:$LD_LIBRARY_PATH"
 
 export CUDA_VISIBLE_DEVICES=0,1
 
-TBS=4
+TBS=2
 BS=1  
 NP=2    
 

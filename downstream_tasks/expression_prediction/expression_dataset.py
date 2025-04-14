@@ -66,7 +66,7 @@ class ExpressionDataset(Dataset):
         self.targets_path = targets_path
         self.read_paths()
 
-        self.n_cell_chunks = (len(self.paths.keys()) // n_keys) + 1 if n_keys is not None else 1
+        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1 if n_keys is not None else 1
         if n_keys is None:
             n_keys = len(self.paths.keys())
         self.n_keys = n_keys
@@ -492,7 +492,8 @@ class ExpressionDataset(Dataset):
 
     def __getitem__(self, idx):
         # Преобразуем индекс в исходный индекс гена
-        original_idx = idx // self.n_cell_chunks
+        gene_idx = idx // self.n_cell_chunks
+        original_idx = self.valid_indices[gene_idx]
         chunk_idx = idx % self.n_cell_chunks
 
         # Получаем выбранные ключи для текущего чанка
@@ -610,7 +611,7 @@ class ExpressionDataset(Dataset):
 
     # return main info about dataset for logging
     def describe(self):
-        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.selected_keys_names)}, bw={self.bw}, tpm={self.tpm})"
+        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, bw={self.bw}, tpm={self.tpm})"
 
 def worker_init_fn(worker_id):
     worker_info = torch.utils.data.get_worker_info()

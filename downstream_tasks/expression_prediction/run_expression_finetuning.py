@@ -127,7 +127,7 @@ def main():
                 seq = sample[key]
                 pad_len = max_seq_len - len(seq)
                 if pad_len > 0:
-                    if key == 'labels':
+                    if (key == 'labels') or (key == 'labels_mask'):
                         # labels имеет размер (seq_len, num_targets), паддим по seq_len
                         pad = torch.full((pad_len, seq.size(1)), pad_token_ids[key], dtype=seq.dtype)
                         padded_seq = torch.cat([seq, pad], dim=0)
