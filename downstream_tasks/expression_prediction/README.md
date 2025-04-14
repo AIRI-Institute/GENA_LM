@@ -11,7 +11,9 @@ Model and dataset parameters are specified in `*.yaml` files
 expression_prediction/configs/*.yaml
 ```
 
-For v1 dataset (14 mouse and 14 human cell types), we use `run_config_Expression_dataset_v1.yaml`. Don't forget to modify at least the following:
+For v1 dataset (14 mouse and 14 human cell types), we use `run_config_Expression_dataset_v1.yaml`. 
+For all human ENCODE datasets (65) and all mouse muscle scRNA-seq experiments (23), use `run_config_Expression_dataset_full.yaml`
+Don't forget to modify at least the following:
 
 - `HOME_PATH` (this is a base path and we expect GENA_LM folder inside)
 - `bert_cpt` (path to pre-trained backbone GENALM model, i.e. _/path/to/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth_)
