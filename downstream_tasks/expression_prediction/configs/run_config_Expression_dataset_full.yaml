@@ -160,8 +160,6 @@ train_dataset_mouse:
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
   tpm: CPM
-
-  n_keys: 12
   
   loglevel: 
     "_target_": "logging.getLevelName"
@@ -202,8 +200,6 @@ valid_dataset_human:
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
 
   tpm: csv
-
-  n_keys: 12
 
 #  bw: bw
 
