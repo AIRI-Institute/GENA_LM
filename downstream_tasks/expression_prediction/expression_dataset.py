@@ -58,20 +58,28 @@ class ExpressionDataset(Dataset):
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
 
-        self.n_keys = n_keys
-        self.selected_keys = None
-        
         self.seed = seed
         np.random.seed(self.seed)
+        
+        self.bw = bw
+        self.tpm = tpm
+        self.targets_path = targets_path
+        self.read_paths()
+
+        self.n_cell_chunks = (len(self.paths.keys()) // n_keys) + 1 if n_keys is not None else 1
+        if n_keys is None:
+            n_keys = len(self.paths.keys())
+        self.n_keys = n_keys
+
+
+        self.selected_keys = None
+        
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
         self.transform_targets_tpm = transform_targets_tpm
-        self.targets_path = targets_path
-        self.bw = bw
-        self.tpm = tpm
 
-        self.read_paths()
-        self.n_cell_chunks = (len(self.paths.keys()) // n_keys) + 1 if n_keys is not None else 1
+
+
 
         # read list of intervals (a.k.a. genes associated with intervals)
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
