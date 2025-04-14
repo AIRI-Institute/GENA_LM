@@ -93,7 +93,6 @@ def main():
         open(model_path / 'git.diff', 'w').write(get_git_diff())
 
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
-    global_batch_size = per_worker_batch_size * hvd.size()
     kwargs = {'pin_memory': True, 'num_workers': args.data_n_workers}
 
     if args.model_path:
@@ -160,6 +159,12 @@ def main():
     train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
     if hvd.rank() == 0:
         train_datasets = [instantiate(config) for config in train_datasets_configs]
+        min_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
+        logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_chunk_size}")
+        for config in train_datasets_configs:
+            if "n_keys" in config and config["n_keys"] != min_chunk_size:
+                raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
+            OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
     hvd.barrier()
     train_datasets = [instantiate(config) for config in train_datasets_configs]
  
@@ -189,6 +194,13 @@ def main():
         if hvd.rank() == 0:
             logger.info(f'preparing validation data')
             valid_datasets = [instantiate(config) for config in valid_datasets_configs]
+            assert min_chunk_size == min([dataset.get_num_keys() for dataset in valid_datasets]), \
+                  f"Number of keys in validation datasets should be the same as in train/valid datasets" + \
+                  f"but min_chunk_size is different: {min_chunk_size} != {min([dataset.get_num_keys() for dataset in valid_datasets])}"
+            for config in valid_datasets_configs:
+                if "n_keys" in config and config["n_keys"] != min_chunk_size:
+                    raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
+                OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
         hvd.barrier()
         valid_datasets = [instantiate(config) for config in valid_datasets_configs]
         if len(valid_datasets) == 1:

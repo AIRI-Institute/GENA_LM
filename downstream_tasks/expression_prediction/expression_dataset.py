@@ -1,6 +1,7 @@
 import datetime
 import torch
 from torch.utils.data import Dataset, ConcatDataset
+from typing import Optional
 
 import pyBigWig as bw
 
@@ -39,12 +40,13 @@ class ExpressionDataset(Dataset):
         bw : str = "",
         tpm : str = "",
         hash_prefix = None,
-        n_keys: int = None,
+        n_keys: Optional[int] = None,
     ):
         """
         Args:
             bw (str): Name of the bigwig field suffix in targets_path. I.e. `bw` -> `forward_bw` and `reverse_bw`. If empty, bw will be False.
             tpm (str): Name of the tpm field in targets_path. If empty, tpm will be False.
+            n_keys (int): Number of keys to split the tracks into. If None, all tracks will be used.
         """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
@@ -66,20 +68,22 @@ class ExpressionDataset(Dataset):
         self.targets_path = targets_path
         self.read_paths()
 
-        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1 if n_keys is not None else 1
         if n_keys is None:
             n_keys = len(self.paths.keys())
         self.n_keys = n_keys
 
-
-        self.selected_keys = None
+        # Split tracks into chunks; if we have multiple datasets, we need them to have equal chunk lengths (a.k.a n_keys)
+        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
+        all_keys = list(self.paths.keys())
+        self.selected_keys_chunks = []
+        for i in range(self.n_cell_chunks):
+            start_idx = i * n_keys
+            end_idx = min((i + 1) * n_keys, len(all_keys))
+            self.selected_keys_chunks.append(all_keys[start_idx:end_idx])
         
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
         self.transform_targets_tpm = transform_targets_tpm
-
-
-
 
         # read list of intervals (a.k.a. genes associated with intervals)
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
@@ -142,18 +146,6 @@ class ExpressionDataset(Dataset):
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
 
-        # Создаем список выбранных ключей для каждого чанка
-        if self.n_keys is not None:
-            np.random.seed(self.seed)
-            all_keys = list(self.paths.keys())
-            self.selected_keys_chunks = []
-            for i in range(self.n_cell_chunks):
-                start_idx = i * n_keys
-                end_idx = min((i + 1) * n_keys, len(all_keys))
-                self.selected_keys_chunks.append(all_keys[start_idx:end_idx])
-        else:
-            self.selected_keys_chunks = [list(self.paths.keys())]
-
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
         self.logger.info("Computing valid indices...")
@@ -195,6 +187,9 @@ class ExpressionDataset(Dataset):
         m.update(str(target_ids).encode("utf-8"))
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + ".signal." + hash_suffix
+    
+    def get_num_keys(self):
+        return len(self.paths.keys())
         
     def read_paths(self):
         self.paths = {} 
@@ -549,6 +544,8 @@ class ExpressionDataset(Dataset):
                 if key in self.bigWigHandlers:
                     chunk_signals[:, i] = bigwig_signals[:, list(self.bigWigHandlers.keys()).index(key)]
                     chunk_mask[:, i] = True
+                else:
+                    raise KeyError(f"Track ID '{key}' not found in bigwig handlers")
     
             if self.transform_targets_bw is not None:
                 chunk_signals = self.transform_targets_bw(chunk_signals)
@@ -611,7 +608,7 @@ class ExpressionDataset(Dataset):
 
     # return main info about dataset for logging
     def describe(self):
-        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, bw={self.bw}, tpm={self.tpm})"
+        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm})"
 
 def worker_init_fn(worker_id):
     worker_info = torch.utils.data.get_worker_info()
