@@ -747,7 +747,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                     [el for el, m in zip(segment_labels_mask, non_empty_mask) if m]
                 )
 
-            out  = self.model(**seg_kwargs)
+            out, labels_reshaped, labels_mask_reshaped  = self.model(**seg_kwargs)
 
             memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
 
@@ -755,6 +755,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             if out_loss is not None:
                 losses.append(out_loss)
             logits.append(out['logits'].detach())
+            labels_reshaped_l.append(labels_reshaped.detach())
+            labels_mask_reshaped_l.append(labels_mask_reshaped.detach())
             labels_segm += [seg_kwargs['labels']]
 
             if labels_mask is not None:
@@ -784,6 +786,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
         out['logits'] = logits
         out['logits_segm'] = logits
         out['labels_segm'] = labels_segm
+        out['labels_reshaped'] = labels_reshaped_l
+        out['labels_mask_reshaped'] = labels_mask_reshaped_l
         if len(logits_masks) > 0:
             out['rmt_logits_masks'] = logits_masks
             out['rmt_logits_masks_segm'] = logits_masks

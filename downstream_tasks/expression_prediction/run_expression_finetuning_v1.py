@@ -344,19 +344,21 @@ def main():
         rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
         
         y_rmt, p_rmt = [], []
-        for i in range(len(labels_segm)):
-            labels_segm[i] = torch.stack(labels_segm[i])
-            predictions_segm[i] = torch.stack(predictions_segm[i])
-            rmt_labels_masks_segm[i] = torch.stack(rmt_labels_masks_segm[i])
+        
+        labels = torch.stack(labels_segm[-1])
+        preds = torch.stack(predictions_segm[-1])
+        masks = torch.stack(rmt_labels_masks_segm[-1])
 
-            y_segm, p_segm = labels_segm[i], predictions_segm[i]        
-            
-            y_segm = y_segm[rmt_labels_masks_segm[i]]
-            p_segm = p_segm[rmt_labels_masks_segm[i]]
-            
-            assert y_segm.shape == p_segm.shape
-            y_rmt += [y_segm]
-            p_rmt += [p_segm]
+        y_segm = labels[:, 0, :].squeeze(-1)
+        p_segm = preds[:, 0, :].squeeze(-1)  
+        mask = masks[:, 0, :].squeeze(-1)
+        
+        y_segm = y_segm[mask]
+        p_segm = p_segm[mask]
+        
+        assert y_segm.shape == p_segm.shape
+        y_rmt += [y_segm]
+        p_rmt += [p_segm]
 
         if not y_rmt or not p_rmt:
             return {}
@@ -378,40 +380,40 @@ def main():
         data['_count'] = torch.sum(torch.ones_like(target), dim=reduce_dims).unsqueeze(0)
         return data
 
-    def batch_metrics_fn(batch, output):
-        metrics = {'loss': output['loss'].detach()}
+    # def batch_metrics_fn(batch, output):
+    #     metrics = {'loss': output['loss'].detach()}
 
-        predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
-        labels_segm = [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
-        rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
+    #     predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
+    #     labels_segm = [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
+    #     rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
 
-        y_rmt, p_rmt = [], []
-        for i in range(len(labels_segm)):
-            labels_segm[i] = torch.stack(labels_segm[i])
-            predictions_segm[i] = torch.stack(predictions_segm[i])
-            rmt_labels_masks_segm[i] = torch.stack(rmt_labels_masks_segm[i])
+    #     y_rmt, p_rmt = [], []
+    #     for i in range(len(labels_segm)):
+    #         labels_segm[i] = torch.stack(labels_segm[i])
+    #         predictions_segm[i] = torch.stack(predictions_segm[i])
+    #         rmt_labels_masks_segm[i] = torch.stack(rmt_labels_masks_segm[i])
 
-            y_segm, p_segm = labels_segm[i], predictions_segm[i]
+    #         y_segm, p_segm = labels_segm[i], predictions_segm[i]
             
-            y_segm = y_segm[rmt_labels_masks_segm[i]]
-            p_segm = p_segm[rmt_labels_masks_segm[i]]
+    #         y_segm = y_segm[rmt_labels_masks_segm[i]]
+    #         p_segm = p_segm[rmt_labels_masks_segm[i]]
 
             
-            assert y_segm.shape == p_segm.shape
-            y_rmt += [y_segm]
-            p_rmt += [p_segm]
+    #         assert y_segm.shape == p_segm.shape
+    #         y_rmt += [y_segm]
+    #         p_rmt += [p_segm]
 
-        if not y_rmt:
-            return {}
+    #     if not y_rmt:
+    #         return {}
 
-        y_rmt = torch.cat(y_rmt)
-        p_rmt = torch.cat(p_rmt)
-        assert y_rmt.shape == p_rmt.shape
+    #     y_rmt = torch.cat(y_rmt)
+    #     p_rmt = torch.cat(p_rmt)
+    #     assert y_rmt.shape == p_rmt.shape
 
 
-        metrics['pearson_corr'] = pearson_corr_coef(p_rmt, y_rmt)
+    #     metrics['pearson_corr'] = pearson_corr_coef(p_rmt, y_rmt)
         
-        return metrics
+    #     return metrics
 
     def metrics_fn(data):
         metrics = {}
@@ -435,8 +437,8 @@ def main():
         return metrics
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
-                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn) #,
-                    #  batch_metrics_fn=batch_metrics_fn, metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
+                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
+                    #  batch_metrics_fn=batch_metrics_fn,
     # train loop
     trainer.train()
     # make sure all workers are done

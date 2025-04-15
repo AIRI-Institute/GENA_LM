@@ -191,4 +191,4 @@ class ExpressionCounts(BertPreTrainedModel):
             logits=logits,
             hidden_states=bert_outputs.hidden_states,
             attentions=bert_outputs.attentions
-        )
+        ), labels_reshaped, labels_mask_reshaped
