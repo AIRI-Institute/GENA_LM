@@ -566,10 +566,8 @@ class ExpressionDataset(Dataset):
             features["end"] = ends[0]
 
         # Получаем TPM значения
-        if not self.tpm:
-            tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
-        else:
-            tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
+        tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
+        if self.tpm:
             for i, key in enumerate(selected_keys):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]

@@ -916,9 +916,10 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
     
             masked_labels = torch.zeros((1, feat_dim), device=device)
             
-            if tpm is not None and not torch.isnan(tpm).all():
-#            if not torch.isnan(tpm).all():
-                cls_label = tpm.unsqueeze(0)  
+        #    if tpm is not None and not torch.isnan(tpm).all():
+            if not torch.isnan(tpm).all():
+                tpm_not_nan = torch.nan_to_num(tpm, nan=0.0)
+                cls_label = tpm_not_nan.unsqueeze(0)  
             else:
                 cls_label = masked_labels
     
@@ -940,8 +941,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             seq_len, feat_dim = tensor.shape
             mask_value = torch.zeros((1, feat_dim), device=device)
     
-            if tpm is not None and not torch.isnan(tpm).all():
-#            if not torch.isnan(tpm).all():
+#            if tpm is not None and not torch.isnan(tpm).all():
+            if not torch.isnan(tpm).all():
                 cls_mask_value = (~torch.isnan(tpm)).float().unsqueeze(0)
             else:
                 cls_mask_value = mask_value
