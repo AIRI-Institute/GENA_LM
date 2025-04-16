@@ -517,7 +517,7 @@ class ExpressionDataset(Dataset):
             "attention_mask": torch.ones(l, dtype=torch.bool),
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
-            "gene_id": gene_id,
+            "gene_id": [gene_id] * self.n_keys,
             "name": self.genes.iloc[original_idx]['gene_name'],
         }
 
@@ -593,6 +593,7 @@ class ExpressionDataset(Dataset):
 
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
+
 
         return features
 

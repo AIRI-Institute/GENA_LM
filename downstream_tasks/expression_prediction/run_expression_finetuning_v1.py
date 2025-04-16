@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, DistributedSampler, ConcatDataset
 import transformers
 from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
 import numpy as np
+import pandas as pd
 
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
 from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration, get_git_diff, prepare_run
@@ -16,6 +17,7 @@ import lm_experiments_tools.optimizers as optimizers
 from downstream_tasks.expression_prediction.expression_dataset import ExpressionDataset, worker_init_fn
 
 import horovod.torch as hvd
+from itertools import chain, compress
 
 from hydra import compose, initialize, initialize_config_dir
 from omegaconf import OmegaConf
@@ -43,9 +45,6 @@ torch.cuda.set_device(hvd.local_rank())
 
 parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config') 
-parser.add_argument('--seed', type=int, default=42, help='random seed')
-parser.add_argument('--backbone_trainable', action='store_true', default=False,
-                    help='make all model weights trainable, not only task-specific head.')
 
 def main():
     args = parser.parse_args()
@@ -108,8 +107,9 @@ def main():
         pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
         # Ключи, которые передаются без изменений
         no_pad_keys = ['desc_vectors', 'tpm']
+        # Строки
+        special_keys = ['gene_id', 'selected_keys']
         
-
         pad_token_ids = {
             'input_ids': tokenizer.pad_token_id,  
             'token_type_ids': 0,
@@ -119,19 +119,17 @@ def main():
         }
         
         max_seq_len = max([len(sample['input_ids']) for sample in batch])
-        batch_dict = {key: [] for key in pad_keys + no_pad_keys}
+        batch_dict = {key: [] for key in pad_keys + no_pad_keys + special_keys}
         
         for sample in batch:
             for key in pad_keys:
                 seq = sample[key]
                 pad_len = max_seq_len - len(seq)
                 if pad_len > 0:
-                    if key == 'labels' or key == 'labels_mask':
-                        # labels имеет размер (seq_len, num_targets), паддим по seq_len
+                    if key in ['labels', 'labels_mask']:
                         pad = torch.full((pad_len, seq.size(1)), pad_token_ids[key], dtype=seq.dtype)
                         padded_seq = torch.cat([seq, pad], dim=0)
                     else:
-                        # Остальные ключи - одномерные тензоры
                         pad = torch.full((pad_len,), pad_token_ids[key], dtype=seq.dtype)
                         padded_seq = torch.cat([seq, pad], dim=0)
                 else:
@@ -139,6 +137,10 @@ def main():
                 batch_dict[key].append(padded_seq)
             
             for key in no_pad_keys:
+                batch_dict[key].append(sample[key])
+                
+            # Специальная обработка для gene_id
+            for key in special_keys:
                 batch_dict[key].append(sample[key])
         
         for key in pad_keys:
@@ -149,6 +151,7 @@ def main():
         return batch_dict
 
     kwargs['collate_fn'] = collate_fn
+
 
 
     # get train datasets
@@ -165,6 +168,8 @@ def main():
             if "n_keys" in config and config["n_keys"] != min_chunk_size:
                 raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
             OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
+
+    
     hvd.barrier()
     train_datasets = [instantiate(config) for config in train_datasets_configs]
  
@@ -314,29 +319,11 @@ def main():
         'desc_vectors': batch['desc_vectors'],
         'labels': batch['labels'],
         'tpm': batch['tpm'],
+        'gene_id': batch['gene_id'],
+        'selected_keys' : batch['selected_keys'],
                         }
         return result
-    
-    def pearson_corr_coef(x_input, y_input):
-        if isinstance(x_input, torch.Tensor):
-            x = x_input
-        else:
-            x = torch.cat(x_input)
-            
-        if isinstance(y_input, torch.Tensor):
-            y = y_input
-        else:
-            y = torch.cat(y_input)
-        
-        x_centered = x - x.mean()
-        y_centered = y - y.mean()
-        
-        x_centered = x_centered.unsqueeze(0)
-        y_centered = y_centered.unsqueeze(0)
-        
-        corr = torch.nn.functional.cosine_similarity(x_centered, y_centered, dim=1)
-        
-        return corr.item()    
+       
 
     def keep_for_metrics_fn(batch, output):
         predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
@@ -352,6 +339,10 @@ def main():
         y_segm = labels[:, 0, :].squeeze(-1)
         p_segm = preds[:, 0, :].squeeze(-1)  
         mask = masks[:, 0, :].squeeze(-1)
+
+        # y_rmt += y_segm[mask]
+        # p_rmt += p_segm[mask]
+        # assert y_segm.shape == p_segm.shape
         
         y_segm = y_segm[mask]
         p_segm = p_segm[mask]
@@ -366,12 +357,20 @@ def main():
         y_rmt = torch.cat(y_rmt)
         p_rmt = torch.cat(p_rmt)
         assert y_rmt.shape == p_rmt.shape
+
+        flat_gene_id = list(chain.from_iterable(batch['gene_id']))
+        masked_gene_id = list(compress(flat_gene_id, mask)) 
+
+        keys_id = list(chain.from_iterable(batch['selected_keys']))
         
-        # keep states for correlation metric
         preds = p_rmt.cpu().unsqueeze(1)
         target = y_rmt.cpu().unsqueeze(1)
         reduce_dims = (0, 1)
         data = {}
+        data['tpm_true'] = y_rmt.tolist()
+        data['tpm_preds'] = p_rmt.tolist()
+        data['gene_id'] = masked_gene_id
+        data['keys_id'] = keys_id
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
         data['_true_squared'] = torch.sum(torch.square(target), dim=reduce_dims).unsqueeze(0)
@@ -380,43 +379,19 @@ def main():
         data['_count'] = torch.sum(torch.ones_like(target), dim=reduce_dims).unsqueeze(0)
         return data
 
-    # def batch_metrics_fn(batch, output):
-    #     metrics = {'loss': output['loss'].detach()}
-
-    #     predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
-    #     labels_segm = [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
-    #     rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
-
-    #     y_rmt, p_rmt = [], []
-    #     for i in range(len(labels_segm)):
-    #         labels_segm[i] = torch.stack(labels_segm[i])
-    #         predictions_segm[i] = torch.stack(predictions_segm[i])
-    #         rmt_labels_masks_segm[i] = torch.stack(rmt_labels_masks_segm[i])
-
-    #         y_segm, p_segm = labels_segm[i], predictions_segm[i]
-            
-    #         y_segm = y_segm[rmt_labels_masks_segm[i]]
-    #         p_segm = p_segm[rmt_labels_masks_segm[i]]
-
-            
-    #         assert y_segm.shape == p_segm.shape
-    #         y_rmt += [y_segm]
-    #         p_rmt += [p_segm]
-
-    #     if not y_rmt:
-    #         return {}
-
-    #     y_rmt = torch.cat(y_rmt)
-    #     p_rmt = torch.cat(p_rmt)
-    #     assert y_rmt.shape == p_rmt.shape
-
-
-    #     metrics['pearson_corr'] = pearson_corr_coef(p_rmt, y_rmt)
-        
-    #     return metrics
 
     def metrics_fn(data):
         metrics = {}
+        # logger.info(f"Data keys in metrics_fn: {data.keys()}")
+        # logger.info(f"tpm_product type: {type(data['_product'])}")
+        # logger.info(f"tpm_product shape: {data['_product'].shape if hasattr(data['_product'], 'shape') else 'no shape'}")
+        # logger.info(f"tpm_true type: {type(data['tpm_true'])}")
+        # logger.info(f"tpm_true length: {len(data['tpm_true'])}")
+        # logger.info(f"tpm_preds type: {type(data['tpm_preds'])}")
+        # logger.info(f"tpm_preds length: {len(data['tpm_preds'])}")
+        # logger.info(f"gene_id type: {type(data['gene_id'])}")
+        # logger.info(f"gene_id length: {len(data['gene_id'])}")
+    
         data['_product'] = torch.sum(data['_product'], dim=0)
         data['_true'] = torch.sum(data['_true'], dim=0)
         data['_true_squared'] = torch.sum(data['_true_squared'], dim=0)
@@ -426,14 +401,55 @@ def main():
         
         true_mean = data['_true'] / data['_count']
         pred_mean = data['_pred'] / data['_count']
-
+    
         covariance = (data['_product'] - true_mean * data['_pred'] - pred_mean * data['_true'] + data['_count'] * true_mean * pred_mean)
-
+    
         true_var = data['_true_squared'] - data['_count'] * torch.square(true_mean)
         pred_var = data['_pred_squared'] - data['_count'] * torch.square(pred_mean)
         tp_var = torch.sqrt(true_var) * torch.sqrt(pred_var)
         corr_coef = covariance / tp_var
-        metrics['pearson_corr_statefull'] = corr_coef.item()
+        metrics['pearson_corr'] = corr_coef.item()
+    
+        # Обработка TPM и gene_id
+        tpm_true = data['tpm_true']
+        tpm_preds = data['tpm_preds']
+        gene_id = data['gene_id']
+        keys_id = data['keys_id']
+        
+        assert len(tpm_true) == len(tpm_preds) == len(gene_id) == len(keys_id), \
+            f"Mismatch! tpm_true: {len(tpm_true)}, tpm_preds: {len(tpm_preds)}, gene_id: {len(gene_id)}, keys_id {len(keys_id)}"
+
+        # if hvd.rank() == 0:
+        #     save_csv_path = "/mnt/nfs_dna/aspeedok/github/labels.csv"
+        #     if save_csv_path is not None:
+        #         df = pd.DataFrame({
+        #             'gene_id': gene_id,
+        #             'tpm_true': tpm_true,
+        #             'tpm_pred': tpm_preds,
+        #             'cell_type': keys_id,
+        #         })
+        #         df.to_csv(save_csv_path, index=False)
+        #         print(f"Saved gene TPMs to {save_csv_path}")
+
+     #   if hvd.rank() == 0:
+
+        df = pd.DataFrame({
+            'gene_id': gene_id,
+            'cell_type': keys_id,
+            'tpm_true': tpm_true,
+            'tpm_pred': tpm_preds,
+        })
+        df.to_csv("/mnt/nfs_dna/aspeedok/github/labels.csv")
+        
+        df_true = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_true', aggfunc=lambda x: list(x))
+        df_pred = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_pred', aggfunc=lambda x: list(x))
+
+        save_csv_path_true = "/mnt/nfs_dna/aspeedok/github/true.csv"
+        save_csv_path_pred = "/mnt/nfs_dna/aspeedok/github/pred.csv"
+        df_true.to_csv(save_csv_path_true)
+        df_pred.to_csv(save_csv_path_pred)
+        print(f"Saved gene x cell_type TPM matrix to {save_csv_path_true}")
+        
         return metrics
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
@@ -455,19 +471,6 @@ def main():
             logger.info('Runnning validation on valid data:')
         trainer.validate(valid_dataloader, write_tb=False)
 
-    # if args.test_data_path:
-    #     # get test dataset
-    #     if hvd.rank() == 0:
-    #         logger.info(f'preparing test data from: {args.test_data_path}')
-    #     test_data_path = Path(args.test_data_path).expanduser().absolute()
-    #     test_dataset = EnformerDataset(tokenizer, test_data_path, max_seq_len=args.input_seq_len,
-    #                                    bins_per_sample=args.bins_per_sample)
-    #     test_sampler = DistributedSampler(test_dataset, rank=hvd.rank(), num_replicas=hvd.size(), shuffle=False)
-    #     test_dataloader = DataLoader(test_dataset, batch_size=per_worker_batch_size, sampler=test_sampler, **kwargs)
-    #     if hvd.rank() == 0:
-    #         logger.info(f'len(test_dataset): {len(test_dataset)}')
-    #         logger.info('Runnning validation on test data:')
-    #     trainer.validate(test_dataloader, split='test', write_tb=True)
 
     trainer.save_metrics(args.model_path)
 
