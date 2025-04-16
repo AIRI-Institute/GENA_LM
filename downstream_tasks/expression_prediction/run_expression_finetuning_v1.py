@@ -47,6 +47,15 @@ parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config') 
 
 def main():
+    # print (f"rank: {hvd.rank()}, start")
+    # if hvd.rank() == 0:
+    #     min_chunk_size = 17
+    # else:
+    #     min_chunk_size = 27
+    # min_chunk_size = hvd.broadcast_object(min_chunk_size, root_rank=0)
+    # logger.info(f"rank: {hvd.rank()}, min_chunk_size: {min_chunk_size}")
+    # raise Exception("Stop here")
+
     args = parser.parse_args()
     experiment_config_path = Path(args.experiment_config).expanduser().absolute()
 
@@ -152,8 +161,6 @@ def main():
 
     kwargs['collate_fn'] = collate_fn
 
-
-
     # get train datasets
     if hvd.rank() == 0:
         logger.info(f'preparing training data')
@@ -161,16 +168,22 @@ def main():
     # Instantiate training datasets
     train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
     if hvd.rank() == 0:
+        # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
         train_datasets = [instantiate(config) for config in train_datasets_configs]
         min_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
         logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_chunk_size}")
-        for config in train_datasets_configs:
-            if "n_keys" in config and config["n_keys"] != min_chunk_size:
-                raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
-            OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
+    else:
+        min_chunk_size = -1
 
-    
-    hvd.barrier()
+    min_chunk_size = hvd.broadcast_object(min_chunk_size, root_rank=0) # note that we don't need barrier here because broadcast is sync
+    assert min_chunk_size > 0, f"min_chunk_size {min_chunk_size} >= 0: possible problem with horovod broadcast"
+
+    # now we need to re-init datasets with correct n_keys and/or init on ranks>0
+    for config in train_datasets_configs:
+        if "n_keys" in config and config["n_keys"] != min_chunk_size:
+            raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
+        OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
+  
     train_datasets = [instantiate(config) for config in train_datasets_configs]
  
     if len(train_datasets) == 0:
@@ -202,11 +215,11 @@ def main():
             assert min_chunk_size == min([dataset.get_num_keys() for dataset in valid_datasets]), \
                   f"Number of keys in validation datasets should be the same as in train/valid datasets" + \
                   f"but min_chunk_size is different: {min_chunk_size} != {min([dataset.get_num_keys() for dataset in valid_datasets])}"
-            for config in valid_datasets_configs:
-                if "n_keys" in config and config["n_keys"] != min_chunk_size:
-                    raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
-                OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
         hvd.barrier()
+        for config in valid_datasets_configs:
+            if "n_keys" in config and config["n_keys"] != min_chunk_size:
+                raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
+            OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
         valid_datasets = [instantiate(config) for config in valid_datasets_configs]
         if len(valid_datasets) == 1:
             valid_dataset = valid_datasets[0]
