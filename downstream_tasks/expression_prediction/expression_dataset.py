@@ -21,6 +21,7 @@ import sys
 from transformers import AutoTokenizer
 from multiprocessing import Pool
 from downstream_tasks.expression_prediction.datasets.src.utils import convert_fm_relative_path_to_absolute_path
+import pickle
 
 class ExpressionDataset(Dataset):
     def __init__(
@@ -130,13 +131,21 @@ class ExpressionDataset(Dataset):
                 
         # Работаем с tpm, если tpm = True      
         if self.tpm:
-            self.tpm_cache = {}
-            for key, (v1, v2) in self.paths.items():
-                tpm = pd.read_csv(v2)
-                self.tpm_cache[key] = tpm
-            self.tpm_lookup = {}
-            for key, tpm_df in self.tpm_cache.items():
-                self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
+            tpm_hash_path = self.get_tpm_hash_path()
+            if os.path.exists(tpm_hash_path):
+                self.tpm_lookup = pickle.load(open(tpm_hash_path, "rb"))
+                assert len(self.tpm_lookup) == len(self.paths), "Number of tpm cache and paths are not the same"
+                assert all(key in self.tpm_lookup for key in self.paths.keys()), "All keys in paths must be in tpm cache"
+            else:
+                self.tpm_cache = {}
+                for key, (v1, v2) in self.paths.items():
+                    self.logger.info(f"Reading tpm from {v2}")
+                    tpm = pd.read_csv(v2, dtype=np.float32)
+                    self.tpm_cache[key] = tpm
+                self.tpm_lookup = {}
+                for key, tpm_df in self.tpm_cache.items():
+                    self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
+                pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
 
         # Добавляем список валидных индексов
         self.valid_indices = []
@@ -188,11 +197,16 @@ class ExpressionDataset(Dataset):
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + ".signal." + hash_suffix
     
+    def get_tpm_hash_path(self):
+        signals_hash_path = self.get_signals_hash_path()
+        return self.hash_prefix + ".tpm." + signals_hash_path[len(self.hash_prefix) + len(".signal."):]
+    
     def get_num_keys(self):
         return len(self.paths.keys())
         
     def read_paths(self):
-        self.paths = {} 
+        self.paths = {}
+        self.logger.info(f"Reading paths from {self.targets_path}")
         df = pd.read_csv(self.targets_path)
 
         assert not df["id"].duplicated().any(), "Found duplicated id in targets_path"
