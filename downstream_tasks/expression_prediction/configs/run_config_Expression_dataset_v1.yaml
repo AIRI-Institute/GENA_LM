@@ -71,6 +71,8 @@ args_params:
 
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
 
+  pseudocount: 0.01
+
 
 
 model_kwargs:

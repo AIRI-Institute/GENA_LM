@@ -1,30 +1,31 @@
+# stdlib
 import json
 import logging
 import os
+import time
+from functools import partial
+from itertools import chain, compress
 from pathlib import Path
 
+# third-party
 import torch
-from torch.utils.data import DataLoader, DistributedSampler, ConcatDataset
-import transformers
-from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
 import numpy as np
 import pandas as pd
+import transformers
+from torch.utils.data import DataLoader, DistributedSampler, ConcatDataset
+from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
+import horovod.torch as hvd
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
+# local
 from lm_experiments_tools import Trainer, TrainerArgs, get_optimizer
 from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuration, get_git_diff, prepare_run
 import lm_experiments_tools.optimizers as optimizers
-
 from downstream_tasks.expression_prediction.expression_dataset import ExpressionDataset, worker_init_fn
+from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions
 
-import horovod.torch as hvd
-from itertools import chain, compress
-
-from hydra import compose, initialize, initialize_config_dir
-from omegaconf import OmegaConf
-from hydra.utils import instantiate
-from functools import partial
-
-import time
 
 timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -47,14 +48,6 @@ parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config') 
 
 def main():
-    # print (f"rank: {hvd.rank()}, start")
-    # if hvd.rank() == 0:
-    #     min_chunk_size = 17
-    # else:
-    #     min_chunk_size = 27
-    # min_chunk_size = hvd.broadcast_object(min_chunk_size, root_rank=0)
-    # logger.info(f"rank: {hvd.rank()}, min_chunk_size: {min_chunk_size}")
-    # raise Exception("Stop here")
 
     args = parser.parse_args()
     experiment_config_path = Path(args.experiment_config).expanduser().absolute()
@@ -148,7 +141,6 @@ def main():
             for key in no_pad_keys:
                 batch_dict[key].append(sample[key])
                 
-            # Специальная обработка для gene_id
             for key in special_keys:
                 batch_dict[key].append(sample[key])
         
@@ -250,7 +242,7 @@ def main():
     # define model
     model_cfg = AutoConfig.from_pretrained(args.model_cfg)
 
-#    model_cfg.add_head_dense = args.add_head_dense
+   # model_cfg.add_head_dense = args.add_head_dense
 
     if "model_kwargs" in experiment_config:
         model_kwargs = instantiate(experiment_config["model_kwargs"])
@@ -269,7 +261,6 @@ def main():
     model = model_cls(**model_kwargs)
     model_activation_fn = model.activation
 
-    # Aydar # Pass memory settings to pretrained model
     if args.num_mem_tokens is not None:
         rmt_config = {
             'num_mem_tokens': args.num_mem_tokens,
@@ -357,10 +348,6 @@ def main():
         y_segm = labels[:, 0, :].squeeze(-1)
         p_segm = preds[:, 0, :].squeeze(-1)  
         mask = masks[:, 0, :].squeeze(-1)
-
-        # y_rmt += y_segm[mask]
-        # p_rmt += p_segm[mask]
-        # assert y_segm.shape == p_segm.shape
         
         y_segm = y_segm[mask]
         p_segm = p_segm[mask]
@@ -462,12 +449,64 @@ def main():
         df_true = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_true', aggfunc=lambda x: list(x))
         df_pred = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_pred', aggfunc=lambda x: list(x))
 
-        save_csv_path_true = "/mnt/nfs_dna/aspeedok/github/true.csv"
-        save_csv_path_pred = "/mnt/nfs_dna/aspeedok/github/pred.csv"
-        df_true.to_csv(save_csv_path_true)
-        df_pred.to_csv(save_csv_path_pred)
-        print(f"Saved gene x cell_type TPM matrix to {save_csv_path_true}")
-        
+        for dataset_desc in df['dataset_description'].unique():
+            df_dataset = df[df['dataset_description'] == dataset_desc]
+            
+            df_pred = df_dataset.pivot_table(
+                index='gene_id',
+                columns='cell_type',
+                values='tpm_pred',
+                aggfunc='first'
+            )
+            df_true = df_dataset.pivot_table(
+                index='gene_id',
+                columns='cell_type',
+                values='tpm_true',
+                aggfunc='first'
+            )            
+            df_true.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_true.csv')
+            df_pred.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_pred.csv')
+            
+            if not df_true.empty and not df_pred.empty:
+                gene_correlations = []
+                for gene in df_true.index:
+                    gene_true = df_true.loc[gene]
+                    gene_pred = df_pred.loc[gene]
+                    if len(gene_true) > 1 and np.std(gene_true) > 0:
+                        try:
+                            corr = np.corrcoef(gene_true, gene_pred)[0, 1]
+                            if not np.isnan(corr):
+                                gene_correlations.append(corr)
+                        except:
+                            continue
+                
+                cell_correlations = []
+                for cell_type in df_true.columns:
+                    cell_true = df_true[cell_type]
+                    cell_pred = df_pred[cell_type]
+                    if len(cell_true) > 1:
+                        try:
+                            corr = np.corrcoef(cell_true, cell_pred)[0, 1]
+                            if not np.isnan(corr):
+                                cell_correlations.append(corr)
+                        except:
+                            continue
+                
+                if gene_correlations:
+                    metrics[f'pearson_corr_cells_{dataset_desc}'] = float(np.mean(gene_correlations))
+                if cell_correlations:
+                    metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(cell_correlations))
+                df_true = df_true.reset_index()
+                df_pred = df_pred.reset_index()
+                score = score_predictions(
+                    df_true, 
+                    df_pred, 
+                    '/mnt/nfs_dna/aspeedok/github/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv', 
+                    need_log=False
+                )
+                if score:
+                    metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
+
         return metrics
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
