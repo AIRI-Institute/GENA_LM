@@ -70,7 +70,9 @@ args_params:
   iters: 350000
 
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
 
+selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
 
 
 model_kwargs:

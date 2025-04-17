@@ -94,7 +94,9 @@ model_kwargs:
     _target_: builtins.dict
 
   weight: 10
-  
+
+selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
+
 
 train_dataset_human_full_csv:
 

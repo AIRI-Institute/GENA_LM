@@ -110,7 +110,7 @@ def main():
         # Ключи, которые передаются без изменений
         no_pad_keys = ['desc_vectors', 'tpm']
         # Строки
-        special_keys = ['gene_id', 'selected_keys']
+        special_keys = ['gene_id', 'selected_keys', 'dataset_description']
         
         pad_token_ids = {
             'input_ids': tokenizer.pad_token_id,  
@@ -330,7 +330,7 @@ def main():
         'tpm': batch['tpm'],
         'gene_id': batch['gene_id'],
         'selected_keys' : batch['selected_keys'],
-                        }
+        'dataset_description' : batch['dataset_description'] }
         return result
        
 
@@ -365,8 +365,8 @@ def main():
 
         flat_gene_id = list(chain.from_iterable(batch['gene_id']))
         masked_gene_id = list(compress(flat_gene_id, mask)) 
-
         keys_id = list(chain.from_iterable(batch['selected_keys']))
+        dataset_description = list(chain.from_iterable(batch['dataset_description']))
         
         preds = p_rmt.cpu().unsqueeze(1)
         target = y_rmt.cpu().unsqueeze(1)
@@ -376,6 +376,7 @@ def main():
         data['tpm_preds'] = p_rmt.tolist()
         data['gene_id'] = masked_gene_id
         data['keys_id'] = keys_id
+        data['dataset_description'] = dataset_description
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
         data['_true_squared'] = torch.sum(torch.square(target), dim=reduce_dims).unsqueeze(0)
@@ -387,15 +388,6 @@ def main():
 
     def metrics_fn(data):
         metrics = {}
-        # logger.info(f"Data keys in metrics_fn: {data.keys()}")
-        # logger.info(f"tpm_product type: {type(data['_product'])}")
-        # logger.info(f"tpm_product shape: {data['_product'].shape if hasattr(data['_product'], 'shape') else 'no shape'}")
-        # logger.info(f"tpm_true type: {type(data['tpm_true'])}")
-        # logger.info(f"tpm_true length: {len(data['tpm_true'])}")
-        # logger.info(f"tpm_preds type: {type(data['tpm_preds'])}")
-        # logger.info(f"tpm_preds length: {len(data['tpm_preds'])}")
-        # logger.info(f"gene_id type: {type(data['gene_id'])}")
-        # logger.info(f"gene_id length: {len(data['gene_id'])}")
     
         data['_product'] = torch.sum(data['_product'], dim=0)
         data['_true'] = torch.sum(data['_true'], dim=0)
@@ -420,35 +412,20 @@ def main():
         tpm_preds = data['tpm_preds']
         gene_id = data['gene_id']
         keys_id = data['keys_id']
+        dataset_description = data['dataset_description']
         
-        assert len(tpm_true) == len(tpm_preds) == len(gene_id) == len(keys_id), \
-            f"Mismatch! tpm_true: {len(tpm_true)}, tpm_preds: {len(tpm_preds)}, gene_id: {len(gene_id)}, keys_id {len(keys_id)}"
-
-        # if hvd.rank() == 0:
-        #     save_csv_path = "/mnt/nfs_dna/aspeedok/github/labels.csv"
-        #     if save_csv_path is not None:
-        #         df = pd.DataFrame({
-        #             'gene_id': gene_id,
-        #             'tpm_true': tpm_true,
-        #             'tpm_pred': tpm_preds,
-        #             'cell_type': keys_id,
-        #         })
-        #         df.to_csv(save_csv_path, index=False)
-        #         print(f"Saved gene TPMs to {save_csv_path}")
-
-     #   if hvd.rank() == 0:
+        assert len(tpm_true) == len(tpm_preds) == len(gene_id) == len(keys_id) == len(dataset_description), \
+            f"Mismatch! tpm_true: {len(tpm_true)}, tpm_preds: {len(tpm_preds)}, gene_id: {len(gene_id)}, keys_id {len(keys_id)}, dataset_description {len(dataset_description)}"
 
         df = pd.DataFrame({
             'gene_id': gene_id,
             'cell_type': keys_id,
             'tpm_true': tpm_true,
             'tpm_pred': tpm_preds,
+            'dataset_description': dataset_description,
         })
         df.to_csv("/mnt/nfs_dna/aspeedok/github/labels.csv")
         
-        df_true = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_true', aggfunc=lambda x: list(x))
-        df_pred = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_pred', aggfunc=lambda x: list(x))
-
         for dataset_desc in df['dataset_description'].unique():
             df_dataset = df[df['dataset_description'] == dataset_desc]
             
@@ -501,7 +478,7 @@ def main():
                 score = score_predictions(
                     df_true, 
                     df_pred, 
-                    '/mnt/nfs_dna/aspeedok/github/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv', 
+                    experiment_config.selected_targets_path, 
                     need_log=False
                 )
                 if score:

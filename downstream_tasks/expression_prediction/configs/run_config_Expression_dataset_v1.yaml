@@ -9,7 +9,7 @@ args_params:
 
   _target_: builtins.dict
   
-  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
+#  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
 
   resume: 
 
@@ -73,6 +73,8 @@ args_params:
 
   pseudocount: 0.01
 
+
+selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
 
 
 model_kwargs:
