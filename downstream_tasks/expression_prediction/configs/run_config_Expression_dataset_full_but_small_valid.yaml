@@ -1,6 +1,6 @@
 TASK_NAME: expression
 
-HOME_PATH: /mnt/nfs_dna/aspeedok/github
+HOME_PATH: /mnt/10tb/home/vsfishman/DNALM/
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
 
@@ -9,7 +9,7 @@ args_params:
 
   _target_: builtins.dict
   
-  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
+#  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
 
   resume: 
 
@@ -96,7 +96,7 @@ model_kwargs:
   weight: 10
   
 
-train_dataset_human:
+train_dataset_human_full_csv:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
@@ -104,7 +104,7 @@ train_dataset_human:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_csv_file_mappings.csv"
   
   gen_max_seq_len: ${args_params.input_seq_len}
 
@@ -138,22 +138,21 @@ train_dataset_human:
     
   seed: ${args_params.seed}
 
-
-train_dataset_mouse:
+train_dataset_human_full_CPM:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
 
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_CPM_file_mappings.csv"
   
   gen_max_seq_len: ${args_params.input_seq_len}
 
   num_before: 250
   
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
   
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
@@ -161,6 +160,9 @@ train_dataset_mouse:
 
   tpm: CPM
 
+  #  bw: bw
+
+  
   loglevel: 
     "_target_": "logging.getLevelName"
     
@@ -178,8 +180,85 @@ train_dataset_mouse:
     
   seed: ${args_params.seed}
 
+train_dataset_mouse_full_csv:
 
-valid_dataset_human:
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_mm10_csv_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  tpm: csv
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+train_dataset_mouse_full_CPM:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_mm10_CPM_file_mappings.csv"
+  
+  gen_max_seq_len: ${args_params.input_seq_len}
+
+  num_before: 250
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+
+  tpm: CPM
+  
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    
+    "level": "DEBUG"
+    
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 1
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    
+    pseudocount: 0.01
+    
+  seed: ${args_params.seed}
+
+valid_dataset_human_csv_14ct:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
@@ -220,8 +299,7 @@ valid_dataset_human:
     
   seed: ${args_params.seed}
 
-
-valid_dataset_mouse:
+valid_dataset_mouse_CPM_14ct:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
 
@@ -259,4 +337,3 @@ valid_dataset_mouse:
     pseudocount: 0.01
     
   seed: ${args_params.seed}
-

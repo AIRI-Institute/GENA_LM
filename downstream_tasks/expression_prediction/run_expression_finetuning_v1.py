@@ -117,7 +117,7 @@ def main():
         # Ключи, которые передаются без изменений
         no_pad_keys = ['desc_vectors', 'tpm']
         # Строки
-        special_keys = ['gene_id', 'selected_keys', 'dataset_description']
+        special_keys = ['gene_id', 'selected_keys']
         
         pad_token_ids = {
             'input_ids': tokenizer.pad_token_id,  
@@ -170,19 +170,19 @@ def main():
     if hvd.rank() == 0:
         # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
         train_datasets = [instantiate(config) for config in train_datasets_configs]
-        min_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
-        logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_chunk_size}")
+        min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
+        logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
     else:
-        min_chunk_size = -1
+        min_train_chunk_size = -1
 
-    min_chunk_size = hvd.broadcast_object(min_chunk_size, root_rank=0) # note that we don't need barrier here because broadcast is sync
-    assert min_chunk_size > 0, f"min_chunk_size {min_chunk_size} >= 0: possible problem with horovod broadcast"
+    min_train_chunk_size = hvd.broadcast_object(min_train_chunk_size, root_rank=0) # note that we don't need barrier here because broadcast is sync
+    assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible problem with horovod broadcast"
 
     # now we need to re-init datasets with correct n_keys and/or init on ranks>0
     for config in train_datasets_configs:
-        if "n_keys" in config and config["n_keys"] != min_chunk_size:
-            raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
-        OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
+        if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
+            raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
+        OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
   
     train_datasets = [instantiate(config) for config in train_datasets_configs]
  
@@ -212,14 +212,19 @@ def main():
         if hvd.rank() == 0:
             logger.info(f'preparing validation data')
             valid_datasets = [instantiate(config) for config in valid_datasets_configs]
-            assert min_chunk_size == min([dataset.get_num_keys() for dataset in valid_datasets]), \
-                  f"Number of keys in validation datasets should be the same as in train/valid datasets" + \
-                  f"but min_chunk_size is different: {min_chunk_size} != {min([dataset.get_num_keys() for dataset in valid_datasets])}"
-        hvd.barrier()
+            min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets])
+            if min_valid_chunk_size != min_train_chunk_size:
+                logger.warning(f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), \
+                  Min number of keys in validation datasets is not the same as in train datasets. \
+                    This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-")
+        else:
+            min_valid_chunk_size = -1
+        min_valid_chunk_size = hvd.broadcast_object(min_valid_chunk_size, root_rank=0)
+        assert min_valid_chunk_size > 0, f"min_valid_chunk_size {min_valid_chunk_size} >= 0: possible problem with horovod broadcast"
         for config in valid_datasets_configs:
-            if "n_keys" in config and config["n_keys"] != min_chunk_size:
-                raise ValueError(f"n_keys in config is different from min_chunk_size: {config['n_keys']} != {min_chunk_size}")
-            OmegaConf.update(config, "n_keys", min_chunk_size, force_add=True)
+            if "n_keys" in config and config["n_keys"] != min_valid_chunk_size:
+                raise ValueError(f"n_keys in config is different from min_valid_chunk_size: {config['n_keys']} != {min_valid_chunk_size}")
+            OmegaConf.update(config, "n_keys", min_valid_chunk_size, force_add=True)
         valid_datasets = [instantiate(config) for config in valid_datasets_configs]
         if len(valid_datasets) == 1:
             valid_dataset = valid_datasets[0]
@@ -334,7 +339,6 @@ def main():
         'tpm': batch['tpm'],
         'gene_id': batch['gene_id'],
         'selected_keys' : batch['selected_keys'],
-        'dataset_description' : batch['dataset_description'],
                         }
         return result
        
@@ -376,7 +380,7 @@ def main():
         masked_gene_id = list(compress(flat_gene_id, mask)) 
 
         keys_id = list(chain.from_iterable(batch['selected_keys']))
-        dataset_description = list(chain.from_iterable(batch['dataset_description']))
+        
         preds = p_rmt.cpu().unsqueeze(1)
         target = y_rmt.cpu().unsqueeze(1)
         reduce_dims = (0, 1)
@@ -385,7 +389,6 @@ def main():
         data['tpm_preds'] = p_rmt.tolist()
         data['gene_id'] = masked_gene_id
         data['keys_id'] = keys_id
-        data['dataset_description'] =  dataset_description
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
         data['_true_squared'] = torch.sum(torch.square(target), dim=reduce_dims).unsqueeze(0)
@@ -397,7 +400,16 @@ def main():
 
     def metrics_fn(data):
         metrics = {}
-        
+        # logger.info(f"Data keys in metrics_fn: {data.keys()}")
+        # logger.info(f"tpm_product type: {type(data['_product'])}")
+        # logger.info(f"tpm_product shape: {data['_product'].shape if hasattr(data['_product'], 'shape') else 'no shape'}")
+        # logger.info(f"tpm_true type: {type(data['tpm_true'])}")
+        # logger.info(f"tpm_true length: {len(data['tpm_true'])}")
+        # logger.info(f"tpm_preds type: {type(data['tpm_preds'])}")
+        # logger.info(f"tpm_preds length: {len(data['tpm_preds'])}")
+        # logger.info(f"gene_id type: {type(data['gene_id'])}")
+        # logger.info(f"gene_id length: {len(data['gene_id'])}")
+    
         data['_product'] = torch.sum(data['_product'], dim=0)
         data['_true'] = torch.sum(data['_true'], dim=0)
         data['_true_squared'] = torch.sum(data['_true_squared'], dim=0)
@@ -421,68 +433,40 @@ def main():
         tpm_preds = data['tpm_preds']
         gene_id = data['gene_id']
         keys_id = data['keys_id']
-        dataset_description = data['dataset_description']
         
-        assert len(tpm_true) == len(tpm_preds) == len(gene_id) == len(keys_id) == len(dataset_description), \
-            f"Mismatch! tpm_true: {len(tpm_true)}, tpm_preds: {len(tpm_preds)}, gene_id: {len(gene_id)}, keys_id {len(keys_id)}, dataset_description {len(dataset_description)}"
+        assert len(tpm_true) == len(tpm_preds) == len(gene_id) == len(keys_id), \
+            f"Mismatch! tpm_true: {len(tpm_true)}, tpm_preds: {len(tpm_preds)}, gene_id: {len(gene_id)}, keys_id {len(keys_id)}"
+
+        # if hvd.rank() == 0:
+        #     save_csv_path = "/mnt/nfs_dna/aspeedok/github/labels.csv"
+        #     if save_csv_path is not None:
+        #         df = pd.DataFrame({
+        #             'gene_id': gene_id,
+        #             'tpm_true': tpm_true,
+        #             'tpm_pred': tpm_preds,
+        #             'cell_type': keys_id,
+        #         })
+        #         df.to_csv(save_csv_path, index=False)
+        #         print(f"Saved gene TPMs to {save_csv_path}")
+
+     #   if hvd.rank() == 0:
 
         df = pd.DataFrame({
             'gene_id': gene_id,
             'cell_type': keys_id,
             'tpm_true': tpm_true,
             'tpm_pred': tpm_preds,
-            'dataset_description': dataset_description,
         })
         df.to_csv("/mnt/nfs_dna/aspeedok/github/labels.csv")
+        
+        df_true = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_true', aggfunc=lambda x: list(x))
+        df_pred = df.pivot_table(index='gene_id', columns='cell_type', values='tpm_pred', aggfunc=lambda x: list(x))
 
-        for dataset_desc in df['dataset_description'].unique():
-            df_dataset = df[df['dataset_description'] == dataset_desc]
-            
-            df_pred = df_dataset.pivot_table(
-                index='gene_id',
-                columns='cell_type',
-                values='tpm_pred',
-                aggfunc='first'
-            )
-            df_true = df_dataset.pivot_table(
-                index='gene_id',
-                columns='cell_type',
-                values='tpm_true',
-                aggfunc='first'
-            )
-            
-            df_true.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_true.csv')
-            df_pred.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_pred.csv')
-            
-            if not df_true.empty and not df_pred.empty:
-                gene_correlations = []
-                for gene in df_true.index:
-                    gene_true = df_true.loc[gene]
-                    gene_pred = df_pred.loc[gene]
-                    if len(gene_true) > 1:
-                        try:
-                            corr = np.corrcoef(gene_true, gene_pred)[0, 1]
-                            if not np.isnan(corr):
-                                gene_correlations.append(corr)
-                        except:
-                            continue
-                
-                cell_correlations = []
-                for cell_type in df_true.columns:
-                    cell_true = df_true[cell_type]
-                    cell_pred = df_pred[cell_type]
-                    if len(cell_true) > 1:
-                        try:
-                            corr = np.corrcoef(cell_true, cell_pred)[0, 1]
-                            if not np.isnan(corr):
-                                cell_correlations.append(corr)
-                        except:
-                            continue
-                
-                if gene_correlations:
-                    metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(gene_correlations))
-                if cell_correlations:
-                    metrics[f'pearson_corr_cells_{dataset_desc}'] = float(np.mean(cell_correlations))
+        save_csv_path_true = "/mnt/nfs_dna/aspeedok/github/true.csv"
+        save_csv_path_pred = "/mnt/nfs_dna/aspeedok/github/pred.csv"
+        df_true.to_csv(save_csv_path_true)
+        df_pred.to_csv(save_csv_path_pred)
+        print(f"Saved gene x cell_type TPM matrix to {save_csv_path_true}")
         
         return metrics
 
