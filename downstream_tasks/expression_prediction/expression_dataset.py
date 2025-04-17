@@ -209,6 +209,8 @@ class ExpressionDataset(Dataset):
         self.logger.info(f"Reading paths from {self.targets_path}")
         df = pd.read_csv(self.targets_path)
 
+        self.dataset_description = df.iloc[0]['dataset_description']
+
         assert not df["id"].duplicated().any(), "Found duplicated id in targets_path"
 
         if self.bw:
@@ -607,6 +609,7 @@ class ExpressionDataset(Dataset):
 
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
+        features["dataset_description"] = [self.dataset_description] * len(selected_keys)
 
 
         return features
