@@ -25,6 +25,7 @@ from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuratio
 import lm_experiments_tools.optimizers as optimizers
 from downstream_tasks.expression_prediction.expression_dataset import ExpressionDataset, worker_init_fn
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions
+from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
 
 timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -424,7 +425,7 @@ def main():
             'tpm_pred': tpm_preds,
             'dataset_description': dataset_description,
         })
-        df.to_csv("/mnt/nfs_dna/aspeedok/github/labels.csv")
+        # df.to_csv("/mnt/nfs_dna/aspeedok/github/labels.csv")
         
         for dataset_desc in df['dataset_description'].unique():
             df_dataset = df[df['dataset_description'] == dataset_desc]
@@ -441,9 +442,11 @@ def main():
                 values='tpm_true',
                 aggfunc='first'
             )            
-            df_true.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_true.csv')
-            df_pred.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_pred.csv')
+            # df_true.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_true.csv')
+            # df_pred.to_csv(f'/mnt/nfs_dna/aspeedok/github/{dataset_desc}_pred.csv')
+
             
+            #Рассчет средней корреляции по генам и типам клеток
             if not df_true.empty and not df_pred.empty:
                 gene_correlations = []
                 for gene in df_true.index:
@@ -473,6 +476,14 @@ def main():
                     metrics[f'pearson_corr_cells_{dataset_desc}'] = float(np.mean(gene_correlations))
                 if cell_correlations:
                     metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(cell_correlations))
+
+                #Корреляция только для 5 файлов из borzoi
+                target_genes = ['ENCFF123KIW', 'ENCFF784MDF', 'ENCFF236XOK', 'ENCFF781TTC', 'ENCFF242BWW']
+                target_metrics = calculate_target_genes_metrics(df_true, df_pred, target_genes)
+                metrics[f'pearson_corr_5_cells_borzoi_cells_{dataset_desc}'] = target_metrics['corr_selected_cell_types']
+                metrics[f'pearson_corr_5_cells_borzoi_genes_{dataset_desc}'] = target_metrics['corr_selected_genes']
+                
+                #Целевая метрика клетоспецифичности 
                 df_true = df_true.reset_index()
                 df_pred = df_pred.reset_index()
                 score = score_predictions(
