@@ -51,7 +51,7 @@ class ExpressionDataset(Dataset):
         """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
-        self.logger.info("Initializing dataset")
+        # self.logger.info("Initializing dataset")
 
         if isinstance(gen_tokenizer, str):
             self.gen_tokenizer = AutoTokenizer.from_pretrained(gen_tokenizer)
@@ -158,7 +158,7 @@ class ExpressionDataset(Dataset):
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
         self.logger.info("Computing valid indices...")
-        for idx in tqdm.tqdm(range(len(self.genes)), desc="Checking samples"):
+        for idx in range(len(self.genes)):
             gene_id = self.genes.iloc[idx]['gene_id']
             
             # Проверяем TPM значения
