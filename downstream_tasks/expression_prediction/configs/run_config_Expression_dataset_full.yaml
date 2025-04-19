@@ -1,6 +1,6 @@
 TASK_NAME: expression
 
-HOME_PATH: /mnt/10tb/home/vsfishman/DNALM/
+HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
 
