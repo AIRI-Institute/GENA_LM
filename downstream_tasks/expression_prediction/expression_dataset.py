@@ -105,7 +105,6 @@ class ExpressionDataset(Dataset):
         
         self.files_opened = False
 
-        # Открываем Fasta один раз
         self.sequences = FastaFile(self.genome)
 
         # Получаем путь для токенов
@@ -136,6 +135,8 @@ class ExpressionDataset(Dataset):
                 self.tpm_lookup = pickle.load(open(tpm_hash_path, "rb"))
                 assert len(self.tpm_lookup) == len(self.paths), "Number of tpm cache and paths are not the same"
                 assert all(key in self.tpm_lookup for key in self.paths.keys()), "All keys in paths must be in tpm cache"
+                for key, value in self.tpm_lookup.items():
+                    assert pd.isna(value).sum().sum()==0, f"TPM cache contains NaN values for {key}"
             else:
                 self.tpm_cache = {}
                 for key, (v1, v2) in self.paths.items():
