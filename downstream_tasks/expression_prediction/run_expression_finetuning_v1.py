@@ -334,6 +334,15 @@ def main():
         'selected_keys' : batch['selected_keys'],
         'dataset_description' : batch['dataset_description'] }
         return result
+
+
+    def batch_metrics_fn(batch, output):
+        metrics = {
+            'loss': output['loss'].detach().item(),
+            'loss_cls': output['loss_cls'].detach().item() if 'loss_cls' in output else np.nan,
+            'loss_bw': output['loss_bw'].detach().item() if 'loss_bw' in output else np.nan
+        }
+        return metrics
        
     def keep_for_metrics_fn(batch, output):
         predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
@@ -479,10 +488,10 @@ def main():
                         metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(cell_correlations))
 
                     #Корреляция только для 5 файлов из borzoi
-                    target_genes = ['ENCFF123KIW', 'ENCFF784MDF', 'ENCFF236XOK', 'ENCFF781TTC', 'ENCFF242BWW']
+                    target_genes = ['ENCFF123KIW', 'ENCFF784MDF', 'ENCFF236XOK', 'ENCFF242BWW']
                     target_metrics = calculate_target_genes_metrics(df_true, df_pred, target_genes)
-                    metrics[f'pearson_corr_5_cells_borzoi_cells_{dataset_desc}'] = target_metrics['corr_selected_cell_types']
-                    metrics[f'pearson_corr_5_cells_borzoi_genes_{dataset_desc}'] = target_metrics['corr_selected_genes']
+                    metrics[f'pearson_corr_4_cells_borzoi_cells_{dataset_desc}'] = target_metrics['corr_selected_cell_types']
+                    metrics[f'pearson_corr_4_cells_borzoi_genes_{dataset_desc}'] = target_metrics['corr_selected_genes']
                     
                     #Целевая метрика клетоспецифичности 
                     df_true = df_true.reset_index()
@@ -501,8 +510,7 @@ def main():
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
-                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
-                    #  batch_metrics_fn=batch_metrics_fn,
+                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn, batch_metrics_fn=batch_metrics_fn)
     # train loop
     trainer.train()
     # make sure all workers are done

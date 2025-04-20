@@ -690,6 +690,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
         )
 
         losses = []
+        losses_cls = []
+        losses_bw = []
         logits = []
         labels_reshaped_l = []
         labels_mask_reshaped_l = []
@@ -747,13 +749,17 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                     [el for el, m in zip(segment_labels_mask, non_empty_mask) if m]
                 )
 
-            out, labels_reshaped, labels_mask_reshaped  = self.model(**seg_kwargs)
+            out, labels_reshaped, labels_mask_reshaped, loss_cls, loss_bw  = self.model(**seg_kwargs)
 
             memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
 
             out_loss = out.get('loss', None)
             if out_loss is not None:
                 losses.append(out_loss)
+            if loss_cls is not None:
+                losses_cls.append(loss_cls)
+            if loss_bw is not None:
+                losses_bw.append(loss_bw)
             logits.append(out['logits'].detach())
             labels_reshaped_l.append(labels_reshaped.detach())
             labels_mask_reshaped_l.append(labels_mask_reshaped.detach())
@@ -774,6 +780,10 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
         # aggregate losses from all segments
         if out_loss is not None:
             out['loss'] = torch.stack(losses).mean()
+        if losses_cls:
+            out['loss_cls'] = torch.stack(losses_cls).mean()
+        if losses_bw:
+            out['loss_bw'] = torch.stack(losses_bw).mean()
 
         # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
         # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
