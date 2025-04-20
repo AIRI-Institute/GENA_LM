@@ -53,6 +53,8 @@ class ExpressionDataset(Dataset):
         self.logger.setLevel(level=loglevel)
         # self.logger.info("Initializing dataset")
 
+        assert sys.version_info >= (3, 8), "Python version must be 3.8 or higher" # we use dicts and realay on order of keys
+
         if isinstance(gen_tokenizer, str):
             self.gen_tokenizer = AutoTokenizer.from_pretrained(gen_tokenizer)
         else:
@@ -116,11 +118,11 @@ class ExpressionDataset(Dataset):
         else:
             self.precompute_tokenization()
 
-        # Достаем описания
+        # Read description
         with open(text_data_path, "rb") as f:
             self.desc_data = pickle.load(f)
 
-        # Работаем с bw, если bw = True
+        # Read bw if bw is not None
         if self.bw:
             self.signals_cache_path = self.get_signals_hash_path() + ".h5"
             if os.path.exists(self.signals_cache_path):
@@ -128,8 +130,9 @@ class ExpressionDataset(Dataset):
             else:
                 self.precompute_signals()
                 
-        # Работаем с tpm, если tpm = True      
+        # Read tpms if tpm is not None      
         if self.tpm:
+            assert all(self.paths[k][1] is not None for k in self.paths), "TPM paths are not set for some of the keys"
             tpm_hash_path = self.get_tpm_hash_path()
             if os.path.exists(tpm_hash_path):
                 self.tpm_lookup = pickle.load(open(tpm_hash_path, "rb"))
@@ -139,9 +142,9 @@ class ExpressionDataset(Dataset):
                     assert pd.isna(value).sum().sum()==0, f"TPM cache contains NaN values for {key}"
             else:
                 self.tpm_cache = {}
-                for key, (v1, v2) in self.paths.items():
-                    self.logger.info(f"Reading tpm from {v2}")
-                    tpm = pd.read_csv(v2, dtype=np.float32)
+                for key, (bw_paths, tpm_path) in self.paths.items():
+                    self.logger.info(f"Reading tpm from {tpm_path}")
+                    tpm = pd.read_csv(tpm_path, dtype=np.float32)
                     self.tpm_cache[key] = tpm
                 self.tpm_lookup = {}
                 for key, tpm_df in self.tpm_cache.items():
@@ -231,6 +234,9 @@ class ExpressionDataset(Dataset):
             tpm_paths = df[tpm_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
             for ind,k in enumerate(df["id"]):
                 self.paths[k].append(tpm_paths[ind])
+        else:
+            for ind,k in enumerate(df["id"]):
+                self.paths[k].append(None)
 
         self.files_opened = False
 
@@ -534,11 +540,9 @@ class ExpressionDataset(Dataset):
             "attention_mask": torch.ones(l, dtype=torch.bool),
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
-            "gene_id": [gene_id] * self.n_keys,
+            "gene_id": [gene_id] * len(selected_keys),
             "name": self.genes.iloc[original_idx]['gene_name'],
         }
-
-        n_cell_types = self.n_keys if self.n_keys is not None else len(self.paths)
 
         if self.bw:
             # Load from cache 
@@ -546,7 +550,6 @@ class ExpressionDataset(Dataset):
                 gene_id = self.genes.iloc[original_idx]['gene_id']
                 signals_group = self.signals_cache[gene_id]
                 bigwig_signals = np.array(signals_group['signals'])
-
             else:
                 # If cache is not found, compute signals 
                 bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
@@ -611,7 +614,6 @@ class ExpressionDataset(Dataset):
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
         features["dataset_description"] = [self.dataset_description] * len(selected_keys)
-
 
         return features
 

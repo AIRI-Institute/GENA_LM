@@ -60,9 +60,10 @@ def main():
     if "args_params" in experiment_config:
         trainer_kwargs = instantiate(experiment_config["args_params"])
         for k,v in trainer_kwargs.items():
-            logger.info(f"Setting attr {k}:{v}")
             if hasattr(args,k):
-                logger.warning(f"Conflicting setting for option {k} in args and config, overwritten by config option {v}")
+                logger.warning(f"Setting attr {k}:{v} (overwritten by cfg)")
+            else:
+                logger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k,v)
 
     prepare_run(args, logger, logger_fmt)
@@ -163,7 +164,11 @@ def main():
     train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
     if hvd.rank() == 0:
         # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
-        train_datasets = [instantiate(config) for config in train_datasets_configs]
+        # copy configs:
+        tmp_configs = [config.copy() for config in train_datasets_configs]
+        for config in tmp_configs:
+            OmegaConf.update(config, "loglevel", logging.ERROR)
+        train_datasets = [instantiate(config) for config in tmp_configs]
         min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
         logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
     else:
@@ -205,7 +210,11 @@ def main():
     if len(valid_datasets_configs) > 0:
         if hvd.rank() == 0:
             logger.info(f'preparing validation data')
-            valid_datasets = [instantiate(config) for config in valid_datasets_configs]
+            # copy configs:
+            tmp_configs = [config.copy() for config in valid_datasets_configs]
+            for config in tmp_configs:
+                OmegaConf.update(config, "loglevel", logging.ERROR)
+            valid_datasets = [instantiate(config) for config in tmp_configs]
             min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets])
             if min_valid_chunk_size != min_train_chunk_size:
                 logger.warning(f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), \
