@@ -344,14 +344,6 @@ def main():
         'dataset_description' : batch['dataset_description'] }
         return result
 
-
-    def batch_metrics_fn(batch, output):
-        metrics = {
-            'loss': output['loss'].detach().item(),
-            'loss_cls': output['loss_cls'].detach().item() if 'loss_cls' in output else np.nan,
-            'loss_bw': output['loss_bw'].detach().item() if 'loss_bw' in output else np.nan
-        }
-        return metrics
        
     def keep_for_metrics_fn(batch, output):
         predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
@@ -384,17 +376,25 @@ def main():
 
         flat_gene_id = list(chain.from_iterable(batch['gene_id']))
         masked_gene_id = list(compress(flat_gene_id, mask)) 
-        keys_id = list(chain.from_iterable(batch['selected_keys']))
+        flat_keys_id = list(chain.from_iterable(batch['selected_keys']))
+        masked_keys_id = list(compress(flat_keys_id, mask)) 
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
         
         preds = p_rmt.cpu().unsqueeze(1)
         target = y_rmt.cpu().unsqueeze(1)
         reduce_dims = (0, 1)
         data = {}
+            
+        if 'loss_cls' in output and output['loss_cls'] is not None:
+            data['loss_cls'] = output['loss_cls'].detach().cpu()
+            
+        if 'loss_bw' in output and output['loss_bw'] is not None:
+            data['loss_bw'] = output['loss_bw'].detach().cpu()
+        
         data['tpm_true'] = y_rmt.tolist()
         data['tpm_preds'] = p_rmt.tolist()
         data['gene_id'] = masked_gene_id
-        data['keys_id'] = keys_id
+        data['keys_id'] = masked_keys_id
         data['dataset_description'] = dataset_description
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
@@ -425,6 +425,11 @@ def main():
             tp_var = torch.sqrt(true_var) * torch.sqrt(pred_var)
             corr_coef = covariance / tp_var
             metrics['pearson_corr'] = corr_coef.item()
+
+            if data['loss_cls'] is not None:
+                metrics['loss_cls'] = torch.mean(data['loss_cls']).item()
+            if data['loss_bw'] is not None:
+                metrics['loss_bw'] = torch.mean(data['loss_bw']).item()
         
             # Обработка TPM и gene_id
             tpm_true = data['tpm_true']
@@ -513,13 +518,15 @@ def main():
                     )
                     if score:
                         metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
+            
+            
 
             return metrics
         return metrics_fn
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
-                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn, batch_metrics_fn=batch_metrics_fn)
+                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn) #, batch_metrics_fn=batch_metrics_fn)
     # train loop
     trainer.train()
     # make sure all workers are done

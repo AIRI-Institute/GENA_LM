@@ -611,10 +611,10 @@ class ExpressionDataset(Dataset):
         for i, vec in enumerate(desc_vectors_list):
             desc_vectors[i] = vec
 
+        valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
+        features["dataset_description"] = [self.dataset_description] * valid_tpm_count
         features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
-        features["dataset_description"] = [self.dataset_description] * len(selected_keys)
-
         return features
 
     def __del__(self):
