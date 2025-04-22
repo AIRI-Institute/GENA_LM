@@ -760,6 +760,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                 losses_cls.append(loss_cls)
             if loss_bw is not None:
                 losses_bw.append(loss_bw)
+
             logits.append(out['logits'].detach())
             labels_reshaped_l.append(labels_reshaped.detach())
             labels_mask_reshaped_l.append(labels_mask_reshaped.detach())
@@ -780,9 +781,9 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
         # aggregate losses from all segments
         if out_loss is not None:
             out['loss'] = torch.stack(losses).mean()
-        if losses_cls:
+        if losses_cls is not None and len(losses_cls) > 0:
             out['loss_cls'] = torch.stack(losses_cls).mean()
-        if losses_bw:
+        if losses_bw is not None and len(losses_bw) > 0:
             out['loss_bw'] = torch.stack(losses_bw).mean()
 
         # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
