@@ -6,6 +6,7 @@ import time
 from functools import partial
 from itertools import chain, compress
 from pathlib import Path
+import ipdb
 
 # third-party
 import torch
@@ -287,17 +288,17 @@ def main():
             logger.info(f'Wrapping in: {rmt_cls}')
         model = rmt_cls(model, **rmt_config)
 
-        # if args.init_checkpoint_l is not None:
-        #     if hvd.rank() == 0:
-        #         logger.info(f'loading pre-trained backbone from {args.init_checkpoint_l}')
-        #     checkpoint = torch.load(args.init_checkpoint_l, map_location='cpu') 
-        #     checkpoint.pop("model.classifier.weight", None)
-        #     checkpoint.pop("model.classifier.bias", None)
-        #     missing_k, unexpected_k = model.load_state_dict(checkpoint, strict=False)
-        #     if len(missing_k) != 0 and hvd.rank() == 0:
-        #         logger.info(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
-        #     if len(unexpected_k) != 0 and hvd.rank() == 0:
-        #         logger.info(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
+        if args.init_checkpoint_l is not None:
+            if hvd.rank() == 0:
+                logger.info(f'loading pre-trained backbone from {args.init_checkpoint_l}')
+            checkpoint = torch.load(args.init_checkpoint_l, map_location='cpu') 
+            checkpoint.pop("model.classifier.weight", None)
+            checkpoint.pop("model.classifier.bias", None)
+            missing_k, unexpected_k = model.load_state_dict(checkpoint, strict=False)
+            if len(missing_k) != 0 and hvd.rank() == 0:
+                logger.info(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+            if len(unexpected_k) != 0 and hvd.rank() == 0:
+                logger.info(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
 
 
         if args.input_seq_len / model.segment_size > rmt_config['max_n_segments']:
@@ -377,7 +378,6 @@ def main():
         flat_gene_id = list(chain.from_iterable(batch['gene_id']))
         masked_gene_id = list(compress(flat_gene_id, mask)) 
         flat_keys_id = list(chain.from_iterable(batch['selected_keys']))
-        masked_keys_id = list(compress(flat_keys_id, mask)) 
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
         
         preds = p_rmt.cpu().unsqueeze(1)
@@ -390,11 +390,12 @@ def main():
             
         if 'loss_bw' in output and output['loss_bw'] is not None:
             data['loss_bw'] = output['loss_bw'].detach().cpu()
+
         
         data['tpm_true'] = y_rmt.tolist()
         data['tpm_preds'] = p_rmt.tolist()
         data['gene_id'] = masked_gene_id
-        data['keys_id'] = masked_keys_id
+        data['keys_id'] = flat_keys_id
         data['dataset_description'] = dataset_description
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
@@ -428,7 +429,7 @@ def main():
 
             if data['loss_cls'] is not None:
                 metrics['loss_cls'] = torch.mean(data['loss_cls']).item()
-            if data['loss_bw'] is not None:
+            if 'loss_bw' in data and data['loss_bw'] is not None:
                 metrics['loss_bw'] = torch.mean(data['loss_bw']).item()
         
             # Обработка TPM и gene_id

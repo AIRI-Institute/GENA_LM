@@ -540,7 +540,7 @@ class ExpressionDataset(Dataset):
             "attention_mask": torch.ones(l, dtype=torch.bool),
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
-            "gene_id": [gene_id] * len(selected_keys),
+            "gene_id": [gene_id] * self.n_keys,
             "name": self.genes.iloc[original_idx]['gene_name'],
         }
 
