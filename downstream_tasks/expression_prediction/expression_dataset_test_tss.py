@@ -181,6 +181,7 @@ class ExpressionDataset(Dataset):
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('tokens').encode("utf-8"))
+        m.update(str('test2').encode("utf-8"))
         m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
@@ -191,6 +192,7 @@ class ExpressionDataset(Dataset):
     def get_signals_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
+        m.update(str('test2').encode("utf-8"))
         m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.targets_path).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
@@ -323,39 +325,41 @@ class ExpressionDataset(Dataset):
         strand = row["strand"]
         reverse = 0 if strand == "+" else 1
 
-        if (reverse == 0): # forward strand
-            try:
-                sequence = self.sequences.fetch(chrom, max(start - self.num_before * 9, 0), start).upper()
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-        else: # reverse strand
-            chrom_length = self.sequences.get_reference_length(chrom)
-            try:
-                sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * 9, chrom_length)).upper()
-                sequence = self.reverse_complement(sequence)
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
+        # if (reverse == 0): # forward strand
+        #     try:
+        #         sequence = self.sequences.fetch(chrom, max(start - self.num_before * 9, 0), start).upper()
+        #     except ValueError as e:
+        #         self.logger.error(f"Error sequence {i}")
+        #         print(e.__traceback__)
+        # else: # reverse strand
+        #     chrom_length = self.sequences.get_reference_length(chrom)
+        #     try:
+        #         sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * 9, chrom_length)).upper()
+        #         sequence = self.reverse_complement(sequence)
+        #     except ValueError as e:
+        #         self.logger.error(f"Error sequence {i}")
+        #         print(e.__traceback__)
             
-        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-        encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
-        encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
-        tokens_before = encoded_sequence['input_ids'][-self.num_before:]
-        mapping = encoded_sequence['offset_mapping'][-self.num_before:]
+        # encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+        # encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
+        # encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+        # tokens_before = encoded_sequence['input_ids'][-self.num_before:]
+        # mapping = encoded_sequence['offset_mapping'][-self.num_before:]
         
+        # token_lengths = []
+        # for i, (start_i, end_i) in enumerate(mapping):
+        #     token_id = tokens_before[i]
+        #     if (token_id == 5):
+        #         if i > 0:
+        #             length = end_i - mapping[i-1][1] 
+        #         else:
+        #             length = end_i
+        #     else:
+        #         length = end_i - start_i  
+        #     token = self.gen_tokenizer.decode([token_id])  
+        #     token_lengths.append((token_id, token, length))
+
         token_lengths = []
-        for i, (start_i, end_i) in enumerate(mapping):
-            token_id = tokens_before[i]
-            if (token_id == 5):
-                if i > 0:
-                    length = end_i - mapping[i-1][1] 
-                else:
-                    length = end_i
-            else:
-                length = end_i - start_i  
-            token = self.gen_tokenizer.decode([token_id])  
-            token_lengths.append((token_id, token, length))
     
         if reverse == 0:
             start_gene = start - sum(t[2] for t in token_lengths)
@@ -364,13 +368,13 @@ class ExpressionDataset(Dataset):
     
         if reverse == 0:
             try:
-                sequence = self.sequences.fetch(chrom, start, end).upper()
+                sequence = self.sequences.fetch(chrom, start, start + 9 * 1500).upper()
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
         else:
             try:
-                sequence = self.sequences.fetch(chrom, end, start).upper()
+                sequence = self.sequences.fetch(chrom, start - 9 * 1500, start).upper()
                 sequence = self.reverse_complement(sequence)
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
@@ -400,6 +404,7 @@ class ExpressionDataset(Dataset):
         token_lengths_df['chrom'] = chrom
         if reverse == 1: # reverse strand
             token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
+        token_lengths_df = token_lengths_df[50:]
         return start_gene, token_lengths_df
 
     def process_region_signals(self, bw, chrom, starts, ends, l, strand):

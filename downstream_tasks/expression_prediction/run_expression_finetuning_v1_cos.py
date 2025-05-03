@@ -162,26 +162,26 @@ def main():
     
     # Instantiate training datasets
     train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
-    if hvd.rank() == 0:
-        # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
-        # copy configs:
-        tmp_configs = [config.copy() for config in train_datasets_configs]
-        for config in tmp_configs:
-            OmegaConf.update(config, "loglevel", logging.ERROR)
-        train_datasets = [instantiate(config) for config in tmp_configs]
-        min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
-        logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
-    else:
-        min_train_chunk_size = -1
+    # if hvd.rank() == 0:
+    #     # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
+    #     # copy configs:
+    #     tmp_configs = [config.copy() for config in train_datasets_configs]
+    #     for config in tmp_configs:
+    #         OmegaConf.update(config, "loglevel", logging.ERROR)
+    #     train_datasets = [instantiate(config) for config in tmp_configs]
+    #     min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets])
+    #     logger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
+    # else:
+    #     min_train_chunk_size = -1
 
-    min_train_chunk_size = hvd.broadcast_object(min_train_chunk_size, root_rank=0) # note that we don't need barrier here because broadcast is sync
-    assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible problem with horovod broadcast"
+    # min_train_chunk_size = hvd.broadcast_object(min_train_chunk_size, root_rank=0) # note that we don't need barrier here because broadcast is sync
+    # assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible problem with horovod broadcast"
 
-    # now we need to re-init datasets with correct n_keys and/or init on ranks>0
-    for config in train_datasets_configs:
-        if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
-            raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
-        OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
+    # # now we need to re-init datasets with correct n_keys and/or init on ranks>0
+    # for config in train_datasets_configs:
+    #     if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
+    #         raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
+    #     OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
   
     train_datasets = [instantiate(config) for config in train_datasets_configs]
  
@@ -216,10 +216,10 @@ def main():
                 OmegaConf.update(config, "loglevel", logging.ERROR)
             valid_datasets = [instantiate(config) for config in tmp_configs]
             min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets])
-            if min_valid_chunk_size != min_train_chunk_size:
-                logger.warning(f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), \
-                  Min number of keys in validation datasets is not the same as in train datasets. \
-                    This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-")
+            # if min_valid_chunk_size != min_train_chunk_size:
+            #     logger.warning(f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), \
+            #       Min number of keys in validation datasets is not the same as in train datasets. \
+            #         This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-")
         else:
             min_valid_chunk_size = -1
         min_valid_chunk_size = hvd.broadcast_object(min_valid_chunk_size, root_rank=0)
@@ -427,9 +427,9 @@ def main():
             metrics['pearson_corr'] = corr_coef.item()
 
             if data['loss_cls'] is not None:
-                metrics['loss_cls'] = torch.mean(data['loss_cls']).item()
+                metrics['loss_mse'] = torch.mean(data['loss_cls']).item()
             if 'loss_bw' in data and data['loss_bw'] is not None:
-                metrics['loss_bw'] = torch.mean(data['loss_bw']).item()
+                metrics['loss_cos'] = torch.mean(data['loss_bw']).item()
         
             # Обработка TPM и gene_id
             tpm_true = data['tpm_true']

@@ -47,13 +47,12 @@ class ExpressionDataset(Dataset):
         Args:
             bw (str): Name of the bigwig field suffix in targets_path. I.e. `bw` -> `forward_bw` and `reverse_bw`. If empty, bw will be False.
             tpm (str): Name of the tpm field in targets_path. If empty, tpm will be False.
-            n_keys (int): Number of keys to split the tracks into. If None, all tracks will be used.
+            n_keys (int): Number of random keys to select from all tracks. If None, all tracks will be used.
         """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
-        # self.logger.info("Initializing dataset")
 
-        assert sys.version_info >= (3, 8), "Python version must be 3.8 or higher" # we use dicts and realay on order of keys
+        assert sys.version_info >= (3, 8), "Python version must be 3.8 or higher"
 
         if isinstance(gen_tokenizer, str):
             self.gen_tokenizer = AutoTokenizer.from_pretrained(gen_tokenizer)
@@ -65,25 +64,25 @@ class ExpressionDataset(Dataset):
 
         self.seed = seed
         np.random.seed(self.seed)
+        self.rng = np.random.default_rng(seed)
         
         self.bw = bw
         self.tpm = tpm
         self.targets_path = targets_path
         self.read_paths()
 
+        # Выбираем случайные ключи
         if n_keys is None:
-            n_keys = len(self.paths.keys())
-        self.n_keys = n_keys
+            self.n_keys = len(self.paths.keys())
+            # self.selected_keys = list(self.paths.keys())
+        else:
+            self.n_keys = n_keys
+            # self.selected_keys = self.rng.choice(
+            #     list(self.paths.keys()), 
+            #     size=n_keys, 
+            #     replace=False
+            # ).tolist()
 
-        # Split tracks into chunks; if we have multiple datasets, we need them to have equal chunk lengths (a.k.a n_keys)
-        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
-        all_keys = list(self.paths.keys())
-        self.selected_keys_chunks = []
-        for i in range(self.n_cell_chunks):
-            start_idx = i * n_keys
-            end_idx = min((i + 1) * n_keys, len(all_keys))
-            self.selected_keys_chunks.append(all_keys[start_idx:end_idx])
-        
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
         self.transform_targets_tpm = transform_targets_tpm
@@ -159,7 +158,6 @@ class ExpressionDataset(Dataset):
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
 
-    # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
         self.logger.info("Computing valid indices...")
         for idx in range(len(self.genes)):
@@ -167,7 +165,7 @@ class ExpressionDataset(Dataset):
             
             # Проверяем TPM значения
             has_tpm_data = False
-            for key in self.paths.keys():
+            for key in list(self.paths.keys()):
                 if gene_id in self.tpm_lookup[key].index:
                     has_tpm_data = True
                     break
@@ -196,17 +194,16 @@ class ExpressionDataset(Dataset):
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
         m.update(str(self.gen_max_seq_len).encode("utf-8"))
-        target_ids = "".join(sorted(list(self.paths.keys())))
-        m.update(str(target_ids).encode("utf-8"))
+        # target_ids = "".join(sorted(self.selected_keys))
+        # m.update(str(target_ids).encode("utf-8"))
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + ".signal." + hash_suffix
-    
     def get_tpm_hash_path(self):
         signals_hash_path = self.get_signals_hash_path()
         return self.hash_prefix + ".tpm." + signals_hash_path[len(self.hash_prefix) + len(".signal."):]
     
     def get_num_keys(self):
-        return len(self.paths.keys())
+        return self.n_keys
         
     def read_paths(self):
         self.paths = {}
@@ -247,27 +244,45 @@ class ExpressionDataset(Dataset):
         try:
             with h5py.File(temp_path, "w") as h5f:
                 pbar = tqdm.tqdm(total=len(self.genes), desc="Tokenizing sequences")
+                
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
-                    _, tokens_df = self.tokenize_genome(idx)
+                    gene_name = self.genes.iloc[idx]['gene_name']
+                    chrom = self.genes.iloc[idx]['chrom']
+                    start = self.genes.iloc[idx]['start']
+                    end = self.genes.iloc[idx]['end']
+                    strand = self.genes.iloc[idx]['strand']
                     
+                    # Получаем последовательность
+                    sequence = self.sequences.fetch(chrom, start, end)
+                    if strand == "-":
+                        sequence = sequence[::-1]
+                    
+                    # Токенизируем последовательность
+                    encoded_sequence = self.gen_tokenizer(
+                        sequence,
+                        return_tensors="np",
+                        add_special_tokens=True,
+                        max_length=self.gen_max_seq_len,
+                        truncation=True,
+                        padding="max_length"
+                    )
+                    
+                    # Сохраняем токены
                     gene_group = h5f.create_group(gene_id)
+                    gene_group.create_dataset('input_ids', data=encoded_sequence['input_ids'][0])
+                    gene_group.create_dataset('attention_mask', data=encoded_sequence['attention_mask'][0])
+                    gene_group.create_dataset('token_type_ids', data=encoded_sequence['token_type_ids'][0])
+                    gene_group.create_dataset('chrom', data=chrom.encode('utf-8'))
+                    gene_group.create_dataset('start', data=start)
+                    gene_group.create_dataset('end', data=end)
+                    gene_group.create_dataset('strand', data=strand.encode('utf-8'))
                     
-                    gene_group.create_dataset('input_ids', data=tokens_df["token_id"].values.astype(np.int32))
-                    gene_group.create_dataset('starts', data=tokens_df["start"].values.astype(np.int64))
-                    gene_group.create_dataset('ends', data=tokens_df["end"].values.astype(np.int64))
-                    if len(tokens_df["chrom"]) > 0:
-                        gene_group.create_dataset('chrom', data=tokens_df["chrom"].iloc[0].encode('utf-8'))
-                    else:
-                        self.logger.warning(f"No chromosomes found for gene {gene_id}:\n {self.genes.iloc[idx]}")
-                        raise ValueError(f"No chromosomes found for gene {gene_id}:\n {self.genes.iloc[idx]}. \n Possible reason - genome mismatch.")
-                    gene_group.attrs['strand'] = self.genes.iloc[idx]['strand'].encode('utf-8')
-                    
-                    if idx % 100 == 0:  
+                    if idx % 100 == 0:  # Периодически сохраняем на диск
                         h5f.flush()
                     
                     pbar.update(1)
-                    
+                
                 pbar.close()
                 h5f.flush()
             
@@ -275,141 +290,21 @@ class ExpressionDataset(Dataset):
             self.h5_cache = h5py.File(self.h5_cache_path, "r")
             
         except Exception as e:
-            self.logger.error(f"Error creating cache: {e}")
+            self.logger.error(f"Error creating tokenization cache: {e}")
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             raise
-    
-    # Check if bigwig file is consistent with genome
-    def check_bw_genome_consistency(self, bw_handler, sequences):
-        # get reference names and lengths from sequences
-        fasta_ref_lengths = {k:v for k, v in zip(sequences.references, sequences.lengths)}
-        
-        # get reference names and lengths from bw_handler
-        bw_ref_lengths = {k:v for k, v in bw_handler.chroms().items()}
 
-        # intersect keys of fasta_ref_lengths and bw_ref_lengths
-        common_refs = set(fasta_ref_lengths.keys()) & set(bw_ref_lengths.keys())
-        assert len(common_refs) > 0, f"No common references found in genome and bigwig file. Genome: {fasta_ref_lengths.keys()}, Bigwig: {bw_ref_lengths.keys()}. Genome mismatch?"
-
-        # check if lengths are the same
-        for ref in common_refs:
-            if fasta_ref_lengths[ref] != bw_ref_lengths[ref]:
-                raise ValueError(f"Length of {ref} in genome and bigwig file are different. Ref: {ref}, Genome: {fasta_ref_lengths[ref]}, Bigwig: {bw_ref_lengths[ref]}")
-    
-    def open_files(self):
-        if self.bw:
-            self.bigWigHandlers = {}
-            for k, (v1, v2) in self.paths.items():
-                try:
-                    self.bigWigHandlers[k] = {strand: bw.open(path) for strand, path in v1.items()}
-                    for bw_handler in self.bigWigHandlers[k].values():
-                        self.check_bw_genome_consistency(bw_handler, self.sequences)
-                except Exception as e:
-                    self.logger.error(f"Error opening bigwig file {v1}")
-                    print(e.__traceback__.format_exc())
-            self.files_opened = True
-
-    def reverse_complement(self, sequence):
-        complement = str.maketrans('ACGTN', 'TGCAN')
-        return sequence.translate(complement)[::-1]
-
-    # tokenize genomic sequence
-    def tokenize_genome(self, i):
-        row = self.genes.iloc[i]  
-        chrom = row["chromosome"] 
-        start = row["TSS"]
-        end = row["TES"] 
-        strand = row["strand"]
-        reverse = 0 if strand == "+" else 1
-
-        if (reverse == 0): # forward strand
-            try:
-                sequence = self.sequences.fetch(chrom, max(start - self.num_before * 9, 0), start).upper()
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-        else: # reverse strand
-            chrom_length = self.sequences.get_reference_length(chrom)
-            try:
-                sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * 9, chrom_length)).upper()
-                sequence = self.reverse_complement(sequence)
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
+    def process_region_signals(self, bw, chrom, starts, ends, l):
+        """Эффективная обработка сигналов для региона"""
+        if l == 0:
+            return np.zeros(0, dtype=np.float32)
             
-        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-        encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
-        encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
-        tokens_before = encoded_sequence['input_ids'][-self.num_before:]
-        mapping = encoded_sequence['offset_mapping'][-self.num_before:]
-        
-        token_lengths = []
-        for i, (start_i, end_i) in enumerate(mapping):
-            token_id = tokens_before[i]
-            if (token_id == 5):
-                if i > 0:
-                    length = end_i - mapping[i-1][1] 
-                else:
-                    length = end_i
-            else:
-                length = end_i - start_i  
-            token = self.gen_tokenizer.decode([token_id])  
-            token_lengths.append((token_id, token, length))
-    
-        if reverse == 0:
-            start_gene = start - sum(t[2] for t in token_lengths)
-        else:
-            start_gene = end
-    
-        if reverse == 0:
-            try:
-                sequence = self.sequences.fetch(chrom, start, end).upper()
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-        else:
-            try:
-                sequence = self.sequences.fetch(chrom, end, start).upper()
-                sequence = self.reverse_complement(sequence)
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-        
-        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-        tokens_before = encoded_sequence['input_ids'][1:-1]
-        mapping = encoded_sequence['offset_mapping'][1:-1]
-       
-        for i, (start_i, end_i) in enumerate(mapping):
-            token_id = tokens_before[i]
-            if (token_id == 5):
-                if i > 0:
-                    length = end_i - mapping[i-1][1] 
-                else:
-                    length = end_i
-            else:
-                length = end_i - start_i 
-            token = self.gen_tokenizer.decode([token_id])  
-            token_lengths.append((token_id, token, length))
-            
-        if reverse == 1: # reverse strand
-            token_lengths.reverse()
-        token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
-        token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
-        token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
-        token_lengths_df['chrom'] = chrom
-        if reverse == 1: # reverse strand
-            token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
-        return start_gene, token_lengths_df
-
-    def process_region_signals(self, bw, chrom, starts, ends, l, strand):
-
-        reverse = 0 if strand == "+" else 1
-
+        # Создаем массив для результатов
         signals = np.zeros(l, dtype=np.float32)
         
         # Определяем границы всего региона
-        if reverse == 0:
+        if self.reverse == 0:
             region_start = int(starts[0])
             region_end = int(ends[-1])
         else:
@@ -453,6 +348,7 @@ class ExpressionDataset(Dataset):
         return signals
 
     def precompute_signals(self):
+        """Предварительно вычисляет и кэширует сигналы"""
         self.logger.info(f"Precomputing signals to {self.signals_cache_path}")
         temp_path = f"{self.signals_cache_path}.{os.getpid()}.temp"
         
@@ -467,28 +363,34 @@ class ExpressionDataset(Dataset):
                     gene_id = self.genes.iloc[idx]['gene_id']
                     gene_group = self.h5_cache[gene_id]
                     
+                    # Загружаем данные из кэша токенизации
                     input_ids = np.array(gene_group['input_ids'])
                     starts = np.array(gene_group['starts'])
                     ends = np.array(gene_group['ends'])
                     chrom = gene_group['chrom'][()].decode('utf-8')
-                    strand = gene_group.attrs['strand']
-
-                    # sanity check
-                    assert strand == self.genes.iloc[idx]['strand']
-                    assert chrom[0] == self.genes.iloc[idx]['chromosome'][0]
-
+                    
+                    # Ограничиваем длину согласно gen_max_seq_len
                     l = min(len(input_ids), self.gen_max_seq_len)
                     
-                    bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
+                    # Получаем сигналы для каждого токена из каждого bigWig файла
+                    bigwig_signals = np.zeros((l, len(self.selected_keys)), dtype=np.float32)
                     
-                    for i, (key, bw) in enumerate(self.bigWigHandlers.items()):
-                        track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
-                        bigwig_signals[:, i] = track_signals
+                    for i, key in enumerate(self.selected_keys):
+                        if key in self.bigWigHandlers:
+                            track_signals = self.process_region_signals(
+                                self.bigWigHandlers[key], 
+                                chrom, 
+                                starts[:l], 
+                                ends[:l], 
+                                l
+                            )
+                            bigwig_signals[:, i] = track_signals
                     
+                    # Сохраняем сигналы для данного гена
                     signals_group = h5f.create_group(gene_id)
                     signals_group.create_dataset('signals', data=bigwig_signals)
                     
-                    if idx % 100 == 0: 
+                    if idx % 100 == 0:  # Периодически сохраняем на диск
                         h5f.flush()
                     
                     pbar.update(1)
@@ -503,25 +405,33 @@ class ExpressionDataset(Dataset):
             self.logger.error(f"Error creating signals cache: {e}")
             if os.path.exists(temp_path):
                 os.remove(temp_path)
-            raise
+
+    def open_files(self):
+        """Открывает все необходимые файлы"""
+        if self.files_opened:
+            return
+            
+        self.bigWigHandlers = {}
+        if self.bw:
+            for key in self.selected_keys:
+                self.bigWigHandlers[key] = {
+                    "+": bw.open(self.paths[key][0]["+"]),
+                    "-": bw.open(self.paths[key][0]["-"])
+                }
+        
+        self.files_opened = True
 
     def __len__(self):
-        return len(self.valid_indices) * self.n_cell_chunks
+        return len(self.valid_indices)
 
     def __getitem__(self, idx):
-        # Преобразуем индекс в исходный индекс гена
-        gene_idx = idx // self.n_cell_chunks
-        original_idx = self.valid_indices[gene_idx]
-        chunk_idx = idx % self.n_cell_chunks
-
-        # Получаем выбранные ключи для текущего чанка
-        selected_keys = self.selected_keys_chunks[chunk_idx]
-        
         if not self.files_opened and self.bw:
             self.open_files()
 
+        original_idx = self.valid_indices[idx]
         gene_id = self.genes.iloc[original_idx]['gene_id']
         gene_group = self.h5_cache[gene_id]
+
         
         input_ids = np.array(gene_group['input_ids'])
         starts = np.array(gene_group['starts'])
@@ -540,10 +450,16 @@ class ExpressionDataset(Dataset):
             "attention_mask": torch.ones(l, dtype=torch.bool),
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
-            "gene_id": [gene_id] * self.n_keys,
+            "gene_id": gene_id,
             "name": self.genes.iloc[original_idx]['gene_name'],
+            "strand": strand,
         }
+        if self.n_keys is not None:
+            selected_keys = self.rng.choice(list(self.paths.keys()), size=self.n_keys, replace=True)
+        else:
+            selected_keys = list(self.paths.keys())
 
+        # Загружаем сигналы из кэша 
         if self.bw:
             # Load from cache 
             if self.signals_cache is not None:
@@ -586,19 +502,18 @@ class ExpressionDataset(Dataset):
             features["reverse"] = 1
             features["start"] = starts[l-1]
             features["end"] = ends[0]
-
+        
         # Получаем TPM значения
-        tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
         if self.tpm:
+            tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
             for i, key in enumerate(selected_keys):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
             
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
-        
-        features["tpm"] = torch.from_numpy(tpm_values)
-        
+            
+            features["tpm"] = torch.from_numpy(tpm_values)
 
         # Получаем desc_vectors только для текущего чанка
         desc_vectors_list = []
@@ -619,19 +534,28 @@ class ExpressionDataset(Dataset):
         features["selected_keys"] = selected_keys
         return features
 
+        return features
+
     def __del__(self):
+        """Закрывает все открытые файлы при удалении объекта"""
         if hasattr(self, 'sequences'):
             self.sequences.close()
         if hasattr(self, 'h5_cache'):
             self.h5_cache.close()
         if hasattr(self, 'signals_cache'):
             self.signals_cache.close()
-
-    # return main info about dataset for logging
+        if hasattr(self, 'bigWigHandlers'):
+            for key in self.bigWigHandlers:
+                if self.bigWigHandlers[key]["+"] is not None:
+                    self.bigWigHandlers[key]["+"].close()
+                if self.bigWigHandlers[key]["-"] is not None:
+                    self.bigWigHandlers[key]["-"].close()
+        # return main info about dataset for logging
     def describe(self):
-        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm})"
+        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={self.n_keys}, bw={self.bw}, tpm={self.tpm})"
 
 def worker_init_fn(worker_id):
+    """Инициализация воркера для DataLoader"""
     worker_info = torch.utils.data.get_worker_info()
     dataset = worker_info.dataset
     if isinstance(dataset, ConcatDataset):
@@ -643,6 +567,7 @@ def worker_init_fn(worker_id):
             dataset.open_files()
 
 class logtransform():
+    """Класс для логарифмического преобразования данных"""
     def __init__(self, pseudocount=0.01):
         self.pseudocount = pseudocount
         self.rounddigits = int(abs(np.log(pseudocount)))
