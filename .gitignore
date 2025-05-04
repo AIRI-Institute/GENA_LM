@@ -76,7 +76,11 @@ runs/*
 *.h5
 *.temp
 *.bed
+*.bedGraph
+*.bedgraph
 *.log
+*.fna
+*.fai
 
 # expression task
 downstream_tasks/expression_prediction/intervals/*
