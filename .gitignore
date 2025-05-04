@@ -81,6 +81,7 @@ runs/*
 *.log
 *.fna
 *.fai
+*.fna.gz
 
 # expression task
 downstream_tasks/expression_prediction/intervals/*
