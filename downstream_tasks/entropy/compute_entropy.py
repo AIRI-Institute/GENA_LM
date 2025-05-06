@@ -10,47 +10,11 @@ import argparse
 
 def parse_args():
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--genome_dir", type=str, default="data")
+	parser.add_argument("--genome_path", type=str)
 	parser.add_argument("--out_dir", type=str, default="data")
+	parser.add_argument("--chrm", type=str, help="Chromosome to process (e.g., 'chr1')")
+	parser.add_argument("--batch_size", type=int, default=16)
 	return parser.parse_args()
-
-# Download T2T genome if not exists and unzip
-def download_t2t_genome(genome_dir):
-	url = "https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz"
-	compressed_path = os.path.join(genome_dir, "hs1.fna.gz")
-	uncompressed_path = os.path.join(genome_dir, "hs1.fna")
-	
-	if not os.path.exists(uncompressed_path):
-		os.makedirs(os.path.dirname(compressed_path), exist_ok=True)
-		
-		# Download if compressed file doesn't exist
-		if not os.path.exists(compressed_path):
-			print(f"Downloading T2T genome to {compressed_path}...")
-			response = requests.get(url, stream=True)
-			total_size = int(response.headers.get('content-length', 0))
-			
-			with open(compressed_path, 'wb') as f, tqdm(
-				desc=compressed_path,
-				total=total_size,
-				unit='iB',
-				unit_scale=True,
-				unit_divisor=1024,
-			) as bar:
-				for data in response.iter_content(chunk_size=1024):
-					size = f.write(data)
-					bar.update(size)
-		
-		# Unzip the downloaded file
-		print(f"Unzipping genome to {uncompressed_path}...")
-		import gzip
-		with gzip.open(compressed_path, 'rb') as f_in:
-			with open(uncompressed_path, 'wb') as f_out:
-				f_out.write(f_in.read())
-				
-		# Remove compressed file after successful extraction
-		os.remove(compressed_path)
-		
-	return uncompressed_path
 
 # Load GENA-LM model and tokenizer
 def load_model_and_tokenizer(model_name):
@@ -131,30 +95,45 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 
 
 # Process genome and save metrics to BED/GRAPH
-def process_genome(fasta_path, model, tokenizer, output_path_prefix):
-	batch_size = 16
-	seq_chunk_len = 2_000_000  # 2Mb
+def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, batch_size=16):
+	seq_chunk_len = 50_000  # 50kb
 
 	# Open FASTA file
 	fasta = pysam.FastaFile(fasta_path)
 	
 	# Open output BEDGRAPH file
 	metrics = {"is_correct": "bedgraph", "entropy": "bedgraph", "highest_prob": "bedgraph", "highest_prob_token": "bed"}
+	file_handlers = {metric: open(output_path_prefix + "_" + target_chrom + "_" + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
 	
-	# Process each chromosome
-	for chrom in ["chr11","chr7","chr10"]:
-		print(f"Processing {chrom}...")
-		file_handlers = {metric: open(output_path_prefix + "_" + chrom + "_" + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
-
-		# while start + seq_chunk_len < fasta.get_reference_length(chrom):
-		for start in [0, 8_000_000, 16_000_000]:
+	valid_chroms = []
+	for chrom in fasta.references:
+		# Skip contigs shorter than seq_chunk_len
+		if fasta.get_reference_length(chrom) < seq_chunk_len:
+			continue
+			
+		# Parse original coordinates from header
+		header = chrom
+		if ':' in header and '-' in header:
+			original_chrom, coords = header.split(':')
+			if target_chrom and original_chrom != target_chrom:
+				continue
+			orig_start, orig_end = map(int, coords.split('-'))
+			valid_chroms.append((chrom, orig_start, orig_end))
+		else:
+			raise ValueError(f"Invalid header format: {header}")
+	total_length = sum([orig_end - orig_start for _, orig_start, orig_end in valid_chroms])
+	pbar = tqdm(total=total_length, desc=f"Processing {target_chrom}", unit='bp')
+	processed_bp = 0
+	for chrom_name, orig_start, orig_end in valid_chroms:
+		start = 0
+		while start + seq_chunk_len < orig_end:
 			# Fetch sequence chunk
-			sequence = fasta.fetch(chrom, start, min(start + seq_chunk_len, fasta.get_reference_length(chrom))).upper()
+			sequence = fasta.fetch(chrom_name, start, min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))).upper()
 			
 			# Tokenize without special tokens
 			tokenized = tokenizer(sequence, add_special_tokens=False, return_offsets_mapping=True)
 			tokens = tokenized['input_ids']
-			assert len(tokens) > 510, f"Sequence is too short: {len(tokens)} for chromosome {chrom}, start: {start}"
+			assert len(tokens) > 510, f"Sequence is too short: {len(tokens)} for chromosome {chrom_name}, start: {start}"
 			offset_mapping = tokenized['offset_mapping']
 			attention_mask = tokenized['attention_mask']
 			
@@ -164,7 +143,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix):
 				raise AssertionError("Gap tokens ('-') found in sequence. Input sequence must not contain gaps.")
 			
 			# Process in chunks of 510 tokens (to allow for CLS and SEP)
-			for chunk_start in tqdm(range(0, len(tokens) - 510 + 1, 510)):
+			for chunk_start in range(0, len(tokens) - 510 + 1, 510):
 				chunk_tokens = tokens[chunk_start:chunk_start + 510]
 				chunk_offsets = offset_mapping[chunk_start:chunk_start + 510]
 				chunk_attention = attention_mask[chunk_start:chunk_start + 510]
@@ -183,7 +162,9 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix):
 				
 				for pos in range(1, len(chunk_input_ids) - 1):
 					if len(batch_input_ids) >= batch_size:
-						process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, ground_truths, positions, chrom, start, chunk_offsets, file_handlers)
+						process_batch(model, tokenizer, batch_input_ids, 
+									  batch_attention_mask, ground_truths, positions, 
+									  target_chrom, start + orig_start, chunk_offsets, file_handlers)
 						batch_input_ids = []
 						batch_attention_mask = []
 						ground_truths = []
@@ -196,14 +177,27 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix):
 					positions.append(pos)
 
 				assert len(batch_input_ids) > 0, "No batch input ids"
-				process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, ground_truths, positions, chrom, start, chunk_offsets, file_handlers)
-							
+				process_batch(model, tokenizer, batch_input_ids, 
+							  batch_attention_mask, ground_truths, positions, 
+							  target_chrom, start + orig_start, chunk_offsets, file_handlers)
+				processed_bp += chunk_offsets[-1][1] - chunk_offsets[0][0]
+				pbar.n = processed_bp
+				pbar.refresh()
+
+			# 	if processed_bp > 10_000:
+			# 		break
+			
+			# if processed_bp > 10_000:
+			# 	break
+
 			# Update start position based on last token's end position
 			if offset_mapping:
 				start += offset_mapping[-1][1]
 			else:
 				raise ValueError(f"No offset mapping found for chromosome {chrom}, start: {start}")
-				# start += seq_chunk_len  # Fallback if no tokens were processed
+			
+		# if processed_bp > 10_000:
+		# 	break
 
 	for metric in file_handlers.keys():
 		file_handlers[metric].close()
@@ -211,9 +205,6 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix):
 
 # Main execution
 def main(args):
-	# Download genome
-	fasta_path = download_t2t_genome(args.genome_dir)
-	
 	models = {"gena-lm-bert-base-t2t": "AIRI-Institute/gena-lm-bert-base-t2t"}
 
 	# Load model and tokenizer
@@ -221,7 +212,7 @@ def main(args):
 	
 	# Process genome and save results
 	output_path = args.out_dir
-	process_genome(fasta_path, model, tokenizer, output_path)
+	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size)
 	print(f"Results saved to {output_path}")
 
 if __name__ == "__main__":

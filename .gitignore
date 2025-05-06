@@ -85,9 +85,11 @@ runs/*
 *.fna
 *.fai
 *.fna.gz
+*.fa
 
 # expression task
 downstream_tasks/expression_prediction/intervals/*
+downstream_tasks/expression_prediction/runs/**.h5
 downstream_tasks/expression_prediction/runs/*
 downstream_tasks/expression_prediction/test.*
 downstream_tasks/expression_prediction/shift_expression_checks/*.csv
