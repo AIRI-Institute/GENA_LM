@@ -103,7 +103,7 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 
 
 # Process genome and save metrics to BED/GRAPH
-def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, batch_size=16, limit_bp=None):
+def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, max_model_len_tokens, batch_size=16, limit_bp=None):
 	seq_chunk_len = 50_000  # 50kb
 
 	# Open FASTA file
@@ -149,7 +149,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			# Tokenize without special tokens
 			tokenized = tokenizer(sequence, add_special_tokens=False, return_offsets_mapping=True)
 			tokens = tokenized['input_ids']
-			assert len(tokens) > 510, f"Sequence is too short: {len(tokens)} for chromosome {chrom_name}, start: {start}"
+			N_meaningful_tokens = len(tokens) - 2 # -2 for CLS and SEP
+			assert len(tokens) > N_meaningful_tokens, f"Sequence is too short: {len(tokens)} for chromosome {chrom_name}, start: {start}"
 			offset_mapping = tokenized['offset_mapping']
 			attention_mask = tokenized['attention_mask']
 			
@@ -158,15 +159,15 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			if gap_token_id in tokens:
 				raise AssertionError("Gap tokens ('-') found in sequence. Input sequence must not contain gaps.")
 			
-			# Process in chunks of 510 tokens (to allow for CLS and SEP)
-			for chunk_start in range(0, len(tokens) - 510 + 1, 510):
+			# Process in chunks of N_meaningful_tokens tokens (to allow for CLS and SEP)
+			for chunk_start in range(0, len(tokens) - N_meaningful_tokens + 1, N_meaningful_tokens):
 				# Check if we've reached the limit
 				if limit_bp and processed_bp >= limit_bp:
 					break
 
-				chunk_tokens = tokens[chunk_start:chunk_start + 510]
-				chunk_offsets = offset_mapping[chunk_start:chunk_start + 510]
-				chunk_attention = attention_mask[chunk_start:chunk_start + 510]
+				chunk_tokens = tokens[chunk_start:chunk_start + N_meaningful_tokens]
+				chunk_offsets = offset_mapping[chunk_start:chunk_start + N_meaningful_tokens]
+				chunk_attention = attention_mask[chunk_start:chunk_start + N_meaningful_tokens]
 				
 				# Add CLS and SEP tokens
 				chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens + [tokenizer.sep_token_id]
@@ -221,16 +222,18 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 # Main execution
 def main(args):
 	models = {
-		"gena-lm": "AIRI-Institute/gena-lm-bert-base-t2t",
-		"nucleotide-transformer-v2-100m": "InstaDeepAI/nucleotide-transformer-v2-100m-multi-species"
+		"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
+		"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048]
 	}
 
 	# Load model and tokenizer
-	model, tokenizer = load_model_and_tokenizer(models[args.model], args.model)
+	model, tokenizer = load_model_and_tokenizer(models[args.model][0], args.model)
 	
 	# Process genome and save results
 	output_path = os.path.join(args.out_dir, args.model + "_")
-	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size, args.limit_bp)
+	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size, args.limit_bp,
+		max_model_len_tokens=models[args.model][1]
+	)
 	print(f"Results saved to {output_path}")
 
 if __name__ == "__main__":
