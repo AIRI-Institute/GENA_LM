@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pysam
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AutoModelForMaskedLM
 import torch
 from scipy.stats import entropy
 import requests
@@ -11,15 +11,25 @@ import argparse
 def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--genome_path", type=str)
-	parser.add_argument("--out_dir", type=str, default="data")
+	parser.add_argument("--out_dir", type=str, default="data/")
 	parser.add_argument("--chrm", type=str, help="Chromosome to process (e.g., 'chr1')")
 	parser.add_argument("--batch_size", type=int, default=16)
+	parser.add_argument("--model", type=str, choices=['gena-lm', 'nucleotide-transformer-v2-100m'], 
+						default='gena-lm', help="Model to use for analysis")
+	parser.add_argument("--limit_bp", type=int, help="Limit processing to this number of base pairs", default=None)
 	return parser.parse_args()
 
-# Load GENA-LM model and tokenizer
-def load_model_and_tokenizer(model_name):
-	tokenizer = AutoTokenizer.from_pretrained(model_name)
-	model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
+# Load model and tokenizer
+def load_model_and_tokenizer(model_name, model_type):
+	if model_type == 'gena-lm':
+		tokenizer = AutoTokenizer.from_pretrained(model_name)
+		model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
+	elif model_type.find('nucleotide-transformer') != -1:  # nucleotide-transformer
+		tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+		model = AutoModelForMaskedLM.from_pretrained(model_name, trust_remote_code=True)
+	else:
+		raise ValueError(f"Model type {model_type} not supported")
+	
 	if torch.cuda.is_available():
 		model = model.cuda()
 	model.eval()
@@ -36,8 +46,6 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 		outputs = model(**inputs)
 		logits = outputs.logits
 
-	# print (f"logits.shape: {logits.shape}")
-	# Find position of [MASK] token
 	# Find positions of [MASK] tokens for each sequence in batch
 	mask_positions = (inputs['input_ids'] == tokenizer.mask_token_id).nonzero()
 	batch_indices = mask_positions[:, 0]
@@ -59,9 +67,11 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 	highest_prob_token_ids = np.argmax(probs, axis=1)
 	highest_prob_tokens = tokenizer.convert_ids_to_tokens(highest_prob_token_ids)
 	# print (f"highest_prob_tokens.shape: {highest_prob_tokens.shape}")
+
 	# check if predictions are correct
 	correct = (highest_prob_token_ids == np.array(ground_truth)).astype(int)
 	# print (f"correct.shape: {correct.shape}")
+
 	# calculate entropy for each prediction
 	entropies = np.array([entropy(p, base=2) for p in probs])
 	# print (f"entropies.shape: {entropies.shape}")
@@ -86,8 +96,6 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 		token_start = start + chunk_offsets[pos - 1][0]  # -1 because we added CLS
 		token_end = start + chunk_offsets[pos - 1][1]
 		
-		# Get metrics for this position
-		
 		# Write to bedgraph
 		for metric, _ in file_handlers.items():
 			pos_metrics = token_metrics_batch[metric][i]
@@ -95,7 +103,7 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 
 
 # Process genome and save metrics to BED/GRAPH
-def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, batch_size=16):
+def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, batch_size=16, limit_bp=None):
 	seq_chunk_len = 50_000  # 50kb
 
 	# Open FASTA file
@@ -121,12 +129,20 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			valid_chroms.append((chrom, orig_start, orig_end))
 		else:
 			raise ValueError(f"Invalid header format: {header}")
+
 	total_length = sum([orig_end - orig_start for _, orig_start, orig_end in valid_chroms])
+	if limit_bp:
+		total_length = min(total_length, limit_bp)
 	pbar = tqdm(total=total_length, desc=f"Processing {target_chrom}", unit='bp')
 	processed_bp = 0
+
 	for chrom_name, orig_start, orig_end in valid_chroms:
 		start = 0
 		while start + seq_chunk_len < orig_end:
+			# Check if we've reached the limit
+			if limit_bp and processed_bp >= limit_bp:
+				break
+
 			# Fetch sequence chunk
 			sequence = fasta.fetch(chrom_name, start, min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))).upper()
 			
@@ -144,6 +160,10 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			
 			# Process in chunks of 510 tokens (to allow for CLS and SEP)
 			for chunk_start in range(0, len(tokens) - 510 + 1, 510):
+				# Check if we've reached the limit
+				if limit_bp and processed_bp >= limit_bp:
+					break
+
 				chunk_tokens = tokens[chunk_start:chunk_start + 510]
 				chunk_offsets = offset_mapping[chunk_start:chunk_start + 510]
 				chunk_attention = attention_mask[chunk_start:chunk_start + 510]
@@ -163,8 +183,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				for pos in range(1, len(chunk_input_ids) - 1):
 					if len(batch_input_ids) >= batch_size:
 						process_batch(model, tokenizer, batch_input_ids, 
-									  batch_attention_mask, ground_truths, positions, 
-									  target_chrom, start + orig_start, chunk_offsets, file_handlers)
+									batch_attention_mask, ground_truths, positions, 
+									target_chrom, start + orig_start, chunk_offsets, file_handlers)
 						batch_input_ids = []
 						batch_attention_mask = []
 						ground_truths = []
@@ -178,26 +198,21 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 				assert len(batch_input_ids) > 0, "No batch input ids"
 				process_batch(model, tokenizer, batch_input_ids, 
-							  batch_attention_mask, ground_truths, positions, 
-							  target_chrom, start + orig_start, chunk_offsets, file_handlers)
+							batch_attention_mask, ground_truths, positions, 
+							target_chrom, start + orig_start, chunk_offsets, file_handlers)
 				processed_bp += chunk_offsets[-1][1] - chunk_offsets[0][0]
 				pbar.n = processed_bp
 				pbar.refresh()
-
-			# 	if processed_bp > 10_000:
-			# 		break
-			
-			# if processed_bp > 10_000:
-			# 	break
 
 			# Update start position based on last token's end position
 			if offset_mapping:
 				start += offset_mapping[-1][1]
 			else:
 				raise ValueError(f"No offset mapping found for chromosome {chrom}, start: {start}")
-			
-		# if processed_bp > 10_000:
-		# 	break
+
+		# Check if we've reached the limit
+		if limit_bp and processed_bp >= limit_bp:
+			break
 
 	for metric in file_handlers.keys():
 		file_handlers[metric].close()
@@ -205,14 +220,17 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 # Main execution
 def main(args):
-	models = {"gena-lm-bert-base-t2t": "AIRI-Institute/gena-lm-bert-base-t2t"}
+	models = {
+		"gena-lm": "AIRI-Institute/gena-lm-bert-base-t2t",
+		"nucleotide-transformer-v2-100m": "InstaDeepAI/nucleotide-transformer-v2-100m-multi-species"
+	}
 
 	# Load model and tokenizer
-	model, tokenizer = load_model_and_tokenizer(models["gena-lm-bert-base-t2t"])
+	model, tokenizer = load_model_and_tokenizer(models[args.model], args.model)
 	
 	# Process genome and save results
-	output_path = args.out_dir
-	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size)
+	output_path = os.path.join(args.out_dir, args.model + "_")
+	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size, args.limit_bp)
 	print(f"Results saved to {output_path}")
 
 if __name__ == "__main__":
