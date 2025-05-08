@@ -87,9 +87,10 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, ground_truths, positions, chrom, start, chunk_offsets, file_handlers):
 	inputs = {
 		'input_ids': torch.tensor(batch_input_ids),
-		'token_type_ids': torch.tensor([[0] * len(batch_input_ids[0])] * len(batch_input_ids)),
 		'attention_mask': torch.tensor(batch_attention_mask),
 	}
+		# 'token_type_ids': torch.tensor([[0] * len(batch_input_ids[0])] * len(batch_input_ids)),
+
 	token_metrics_batch = calculate_token_metrics(model, tokenizer, inputs, ground_truths)
 	# Write results for each position
 	for i, pos in enumerate(positions):
@@ -105,6 +106,11 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 # Process genome and save metrics to BED/GRAPH
 def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, max_model_len_tokens, batch_size=16, limit_bp=None):
 	seq_chunk_len = 50_000  # 50kb
+
+	# create output directory if it doesn't exist
+	output_dir = os.path.dirname(output_path_prefix)
+	if not os.path.exists(output_dir):
+		os.makedirs(output_dir)
 
 	# Open FASTA file
 	fasta = pysam.FastaFile(fasta_path)
@@ -147,11 +153,23 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			sequence = fasta.fetch(chrom_name, start, min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))).upper()
 			
 			# Tokenize without special tokens
-			tokenized = tokenizer(sequence, add_special_tokens=False, return_offsets_mapping=True)
+			tokenized = tokenizer(sequence, add_special_tokens=False)
+			# Generate offset mapping manually based on token lengths
+			offset_mapping = []
+			current_pos = 0
+			for token in tokenizer.convert_ids_to_tokens(tokenized['input_ids']):
+				# assert that token contains only A, C, G, T
+				assert set(token) <= set(['A', 'C', 'G', 'T']), f"Token contains invalid characters: {token}"
+				token_len = len(token)
+				offset_mapping.append((current_pos, current_pos + token_len))
+				current_pos += token_len
+
 			tokens = tokenized['input_ids']
-			N_meaningful_tokens = len(tokens) - 2 # -2 for CLS and SEP
+
+			add_sep = tokenizer.sep_token_id is not None
+
+			N_meaningful_tokens = len(tokens) - 1 - add_sep  # -2 for CLS and SEP
 			assert len(tokens) > N_meaningful_tokens, f"Sequence is too short: {len(tokens)} for chromosome {chrom_name}, start: {start}"
-			offset_mapping = tokenized['offset_mapping']
 			attention_mask = tokenized['attention_mask']
 			
 			# Check for gap tokens and raise error if found
@@ -170,8 +188,11 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				chunk_attention = attention_mask[chunk_start:chunk_start + N_meaningful_tokens]
 				
 				# Add CLS and SEP tokens
-				chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens + [tokenizer.sep_token_id]
-				chunk_attention_mask = [1] + chunk_attention + [1]
+				chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens
+				chunk_attention_mask = [1] + chunk_attention
+				if add_sep:
+					chunk_input_ids.append(tokenizer.sep_token_id)
+					chunk_attention_mask.append(1)
 				
 				# Process each token position
 				# Create batch of masked sequences
@@ -181,7 +202,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				ground_truths = []
 				positions = []
 				
-				for pos in range(1, len(chunk_input_ids) - 1):
+				for pos in range(1, len(chunk_input_ids) - add_sep):
 					if len(batch_input_ids) >= batch_size:
 						process_batch(model, tokenizer, batch_input_ids, 
 									batch_attention_mask, ground_truths, positions, 
@@ -231,7 +252,14 @@ def main(args):
 	
 	# Process genome and save results
 	output_path = os.path.join(args.out_dir, args.model + "_")
-	process_genome(args.genome_path, model, tokenizer, output_path, args.chrm, args.batch_size, args.limit_bp,
+	process_genome(
+		fasta_path=args.genome_path,
+		model=model,
+		tokenizer=tokenizer,
+		output_path_prefix=output_path,
+		target_chrom=args.chrm,
+		batch_size=args.batch_size,
+		limit_bp=args.limit_bp,
 		max_model_len_tokens=models[args.model][1]
 	)
 	print(f"Results saved to {output_path}")
