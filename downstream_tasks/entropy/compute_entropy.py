@@ -118,21 +118,22 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	# Open output BEDGRAPH file
 	metrics = {"is_correct": "bedgraph", "entropy": "bedgraph", "highest_prob": "bedgraph", "highest_prob_token": "bed"}
 	file_handlers = {metric: open(output_path_prefix + "_" + target_chrom + "_" + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
-	
-	valid_chroms = []
+	unaccessible_regions_file = open(output_path_prefix + "_" + target_chrom + "_unaccessible_regions.bed", 'w')
+
+	valid_chroms = [] # chrom_name (==name of gapless fragment in fasta file), orig_start, orig_end
 	for chrom in fasta.references:
-		# Skip contigs shorter than seq_chunk_len
-		if fasta.get_reference_length(chrom) < seq_chunk_len:
-			continue
-			
 		# Parse original coordinates from header
 		header = chrom
 		if ':' in header and '-' in header:
 			original_chrom, coords = header.split(':')
-			if target_chrom and original_chrom != target_chrom:
+			if original_chrom != target_chrom:
 				continue
 			orig_start, orig_end = map(int, coords.split('-'))
-			valid_chroms.append((chrom, orig_start, orig_end))
+			assert fasta.get_reference_length(chrom) == orig_end - orig_start, f"Sequence length mismatch: {fasta.get_reference_length(chrom)} != {orig_end - orig_start}"
+			if fasta.get_reference_length(chrom) < seq_chunk_len:
+				unaccessible_regions_file.write(f"{original_chrom}\t{orig_start}\t{orig_end}\n")
+			else:
+				valid_chroms.append((chrom, orig_start, orig_end))
 		else:
 			raise ValueError(f"Invalid header format: {header}")
 
@@ -142,34 +143,41 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	pbar = tqdm(total=total_length, desc=f"Processing {target_chrom}", unit='bp')
 	processed_bp = 0
 
-	for chrom_name, orig_start, orig_end in valid_chroms:
+	for chrom_name, orig_start, orig_end in valid_chroms: # iterate over gapless fragments in fasta file
 		start = 0
-		while start + seq_chunk_len < orig_end:
+		while start + seq_chunk_len <= orig_end: # process each fragment in chunks of seq_chunk_len
 			# Check if we've reached the limit
 			if limit_bp and processed_bp >= limit_bp:
 				break
 
 			# Fetch sequence chunk
-			sequence = fasta.fetch(chrom_name, start, min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))).upper()
+			end_position = min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))
+			# start and end denote 0-based, half-open intervals.
+			sequence = fasta.fetch(chrom_name, start, end_position).upper() 
 			
 			# Tokenize without special tokens
 			tokenized = tokenizer(sequence, add_special_tokens=False)
+			tokens = tokenized['input_ids']
+
 			# Generate offset mapping manually based on token lengths
 			offset_mapping = []
 			current_pos = 0
-			for token in tokenizer.convert_ids_to_tokens(tokenized['input_ids']):
+			for token in tokenizer.convert_ids_to_tokens(tokens):
 				# assert that token contains only A, C, G, T
 				assert set(token) <= set(['A', 'C', 'G', 'T']), f"Token contains invalid characters: {token}"
 				token_len = len(token)
 				offset_mapping.append((current_pos, current_pos + token_len))
 				current_pos += token_len
-
-			tokens = tokenized['input_ids']
+			assert offset_mapping[-1][1] == end_position-start, f"Offset mapping mismatch: {offset_mapping[-1][1]} != {end_position-start}"
 
 			add_sep = tokenizer.sep_token_id is not None
+			N_meaningful_tokens = max_model_len_tokens - 1 - add_sep  # -2 for CLS and SEP
+			
+			if len(tokens) < N_meaningful_tokens:
+				unaccessible_regions_file.write(f"{target_chrom}\t{start + orig_start}\t{end_position + orig_start}\n")
+				start += end_position-start
+				continue
 
-			N_meaningful_tokens = len(tokens) - 1 - add_sep  # -2 for CLS and SEP
-			assert len(tokens) > N_meaningful_tokens, f"Sequence is too short: {len(tokens)} for chromosome {chrom_name}, start: {start}"
 			attention_mask = tokenized['attention_mask']
 			
 			# Check for gap tokens and raise error if found
@@ -193,6 +201,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				if add_sep:
 					chunk_input_ids.append(tokenizer.sep_token_id)
 					chunk_attention_mask.append(1)
+				assert len(chunk_input_ids) == max_model_len_tokens, \
+					f"Chunk input ids length is not equal to max model len tokens: {len(chunk_input_ids)} != {max_model_len_tokens}"
 				
 				# Process each token position
 				# Create batch of masked sequences
@@ -204,6 +214,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				
 				for pos in range(1, len(chunk_input_ids) - add_sep):
 					if len(batch_input_ids) >= batch_size:
+						# print (f"Processing batch of size {len(batch_input_ids)}")
 						process_batch(model, tokenizer, batch_input_ids, 
 									batch_attention_mask, ground_truths, positions, 
 									target_chrom, start + orig_start, chunk_offsets, file_handlers)
@@ -211,6 +222,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 						batch_attention_mask = []
 						ground_truths = []
 						positions = []
+					# print (f"Processing token {pos} of {len(chunk_input_ids)}")
 					masked_input_ids = chunk_input_ids.copy()
 					ground_truths.append(masked_input_ids[pos])
 					masked_input_ids[pos] = tokenizer.mask_token_id
