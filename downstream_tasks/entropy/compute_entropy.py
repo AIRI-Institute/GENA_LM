@@ -145,13 +145,14 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 	for chrom_name, orig_start, orig_end in valid_chroms: # iterate over gapless fragments in fasta file
 		start = 0
-		while start + seq_chunk_len <= orig_end: # process each fragment in chunks of seq_chunk_len
+		chrom_len = fasta.get_reference_length(chrom_name)
+		while start < chrom_len: # process each fragment in chunks of seq_chunk_len
 			# Check if we've reached the limit
 			if limit_bp and processed_bp >= limit_bp:
 				break
 
 			# Fetch sequence chunk
-			end_position = min(start + seq_chunk_len, fasta.get_reference_length(chrom_name))
+			end_position = min(start + seq_chunk_len, chrom_len)
 			# start and end denote 0-based, half-open intervals.
 			sequence = fasta.fetch(chrom_name, start, end_position).upper() 
 			
