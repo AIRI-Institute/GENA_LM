@@ -132,6 +132,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			assert fasta.get_reference_length(chrom) == orig_end - orig_start, f"Sequence length mismatch: {fasta.get_reference_length(chrom)} != {orig_end - orig_start}"
 			if fasta.get_reference_length(chrom) < seq_chunk_len:
 				unaccessible_regions_file.write(f"{original_chrom}\t{orig_start}\t{orig_end}\n")
+				# print (f"Adding to unaccessible regions: {original_chrom}\t{orig_start}\t{orig_end}")
 			else:
 				valid_chroms.append((chrom, orig_start, orig_end))
 		else:
@@ -187,6 +188,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				raise AssertionError("Gap tokens ('-') found in sequence. Input sequence must not contain gaps.")
 			
 			# Process in chunks of N_meaningful_tokens tokens (to allow for CLS and SEP)
+			last_chunk_end_bp = None
+
 			for chunk_start in range(0, len(tokens) - N_meaningful_tokens + 1, N_meaningful_tokens):
 				# Check if we've reached the limit
 				if limit_bp and processed_bp >= limit_bp:
@@ -194,8 +197,9 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 				chunk_tokens = tokens[chunk_start:chunk_start + N_meaningful_tokens]
 				chunk_offsets = offset_mapping[chunk_start:chunk_start + N_meaningful_tokens]
+				last_chunk_end_bp = chunk_offsets[-1][1]
 				chunk_attention = attention_mask[chunk_start:chunk_start + N_meaningful_tokens]
-				
+
 				# Add CLS and SEP tokens
 				chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens
 				chunk_attention_mask = [1] + chunk_attention
@@ -240,10 +244,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				pbar.refresh()
 
 			# Update start position based on last token's end position
-			if offset_mapping:
-				start += offset_mapping[-1][1]
-			else:
-				raise ValueError(f"No offset mapping found for chromosome {chrom}, start: {start}")
+			assert last_chunk_end_bp is not None, "Last chunk end bp is not set, seems that we did not process any chunks"
+			start += last_chunk_end_bp
 
 		# Check if we've reached the limit
 		if limit_bp and processed_bp >= limit_bp:
