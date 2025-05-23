@@ -70,7 +70,6 @@ class ExpressionDataset(Dataset):
         self.tpm = tpm
         self.targets_path = targets_path
         self.read_paths()
-
         if n_keys is None:
             n_keys = len(self.paths.keys())
         self.n_keys = n_keys
@@ -341,6 +340,7 @@ class ExpressionDataset(Dataset):
         encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
         encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
         encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+        assert len(encoded_sequence['input_ids']) >= self.num_before, "Sequence is too short"
         tokens_before = encoded_sequence['input_ids'][-self.num_before:]
         mapping = encoded_sequence['offset_mapping'][-self.num_before:]
         
