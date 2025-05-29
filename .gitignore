@@ -67,6 +67,7 @@ venv.bak/
 *.tar.gz
 *.zip
 data/genomes/*
+data/pretrain/*
 notebooks/data/*
 *.pyc
 .DS_Store/*

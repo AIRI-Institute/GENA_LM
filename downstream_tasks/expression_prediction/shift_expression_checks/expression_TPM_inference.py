@@ -187,6 +187,8 @@ def main():
         "shift100K": "/mnt/nfs_dna/aspeedok/github/runs/expression/shift_100000/model_best.pth",
         "prot_coding_shift_10K": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_shift_10000/model_best.pth",
         "prot_coding_shift_250tokup": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_250_tokens_upstream/model_best.pth",
+        "prot_coding_tes_shift_100K": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_tes_shift_100000/model_4000.pth",
+        "prot_coding_tes_shift_0": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_tes_shift_0/model_2000.pth"
     }
     checkpoint_path = checkpoints[args.checkpoint]
     config_path = os.path.normpath(os.path.join(script_dir, "../configs/run_config_Expression_dataset_v1.yaml"))
