@@ -3,10 +3,68 @@ import numpy as np
 import pysam
 from transformers import AutoTokenizer, AutoModel, AutoModelForMaskedLM
 import torch
+from torch import nn
 from scipy.stats import entropy
 import requests
 from tqdm import tqdm
 import argparse
+
+from pathlib import Path
+import sys
+
+def build_modergena_model(model_name, modernbert_distr_path):
+	from omegaconf import DictConfig, OmegaConf
+	from omegaconf import OmegaConf as om
+	sys.path.append(modernbert_distr_path)
+	from ModernBERT.src import flex_bert as flex_bert_module
+	from ModernBERT.src import hf_bert as hf_bert_module
+	from ModernBERT.src import mosaic_bert as mosaic_bert_module
+	from ModernBERT.src.bert_layers.model import init_mlm_model_from_pretrained
+	from ModernBERT.src.bert_layers.configuration_bert import FlexBertConfig
+	from composer.utils.checkpoint import _ensure_valid_checkpoint
+
+	def build_model(cfg: DictConfig):
+		if cfg.name == "hf_bert":
+			return hf_bert_module.create_hf_bert_mlm(
+				pretrained_model_name=cfg.pretrained_model_name,
+				use_pretrained=cfg.get("use_pretrained", None),
+				model_config=cfg.get("model_config", None),
+				tokenizer_name=cfg.get("tokenizer_name", None),
+				gradient_checkpointing=cfg.get("gradient_checkpointing", None),
+			)
+		elif cfg.name == "mosaic_bert":
+			return mosaic_bert_module.create_mosaic_bert_mlm(
+				pretrained_model_name=cfg.pretrained_model_name,
+				pretrained_checkpoint=cfg.get("pretrained_checkpoint", None),
+				model_config=cfg.get("model_config", None),
+				tokenizer_name=cfg.get("tokenizer_name", None),
+				gradient_checkpointing=cfg.get("gradient_checkpointing", None),
+			)
+		elif cfg.name == "flex_bert":
+			return flex_bert_module.create_flex_bert_mlm(
+				pretrained_model_name=cfg.pretrained_model_name,
+				pretrained_checkpoint=cfg.get("pretrained_checkpoint", None),
+				model_config=cfg.get("model_config", None),
+				tokenizer_name=cfg.get("tokenizer_name", None),
+				gradient_checkpointing=cfg.get("gradient_checkpointing", None),
+				recompute_metric_loss=cfg.get("recompute_metric_loss", False),
+				disable_train_metrics=cfg.get("disable_train_metrics", False),
+			)
+		else:
+			raise ValueError(f"Not sure how to build model with name={cfg.name}")
+	
+	cfg_path = os.path.join(model_name, "cfg.yaml")
+	yaml_cfg = om.load(cfg_path)
+	model = build_model(yaml_cfg.model)
+	checkpoint_filepath = os.path.join(model_name,"latest-rank0.pt")
+	checkpoint_filepath = Path(checkpoint_filepath)
+	assert checkpoint_filepath.exists(), f"Checkpoint {checkpoint_filepath} does not exist"
+	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
+	state_dict = state.get("state", {})
+	model_state = state_dict.get("model", {})
+	assert len(model_state) > 0, "Model state is empty, please check the checkpoint and checkpoint path"
+	model.load_state_dict(model_state)
+	return model
 
 def parse_args():
 	parser = argparse.ArgumentParser()
@@ -14,19 +72,26 @@ def parse_args():
 	parser.add_argument("--out_dir", type=str, default="data/")
 	parser.add_argument("--chrm", type=str, help="Chromosome to process (e.g., 'chr1')")
 	parser.add_argument("--batch_size", type=int, default=16)
-	parser.add_argument("--model", type=str, choices=['gena-lm', 'nucleotide-transformer-v2-100m'], 
+	parser.add_argument("--model", type=str, 
+						choices=['gena-lm', 'nucleotide-transformer-v2-100m', 'ModernGENA_t2t_test', 'ModernGENA_prom_multi'], 
 						default='gena-lm', help="Model to use for analysis")
 	parser.add_argument("--limit_bp", type=int, help="Limit processing to this number of base pairs", default=None)
+	parser.add_argument("--modernbert_distr_path", type=str, help="Path to ModernBERT distribution", 
+						default=os.path.expanduser("~/DNALM/")
+						)
 	return parser.parse_args()
 
 # Load model and tokenizer
-def load_model_and_tokenizer(model_name, model_type):
+def load_model_and_tokenizer(model_name, model_type, modernbert_distr_path=None):
 	if model_type == 'gena-lm':
 		tokenizer = AutoTokenizer.from_pretrained(model_name)
 		model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
 	elif model_type.find('nucleotide-transformer') != -1:  # nucleotide-transformer
 		tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 		model = AutoModelForMaskedLM.from_pretrained(model_name, trust_remote_code=True)
+	elif model_type.startswith('ModernGENA'):
+		tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base-t2t")
+		model = build_modergena_model(model_name, modernbert_distr_path)
 	else:
 		raise ValueError(f"Model type {model_type} not supported")
 	
@@ -43,8 +108,18 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 	
 	# Get model predictions
 	with torch.no_grad():
-		outputs = model(**inputs)
-		logits = outputs.logits
+		if args.model.startswith("ModernGENA"):
+			outputs = model(inputs)
+			logits = outputs.logits.reshape(inputs['input_ids'].shape[0],
+											inputs['input_ids'].shape[1],
+											-1)
+		else:
+			outputs = model(**inputs)
+			logits = outputs.logits
+
+	# print (f"inputs['input_ids'].shape: {inputs['input_ids'].shape}")
+	# print (f"outputs: {outputs}")
+	# print (f"logits.shape: {logits.shape}")
 
 	# Find positions of [MASK] tokens for each sequence in batch
 	mask_positions = (inputs['input_ids'] == tokenizer.mask_token_id).nonzero()
@@ -259,11 +334,13 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 def main(args):
 	models = {
 		"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
-		"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048]
+		"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048],
+		"ModernGENA_t2t_test": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_t2t_testrun/", 1024],
+		"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024]
 	}
 
 	# Load model and tokenizer
-	model, tokenizer = load_model_and_tokenizer(models[args.model][0], args.model)
+	model, tokenizer = load_model_and_tokenizer(models[args.model][0], args.model, args.modernbert_distr_path)
 	
 	# Process genome and save results
 	output_path = os.path.join(args.out_dir, args.model + "_")
