@@ -56,7 +56,9 @@ def build_modergena_model(model_name, modernbert_distr_path):
 	cfg_path = os.path.join(model_name, "cfg.yaml")
 	yaml_cfg = om.load(cfg_path)
 	model = build_model(yaml_cfg.model)
-	checkpoint_filepath = os.path.join(model_name,"latest-rank0.pt")
+	# checkpoint_filepath = os.path.join(model_name,"latest-rank0.pt")
+	checkpoint_filepath = os.path.join(model_name,"ep11-ba68300-rank0.pt")
+	print (f"Loading checkpoint from {checkpoint_filepath}")
 	checkpoint_filepath = Path(checkpoint_filepath)
 	assert checkpoint_filepath.exists(), f"Checkpoint {checkpoint_filepath} does not exist"
 	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
@@ -73,7 +75,9 @@ def parse_args():
 	parser.add_argument("--chrm", type=str, help="Chromosome to process (e.g., 'chr1')")
 	parser.add_argument("--batch_size", type=int, default=16)
 	parser.add_argument("--model", type=str, 
-						choices=['gena-lm', 'nucleotide-transformer-v2-100m', 'ModernGENA_t2t_test', 'ModernGENA_prom_multi'], 
+						choices=['gena-lm', 'nucleotide-transformer-v2-100m', 
+						'ModernGENA_t2t_test', 'ModernGENA_prom_multi', 
+						'ModernGENA_prom_multi_ep11'], 
 						default='gena-lm', help="Model to use for analysis")
 	parser.add_argument("--limit_bp", type=int, help="Limit processing to this number of base pairs", default=None)
 	parser.add_argument("--modernbert_distr_path", type=str, help="Path to ModernBERT distribution", 
@@ -336,7 +340,8 @@ def main(args):
 		"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
 		"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048],
 		"ModernGENA_t2t_test": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_t2t_testrun/", 1024],
-		"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024]
+		"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024],
+		"ModernGENA_prom_multi_ep11": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_prom_ep11-ba65900/", 1024]
 	}
 
 	# Load model and tokenizer
