@@ -28,6 +28,7 @@ import torch.utils.checkpoint
 from packaging import version
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
+import torch.nn.functional as F
 
 from transformers.activations import ACT2FN
 from transformers.file_utils import (
@@ -36,7 +37,11 @@ from transformers.file_utils import (
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     replace_return_docstrings,
+    is_flash_attn_2_available
 )
+
+
+
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
@@ -57,6 +62,9 @@ from transformers.modeling_utils import (
 from transformers.utils import logging
 from transformers.models.bert.configuration_bert import BertConfig
 
+if is_flash_attn_2_available():
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input
 
 logger = logging.get_logger(__name__)
 
@@ -90,6 +98,17 @@ BERT_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # See all BERT models at https://huggingface.co/models?filter=bert
 ]
 
+
+def _get_unpad_data(attention_mask):
+    seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+    indices = torch.nonzero(attention_mask.flatten(), as_tuple=False).flatten()
+    max_seqlen_in_batch = seqlens_in_batch.max().item()
+    cu_seqlens = F.pad(torch.cumsum(seqlens_in_batch, dim=0, dtype=torch.torch.int32), (1, 0))
+    return (
+        indices,
+        cu_seqlens,
+        max_seqlen_in_batch,
+    )
 
 def get_cls_by_name(name: str) -> type:
     """Get class by its name and module path.
@@ -182,6 +201,7 @@ class BertEmbeddings(nn.Module):
 
     def __init__(self, config):
         super().__init__()
+        # print('AAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         if config.position_embedding_type == 'absolute':
             self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
@@ -204,6 +224,7 @@ class BertEmbeddings(nn.Module):
     def forward(
         self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
     ):
+        # print('BBBBBBBBBBBBBBBBBBBBB')
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
@@ -234,7 +255,6 @@ class BertEmbeddings(nn.Module):
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
-
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None, has_relative_attention_bias=False):
@@ -553,6 +573,131 @@ class BertSelfAttention(nn.Module):
         return outputs
 
 
+class BertSelfFlashAttention(BertSelfAttention):
+    def transpose_for_scores(self, x: torch.Tensor) -> torch.Tensor:
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        x = x.view(new_x_shape)
+        return x
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.FloatTensor] = None,
+        head_mask: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_attention_mask: Optional[torch.FloatTensor] = None,
+        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        positional_bias = None,
+        output_attentions: Optional[bool] = False,
+    ) -> Tuple[torch.Tensor]:
+
+        mixed_query_layer = self.query(hidden_states)
+        batch_size, query_length, hidden_size = mixed_query_layer.shape
+
+        is_cross_attention = encoder_hidden_states is not None
+
+        if is_cross_attention and past_key_value is not None:
+            # reuse k,v, cross_attentions
+            key_layer = past_key_value[0]
+            value_layer = past_key_value[1]
+            attention_mask = encoder_attention_mask
+        elif is_cross_attention:
+            key_layer = self.transpose_for_scores(self.key(encoder_hidden_states))
+            value_layer = self.transpose_for_scores(self.value(encoder_hidden_states))
+            attention_mask = encoder_attention_mask
+        elif past_key_value is not None:
+            key_layer = self.transpose_for_scores(self.key(hidden_states))
+            value_layer = self.transpose_for_scores(self.value(hidden_states))
+            key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
+            value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
+        else:
+            key_layer = self.transpose_for_scores(self.key(hidden_states))
+            value_layer = self.transpose_for_scores(self.value(hidden_states))
+
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+
+        use_cache = past_key_value is not None
+        if self.is_decoder:
+            past_key_value = (key_layer, value_layer)
+
+        if attention_mask is None:
+            attention_scores = flash_attn_func(
+                query_layer, key_layer, value_layer, self.dropout.p, softmax_scale=None, causal=self.is_decoder
+            )
+        else:
+            query_states, key_states, value_states, indices_q, cu_seq_lens, max_seq_lens = self._upad_input(
+                query_layer, key_layer, value_layer, attention_mask, query_length
+            )
+
+            cu_seqlens_q, cu_seqlens_k = cu_seq_lens
+            max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
+
+            attn_output_unpad = flash_attn_varlen_func(
+                query_states,
+                key_states,
+                value_states,
+                cu_seqlens_q=cu_seqlens_q,
+                cu_seqlens_k=cu_seqlens_k,
+                max_seqlen_q=max_seqlen_in_batch_q,
+                max_seqlen_k=max_seqlen_in_batch_k,
+                dropout_p=self.dropout.p,
+                softmax_scale=None,
+                causal=self.is_decoder,
+            )
+
+            attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
+
+        attn_output = attn_output.reshape(batch_size, query_length, hidden_size).contiguous()
+
+        if output_attentions:
+            raise NotImplementedError("output_attentions is not implemented")
+
+        outputs = (attn_output, None)
+        if self.is_decoder:
+            outputs = outputs + (past_key_value,)
+        return outputs
+
+
+    def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):
+        indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
+
+        batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
+
+        key_layer = index_first_axis(
+            key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k
+        )
+        value_layer = index_first_axis(
+            value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim), indices_k
+        )
+        if query_length == kv_seq_len:
+            query_layer = index_first_axis(
+                query_layer.reshape(batch_size * kv_seq_len, self.num_attention_heads, head_dim), indices_k
+            )
+            cu_seqlens_q = cu_seqlens_k
+            max_seqlen_in_batch_q = max_seqlen_in_batch_k
+            indices_q = indices_k
+        elif query_length == 1:
+            max_seqlen_in_batch_q = 1
+            cu_seqlens_q = torch.arange(
+                batch_size + 1, dtype=torch.int32, device=query_layer.device
+            )  # There is a memcpy here, that is very bad.
+            indices_q = cu_seqlens_q[:-1]
+            query_layer = query_layer.squeeze(1)
+        else:
+            # The -q_len: slice assumes left padding.
+            attention_mask = attention_mask[:, -query_length:]
+            query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
+
+        return (
+            query_layer,
+            key_layer,
+            value_layer,
+            indices_q,
+            (cu_seqlens_q, cu_seqlens_k),
+            (max_seqlen_in_batch_q, max_seqlen_in_batch_k),
+        )
+    
+    
 class BertSelfOutput(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -574,8 +719,12 @@ class BertSelfOutput(nn.Module):
 class BertAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None, has_relative_attention_bias=False):
         super().__init__()
-        self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type,
-                                      has_relative_attention_bias=has_relative_attention_bias)
+        if not getattr(config, "_flash_attn_2_enabled", False):
+            self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type)
+        else:
+            if config.position_embedding_type != "absolute":
+                raise NotImplementedError("flash_attn_2 now only supports absolute position embedding")
+            self.self = BertSelfFlashAttention(config, position_embedding_type=position_embedding_type)
         self.output = BertSelfOutput(config)
         self.pruned_heads = set()
 
@@ -974,6 +1123,7 @@ class BertPreTrainedModel(PreTrainedModel):
     load_tf_weights = load_tf_weights_in_bert
     base_model_prefix = "bert"
     supports_gradient_checkpointing = True
+    _supports_flash_attn_2 = True
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
     def _init_weights(self, module):
@@ -1272,7 +1422,7 @@ class BertModel(BertPreTrainedModel):
         )
         encoder_outputs = self.encoder(
             embedding_output,
-            attention_mask=extended_attention_mask,
+            attention_mask=extended_attention_mask if not getattr(self.config, "_flash_attn_2_enabled", False) else attention_mask,
             head_mask=head_mask,
             encoder_hidden_states=encoder_hidden_states,
             encoder_attention_mask=encoder_extended_attention_mask,
@@ -1771,6 +1921,257 @@ class BertForNextSentencePrediction(BertPreTrainedModel):
             attentions=outputs.attentions,
         )
 
+    
+    
+    
+    
+    
+    
+    
+    
+###################################################################################################################TRIPLET LOSS below##############################################################################################
+def _masked_minimum_torch(data, mask, dim=1):
+    """Computes the axis wise minimum over chosen elements.
+
+    Args:
+      data: 2-D float `Tensor` of shape `[n, m]`.
+      mask: 2-D Boolean `Tensor` of shape `[n, m]`.
+      dim: The dimension over which to compute the minimum.
+
+    Returns:
+      masked_minimums: N-D `Tensor`.
+        The minimized dimension is of size 1 after the operation.
+    """
+    axis_maximums = torch.max(data, dim, keepdims=True)[0]
+    masked_minimums = (
+        torch.min(
+            torch.multiply(data - axis_maximums, mask), dim, keepdims=True
+        )[0]
+        + axis_maximums
+    )
+    return masked_minimums
+
+
+def _masked_maximum_torch(data, mask, dim=1):
+    """Computes the axis wise maximum over chosen elements.
+
+    Args:
+      data: 2-D float `Tensor` of shape `[n, m]`.
+      mask: 2-D Boolean `Tensor` of shape `[n, m]`.
+      dim: The dimension over which to compute the maximum.
+
+    Returns:
+      masked_maximums: N-D `Tensor`.
+        The maximized dimension is of size 1 after the operation.
+    """
+    axis_minimums = torch.min(data, dim, keepdims=True)[0]
+    masked_maximums = (
+        torch.max(
+            torch.multiply(data - axis_minimums, mask), dim, keepdims=True
+        )[0]
+        + axis_minimums
+    )
+    return masked_maximums
+    
+    
+class TripletSemiHardLoss(nn.Module):
+    def __init__(self, margin=0.2):
+        super(TripletSemiHardLoss, self).__init__()
+        
+        self.margin = margin
+
+    def forward(self, y_pred, y_true):
+        labels = y_true
+        embeddings = y_pred
+
+        convert_to_float32 = (
+            embeddings.dtype == torch.float16 or embeddings.dtype == torch.bfloat16
+        )
+        precise_embeddings = (
+            embeddings.type(torch.float32) if convert_to_float32 else embeddings
+        )
+
+        # Reshape label tensor to [batch_size, 1].
+        lshape = labels.shape
+        labels = labels.view(lshape[0], 1)
+
+        # Build pairwise squared distance matrix
+
+        pdist_matrix = torch.cdist(precise_embeddings, precise_embeddings)
+        
+#         print(pdist_matrix)
+
+        # Build pairwise binary adjacency matrix.
+        adjacency = torch.eq(labels, labels.T).long()
+#         print(adjacency)
+        # Invert so we can select negatives only.
+        adjacency_not = torch.logical_not(adjacency).long()
+#         print(adjacency_not)
+
+        batch_size = labels.shape[0]
+
+        # Compute the mask.
+        pdist_matrix_tile = torch.tile(pdist_matrix, (batch_size, 1))
+#         print(pdist_matrix_tile)
+        
+        mask = torch.logical_and(
+            torch.tile(adjacency_not, (batch_size, 1)),
+            torch.gt(
+                pdist_matrix_tile, pdist_matrix.T.reshape(-1, 1))
+            ).long()
+#         tf.print(mask)
+        
+        mask_final = torch.gt(
+                torch.sum(
+                    mask.type(torch.float32), axis=1, keepdims=True
+                ),
+                0.0,
+            ).view((batch_size, batch_size))
+        
+#         print(mask_final)
+        
+        mask_final = mask_final.T
+
+        adjacency_not = adjacency_not.type(torch.float32)
+        mask = mask.type(torch.float32)
+
+        # negatives_outside: smallest D_an where D_an > D_ap.
+        negatives_outside = _masked_minimum_torch(pdist_matrix_tile, mask).view(batch_size, batch_size)
+        
+#         print(negatives_outside)
+        
+        negatives_outside = negatives_outside.T
+
+        # negatives_inside: largest D_an.
+        negatives_inside = torch.tile(
+            _masked_maximum_torch(pdist_matrix, adjacency_not), (1, batch_size)
+        )
+#         print(negatives_inside)
+        
+        semi_hard_negatives = torch.where(mask_final, negatives_outside, negatives_inside)
+        
+#         print(semi_hard_negatives)
+
+        loss_mat = torch.add(self.margin, pdist_matrix - semi_hard_negatives)
+    
+#         print(loss_mat)
+
+        mask_positives = adjacency.type(torch.float32) - torch.diag(
+            torch.ones(batch_size).to('cuda')
+        )
+    
+#         print(mask_positives)
+
+        # In lifted-struct, the authors multiply 0.5 for upper triangular
+        #   in semihard, they take all positive pairs except the diagonal.
+        num_positives = torch.sum(mask_positives)
+        
+#         print(num_positives)
+
+        triplet_loss = torch.true_divide(
+            torch.sum(
+                torch.maximum(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))
+            ),
+            num_positives,
+        )
+    
+#         print(
+#                 torch.max(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))[0]
+#             )
+    ################################TF###############################
+#         triplet_loss = tf.math.truediv(
+#             tf.math.reduce_sum(
+#                 tf.math.maximum(tf.math.multiply(loss_mat, mask_positives), 0.0)
+#             ),
+#             num_positives,
+#         )
+    ###############################TF#######################################
+    
+#         print(triplet_loss)
+
+        if convert_to_float32:
+            return triplet_loss.type(embeddings.dtype)
+        else:
+            return triplet_loss
+    
+    
+###################################################################################################TRIPLET LOSS above###########################################################################################################
+
+class BertForEmbeddingClassification(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+
+        self.bert = BertModel(config)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, 128)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        pos_weight=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
+            Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
+            config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
+            `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+        
+        loss_fct = TripletSemiHardLoss()
+        loss = loss_fct(logits.squeeze(), labels.squeeze())
+        #print(loss)
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
 @add_start_docstrings(
     """
@@ -1843,9 +2244,6 @@ class BertForSequenceClassification(BertPreTrainedModel):
 
         loss = None
         if labels is not None:
-            # print (f"self.config.problem_type from init: {self.config.problem_type}")
-            # print (f"self.num_labels from init: {self.num_labels}")
-            # print (f"labels.dtype {labels.dtype}")
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
@@ -1853,7 +2251,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
                     self.config.problem_type = "single_label_classification"
                 else:
                     self.config.problem_type = "multi_label_classification"
-            # print (f"self.config.problem_type from init: {self.config.problem_type}")
+
             if self.config.problem_type == "regression":
                 loss_fct = MSELoss()
                 if self.num_labels == 1:
@@ -1861,8 +2259,6 @@ class BertForSequenceClassification(BertPreTrainedModel):
                 else:
                     loss = loss_fct(logits, labels)
             elif self.config.problem_type == "single_label_classification":
-                # print (logits)
-                # print (labels)
                 loss_fct = CrossEntropyLoss()
                 loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             elif self.config.problem_type == "multi_label_classification":
@@ -1975,6 +2371,98 @@ class BertForMultipleChoice(BertPreTrainedModel):
         )
 
 
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+def find_intervals(row):
+    """Find intervals of consecutive zeros or ones in the row."""
+    intervals = []
+    start = 0
+    current_value = row[0]
+    
+    for i in range(1, len(row)):
+        if row[i] != current_value:
+            intervals.append((start, i))  # Store the start and end of the interval
+            start = i
+            current_value = row[i]
+    
+    intervals.append((start, len(row)))  # Add the last interval
+    return intervals
+
+def custom_interval_loss(y_pred, y_true, label_mask):
+    """Calculate the custom loss with batch processing and label masks."""
+    # Ensure the predictions and targets are float tensors
+    y_pred = y_pred.float()
+    y_true = y_true.float()
+
+    total_loss = 0.0
+    batch_size = y_true.size(0)  # Batch size B
+    sequence_length = y_true.size(1)  # Sequence length N
+    
+    # Iterate over each batch
+    for batch_idx in range(batch_size):
+        # Get the label mask for the current batch (shape: [N])
+        mask = label_mask[batch_idx]
+        
+        # Iterate over each of the 6 rows
+        for row_idx in range(6):
+            # Get the target row and prediction row for this batch and row
+            true_row = y_true[batch_idx, :, row_idx]
+            pred_row = y_pred[batch_idx, :, row_idx]
+            
+            # Apply the mask to both the true and predicted rows
+            masked_true_row = true_row[mask]
+            masked_pred_row = pred_row[mask]
+
+            # print(true_row, masked_true_row)
+            # If there are no valid elements after masking, skip this row
+            if len(masked_true_row) == 0:
+                continue
+
+            # Find intervals of consecutive 0s or 1s in the masked target row
+            
+            intervals = find_intervals(masked_true_row)
+            
+            # Process each interval
+            for (start, end) in intervals:
+                # Get the target and prediction intervals
+                true_chunk = masked_true_row[start:end]
+                pred_chunk = masked_pred_row[start:end]
+                
+                # Apply softmax to both the prediction and target chunks
+                pred_softmax = F.softmax(pred_chunk, dim=0)
+                true_softmax = F.softmax(true_chunk, dim=0)
+                
+                # Compute MSE for the current interval
+                mse_loss = F.mse_loss(pred_softmax, true_softmax)
+                
+                # Add the loss to the total loss
+                total_loss += mse_loss * 1000
+
+    return total_loss
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 @add_start_docstrings(
     """
     Bert Model with a token classification head on top (a linear layer on top of the hidden-states output) e.g. for
@@ -1992,6 +2480,7 @@ class BertForTokenClassification(BertPreTrainedModel):
         self.config = config
         if getattr(self.config, 'problem_type', None) is None:
             self.config.problem_type = 'single_label_classification'
+
         self.bert = BertModel(config, add_pooling_layer=False)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
@@ -2044,6 +2533,110 @@ class BertForTokenClassification(BertPreTrainedModel):
 
         sequence_output = outputs[0]
 
+        sequence_output = self.dropout(sequence_output) ################### is it good for Decoder?
+        logits = self.classifier(sequence_output)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type == 'single_label_classification':
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == 'multi_label_classification':
+                if labels_mask is None:
+                    loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+                    loss = loss_fct(logits, labels)
+                else:
+                    loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=pos_weight)
+                    # print(logits.shape, labels.shape, labels_mask.shape)
+                    # loss = custom_interval_loss(F.sigmoid(logits), labels, labels_mask.bool()) # loss_fct(logits, labels)
+                    loss = loss_fct(logits, labels)
+                    loss = loss * labels_mask.unsqueeze(-1)
+                    loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else torch.tensor(0.0, device=logits.device)
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        final_model_output = dict()
+            
+        final_model_output['loss'] = loss
+        final_model_output['logits'] = logits
+        final_model_output['hidden_states'] = outputs.hidden_states
+
+        return final_model_output
+        
+        # return TokenClassifierOutput(
+        #     loss=loss,
+        #     logits=logits,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # )
+    
+    
+    
+    
+    
+class BertForRMTTokenClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+        if getattr(self.config, 'problem_type', None) is None:
+            self.config.problem_type = 'single_label_classification'
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size * 2, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        rmt_embeds=None,
+        labels=None,
+        labels_mask=None,
+        pos_weight=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        
+        # print(sequence_output.shape,  rmt_embeds.shape)
+        sequence_output = sequence_output + rmt_embeds
+
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
 
@@ -2072,6 +2665,181 @@ class BertForTokenClassification(BertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+    
+    
+    
+    
+class BertForConcatRMTTokenClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+        if getattr(self.config, 'problem_type', None) is None:
+            self.config.problem_type = 'single_label_classification'
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier_concat = nn.Linear(config.hidden_size * 2, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        rmt_embeds=None,
+        labels=None,
+        labels_mask=None,
+        pos_weight=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        
+        # print(sequence_output.shape,  rmt_embeds.shape)
+        sequence_output = torch.cat((sequence_output, rmt_embeds), dim=-1)
+
+        sequence_output = self.dropout(sequence_output)
+        logits = self.classifier_concat(sequence_output)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type == 'single_label_classification':
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == 'multi_label_classification':
+                if labels_mask is None:
+                    loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+                    loss = loss_fct(logits, labels)
+                else:
+                    loss_fct = BCEWithLogitsLoss(reduction='none', pos_weight=pos_weight)
+                    loss = loss_fct(logits, labels)
+                    loss = loss * labels_mask.unsqueeze(-1)
+                    loss = loss.sum() / labels_mask.sum() if labels_mask.sum() != 0.0 else torch.tensor(0.0, device=logits.device)
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return TokenClassifierOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
+    
+    
+    
+    
+    
+class BertForLetterLevelTokenClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    @add_code_sample_docstrings(
+        processor_class=_TOKENIZER_FOR_DOC,
+        checkpoint=_CHECKPOINT_FOR_DOC,
+        output_type=TokenClassifierOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        labels_mask=None,
+        pos_weight=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        return TokenClassifierOutput(
+            # loss=loss,
+            logits=sequence_output,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        ) 
+    
+    
+    
+    
 
 
 @add_start_docstrings(
