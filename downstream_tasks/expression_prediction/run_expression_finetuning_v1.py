@@ -49,6 +49,53 @@ parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config') 
 parser.add_argument('--save_predictions', type=bool, default=False, help='save predictions to file')
 
+def merge_default_params_with_dataset_config(dataset_config, default_params, logger):
+    """
+    Merge default parameters with dataset configuration.
+    
+    Args:
+        dataset_config: OmegaConf configuration for a specific dataset
+        default_params: OmegaConf configuration containing default parameters
+        logger: Logger instance for warnings
+    
+    Returns:
+        Updated dataset configuration with merged parameters
+    """
+    def _merge_nested_dicts(target, source, path=""):
+        """Recursively merge nested dictionaries, handling conflicts."""
+        for key, value in source.items():
+            current_path = f"{path}.{key}" if path else key
+            
+            if key in target:
+                # Parameter exists in both configs
+                if isinstance(value, dict) and isinstance(target[key], dict):
+                    # Both are dictionaries, merge recursively
+                    _merge_nested_dicts(target[key], value, current_path)
+                else:
+                    # Parameter exists in both, warn about conflict
+                    logger.warning(f"Parameter '{current_path}' is specified in both default params and dataset config. "
+                                 f"Using dataset config value: {target[key]}")
+            else:
+                # Parameter only exists in default params, add it
+                if isinstance(value, dict):
+                    # For nested dictionaries, create a copy to avoid reference issues
+                    target[key] = value.copy()
+                else:
+                    target[key] = value
+                logger.info(f"Added default parameter '{current_path}': {value}")
+    
+    # Create a copy of the dataset config to avoid modifying the original
+    # Use OmegaConf.copy() for proper OmegaConf object handling
+    merged_config = OmegaConf.create(OmegaConf.to_container(dataset_config, resolve=True))
+    
+    # Convert default_params to dict if it's an OmegaConf object for easier manipulation
+    default_params_dict = OmegaConf.to_container(default_params, resolve=True) if hasattr(default_params, 'items') else default_params
+    
+    # Merge default parameters into the dataset config
+    _merge_nested_dicts(merged_config, default_params_dict)
+    
+    return merged_config
+
 def main():
 
     args = parser.parse_args()
@@ -162,10 +209,21 @@ def main():
     
     # Instantiate training datasets
     train_datasets_configs = [v for k,v in experiment_config.items() if k.startswith('train_dataset')]
+    
+    # Get shared dataset parameters if they exist
+    shared_dataset_params = experiment_config.get('shared_dataset_params', None)
+    
     if hvd.rank() == 0:
         # it will be safe to init on rank 0 since init may write to files (i.e. creating cache)
-        # copy configs:
+        # copy configs and merge with default parameters if they exist
         tmp_configs = [config.copy() for config in train_datasets_configs]
+        
+        # Merge default parameters with each dataset config
+        if shared_dataset_params is not None:
+            for i, config in enumerate(tmp_configs):
+                logger.info(f"Merging default parameters with train_dataset_{i}")
+                tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, logger)
+        
         for config in tmp_configs:
             OmegaConf.update(config, "loglevel", logging.ERROR)
         train_datasets = [instantiate(config) for config in tmp_configs]
@@ -178,6 +236,11 @@ def main():
     assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible problem with horovod broadcast"
 
     # now we need to re-init datasets with correct n_keys and/or init on ranks>0
+    # Merge default parameters with each dataset config for all ranks
+    if shared_dataset_params is not None:
+        for i, config in enumerate(train_datasets_configs):
+            train_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, logger)
+    
     for config in train_datasets_configs:
         if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
             raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
@@ -210,8 +273,15 @@ def main():
     if len(valid_datasets_configs) > 0:
         if hvd.rank() == 0:
             logger.info(f'preparing validation data')
-            # copy configs:
+            # copy configs and merge with default parameters if they exist
             tmp_configs = [config.copy() for config in valid_datasets_configs]
+            
+            # Merge default parameters with each dataset config
+            if shared_dataset_params is not None:
+                for i, config in enumerate(tmp_configs):
+                    logger.info(f"Merging default parameters with valid_dataset_{i}")
+                    tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, logger)
+            
             for config in tmp_configs:
                 OmegaConf.update(config, "loglevel", logging.ERROR)
             valid_datasets = [instantiate(config) for config in tmp_configs]
@@ -224,6 +294,12 @@ def main():
             min_valid_chunk_size = -1
         min_valid_chunk_size = hvd.broadcast_object(min_valid_chunk_size, root_rank=0)
         assert min_valid_chunk_size > 0, f"min_valid_chunk_size {min_valid_chunk_size} >= 0: possible problem with horovod broadcast"
+        
+        # Merge default parameters with each dataset config for all ranks
+        if shared_dataset_params is not None:
+            for i, config in enumerate(valid_datasets_configs):
+                valid_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, logger)
+        
         for config in valid_datasets_configs:
             if "n_keys" in config and config["n_keys"] != min_valid_chunk_size:
                 raise ValueError(f"n_keys in config is different from min_valid_chunk_size: {config['n_keys']} != {min_valid_chunk_size}")

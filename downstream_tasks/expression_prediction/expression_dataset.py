@@ -120,15 +120,25 @@ class ExpressionDataset(Dataset):
             end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
             self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
 
-        assert (cell_type_specific_samples_path is not None) == (fraction_of_cell_type_specific_tpm_samples > 0), "cell_type_specific_samples_path must be provided if fraction_of_cell_type_specific_tpm_samples is not 0"
+        if fraction_of_cell_type_specific_tpm_samples == 0:
+            cell_type_specific_samples_path = None
+        else:
+            assert cell_type_specific_samples_path is not None, "cell_type_specific_samples_path must be provided if fraction_of_cell_type_specific_tpm_samples is not 0"
+            
         if cell_type_specific_samples_path is not None:
             self.N_cell_type_specific_samples = max(1, int(self.n_keys * fraction_of_cell_type_specific_tpm_samples))            
             self.cell_type_specific_samples = pd.read_csv(cell_type_specific_samples_path)
             self.cell_type_specific_samples.query("cell_id in @self.all_keys", inplace=True)
             self.cell_type_specific_samples.query("gene_id in @self.genes['gene_id'].values", inplace=True)
             self.logger.debug(f"Found {len(self.cell_type_specific_samples)} cell-type-specific samples")
-            self.cell_type_specific_samples = self.cell_type_specific_samples.groupby("gene_id")["cell_id"].apply(list).to_dict() # gene_id -> list of cell_ids
-            self.n_cell_chunks = 1
+            if len(self.cell_type_specific_samples) == 0: # this may happen, for example, if cell type specific samples are for another species
+                self.logger.warning(f"No cell-type-specific samples found for {self.targets_path} in {cell_type_specific_samples_path}")
+                self.cell_type_specific_samples = None
+                self.cell_type_specific_samples_path = None
+                self.N_cell_type_specific_samples = 0
+            else:
+                self.cell_type_specific_samples = self.cell_type_specific_samples.groupby("gene_id")["cell_id"].apply(list).to_dict() # gene_id -> list of cell_ids
+                self.n_cell_chunks = 1
         else:
             self.N_cell_type_specific_samples = 0
 
@@ -568,7 +578,7 @@ class ExpressionDataset(Dataset):
             self.open_files()
 
         gene_id = self.genes.iloc[original_idx]['gene_id']
-        self.logger.debug(f"idx: {idx}, gene_id: {gene_id}")
+        # self.logger.debug(f"idx: {idx}, gene_id: {gene_id}")
         gene_group = self.h5_cache[gene_id]
 
         # Get selected keys for current chunk
@@ -581,7 +591,7 @@ class ExpressionDataset(Dataset):
                                                 self.N_cell_type_specific_samples,
                                                 replace=False)
                     
-                self.logger.debug(f"N of _cell_type_specific_samples: {len(_cell_type_specific_samples)}")
+                # self.logger.debug(f"N of _cell_type_specific_samples: {len(_cell_type_specific_samples)}")
                 if len(_cell_type_specific_samples) < self.n_keys: # add random non-cell-type-specific samples
                     _not_cell_type_specific_samples = [key for key in self.all_keys if not key in _cell_type_specific_samples]
                     assert len(_not_cell_type_specific_samples) + len(_cell_type_specific_samples) == len(self.all_keys)
@@ -594,14 +604,14 @@ class ExpressionDataset(Dataset):
                 else:
                     selected_keys = _cell_type_specific_samples
             else:   # simply choice cell chunk randomly from available chunks
-                self.logger.debug(f"No cell-type-specific samples for {gene_id}")
+                # self.logger.debug(f"No cell-type-specific samples for {gene_id}")
                 chunk_idx = np.random.choice(len(self.selected_keys_chunks))
                 selected_keys = self.selected_keys_chunks[chunk_idx]
         else:
             chunk_idx = idx % self.n_cell_chunks
             selected_keys = self.selected_keys_chunks[chunk_idx]
 
-        self.logger.debug(f"selected_keys: {selected_keys}")
+        # self.logger.debug(f"selected_keys: {selected_keys}")
         
         input_ids = np.array(gene_group['input_ids'])
         starts = np.array(gene_group['starts'])
@@ -709,7 +719,11 @@ class ExpressionDataset(Dataset):
 
     # return main info about dataset for logging
     def describe(self):
-        return f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm})"
+        result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm})"
+        result += f"N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
+        if hasattr(self, 'dataset_description'):
+            result += f", dataset_description={self.dataset_description}"
+        return result
 
 def worker_init_fn(worker_id):
     worker_info = torch.utils.data.get_worker_info()
