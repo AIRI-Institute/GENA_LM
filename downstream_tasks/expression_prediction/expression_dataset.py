@@ -42,12 +42,24 @@ class ExpressionDataset(Dataset):
         tpm : str = "",
         hash_prefix = None,
         n_keys: Optional[int] = None,
+        token_len_for_fetch: int = 8,
+        fraction_of_cell_type_specific_tpm_samples: float = 0,
+        cell_type_specific_samples_path: str = None,
     ):
         """
         Args:
             bw (str): Name of the bigwig field suffix in targets_path. I.e. `bw` -> `forward_bw` and `reverse_bw`. If empty, bw will be False.
             tpm (str): Name of the tpm field in targets_path. If empty, tpm will be False.
             n_keys (int): Number of keys to split the tracks into. If None, all tracks will be used.
+            token_len_for_fetch (int): Length of token in bp used to compute fetch from the genome. I.e. get 8*len_in_token bp for tokenization.
+        Parameters:
+            paths : dict {metadata_id --> [
+                                    {"+": path_to_fwd_bw, "-": path_to_rev_bw}, 
+                                    path_to_tpm
+                                ]
+                         }
+            self.all_keys : list of all metadata_ids (a.k.a keys)
+            self.n_cell_chunks : number of chunks to split the tracks into. For cell-type-specific upsampling, self.n_cell_chunks = 1
         """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
@@ -60,6 +72,9 @@ class ExpressionDataset(Dataset):
         else:
             self.gen_tokenizer = gen_tokenizer
 
+        # Len of token in bp used to compute fetch from the genome
+        self.token_len_for_fetch = token_len_for_fetch
+
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
 
@@ -70,19 +85,7 @@ class ExpressionDataset(Dataset):
         self.tpm = tpm
         self.targets_path = targets_path
         self.read_paths()
-        if n_keys is None:
-            n_keys = len(self.paths.keys())
-        self.n_keys = n_keys
 
-        # Split tracks into chunks; if we have multiple datasets, we need them to have equal chunk lengths (a.k.a n_keys)
-        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
-        all_keys = list(self.paths.keys())
-        self.selected_keys_chunks = []
-        for i in range(self.n_cell_chunks):
-            start_idx = i * n_keys
-            end_idx = min((i + 1) * n_keys, len(all_keys))
-            self.selected_keys_chunks.append(all_keys[start_idx:end_idx])
-        
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
         self.transform_targets_tpm = transform_targets_tpm
@@ -103,7 +106,32 @@ class ExpressionDataset(Dataset):
         assert not "strand" in reverse_genes.columns.values, "reverse_intervals_path must not contain strand column"
         reverse_genes["strand"] = "-"
         self.genes = pd.concat([forward_genes, reverse_genes])
-        
+
+        if n_keys is None:
+            n_keys = len(self.paths.keys())
+        self.n_keys = n_keys
+
+        # Split tracks into chunks; if we have multiple datasets, we need them to have equal chunk lengths (a.k.a n_keys)
+        self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
+        self.all_keys = list(self.paths.keys())
+        self.selected_keys_chunks = []
+        for i in range(self.n_cell_chunks):
+            start_idx = i * n_keys
+            end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
+            self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
+
+        assert (cell_type_specific_samples_path is not None) == (fraction_of_cell_type_specific_tpm_samples > 0), "cell_type_specific_samples_path must be provided if fraction_of_cell_type_specific_tpm_samples is not 0"
+        if cell_type_specific_samples_path is not None:
+            self.N_cell_type_specific_samples = max(1, int(self.n_keys * fraction_of_cell_type_specific_tpm_samples))            
+            self.cell_type_specific_samples = pd.read_csv(cell_type_specific_samples_path)
+            self.cell_type_specific_samples.query("cell_id in @self.all_keys", inplace=True)
+            self.cell_type_specific_samples.query("gene_id in @self.genes['gene_id'].values", inplace=True)
+            self.logger.debug(f"Found {len(self.cell_type_specific_samples)} cell-type-specific samples")
+            self.cell_type_specific_samples = self.cell_type_specific_samples.groupby("gene_id")["cell_id"].apply(list).to_dict() # gene_id -> list of cell_ids
+            self.n_cell_chunks = 1
+        else:
+            self.N_cell_type_specific_samples = 0
+
         self.files_opened = False
 
         self.sequences = FastaFile(self.genome)
@@ -134,6 +162,7 @@ class ExpressionDataset(Dataset):
             assert all(self.paths[k][1] is not None for k in self.paths), "TPM paths are not set for some of the keys"
             tpm_hash_path = self.get_tpm_hash_path()
             if os.path.exists(tpm_hash_path):
+                self.logger.debug(f"Loading tpm cache from {tpm_hash_path}")
                 self.tpm_lookup = pickle.load(open(tpm_hash_path, "rb"))
                 assert len(self.tpm_lookup) == len(self.paths), "Number of tpm cache and paths are not the same"
                 assert all(key in self.tpm_lookup for key in self.paths.keys()), "All keys in paths must be in tpm cache"
@@ -141,8 +170,8 @@ class ExpressionDataset(Dataset):
                     assert pd.isna(value).sum().sum()==0, f"TPM cache contains NaN values for {key}"
             else:
                 self.tpm_cache = {}
-                for key, (bw_paths, tpm_path) in self.paths.items():
-                    self.logger.info(f"Reading tpm from {tpm_path}")
+                for key, (bw_paths, tpm_path) in tqdm.tqdm(self.paths.items()):
+                    self.logger.debug(f"Reading tpm from {tpm_path}")
                     tpm = pd.read_csv(tpm_path, dtype=np.float32)
                     self.tpm_cache[key] = tpm
                 self.tpm_lookup = {}
@@ -160,7 +189,7 @@ class ExpressionDataset(Dataset):
 
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
-        self.logger.info("Computing valid indices...")
+        self.logger.debug("Computing valid indices...")
         for idx in range(len(self.genes)):
             gene_id = self.genes.iloc[idx]['gene_id']
             
@@ -179,10 +208,31 @@ class ExpressionDataset(Dataset):
 
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
-        m.update(str('tokens').encode("utf-8"))
-        m.update(str(self.intervals_hash).encode("utf-8"))
-        m.update(str(self.genome).encode("utf-8"))
-        m.update(str(self.num_before).encode("utf-8"))
+        input_strings = []
+        
+        input_str = str('tokens')
+        m.update(input_str.encode("utf-8"))
+        input_strings.append(input_str)
+        
+        input_str = str(self.intervals_hash)
+        m.update(input_str.encode("utf-8"))
+        input_strings.append(input_str)
+        
+        input_str = str(self.genome)
+        m.update(input_str.encode("utf-8"))
+        input_strings.append(input_str)
+        
+        input_str = str(self.num_before)
+        m.update(input_str.encode("utf-8"))
+        input_strings.append(input_str)
+        
+        if self.token_len_for_fetch != 8: # 8 was default in first version of the dataset; TODO: remove at some point
+            input_str = str(self.token_len_for_fetch)
+            m.update(input_str.encode("utf-8"))
+            input_strings.append(input_str)
+            
+        self.logger.debug(f"Hash inputs: {input_strings}")
+        self.logger.debug(f"constructed hash suffix: {m.hexdigest()}")
         hash_suffix = m.hexdigest()
         hash_path = str(self.hash_prefix) + "." + hash_suffix
         return hash_path
@@ -324,14 +374,14 @@ class ExpressionDataset(Dataset):
 
         if (reverse == 0): # forward strand
             try:
-                sequence = self.sequences.fetch(chrom, max(start - self.num_before * 9, 0), start).upper()
+                sequence = self.sequences.fetch(chrom, max(start - self.num_before * self.token_len_for_fetch, 0), start).upper()
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
         else: # reverse strand
             chrom_length = self.sequences.get_reference_length(chrom)
             try:
-                sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * 9, chrom_length)).upper()
+                sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * self.token_len_for_fetch, chrom_length)).upper()
                 sequence = self.reverse_complement(sequence)
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
@@ -340,7 +390,8 @@ class ExpressionDataset(Dataset):
         encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
         encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
         encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
-        assert len(encoded_sequence['input_ids']) >= self.num_before, "Sequence is too short"
+        if len(encoded_sequence['input_ids']) < self.num_before:
+            self.logger.warning(f"Trying to tokenize seq before TSS, but it's too short: {len(encoded_sequence['input_ids'])} < {self.num_before}; {chrom}: {start}-{end} ({strand})")
         tokens_before = encoded_sequence['input_ids'][-self.num_before:]
         mapping = encoded_sequence['offset_mapping'][-self.num_before:]
         
@@ -512,16 +563,45 @@ class ExpressionDataset(Dataset):
         # Преобразуем индекс в исходный индекс гена
         gene_idx = idx // self.n_cell_chunks
         original_idx = self.valid_indices[gene_idx]
-        chunk_idx = idx % self.n_cell_chunks
-
-        # Получаем выбранные ключи для текущего чанка
-        selected_keys = self.selected_keys_chunks[chunk_idx]
         
         if not self.files_opened and self.bw:
             self.open_files()
 
         gene_id = self.genes.iloc[original_idx]['gene_id']
+        self.logger.debug(f"idx: {idx}, gene_id: {gene_id}")
         gene_group = self.h5_cache[gene_id]
+
+        # Get selected keys for current chunk
+        if self.N_cell_type_specific_samples > 0:
+            if gene_id in self.cell_type_specific_samples:
+                _cell_type_specific_samples = self.cell_type_specific_samples[gene_id]
+                if len(_cell_type_specific_samples) > self.N_cell_type_specific_samples:
+                    # subsample cell-type-specific samples
+                    _cell_type_specific_samples = np.random.choice(_cell_type_specific_samples,
+                                                self.N_cell_type_specific_samples,
+                                                replace=False)
+                    
+                self.logger.debug(f"N of _cell_type_specific_samples: {len(_cell_type_specific_samples)}")
+                if len(_cell_type_specific_samples) < self.n_keys: # add random non-cell-type-specific samples
+                    _not_cell_type_specific_samples = [key for key in self.all_keys if not key in _cell_type_specific_samples]
+                    assert len(_not_cell_type_specific_samples) + len(_cell_type_specific_samples) == len(self.all_keys)
+                    selected_keys = np.random.choice(_not_cell_type_specific_samples,
+                                                self.n_keys - len(_cell_type_specific_samples),
+                                                replace=False)
+                    selected_keys = np.concatenate([_cell_type_specific_samples, selected_keys])
+                elif len(_cell_type_specific_samples) > self.n_keys: # choose n_keys cell-type-specific samples
+                    raise ValueError(f"N of cell-type-specific samples for {gene_id} is greater than n_keys: {len(_cell_type_specific_samples)} > {self.n_keys}")                    
+                else:
+                    selected_keys = _cell_type_specific_samples
+            else:   # simply choice cell chunk randomly from available chunks
+                self.logger.debug(f"No cell-type-specific samples for {gene_id}")
+                chunk_idx = np.random.choice(len(self.selected_keys_chunks))
+                selected_keys = self.selected_keys_chunks[chunk_idx]
+        else:
+            chunk_idx = idx % self.n_cell_chunks
+            selected_keys = self.selected_keys_chunks[chunk_idx]
+
+        self.logger.debug(f"selected_keys: {selected_keys}")
         
         input_ids = np.array(gene_group['input_ids'])
         starts = np.array(gene_group['starts'])
