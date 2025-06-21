@@ -158,7 +158,7 @@ def main():
         # Ключи, которые нужно паддить
         pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
         # Ключи, которые передаются без изменений
-        no_pad_keys = ['desc_vectors', 'tpm']
+        no_pad_keys = ['desc_vectors', 'tpm', 'dataset_mean', 'dataset_deviation']
         # Строки
         special_keys = ['gene_id', 'selected_keys', 'dataset_description']
         
@@ -198,6 +198,8 @@ def main():
             batch_dict[key] = torch.stack(batch_dict[key])
         for key in no_pad_keys:
             batch_dict[key] = torch.stack(batch_dict[key])
+        for key in special_keys:
+            batch_dict[key] = np.stack(batch_dict[key])
         
         return batch_dict
 
@@ -416,6 +418,8 @@ def main():
         'labels': batch['labels'],
         'tpm': batch['tpm'],
         'gene_id': batch['gene_id'],
+        'dataset_mean': batch['dataset_mean'],
+        'dataset_deviation': batch['dataset_deviation'],
         'selected_keys' : batch['selected_keys'],
         'dataset_description' : batch['dataset_description'] }
         return result

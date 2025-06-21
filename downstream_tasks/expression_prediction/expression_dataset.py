@@ -630,7 +630,7 @@ class ExpressionDataset(Dataset):
             "attention_mask": torch.ones(l, dtype=torch.bool),
             "token_type_ids": torch.zeros(l, dtype=torch.int32),
             "chrom": chrom,
-            "gene_id": [gene_id] * self.n_keys,
+            "gene_id": np.array([gene_id] * self.n_keys),
             "name": self.genes.iloc[original_idx]['gene_name'],
         }
 
@@ -688,7 +688,10 @@ class ExpressionDataset(Dataset):
                 tpm_values = self.transform_targets_tpm(tpm_values)
         
         features["tpm"] = torch.from_numpy(tpm_values)
-        
+
+        # for debug purposes
+        features["dataset_mean"] = torch.tensor(np.mean(tpm_values), dtype=torch.float32)
+        features["dataset_deviation"] = torch.from_numpy((tpm_values - np.mean(tpm_values)) / np.mean(tpm_values))
 
         # Получаем desc_vectors только для текущего чанка
         desc_vectors_list = []
@@ -719,10 +722,11 @@ class ExpressionDataset(Dataset):
 
     # return main info about dataset for logging
     def describe(self):
-        result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm})"
-        result += f"N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
+        result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
+        result += f", N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
         if hasattr(self, 'dataset_description'):
             result += f", dataset_description={self.dataset_description}"
+        result += ")"
         return result
 
 def worker_init_fn(worker_id):

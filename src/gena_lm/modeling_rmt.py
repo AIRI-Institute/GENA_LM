@@ -663,6 +663,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                 output_hidden_states=None,
                 desc_vectors=None,
                 tpm = None,
+                dataset_mean = None,
+                dataset_deviation = None,
                 return_dict=None):
         
         kwargs = {
@@ -677,7 +679,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             'output_attentions': output_attentions,
             'output_hidden_states': output_hidden_states,
             'return_dict': return_dict,
-            'desc_vectors': desc_vectors
+            'desc_vectors': desc_vectors,
         }
 
         bs, seq_len = input_ids.shape
@@ -739,6 +741,11 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
 
             if desc_vectors is not None:
                 seg_kwargs['desc_vectors'] = desc_vectors[non_empty_mask]
+
+            if dataset_mean is not None:
+                seg_kwargs['dataset_mean'] = dataset_mean[non_empty_mask]
+            if dataset_deviation is not None:
+                seg_kwargs['dataset_deviation'] = dataset_deviation[non_empty_mask]
 
             if labels is not None:
                 seg_kwargs['labels'] = torch.stack(

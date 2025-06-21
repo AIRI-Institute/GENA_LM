@@ -34,7 +34,8 @@ class ExpressionCounts(BertPreTrainedModel):
         num_encoder_layers = 3,
         nhead = 8,
         weight = 1,
-        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth'
+        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
+        cell_type_specific_loss_fn = None,
     ):
         super().__init__(config)
         self.config = config
@@ -77,6 +78,7 @@ class ExpressionCounts(BertPreTrainedModel):
         self.activation = activation
         self.loss_fct = loss_fct
         self.weight = weight
+        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
 
         self.post_init()
 
@@ -96,6 +98,8 @@ class ExpressionCounts(BertPreTrainedModel):
         meta_input_ids=None,
         meta_attention_mask=None,
         desc_vectors = None,
+        dataset_mean = None,
+        dataset_deviation = None,
     ):
 
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -112,16 +116,22 @@ class ExpressionCounts(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=True,
         )
+        # Notaton:
+        # B - batch size
+        # N - number of cell types (a.k.a experiment descriptors)
+        # seq_len - sequence length (number of tokens in the input sequence)
+        # hidden_size - hidden size
+
         # (B, seq_len, hidden_size)
         sequence_output = bert_outputs.last_hidden_state
-        B, seq_len, hidden_size = sequence_output.shape
+        B, seq_len, hidden_size = sequence_output.shape # (B, seq_len, hidden_size)
 
-        # Предполагаем, что desc_vectors.shape -> (B, N, hidden_size)
+        # Assuming that desc_vectors.shape -> (B, N, hidden_size_desc), where N - number of cell types (a.k.a experiment descriptors)
         N = desc_vectors.shape[1]
 
         # Расширяем выход
         # (B, seq_len, hidden_size) -> (B, N, seq_len, hidden_size)      
-        seq_out_expanded = sequence_output.unsqueeze(1).expand(-1, N, -1, -1)
+        seq_out_expanded = sequence_output.unsqueeze(1).expand(-1, N, -1, -1) # B, N, seq_len, hidden_size
 
         # Прогоняем desc_vectors через MLP 
         # (B, N, hidden_size) -> (B*N, hidden_size)
@@ -165,10 +175,19 @@ class ExpressionCounts(BertPreTrainedModel):
                 cls_mask = labels_mask_reshaped[:, 0:1, :]  # (B*N, 1, 1)
                 other_mask = labels_mask_reshaped[:, 1:, :]  # (B*N, seq_len-1, 1)
 
-                # Считаем лосс для CLS
+                # Считаем лосс для CLS  
                 cls_loss = None
                 if cls_mask.sum() > 0:
-                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
+                    if self.cell_type_specific_loss_fn is not None:
+                        cls_loss = self.cell_type_specific_loss_fn(
+                            cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
+                            cls_preds = logits[:, 0:1, :].reshape(B,N),
+                            cls_mask = cls_mask.reshape(B,N),
+                            dataset_mean = dataset_mean,
+                            dataset_deviation = dataset_deviation
+                        )
+                    else:
+                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
 
                 # Считаем лосс для остальных токенов
                 other_loss = None
@@ -192,3 +211,58 @@ class ExpressionCounts(BertPreTrainedModel):
             hidden_states=bert_outputs.hidden_states,
             attentions=bert_outputs.attentions
         ), labels_reshaped, labels_mask_reshaped, cls_loss, other_loss
+
+
+class cell_type_specific_loss_fn(nn.Module):
+    def __init__(self, 
+                 weight_mean,
+                 loss_fct_mean = nn.MSELoss(reduction="none"), 
+                 loss_fct_diviation = nn.MSELoss(reduction="none"),
+                 normalize_by_mean = True,
+                 ):
+        super().__init__()
+        assert 0 <= weight_mean <= 1, "weight_mean must be between 0 and 1"
+        self.loss_fct_mean = loss_fct_mean
+        self.loss_fct_diviation = loss_fct_diviation
+        self.weight_mean = weight_mean
+        self.weight_diviation = 1 - weight_mean
+        self.normalize_by_mean = normalize_by_mean
+
+    def forward(self, cls_targets, cls_preds, cls_mask,
+                dataset_mean,
+                dataset_deviation):
+        # check that cls_mask.sum(dim=1) != 0
+        if cls_mask.sum(dim=1).eq(0).any():
+            raise ValueError("cls_mask.sum(dim=1) is 0 for some samples. This case is not supported.")
+            # this might happen if we have coverage data for a region where there is no tpm
+            # to handle this, we need to modify division by cls_mask.sum(dim=1) to be a sum over non-zero elements
+        
+        # mean across cell types
+        cls_targets_mean = (cls_targets * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
+        cls_targets_mean = cls_targets_mean.reshape(cls_targets_mean.shape[0],1)
+        cls_preds_mean = (cls_preds * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
+        cls_preds_mean = cls_preds_mean.reshape(cls_preds_mean.shape[0],1)
+
+        # TODO: DEBUG, remove at some point
+        # Check that dataset_mean tensor is close to cls_targets_mean tensor
+        if not torch.allclose(dataset_mean, torch.squeeze(cls_targets_mean), atol=1e-6, rtol=1e-5):
+            raise ValueError(f"dataset_mean tensor is not close to cls_targets_mean tensor. "
+                f"Max difference: {torch.max(torch.abs(dataset_mean - torch.squeeze(cls_targets_mean))) :.6f}")
+        # normalize by mean
+        if self.normalize_by_mean:
+            cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
+            cls_preds_diviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
+        else:
+            cls_targets_diviation = (cls_targets - cls_targets_mean)
+            cls_preds_diviation = (cls_preds - cls_preds_mean)
+
+        # TODO: DEBUG, remove at some point
+        if not torch.allclose(dataset_deviation, cls_targets_diviation, atol=1e-6, rtol=1e-5):
+            raise ValueError(f"dataset_deviation tensor is not close to cls_targets_deviation tensor. "
+                           f"Max difference: {torch.max(torch.abs(dataset_deviation - cls_targets_diviation)):.6f}")
+
+        # loss
+        cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()
+        cls_loss_diviation = (self.loss_fct_diviation(cls_preds_diviation, cls_targets_diviation) * cls_mask).sum() / cls_mask.sum()
+
+        return self.weight_mean * cls_loss_mean + self.weight_diviation * cls_loss_diviation
