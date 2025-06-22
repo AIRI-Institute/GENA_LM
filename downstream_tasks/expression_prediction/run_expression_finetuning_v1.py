@@ -48,6 +48,7 @@ torch.cuda.set_device(hvd.local_rank())
 parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config') 
 parser.add_argument('--save_predictions', type=bool, default=False, help='save predictions to file')
+parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
 
 def merge_default_params_with_dataset_config(dataset_config, default_params, logger):
     """
@@ -97,8 +98,9 @@ def merge_default_params_with_dataset_config(dataset_config, default_params, log
     return merged_config
 
 def main():
-
     args = parser.parse_args()
+    logging.basicConfig(format=logger_fmt, level=args.log_level)
+    logger = logging.getLogger()
     experiment_config_path = Path(args.experiment_config).expanduser().absolute()
 
     with initialize_config_dir(str(experiment_config_path.parents[0])):
@@ -583,7 +585,7 @@ def main():
 
                     #Корреляция только для 5 файлов из borzoi
                     target_genes = ['ENCFF123KIW', 'ENCFF784MDF', 'ENCFF236XOK', 'ENCFF242BWW']
-                    target_metrics = calculate_target_genes_metrics(df_true, df_pred, target_genes)
+                    target_metrics = calculate_target_genes_metrics(df_true, df_pred, target_genes, logger=logger)
                     metrics[f'pearson_corr_4_cells_borzoi_cells_{dataset_desc}'] = target_metrics['corr_selected_cell_types']
                     metrics[f'pearson_corr_4_cells_borzoi_genes_{dataset_desc}'] = target_metrics['corr_selected_genes']
                     
@@ -594,7 +596,8 @@ def main():
                         df_true, 
                         df_pred, 
                         experiment_config.selected_targets_path, 
-                        need_log=False
+                        need_log=False,
+                        logger=logger
                     )
                     if score:
                         metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
