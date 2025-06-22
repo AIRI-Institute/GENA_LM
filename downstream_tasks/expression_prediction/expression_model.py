@@ -257,9 +257,9 @@ class cell_type_specific_loss_fn(nn.Module):
             cls_preds_diviation = (cls_preds - cls_preds_mean)
 
         # TODO: DEBUG, remove at some point
-        if not torch.allclose(dataset_deviation, cls_targets_diviation, atol=1e-6, rtol=1e-5):
+        if not torch.allclose(dataset_deviation[cls_mask.bool()], cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
             raise ValueError(f"dataset_deviation tensor is not close to cls_targets_deviation tensor. "
-                           f"Max difference: {torch.max(torch.abs(dataset_deviation - cls_targets_diviation)):.6f}")
+                           f"Max difference: {torch.max(torch.abs(dataset_deviation[cls_mask.bool()] - cls_targets_diviation[cls_mask.bool()])):.6f}")
 
         # loss
         cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()

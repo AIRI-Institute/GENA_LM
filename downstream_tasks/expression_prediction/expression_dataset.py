@@ -690,7 +690,7 @@ class ExpressionDataset(Dataset):
         features["tpm"] = torch.from_numpy(tpm_values)
 
         # for debug purposes
-        features["dataset_mean"] = torch.tensor(np.mean(tpm_values), dtype=torch.float32)
+        features["dataset_mean"] = torch.tensor(np.nanmean(tpm_values), dtype=torch.float32)
         features["dataset_deviation"] = torch.from_numpy((tpm_values - np.mean(tpm_values)) / np.mean(tpm_values))
 
         # Получаем desc_vectors только для текущего чанка
