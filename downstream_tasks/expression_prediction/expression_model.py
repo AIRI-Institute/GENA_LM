@@ -258,6 +258,21 @@ class cell_type_specific_loss_fn(nn.Module):
 
         # TODO: DEBUG, remove at some point
         if not torch.allclose(dataset_deviation[cls_mask.bool()], cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
+            # shape is (B, N)
+            # find batch where allclose is False
+            for batch_idx in range(cls_mask.shape[0]):
+                if not torch.allclose(dataset_deviation[batch_idx], cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
+                    print (f"Found batch_idx: {batch_idx}")
+                    break
+            # provide some debug information
+            print (f"dataset_deviation tensor is not close to cls_targets_deviation tensor. ")
+            print (f"batch_idx: {batch_idx}")
+            print (f"dataset_mean: {dataset_mean[batch_idx]}")
+            print (f"cls_targets_mean: {cls_targets_mean[batch_idx]}")
+            print (f"dataset_deviation: {dataset_deviation[batch_idx]}")
+            print (f"cls_targets_diviation: {cls_targets_diviation[batch_idx]}")
+            print (f"cls_mask: {cls_mask[batch_idx]}")
+
             raise ValueError(f"dataset_deviation tensor is not close to cls_targets_deviation tensor. "
                            f"Max difference: {torch.max(torch.abs(dataset_deviation[cls_mask.bool()] - cls_targets_diviation[cls_mask.bool()])):.6f}")
 
