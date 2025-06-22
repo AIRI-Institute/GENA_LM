@@ -360,10 +360,6 @@ class cell_type_specific_loss_fn(nn.Module):
         # TODO: DEBUG, remove at some point
         # Check that dataset_mean tensor is close to cls_targets_mean tensor
         if not torch.allclose(dataset_mean, torch.squeeze(cls_targets_mean), atol=1e-6, rtol=1e-5):
-            print (dataset_mean)
-            print (torch.squeeze(cls_targets_mean))
-            print ("----CLS mask:---")
-            print (cls_mask)
             raise ValueError(f"dataset_mean tensor is not close to cls_targets_mean tensor. "
                 f"Max difference: {torch.max(torch.abs(dataset_mean - torch.squeeze(cls_targets_mean))) :.6f}")
         # normalize by mean
