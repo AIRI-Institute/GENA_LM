@@ -679,7 +679,7 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
             'output_attentions': output_attentions,
             'output_hidden_states': output_hidden_states,
             'return_dict': return_dict,
-            'desc_vectors': desc_vectors,
+            'desc_vectors': desc_vectors
         }
 
         bs, seq_len = input_ids.shape

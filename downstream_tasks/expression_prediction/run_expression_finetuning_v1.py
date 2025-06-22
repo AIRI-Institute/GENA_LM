@@ -337,6 +337,9 @@ def main():
 
     if "model_kwargs" in experiment_config:
         model_kwargs = instantiate(experiment_config["model_kwargs"])
+        # Add logging to verify checkpoint is being passed correctly
+        if hvd.rank() == 0 and "bert_cpt" in model_kwargs:
+            logger.info(f"Checkpoint path being used: {model_kwargs['bert_cpt']}")
     else:
         model_kwargs = {}
 
@@ -350,7 +353,20 @@ def main():
     if hvd.rank() == 0:
         logger.info(f'Using backbone model class: {model_cls}')
     model = model_cls(**model_kwargs)
+    # Add logging to confirm model initialization
+    if hvd.rank() == 0:
+        logger.info(f'Model initialized. Has attribute bert_cpt: {"bert_cpt" in dir(model)}')
     model_activation_fn = model.activation
+
+    print(model)
+
+    if getattr(args, "use_torch_compile", False):
+        if hvd.rank() == 0:
+            logger.info("Model structure before compilation:")
+            logger.info(str(model))
+            logger.info("Compiling model with torch.compile()")
+        model = torch.compile(model)
+
 
     if args.num_mem_tokens is not None:
         rmt_config = {
@@ -425,11 +441,10 @@ def main():
         'selected_keys' : batch['selected_keys'],
         'dataset_description' : batch['dataset_description'] }
         return result
-
        
     def keep_for_metrics_fn(batch, output):
         predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
-        labels_segm = [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
+        labels_segm =  [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
         rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
         
         y_rmt, p_rmt = [], []
@@ -458,7 +473,7 @@ def main():
 
         flat_gene_id = list(chain.from_iterable(batch['gene_id']))
         masked_gene_id = list(compress(flat_gene_id, mask)) 
-        flat_keys_id = list(chain.from_iterable(batch['selected_keys']))
+        keys_id = list(chain.from_iterable(batch['selected_keys']))
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
         
         preds = p_rmt.cpu().unsqueeze(1)
@@ -474,7 +489,7 @@ def main():
         data['tpm_true'] = y_rmt.tolist()
         data['tpm_preds'] = p_rmt.tolist()
         data['gene_id'] = masked_gene_id
-        data['keys_id'] = flat_keys_id
+        data['keys_id'] = keys_id
         data['dataset_description'] = dataset_description
         data['_product'] = torch.sum(preds * target, dim=reduce_dims).unsqueeze(0)
         data['_true'] = torch.sum(target, dim=reduce_dims).unsqueeze(0)
@@ -484,7 +499,7 @@ def main():
         data['_count'] = torch.sum(torch.ones_like(target), dim=reduce_dims).unsqueeze(0)
         return data
 
-    def make_metrics_fn(model_path, save_predictions=False):
+    def make_metrics_fn(model_path, save_predictions=True):
         def metrics_fn(data):
             metrics = {}
         
@@ -628,7 +643,8 @@ def main():
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
     trainer = Trainer(args, model, optimizer, train_dataloader, valid_dataloader=valid_dataloader,
-                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn) #, batch_metrics_fn=batch_metrics_fn)
+                      train_sampler=train_sampler, batch_transform_fn=batch_transform_fn,  metrics_fn=metrics_fn, keep_for_metrics_fn=keep_for_metrics_fn)
+                    #  batch_metrics_fn=batch_metrics_fn,
     # train loop
     trainer.train()
     # make sure all workers are done

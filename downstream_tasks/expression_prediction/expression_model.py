@@ -4,6 +4,10 @@ from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
+from transformers import AutoConfig
+import numpy as np
+
+import torch.nn.functional as F
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -13,6 +17,40 @@ class ExpressionModelOutput(TokenClassifierOutput):
     other_loss: Optional[torch.FloatTensor] = None
     mean_loss: Optional[torch.FloatTensor] = None
     diviation_loss: Optional[torch.FloatTensor] = None
+
+class FlashTransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1):
+        super().__init__()
+        self.self_attn_norm = nn.LayerNorm(d_model)
+        self.ffn_norm       = nn.LayerNorm(d_model)
+        self.dropout        = nn.Dropout(dropout)
+
+        # feed-forward
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.nhead = nhead
+        self.d_model = d_model
+
+    def forward(self, src, src_key_padding_mask=None):
+        # --- Flash self-attention block (pre-norm) ---
+        x = self.self_attn_norm(src)                                          # (B, S, D)
+        # note: PyTorch expects shape (S, B, D) for multi-head, so we transpose/untranspose
+        x_t = x.transpose(0, 1)                                               # (S, B, D)
+        attn_out = F.scaled_dot_product_attention(
+            x_t, x_t, x_t,
+            attn_mask=None,
+            dropout_p=self.dropout.p if self.training else 0.0,
+            is_causal=False
+        )                                                                     # (S, B, D)
+        attn_out = attn_out.transpose(0, 1)                                   # (B, S, D)
+        src = src + self.dropout(attn_out)
+
+        # --- Feed-forward block (pre-norm) ---
+        y = self.ffn_norm(src)
+        y = self.linear2(self.dropout(F.gelu(self.linear1(y))))
+        src = src + self.dropout(y)
+        return src
 
 class ExpressionCounts(BertPreTrainedModel):
     """
@@ -42,35 +80,32 @@ class ExpressionCounts(BertPreTrainedModel):
         activation = nn.Identity(),
         hidden_size_desc = 768,
         hidden_ff = 1024,
-        num_encoder_layers = 3,
-        nhead = 8,
+        num_encoder_layers = 12,
+        nhead = 12,
         weight = 1,
-        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
-        cell_type_specific_loss_fn = None,
+        bert_cpt = None,
+        cell_type_specific_loss_fn = None
     ):
         super().__init__(config)
-        self.config = config
-        self.hidden_size_desc = hidden_size_desc 
 
-        # 1) GENA
-        self.bert = BertModel(config, add_pooling_layer=False)
+        model_name  = 'AIRI-Institute/gena-lm-bert-base-t2t'
+        self.config = AutoConfig.from_pretrained(model_name)
+        
+        # Initialize model components
+        self.hidden_size_desc = hidden_size_desc
+        model_hidden_size = self.config.hidden_size  # This will be 1024 for BERT-large
 
-        checkpoint = torch.load(bert_cpt, map_location='cpu')
-        state_dict = checkpoint['model_state_dict']
-        updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
-        missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-        if len(missing_k) != 0:
-            print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
-        if len(unexpected_k) != 0:
-            print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
+        # Initialize all model components
+        if bert_cpt is None:
+            print(f"No checkpoint provided. Loading BERT weights from HuggingFace model: {model_name}")
+            self.bert = BertModel.from_pretrained(model_name, config=self.config, add_pooling_layer=False)
+        else:
+            self.bert = BertModel(config, add_pooling_layer=False)
 
-
-        # 2) MLP для desc_vectors
         self.desc_fc = nn.Sequential(
-            nn.Linear(self.hidden_size_desc, config.hidden_size),
+            nn.Linear(self.hidden_size_desc, model_hidden_size),
             nn.LeakyReLU(),
-           # nn.Dropout(p=0.1),
-            nn.Linear(config.hidden_size, config.hidden_size),
+            nn.Linear(model_hidden_size, model_hidden_size),
         )
 
         # 3) Encoder
@@ -81,15 +116,77 @@ class ExpressionCounts(BertPreTrainedModel):
             batch_first=True
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
+        
+        self.classifier = nn.Linear(model_hidden_size, 1)
+        
+        # Initialize new layers with Xavier/Glorot initialization
+        def _init_weights(module):
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+        self.transformer_encoder.apply(_init_weights)
+        self.desc_fc.apply(_init_weights)
+        self.classifier.apply(_init_weights)
 
-        # 4) Classifier
-        self.classifier = nn.Linear(config.hidden_size, 1)
+        # Load checkpoint if provided
+        if bert_cpt is not None:
+            print(f"Loading checkpoint from {bert_cpt}")
+            try:
+                # First try loading with weights_only=True and numpy support
+                import torch.serialization
+                with torch.serialization.safe_globals(['numpy.core.multiarray.scalar']):
+                    checkpoint = torch.load(bert_cpt, map_location='cpu', weights_only=True)
+                    print(f"Successfully loaded checkpoint with weights_only=True, checkpoint type: {type(checkpoint)}")
+            except Exception as e:
+                print(f"Warning: Failed to load with weights_only=True, attempting legacy load: {str(e)}")
+                # Fallback to legacy loading if the checkpoint is from an older version
+                checkpoint = torch.load(bert_cpt, map_location='cpu', weights_only=False)
+                print(f"Successfully loaded checkpoint with legacy method, checkpoint type: {type(checkpoint)}")
+            
+            # Print checkpoint keys to verify structure
+            if isinstance(checkpoint, dict):
+                print(f"Checkpoint top-level keys: {list(checkpoint.keys())}")
+            
+            # Handle both full model checkpoint and BERT-only checkpoint
+            if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                # Full model checkpoint
+                print("Loading full model checkpoint with 'model_state_dict'")
+                state_dict = checkpoint['model_state_dict']
+                missing_k, unexpected_k = self.load_state_dict(state_dict, strict=True)
+                   # Add after loading checkpoint
+                print("Descriptor FC weights loaded:", torch.sum(self.desc_fc[0].weight).item())
+                print("Transformer Encoder weights loaded:", torch.sum(self.transformer_encoder[0].self_attn.in_proj_weight).item())
+                print("Classifier weights loaded:", torch.sum(self.classifier.weight).item())
+            else:
+                # BERT-only checkpoint
+                print("Loading BERT-only checkpoint")
+                if isinstance(checkpoint, dict):
+                    state_dict = {k.replace('bert.', ''): v for k, v in checkpoint.items()}
+                else:
+                    state_dict = checkpoint
+                missing_k, unexpected_k = self.bert.load_state_dict(state_dict, strict=False)
+            
+            if len(missing_k) > 0:
+                print(f'Warning: {len(missing_k)} keys were not loaded from checkpoint!')
+                print(f'First few missing keys: {missing_k[:5]}')
+            if len(unexpected_k) > 0:
+                print(f'Warning: {len(unexpected_k)} unexpected keys in checkpoint!')
+                print(f'First few unexpected keys: {unexpected_k[:5]}')
 
-        # 5) Loss
+        # Verify model loaded weights properly
+        sample_weight = next(self.bert.parameters())
+        print(f"Model loaded with weights (sample mean: {sample_weight.mean().item():.6f})")
+        print(f"Total parameters: {sum(p.numel() for p in self.parameters())}")
+
+        # Loss setup
         self.activation = activation
         self.loss_fct = loss_fct
         self.weight = weight
-        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
+        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn        
 
         self.post_init()
 
@@ -127,22 +224,16 @@ class ExpressionCounts(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=True,
         )
-        # Notaton:
-        # B - batch size
-        # N - number of cell types (a.k.a experiment descriptors)
-        # seq_len - sequence length (number of tokens in the input sequence)
-        # hidden_size - hidden size
-
         # (B, seq_len, hidden_size)
         sequence_output = bert_outputs.last_hidden_state
-        B, seq_len, hidden_size = sequence_output.shape # (B, seq_len, hidden_size)
+        B, seq_len, hidden_size = sequence_output.shape
 
-        # Assuming that desc_vectors.shape -> (B, N, hidden_size_desc), where N - number of cell types (a.k.a experiment descriptors)
+        # Предполагаем, что desc_vectors.shape -> (B, N, hidden_size)
         N = desc_vectors.shape[1]
 
         # Расширяем выход
         # (B, seq_len, hidden_size) -> (B, N, seq_len, hidden_size)      
-        seq_out_expanded = sequence_output.unsqueeze(1).expand(-1, N, -1, -1) # B, N, seq_len, hidden_size
+        seq_out_expanded = sequence_output.unsqueeze(1).expand(-1, N, -1, -1)
 
         # Прогоняем desc_vectors через MLP 
         # (B, N, hidden_size) -> (B*N, hidden_size)
@@ -186,7 +277,11 @@ class ExpressionCounts(BertPreTrainedModel):
                 cls_mask = labels_mask_reshaped[:, 0:1, :]  # (B*N, 1, 1)
                 other_mask = labels_mask_reshaped[:, 1:, :]  # (B*N, seq_len-1, 1)
 
-                # Считаем лосс для CLS  
+                # if torch.isnan(labels_reshaped[:, 0:1, :].reshape(B,N)).any():
+                #     print (f"cls_mask: {cls_mask}")
+                #     print (f"labels: {labels_reshaped[:, 0:1, :].reshape(B,N)}")
+                #     raise ValueError("labels_reshaped contains NaN values")
+                # Считаем лосс для CLS
                 cls_loss = None
                 if cls_mask.sum() > 0:
                     if self.cell_type_specific_loss_fn is not None:
@@ -265,6 +360,10 @@ class cell_type_specific_loss_fn(nn.Module):
         # TODO: DEBUG, remove at some point
         # Check that dataset_mean tensor is close to cls_targets_mean tensor
         if not torch.allclose(dataset_mean, torch.squeeze(cls_targets_mean), atol=1e-6, rtol=1e-5):
+            print (dataset_mean)
+            print (torch.squeeze(cls_targets_mean))
+            print ("----CLS mask:---")
+            print (cls_mask)
             raise ValueError(f"dataset_mean tensor is not close to cls_targets_mean tensor. "
                 f"Max difference: {torch.max(torch.abs(dataset_mean - torch.squeeze(cls_targets_mean))) :.6f}")
         # normalize by mean

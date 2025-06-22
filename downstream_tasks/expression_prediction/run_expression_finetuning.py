@@ -353,7 +353,7 @@ def main():
         data['_count'] = torch.sum(torch.ones_like(target), dim=reduce_dims).unsqueeze(0)
         return data
 
-    def batch_metrics_fn(batch, output):
+    def batch_metrics_fn(batch, output, is_validation=None):
         metrics = {'loss': output['loss'].detach()}
 
         predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
