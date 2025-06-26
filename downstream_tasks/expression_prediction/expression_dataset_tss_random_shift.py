@@ -42,6 +42,9 @@ class ExpressionDataset(Dataset):
         tpm : str = "",
         hash_prefix = None,
         n_keys: Optional[int] = None,
+        shift: int = 0,
+        shuffle: bool = False
+
     ):
         """
         Args:
@@ -70,6 +73,7 @@ class ExpressionDataset(Dataset):
         self.tpm = tpm
         self.targets_path = targets_path
         self.read_paths()
+        self.shift = shift
 
         if n_keys is None:
             n_keys = len(self.paths.keys())
@@ -151,6 +155,10 @@ class ExpressionDataset(Dataset):
                     self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
                 pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
 
+        self.shuffle = shuffle
+        if self.shuffle:
+            self.shuffled_gene_map = self._create_shuffled_gene_map()
+
         # Добавляем список валидных индексов
         self.valid_indices = []
         if not self.bw:  # Вычисляем валидные индексы только если bw=False
@@ -158,6 +166,13 @@ class ExpressionDataset(Dataset):
         else:
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
+
+    def _create_shuffled_gene_map(self):
+        np.random.seed(self.seed) 
+        gene_ids = self.genes['gene_id'].tolist()
+        shuffled_gene_ids = gene_ids[:]
+        np.random.shuffle(shuffled_gene_ids)
+        return dict(zip(gene_ids, shuffled_gene_ids))
 
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
@@ -181,7 +196,9 @@ class ExpressionDataset(Dataset):
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('tokens').encode("utf-8"))
-        m.update(str('test2').encode("utf-8"))
+        m.update(str('random').encode("utf-8"))
+        m.update(str('tss_test').encode("utf-8"))
+        m.update(str(self.shift).encode("utf-8"))
         m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
@@ -192,7 +209,9 @@ class ExpressionDataset(Dataset):
     def get_signals_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
-        m.update(str('test2').encode("utf-8"))
+        m.update(str('random').encode("utf-8"))
+        m.update(str('tss_test').encode("utf-8"))
+        m.update(str(self.shift).encode("utf-8"))
         m.update(str(self.intervals_hash).encode("utf-8"))
         m.update(str(self.targets_path).encode("utf-8"))
         m.update(str(self.genome).encode("utf-8"))
@@ -360,21 +379,21 @@ class ExpressionDataset(Dataset):
         #     token_lengths.append((token_id, token, length))
 
         token_lengths = []
-    
         if reverse == 0:
-            start_gene = start - sum(t[2] for t in token_lengths)
+            chrom_length = self.sequences.get_reference_length(chrom)
+            start_gene = min(start + self.shift,chrom_length - 50)
         else:
-            start_gene = end
+            start_gene = max(start - self.shift,50)
     
         if reverse == 0:
             try:
-                sequence = self.sequences.fetch(chrom, start , start + 9 * 1500).upper()
+                sequence = self.sequences.fetch(chrom, min(start + self.shift,chrom_length - 50), min(start + self.shift + 9 * 1500,chrom_length)).upper()
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
                 print(e.__traceback__)
         else:
             try:
-                sequence = self.sequences.fetch(chrom, start - 9 * 1500 , start ).upper()
+                sequence = self.sequences.fetch(chrom, max(0,start - 9 * 1500 - self.shift), max(start - self.shift,50) ).upper()
                 sequence = self.reverse_complement(sequence)
             except ValueError as e:
                 self.logger.error(f"Error sequence {i}")
@@ -404,7 +423,7 @@ class ExpressionDataset(Dataset):
         token_lengths_df['chrom'] = chrom
         if reverse == 1: # reverse strand
             token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
-        token_lengths_df = token_lengths_df[50:]
+        # token_lengths_df = token_lengths_df[50:]
         return start_gene, token_lengths_df
 
     def process_region_signals(self, bw, chrom, starts, ends, l, strand):
@@ -592,12 +611,17 @@ class ExpressionDataset(Dataset):
             features["start"] = starts[l-1]
             features["end"] = ends[0]
 
+        if self.shuffle:
+            gene_id_tpm = self.shuffled_gene_map[gene_id]
+        else:
+            gene_id_tpm = gene_id
+
         # Получаем TPM значения
         tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
         if self.tpm:
             for i, key in enumerate(selected_keys):
-                if gene_id in self.tpm_lookup[key].index:
-                    tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
+                if gene_id_tpm in self.tpm_lookup[key].index:
+                    tpm_values[i] = self.tpm_lookup[key].loc[gene_id_tpm].iloc[0]
             
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
