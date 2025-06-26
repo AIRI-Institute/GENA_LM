@@ -381,42 +381,45 @@ class ExpressionDataset(Dataset):
         end = row["TES"] 
         strand = row["strand"]
         reverse = 0 if strand == "+" else 1
-
-        if (reverse == 0): # forward strand
-            try:
-                sequence = self.sequences.fetch(chrom, max(start - self.num_before * self.token_len_for_fetch, 0), start).upper()
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-        else: # reverse strand
-            chrom_length = self.sequences.get_reference_length(chrom)
-            try:
-                sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * self.token_len_for_fetch, chrom_length)).upper()
-                sequence = self.reverse_complement(sequence)
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-                print(e.__traceback__)
-            
-        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-        encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
-        encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
-        if len(encoded_sequence['input_ids']) < self.num_before:
-            self.logger.warning(f"Trying to tokenize seq before TSS, but it's too short: {len(encoded_sequence['input_ids'])} < {self.num_before}; {chrom}: {start}-{end} ({strand})")
-        tokens_before = encoded_sequence['input_ids'][-self.num_before:]
-        mapping = encoded_sequence['offset_mapping'][-self.num_before:]
-        
         token_lengths = []
-        for i, (start_i, end_i) in enumerate(mapping):
-            token_id = tokens_before[i]
-            if (token_id == 5):
-                if i > 0:
-                    length = end_i - mapping[i-1][1] 
+        
+        if self.num_before > 0: 
+
+            if (reverse == 0): # forward strand
+                try:
+                    sequence = self.sequences.fetch(chrom, max(start - self.num_before * self.token_len_for_fetch, 0), start).upper()
+                except ValueError as e:
+                    self.logger.error(f"Error sequence {i}")
+                    print(e.__traceback__)
+            else: # reverse strand
+                chrom_length = self.sequences.get_reference_length(chrom)
+                try:
+                    sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * self.token_len_for_fetch, chrom_length)).upper()
+                    sequence = self.reverse_complement(sequence)
+                except ValueError as e:
+                    self.logger.error(f"Error sequence {i}")
+                    print(e.__traceback__)
+                
+            encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
+            encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
+            encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+            if len(encoded_sequence['input_ids']) < self.num_before:
+                self.logger.warning(f"Trying to tokenize seq before TSS, but it's too short: {len(encoded_sequence['input_ids'])} < {self.num_before}; {chrom}: {start}-{end} ({strand})")
+            tokens_before = encoded_sequence['input_ids'][-self.num_before:]
+            mapping = encoded_sequence['offset_mapping'][-self.num_before:]
+            
+            
+            for i, (start_i, end_i) in enumerate(mapping):
+                token_id = tokens_before[i]
+                if (token_id == 5):
+                    if i > 0:
+                        length = end_i - mapping[i-1][1] 
+                    else:
+                        length = end_i
                 else:
-                    length = end_i
-            else:
-                length = end_i - start_i  
-            token = self.gen_tokenizer.decode([token_id])  
-            token_lengths.append((token_id, token, length))
+                    length = end_i - start_i  
+                token = self.gen_tokenizer.decode([token_id])  
+                token_lengths.append((token_id, token, length))
     
         if reverse == 0:
             start_gene = start - sum(t[2] for t in token_lengths)
