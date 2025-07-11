@@ -2,6 +2,15 @@ import torch
 import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
+from typing import Optional
+
+class ExpressionModelOutput(TokenClassifierOutput):
+    labels_reshaped: Optional[torch.FloatTensor] = None
+    labels_mask_reshaped: Optional[torch.FloatTensor] = None
+    cls_loss: Optional[torch.FloatTensor] = None
+    other_loss: Optional[torch.FloatTensor] = None
+    loss_mean: Optional[torch.FloatTensor] = None
+    loss_diviation: Optional[torch.FloatTensor] = None
 
 class ExpressionCounts(BertPreTrainedModel):
     """
@@ -179,7 +188,7 @@ class ExpressionCounts(BertPreTrainedModel):
                 cls_loss = None
                 if cls_mask.sum() > 0:
                     if self.cell_type_specific_loss_fn is not None:
-                        cls_loss = self.cell_type_specific_loss_fn(
+                        cls_loss, mean_loss, diviation_loss = self.cell_type_specific_loss_fn(
                             cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
                             cls_preds = logits[:, 0:1, :].reshape(B,N),
                             cls_mask = cls_mask.reshape(B,N),
@@ -188,6 +197,8 @@ class ExpressionCounts(BertPreTrainedModel):
                         )
                     else:
                         cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
+                        mean_loss = None
+                        diviation_loss = None
 
                 # Считаем лосс для остальных токенов
                 other_loss = None
@@ -205,12 +216,18 @@ class ExpressionCounts(BertPreTrainedModel):
         if not return_dict:
             return (loss, logits)
 
-        return TokenClassifierOutput(
+        return ExpressionModelOutput(
             loss=loss,
             logits=logits,
             hidden_states=bert_outputs.hidden_states,
-            attentions=bert_outputs.attentions
-        ), labels_reshaped, labels_mask_reshaped, cls_loss, other_loss
+            attentions=bert_outputs.attentions,
+            labels_reshaped=labels_reshaped,
+            labels_mask_reshaped=labels_mask_reshaped,
+            cls_loss=cls_loss,
+            mean_loss=mean_loss,
+            diviation_loss=diviation_loss,
+            other_loss=other_loss
+        )
 
 
 class cell_type_specific_loss_fn(nn.Module):
@@ -279,5 +296,6 @@ class cell_type_specific_loss_fn(nn.Module):
         # loss
         cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()
         cls_loss_diviation = (self.loss_fct_diviation(cls_preds_diviation, cls_targets_diviation) * cls_mask).sum() / cls_mask.sum()
+        full_loss = self.weight_mean * cls_loss_mean + self.weight_diviation * cls_loss_diviation
 
-        return self.weight_mean * cls_loss_mean + self.weight_diviation * cls_loss_diviation
+        return full_loss, cls_loss_mean, cls_loss_diviation

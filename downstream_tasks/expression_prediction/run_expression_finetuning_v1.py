@@ -465,13 +465,11 @@ def main():
         target = y_rmt.cpu().unsqueeze(1)
         reduce_dims = (0, 1)
         data = {}
-            
-        if 'loss_cls' in output and output['loss_cls'] is not None:
-            data['loss_cls'] = output['loss_cls'].detach().cpu()
-            
-        if 'loss_bw' in output and output['loss_bw'] is not None:
-            data['loss_bw'] = output['loss_bw'].detach().cpu()
 
+        loss_components =  ['cls_loss', 'other_loss', 'mean_loss', 'diviation_loss']
+        for loss_component in loss_components:
+            if f'loss_{loss_component}' in output and output[f'loss_{loss_component}'] is not None:
+                data[f'loss_{loss_component}'] = output[f'loss_{loss_component}'].detach().cpu()
         
         data['tpm_true'] = y_rmt.tolist()
         data['tpm_preds'] = p_rmt.tolist()
@@ -508,10 +506,10 @@ def main():
             corr_coef = covariance / tp_var
             metrics['pearson_corr'] = corr_coef.item()
 
-            if data['loss_cls'] is not None:
-                metrics['loss_cls'] = torch.mean(data['loss_cls']).item()
-            if 'loss_bw' in data and data['loss_bw'] is not None:
-                metrics['loss_bw'] = torch.mean(data['loss_bw']).item()
+            loss_components =  ['cls_loss', 'other_loss', 'mean_loss', 'diviation_loss']
+            for loss_component in loss_components:
+                if f'loss_{loss_component}' in data and data[f'loss_{loss_component}'] is not None:
+                    metrics[f'loss_{loss_component}'] = torch.mean(data[f'loss_{loss_component}']).item()
         
             # Обработка TPM и gene_id
             tpm_true = data['tpm_true']
