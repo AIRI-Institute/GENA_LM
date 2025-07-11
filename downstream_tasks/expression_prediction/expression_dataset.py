@@ -18,6 +18,7 @@ import h5py
 import tqdm
 import tempfile
 import sys
+import json
 from transformers import AutoTokenizer
 from multiprocessing import Pool
 from downstream_tasks.expression_prediction.datasets.src.utils import convert_fm_relative_path_to_absolute_path
@@ -45,6 +46,7 @@ class ExpressionDataset(Dataset):
         token_len_for_fetch: int = 8,
         fraction_of_cell_type_specific_tpm_samples: float = 0,
         cell_type_specific_samples_path: str = None,
+        norm_bw = False
     ):
         """
         Args:
@@ -83,8 +85,9 @@ class ExpressionDataset(Dataset):
         
         self.bw = bw
         self.tpm = tpm
+        self.norm_bw = norm_bw 
+        
         self.targets_path = targets_path
-        self.read_paths()
 
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
@@ -98,6 +101,8 @@ class ExpressionDataset(Dataset):
             self.hash_prefix = os.path.join(self.hash_prefix, "dataset_hash")
         else:
             self.hash_prefix = hash_prefix
+
+        self.read_paths()
 
         forward_genes = pd.read_csv(forward_intervals_path, sep = '\t') if forward_intervals_path is not None else pd.DataFrame()
         assert not "strand" in forward_genes.columns.values, "forward_intervals_path must not contain strand column"
@@ -255,6 +260,8 @@ class ExpressionDataset(Dataset):
         m.update(str(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
         m.update(str(self.gen_max_seq_len).encode("utf-8"))
+        if self.norm_bw:
+            m.update(str("norm_bw").encode("utf-8"))
         target_ids = "".join(sorted(list(self.paths.keys())))
         m.update(str(target_ids).encode("utf-8"))
         hash_suffix = m.hexdigest()
@@ -272,7 +279,7 @@ class ExpressionDataset(Dataset):
         self.logger.info(f"Reading paths from {self.targets_path}")
         df = pd.read_csv(self.targets_path)
 
-        self.dataset_description = df.iloc[0]['dataset_description']
+     #   self.dataset_description = df.iloc[0]['dataset_description']
 
         assert not df["id"].duplicated().any(), "Found duplicated id in targets_path"
 
@@ -284,8 +291,40 @@ class ExpressionDataset(Dataset):
             forward_paths = df[forward_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
             reverse_paths = df[reverse_colname].apply(lambda x: convert_fm_relative_path_to_absolute_path(x, self.targets_path)).values
             self.paths = {k:[{"+": forward_paths[ind], "-": reverse_paths[ind]}] for ind,k in enumerate(df["id"])}
+            
+            if self.norm_bw:
+                self.logger.info("Reading metadata for normalization of bigwig tracks")
+                meta_list = []
+                df = pd.read_csv(self.targets_path)
+                dir_path = os.path.dirname(self.targets_path)
+                
+                for _, row in df.iterrows():
+                    json_path = os.path.abspath(os.path.join(dir_path, row['metadata']))
+                    with open(json_path, 'r') as f:
+                        metadata = json.load(f)
+                        meta_list.append(metadata)
+            
+                meta_df = pd.DataFrame(meta_list, index=df['id'])
+                self.coverage_norm = {
+                    k: {
+                        "+": meta_df.loc[k]["forward_total_coverage"],
+                        "-": meta_df.loc[k]["reverse_total_coverage"]
+                    }
+                    for k in df['id']
+                }
+
+                # сохраняем кэш в h5
+                cov_norm_path = self.get_signals_hash_path() + ".coverage_norm.h5"
+                with h5py.File(cov_norm_path, "w") as f:
+                    for k, strands in self.coverage_norm.items():
+                        g = f.create_group(k)
+                        g.attrs["+"] = strands["+"]
+                        g.attrs["-"] = strands["-"]
         else:
             self.paths = {k:[{"+": None, "-": None}] for ind,k in enumerate(df["id"])}
+
+
+
 
         if self.tpm:
             tpm_colname = self.tpm
@@ -544,10 +583,23 @@ class ExpressionDataset(Dataset):
                     l = min(len(input_ids), self.gen_max_seq_len)
                     
                     bigwig_signals = np.zeros((l, len(self.bigWigHandlers)), dtype=np.float32)
-                    
+
                     for i, (key, bw) in enumerate(self.bigWigHandlers.items()):
                         track_signals = self.process_region_signals(bw[strand], chrom, starts[:l], ends[:l], l, strand)
+                    
+                        # Нормализация сигналов по покрытию
+                        if self.norm_bw:
+                            try:
+                                norm_factor = self.coverage_norm[key][strand]
+                                if norm_factor > 0:
+                                    track_signals /= norm_factor
+                                else:
+                                    self.logger.warning(f"Zero normalization factor for {key}, strand {strand}")
+                            except KeyError:
+                                self.logger.warning(f"Missing normalization factor for {key}, strand {strand}")
+                    
                         bigwig_signals[:, i] = track_signals
+
                     
                     signals_group = h5f.create_group(gene_id)
                     signals_group.create_dataset('signals', data=bigwig_signals)
@@ -689,6 +741,12 @@ class ExpressionDataset(Dataset):
             
             if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
+            dataset_mean = np.nanmean(tpm_values)
+            features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
+            features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean).float()
+        else:
+            features["dataset_mean"] = torch.tensor(np.nan, dtype=torch.float32)
+            features["dataset_deviation"] = torch.full_like(torch.from_numpy(tpm_values), np.nan, dtype=torch.float32)
         
         features["tpm"] = torch.from_numpy(tpm_values)
 
@@ -698,21 +756,21 @@ class ExpressionDataset(Dataset):
         features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean)
 
         # Получаем desc_vectors только для текущего чанка
-        desc_vectors_list = []
-        for key in selected_keys:
-            if key not in self.desc_data:
-                raise KeyError(f"Track ID '{key}' not found in desc_data")
-            desc_vec = self.desc_data[key]
-            desc_vectors_list.append(desc_vec)
+    #     desc_vectors_list = []
+    #     for key in selected_keys:
+    #         if key not in self.desc_data:
+    #             raise KeyError(f"Track ID '{key}' not found in desc_data")
+    #         desc_vec = self.desc_data[key]
+    #         desc_vectors_list.append(desc_vec)
 
-        # Дополняем desc_vectors нулями до n_keys
-        desc_vectors = np.zeros((self.n_keys, len(desc_vectors_list[0])), dtype=np.float32)
-        for i, vec in enumerate(desc_vectors_list):
-            desc_vectors[i] = vec
+    #     # Дополняем desc_vectors нулями до n_keys
+    #     desc_vectors = np.zeros((self.n_keys, len(desc_vectors_list[0])), dtype=np.float32)
+    #     for i, vec in enumerate(desc_vectors_list):
+    #         desc_vectors[i] = vec
 
-        valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
-        features["dataset_description"] = [self.dataset_description] * valid_tpm_count
-        features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
+    #     valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
+    # #    features["dataset_description"] = [self.dataset_description] * valid_tpm_count
+    #     features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
         return features
 
@@ -728,8 +786,8 @@ class ExpressionDataset(Dataset):
     def describe(self):
         result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
         result += f", N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
-        if hasattr(self, 'dataset_description'):
-            result += f", dataset_description={self.dataset_description}"
+        # if hasattr(self, 'dataset_description'):
+        #     result += f", dataset_description={self.dataset_description}"
         result += ")"
         return result
 
