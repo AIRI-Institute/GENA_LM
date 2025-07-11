@@ -278,8 +278,8 @@ class ExpressionDataset(Dataset):
         self.paths = {}
         self.logger.info(f"Reading paths from {self.targets_path}")
         df = pd.read_csv(self.targets_path)
-
-     #   self.dataset_description = df.iloc[0]['dataset_description']
+        
+        self.dataset_description = df.iloc[0]['dataset_description']
 
         assert not df["id"].duplicated().any(), "Found duplicated id in targets_path"
 
@@ -756,21 +756,21 @@ class ExpressionDataset(Dataset):
         features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean)
 
         # Получаем desc_vectors только для текущего чанка
-    #     desc_vectors_list = []
-    #     for key in selected_keys:
-    #         if key not in self.desc_data:
-    #             raise KeyError(f"Track ID '{key}' not found in desc_data")
-    #         desc_vec = self.desc_data[key]
-    #         desc_vectors_list.append(desc_vec)
+        desc_vectors_list = []
+        for key in selected_keys:
+            if key not in self.desc_data:
+                raise KeyError(f"Track ID '{key}' not found in desc_data")
+            desc_vec = self.desc_data[key]
+            desc_vectors_list.append(desc_vec)
 
-    #     # Дополняем desc_vectors нулями до n_keys
-    #     desc_vectors = np.zeros((self.n_keys, len(desc_vectors_list[0])), dtype=np.float32)
-    #     for i, vec in enumerate(desc_vectors_list):
-    #         desc_vectors[i] = vec
+        # Дополняем desc_vectors нулями до n_keys
+        desc_vectors = np.zeros((self.n_keys, len(desc_vectors_list[0])), dtype=np.float32)
+        for i, vec in enumerate(desc_vectors_list):
+            desc_vectors[i] = vec
 
-    #     valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
-    # #    features["dataset_description"] = [self.dataset_description] * valid_tpm_count
-    #     features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
+        valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
+        features["dataset_description"] = [self.dataset_description] * valid_tpm_count
+        features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
         features["selected_keys"] = selected_keys
         return features
 
@@ -786,8 +786,8 @@ class ExpressionDataset(Dataset):
     def describe(self):
         result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
         result += f", N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
-        # if hasattr(self, 'dataset_description'):
-        #     result += f", dataset_description={self.dataset_description}"
+        if hasattr(self, 'dataset_description'):
+            result += f", dataset_description={self.dataset_description}"
         result += ")"
         return result
 
