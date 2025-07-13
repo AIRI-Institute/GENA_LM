@@ -202,6 +202,8 @@ class ExpressionDataset(Dataset):
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
 
+        # assert len(self.valid_indices) > 10, "Less than 10 valid indices found. Are you sure you have enough data?"
+
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
         self.logger.debug("Computing valid indices...")
@@ -748,6 +750,8 @@ class ExpressionDataset(Dataset):
             features["dataset_mean"] = torch.tensor(np.nan, dtype=torch.float32)
             features["dataset_deviation"] = torch.full_like(torch.from_numpy(tpm_values), np.nan, dtype=torch.float32)
         
+            if np.all(np.isnan(tpm_values)):
+                raise ValueError(f"All TPM values are NaN for {gene_id}")
         features["tpm"] = torch.from_numpy(tpm_values)
 
         # for debug purposes
