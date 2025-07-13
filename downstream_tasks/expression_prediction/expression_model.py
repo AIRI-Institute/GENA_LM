@@ -3,14 +3,16 @@ import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
+from dataclasses import dataclass
 
+@dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
     labels_reshaped: Optional[torch.FloatTensor] = None
     labels_mask_reshaped: Optional[torch.FloatTensor] = None
     cls_loss: Optional[torch.FloatTensor] = None
     other_loss: Optional[torch.FloatTensor] = None
-    loss_mean: Optional[torch.FloatTensor] = None
-    loss_diviation: Optional[torch.FloatTensor] = None
+    mean_loss: Optional[torch.FloatTensor] = None
+    diviation_loss: Optional[torch.FloatTensor] = None
 
 class ExpressionCounts(BertPreTrainedModel):
     """
@@ -269,16 +271,18 @@ class cell_type_specific_loss_fn(nn.Module):
         if self.normalize_by_mean:
             cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
             cls_preds_diviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
+            debug_test_cls_targets_diviation = cls_targets_diviation
         else:
             cls_targets_diviation = (cls_targets - cls_targets_mean)
             cls_preds_diviation = (cls_preds - cls_preds_mean)
+            debug_test_cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
 
         # TODO: DEBUG, remove at some point
-        if not torch.allclose(dataset_deviation[cls_mask.bool()], cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
+        if not torch.allclose(dataset_deviation[cls_mask.bool()], debug_test_cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
             # shape is (B, N)
             # find batch where allclose is False
             for batch_idx in range(cls_mask.shape[0]):
-                if not torch.allclose(dataset_deviation[batch_idx], cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
+                if not torch.allclose(dataset_deviation[batch_idx], debug_test_cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
                     print (f"Found batch_idx: {batch_idx}")
                     break
             # provide some debug information

@@ -2,8 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         
-
-
         {
             "name": "Debug Expression (1 GPU)",
             "type": "debugpy",
@@ -22,10 +20,12 @@
                 "GENALM_HOME": "/mnt/10tb/home/vsfishman/DNALM"
             },
             "args": [
-                "--experiment_config", "downstream_tasks/expression_prediction/configs/minja_test_config.yaml",
+                "--experiment_config", "downstream_tasks/expression_prediction/configs/megafull_qnorm_upsample_ctspecific2_DNArun.yaml",
                 "--batch_size", "2",
                 "--gradient_accumulation_steps", "1"
             ],
             "justMyCode": false,
             "stopOnEntry": false
         }
+    ]
+}

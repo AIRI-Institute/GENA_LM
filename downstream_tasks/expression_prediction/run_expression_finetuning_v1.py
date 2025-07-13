@@ -200,8 +200,8 @@ def main():
             batch_dict[key] = torch.stack(batch_dict[key])
         for key in no_pad_keys:
             batch_dict[key] = torch.stack(batch_dict[key])
-        for key in special_keys:
-            batch_dict[key] = np.stack(batch_dict[key])
+            # for key in special_keys:
+            #     batch_dict[key] = np.stack(batch_dict[key])
         
         return batch_dict
 
@@ -549,6 +549,11 @@ def main():
                 if save_predictions:
                     df_true.to_csv(os.path.join(model_path, f"{dataset_desc}_true.csv"))
                     df_pred.to_csv(os.path.join(model_path, f"{dataset_desc}_pred.csv"))
+
+                not_nan_values = df_true.notna().values & df_pred.notna().values
+                # if either true or pred is nan, set both to nan
+                df_true.values[~not_nan_values] = np.nan
+                df_pred.values[~not_nan_values] = np.nan
                 
                 #Рассчет средней корреляции по генам и типам клеток
                 if not df_true.empty and not df_pred.empty:
@@ -556,7 +561,16 @@ def main():
                     for gene in df_true.index:
                         gene_true = df_true.loc[gene]
                         gene_pred = df_pred.loc[gene]
-                        if len(gene_true) > 1 and np.std(gene_true) > 0:
+
+                        # keep only not nan values
+                        gene_true = gene_true[pd.notna(gene_true)]
+                        gene_pred = gene_pred[pd.notna(gene_pred)]
+
+                        if len(gene_pred) > 1 and np.std(gene_pred) == 0:
+                            logger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
+                            raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
+
+                        if len(gene_true) > 3 and np.std(gene_true) > 0:
                             try:
                                 corr = np.corrcoef(gene_true, gene_pred)[0, 1]
                                 if not np.isnan(corr):
@@ -568,7 +582,14 @@ def main():
                     for cell_type in df_true.columns:
                         cell_true = df_true[cell_type]
                         cell_pred = df_pred[cell_type]
-                        if len(cell_true) > 1:
+                        if np.std(cell_pred.values) == 0 and len(cell_pred) > 1:
+                            raise ValueError(f"All predicted values for {cell_type} are the same")
+
+                        # keep only not nan values
+                        cell_true = cell_true[pd.notna(cell_true)]
+                        cell_pred = cell_pred[pd.notna(cell_pred)]
+
+                        if len(cell_true) > 3 and np.std(cell_true) != 0:
                             try:
                                 corr = np.corrcoef(cell_true, cell_pred)[0, 1]
                                 if not np.isnan(corr):
@@ -597,7 +618,7 @@ def main():
                         need_log=False,
                         logger=logger
                     )
-                    if score:
+                    if score and score['deviation_r']:
                         metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
             
             
