@@ -1,4 +1,4 @@
-TASK_NAME: expression/upsample/ctloss
+TASK_NAME: expression/upsample/ctloss_nonorm_0.05
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -108,7 +108,7 @@ model_kwargs:
 
   cell_type_specific_loss_fn:
     _target_: downstream_tasks.expression_prediction.expression_model.cell_type_specific_loss_fn
-    weight_mean: 0.1
+    weight_mean: 0.05
     normalize_by_mean: False
 
   weight: 10
