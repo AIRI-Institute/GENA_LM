@@ -14,6 +14,22 @@ class ExpressionModelOutput(TokenClassifierOutput):
     mean_loss: Optional[torch.FloatTensor] = None
     diviation_loss: Optional[torch.FloatTensor] = None
 
+
+class OneHotEncoder(nn.Module):
+    def __init__(self, max_N_cell_types, hidden_size_desc=768):
+        super().__init__()
+        self.max_N_cell_types = max_N_cell_types
+        self.embedding = nn.Embedding(self.max_N_cell_types, hidden_size_desc)
+        self.fc = nn.Linear(hidden_size_desc, hidden_size_desc)
+        self.activation = nn.LeakyReLU()
+        
+    def forward(self, x):
+        x = self.embedding(x.long())
+        x = self.fc(x)
+        x = self.activation(x)
+        x = x.reshape(x.shape[0], -1)
+        return x
+
 class ExpressionCounts(BertPreTrainedModel):
     """
     Размерности:
@@ -47,6 +63,7 @@ class ExpressionCounts(BertPreTrainedModel):
         weight = 1,
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         cell_type_specific_loss_fn = None,
+        text_model = None,
     ):
         super().__init__(config)
         self.config = config
@@ -65,13 +82,16 @@ class ExpressionCounts(BertPreTrainedModel):
             print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
 
 
-        # 2) MLP для desc_vectors
-        self.desc_fc = nn.Sequential(
-            nn.Linear(self.hidden_size_desc, config.hidden_size),
-            nn.LeakyReLU(),
-           # nn.Dropout(p=0.1),
-            nn.Linear(config.hidden_size, config.hidden_size),
-        )
+        if text_model is not None:
+            self.desc_fc = text_model
+        else:
+            # 2) MLP для desc_vectors
+            self.desc_fc = nn.Sequential(
+                nn.Linear(self.hidden_size_desc, config.hidden_size),
+                nn.LeakyReLU(),
+            # nn.Dropout(p=0.1),
+                nn.Linear(config.hidden_size, config.hidden_size),
+            )
 
         # 3) Encoder
         encoder_layer = nn.TransformerEncoderLayer(
@@ -92,6 +112,85 @@ class ExpressionCounts(BertPreTrainedModel):
         self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
 
         self.post_init()
+
+    def save_cell_type_embeddings(self, save_path, cell_type_names=None):
+        """
+        Save the learned cell type embeddings from the nn.Embedding layer.
+        
+        Args:
+            save_path (str): Path where to save the embeddings (e.g., 'cell_type_embeddings.pt')
+            cell_type_names (list, optional): List of cell type names corresponding to embedding indices.
+                                            If None, will use indices as names.
+        """
+        # Get the embedding weights from the separate embedding layer
+        embeddings = self.cell_type_embedding.weight.data.cpu()  # Shape: (num_embeddings, embedding_dim)
+        
+        # Create a dictionary to save
+        save_dict = {
+            'embeddings': embeddings,
+            'embedding_dim': embeddings.shape[1],
+            'num_cell_types': embeddings.shape[0],
+            'config_max_N_cell_types': self.max_N_cell_types
+        }
+        
+        # Add cell type names if provided
+        if cell_type_names is not None:
+            if len(cell_type_names) != embeddings.shape[0]:
+                print(f"Warning: Number of cell type names ({len(cell_type_names)}) "
+                      f"doesn't match number of embeddings ({embeddings.shape[0]})")
+            else:
+                save_dict['cell_type_names'] = cell_type_names
+        
+        # Save the embeddings
+        torch.save(save_dict, save_path)
+        print(f"Cell type embeddings saved to {save_path}")
+        print(f"Embedding shape: {embeddings.shape}")
+        print(f"Embedding statistics - Mean: {embeddings.mean().item():.4f}, Std: {embeddings.std().item():.4f}")
+        
+        return save_dict
+
+    def load_cell_type_embeddings(self, load_path):
+        """
+        Load cell type embeddings from a saved file.
+        
+        Args:
+            load_path (str): Path to the saved embeddings file
+            
+        Returns:
+            dict: Dictionary containing the loaded embeddings and metadata
+        """
+        # Load the saved embeddings
+        loaded_dict = torch.load(load_path, map_location='cpu')
+        
+        # Check if dimensions match
+        if loaded_dict['embeddings'].shape != self.cell_type_embedding.weight.shape:
+            raise ValueError(f"Loaded embedding shape {loaded_dict['embeddings'].shape} "
+                           f"doesn't match model embedding shape {self.cell_type_embedding.weight.shape}")
+        
+        # Load the embeddings into the model
+        self.cell_type_embedding.weight.data = loaded_dict['embeddings'].to(self.cell_type_embedding.weight.device)
+        
+        print(f"Cell type embeddings loaded from {load_path}")
+        print(f"Embedding shape: {loaded_dict['embeddings'].shape}")
+        
+        return loaded_dict
+
+    def get_cell_type_embeddings(self, cell_type_indices=None):
+        """
+        Get the current cell type embeddings.
+        
+        Args:
+            cell_type_indices (list, optional): Specific indices to retrieve. If None, returns all embeddings.
+            
+        Returns:
+            torch.Tensor: Cell type embeddings
+        """
+        embeddings = self.cell_type_embedding.weight.data
+        
+        if cell_type_indices is not None:
+            embeddings = embeddings[cell_type_indices]
+            
+        return embeddings
 
     def forward(
         self,
@@ -146,7 +245,7 @@ class ExpressionCounts(BertPreTrainedModel):
 
         # Прогоняем desc_vectors через MLP 
         # (B, N, hidden_size) -> (B*N, hidden_size)
-        desc_vectors_2d = desc_vectors.reshape(B*N, self.hidden_size_desc)  
+        desc_vectors_2d = desc_vectors.reshape(B*N, desc_vectors.size()[-1])
         desc_fc_output = self.desc_fc(desc_vectors_2d)  # (B*N, hidden_size)
         # (B*N, hidden_size) -> (B, N, hidden_size)
         desc_fc_output = desc_fc_output.reshape(B, N, hidden_size)
