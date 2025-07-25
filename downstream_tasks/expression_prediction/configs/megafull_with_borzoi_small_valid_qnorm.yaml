@@ -148,7 +148,7 @@ train_dataset_human_full_borzoi:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings_borzoi_human_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_human_qnorm.csv"
   
   gen_max_seq_len: ${args_params.input_seq_len}
 
@@ -271,7 +271,7 @@ train_dataset_mouse_full_borzoi:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings_borzoi_mouse_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_mouse_qnorm.csv"
   
   gen_max_seq_len: ${args_params.input_seq_len}
 
