@@ -3,6 +3,9 @@ import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 
+from transformers import BertModel, BertConfig
+from transformers.utils import cached_file
+
 class ExpressionCounts(BertPreTrainedModel):
     """
     Размерности:
@@ -39,17 +42,42 @@ class ExpressionCounts(BertPreTrainedModel):
         self.hidden_size_desc = hidden_size_desc 
 
         # 1) GENA
+        # self.bert = BertModel(config, add_pooling_layer=False)
+
+        # checkpoint = torch.load('/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth', map_location='cpu')
+        # state_dict = checkpoint['model_state_dict']
+        # updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
+        # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+        # if len(missing_k) != 0:
+        #     print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+        # if len(unexpected_k) != 0:
+        #     print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
+
+        model_name = "AIRI-Institute/gena-lm-bert-base-t2t-multi"
+
+        # Загружаем конфиг
+        config = BertConfig.from_pretrained(model_name)
         self.bert = BertModel(config, add_pooling_layer=False)
-
-        checkpoint = torch.load('/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth', map_location='cpu')
-        state_dict = checkpoint['model_state_dict']
-        updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
-        missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-        if len(missing_k) != 0:
-            print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
-        if len(unexpected_k) != 0:
-            print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
-
+        
+        # Получаем путь к файлу весов (без загрузки всей модели через from_pretrained)
+        weights_path = cached_file(model_name, "pytorch_model.bin")
+        
+        # Загружаем state_dict вручную
+        state_dict = torch.load(weights_path, map_location="cpu")
+        
+        # Загружаем веса вручную, чтобы получить unmatched ключи
+        missing_keys, unexpected_keys = self.bert.load_state_dict(state_dict, strict=False)
+        
+        # Сообщаем, если что-то не загрузилось
+        if missing_keys:
+            print("❗ Не найдены веса для следующих параметров:")
+            for k in missing_keys:
+                print(" -", k)
+        
+        if unexpected_keys:
+            print("❗ Веса найдены, но не использованы моделью:")
+            for k in unexpected_keys:
+                print(" -", k)
 
         # 2) MLP для desc_vectors
         self.desc_fc = nn.Sequential(

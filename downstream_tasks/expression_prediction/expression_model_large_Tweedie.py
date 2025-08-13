@@ -7,27 +7,36 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig
 from transformers.utils import cached_file
 
-class QuantileLoss(nn.Module):
-    def __init__(self, quantile: float, reduction: str = "none"):
+class TweedieDevianceLoss(nn.Module):
+    """
+    Tweedie deviance loss (reduction='none').
+
+    Args:
+        p       (float): variance-power, 1 < p < 2  → Compound Poisson-Gamma.
+        eps     (float): числовая защита от log(0).
+    """
+    def __init__(self, p: float = 1.5, reduction: str = "none", eps: float = 1e-6):
         super().__init__()
-        if not (0 < quantile < 1):
-            raise ValueError("quantile must be in (0, 1)")
-        if reduction not in ("none", "mean", "sum"):
-            raise ValueError("reduction must be 'none', 'mean', or 'sum'")
-        self.q = quantile
-        self.reduction = reduction
+        assert p != 1 and p != 2, "Для p=1|2 используйте предельные формулы."
+        self.p, self.reduction, self.eps = p, reduction, eps
 
-    def forward(self, preds: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        # preds/target формы (B*N, seq_len, 1) — как у тебя после reshape
-        errors = target - preds
-        loss = torch.max(self.q * errors, (self.q - 1) * errors)  # поэлементно
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        μ = torch.clamp(pred, min=self.eps)       # Tweedie требует μ>0
+        y = torch.clamp(target, min=0.)
 
-        if self.reduction == "none":
-            return loss
-        elif self.reduction == "mean":
+        p = self.p
+        loss = 2 * (
+            torch.pow(torch.maximum(y, torch.zeros_like(y)), 2 - p) /
+            ((1 - p) * (2 - p))
+            - y * torch.pow(μ, 1 - p) / (1 - p)
+            + torch.pow(μ, 2 - p) / (2 - p)
+        )
+
+        if self.reduction == "mean":
             return loss.mean()
-        else:  # "sum"
+        elif self.reduction == "sum":
             return loss.sum()
+        return loss                       # 'none' → (batch, ..., 1)
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -62,8 +71,8 @@ class ExpressionCounts(BertPreTrainedModel):
     def __init__(
         self,
         config,
-        loss_fct=nn.MSELoss(reduction="none"),
-        activation = nn.Identity(),
+        loss_fct=TweedieDevianceLoss(p=1.5, reduction="none"),
+        activation = nn.Softplus() ,
         hidden_size_desc = 768,
         hidden_ff = 1024,
         num_encoder_layers = 3,
@@ -71,57 +80,67 @@ class ExpressionCounts(BertPreTrainedModel):
         weight = 1,
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         cell_type_specific_loss_fn = None,
-        hf: bool = False,
-        hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
     ):
+
         super().__init__(config)
         self.config = config
-        self.hidden_size_desc = hidden_size_desc
-        self.activation = activation
-        self.loss_fct = loss_fct
-        self.weight = weight
-        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
+        self.hidden_size_desc = hidden_size_desc 
 
-        # 1) GENA BERT
-        if hf:
-            hf_config = BertConfig.from_pretrained(hf_model_name)
-            self.bert = BertModel(hf_config, add_pooling_layer=False)
-            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            }
+        # 1) GENA
+        # self.bert = BertModel(config, add_pooling_layer=False)
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = hf_config
-                                            
-        else:
-            self.bert = BertModel(config, add_pooling_layer=False)
+        # checkpoint = torch.load(bert_cpt, map_location='cpu')
+        # state_dict = checkpoint['model_state_dict']
+        # updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
+        # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+        # if len(missing_k) != 0:
+        #     print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+        # if len(unexpected_k) != 0:
+        #     print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
 
-            checkpoint = torch.load(bert_cpt, map_location="cpu")
-            state_dict = checkpoint["model_state_dict"]
-            updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+        model_name = "AIRI-Institute/gena-lm-bert-large-t2t"
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = config
+        # Загружаем конфиг
+        config = BertConfig.from_pretrained(model_name)
 
-        if len(missing_k) != 0:
-            print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
-        if len(unexpected_k) != 0:
-            print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
+        # Инициализируем кастомный Bert без весов
+        self.bert = BertModel(config)
 
+        # ✅ Загружаем веса вручную (pytorch_model.bin)
+        weights_path = cached_file(model_name, "pytorch_model.bin")
+        state_dict = torch.load(weights_path, map_location="cpu")
+
+        # ✅ Удаляем префикс 'bert.' перед именами слоёв
+        updated_state_dict = {
+            k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+        }
+
+
+        # Загружаем веса в модель
+        missing_keys, unexpected_keys = self.bert.load_state_dict(updated_state_dict, strict=False)
+
+        # Выводим недостающие и неожиданные ключи
+        if missing_keys:
+            print("❗ Не найдены веса для следующих параметров:")
+            for k in missing_keys:
+                print(" -", k)
+
+        if unexpected_keys:
+            print("❗ Веса найдены, но не использованы моделью:")
+            for k in unexpected_keys:
+                print(" -", k)
 
         # 2) MLP для desc_vectors
         self.desc_fc = nn.Sequential(
-            nn.Linear(self.hidden_size_desc, bert_cfg.hidden_size),
+            nn.Linear(self.hidden_size_desc, config.hidden_size),
             nn.LeakyReLU(),
            # nn.Dropout(p=0.1),
-            nn.Linear(bert_cfg.hidden_size, bert_cfg.hidden_size),
+            nn.Linear(config.hidden_size, config.hidden_size),
         )
 
         # 3) Encoder
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=bert_cfg.hidden_size,
+            d_model=config.hidden_size,
             nhead=nhead,
             dim_feedforward=hidden_ff,
             batch_first=True
@@ -129,7 +148,7 @@ class ExpressionCounts(BertPreTrainedModel):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
 
         # 4) Classifier
-        self.classifier = nn.Linear(bert_cfg.hidden_size, 1)
+        self.classifier = nn.Linear(config.hidden_size, 1)
 
         # 5) Loss
         self.activation = activation
@@ -317,18 +336,16 @@ class cell_type_specific_loss_fn(nn.Module):
         if self.normalize_by_mean:
             cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
             cls_preds_diviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
-            debug_test_cls_targets_diviation = cls_targets_diviation
         else:
             cls_targets_diviation = (cls_targets - cls_targets_mean)
             cls_preds_diviation = (cls_preds - cls_preds_mean)
-            debug_test_cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
 
         # TODO: DEBUG, remove at some point
-        if not torch.allclose(dataset_deviation[cls_mask.bool()], debug_test_cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
+        if not torch.allclose(dataset_deviation[cls_mask.bool()], cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
             # shape is (B, N)
             # find batch where allclose is False
             for batch_idx in range(cls_mask.shape[0]):
-                if not torch.allclose(dataset_deviation[batch_idx], debug_test_cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
+                if not torch.allclose(dataset_deviation[batch_idx], cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
                     print (f"Found batch_idx: {batch_idx}")
                     break
             # provide some debug information

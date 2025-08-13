@@ -7,27 +7,7 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig
 from transformers.utils import cached_file
 
-class QuantileLoss(nn.Module):
-    def __init__(self, quantile: float, reduction: str = "none"):
-        super().__init__()
-        if not (0 < quantile < 1):
-            raise ValueError("quantile must be in (0, 1)")
-        if reduction not in ("none", "mean", "sum"):
-            raise ValueError("reduction must be 'none', 'mean', or 'sum'")
-        self.q = quantile
-        self.reduction = reduction
 
-    def forward(self, preds: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        # preds/target формы (B*N, seq_len, 1) — как у тебя после reshape
-        errors = target - preds
-        loss = torch.max(self.q * errors, (self.q - 1) * errors)  # поэлементно
-
-        if self.reduction == "none":
-            return loss
-        elif self.reduction == "mean":
-            return loss.mean()
-        else:  # "sum"
-            return loss.sum()
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -71,57 +51,66 @@ class ExpressionCounts(BertPreTrainedModel):
         weight = 1,
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         cell_type_specific_loss_fn = None,
-        hf: bool = False,
-        hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
     ):
         super().__init__(config)
         self.config = config
-        self.hidden_size_desc = hidden_size_desc
-        self.activation = activation
-        self.loss_fct = loss_fct
-        self.weight = weight
-        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
+        self.hidden_size_desc = hidden_size_desc 
 
-        # 1) GENA BERT
-        if hf:
-            hf_config = BertConfig.from_pretrained(hf_model_name)
-            self.bert = BertModel(hf_config, add_pooling_layer=False)
-            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            }
+        # 1) GENA
+        # self.bert = BertModel(config, add_pooling_layer=False)
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = hf_config
-                                            
-        else:
-            self.bert = BertModel(config, add_pooling_layer=False)
+        # checkpoint = torch.load(bert_cpt, map_location='cpu')
+        # state_dict = checkpoint['model_state_dict']
+        # updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
+        # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+        # if len(missing_k) != 0:
+        #     print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+        # if len(unexpected_k) != 0:
+        #     print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
 
-            checkpoint = torch.load(bert_cpt, map_location="cpu")
-            state_dict = checkpoint["model_state_dict"]
-            updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+        model_name = "AIRI-Institute/gena-lm-bert-large-t2t"
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = config
+        # Загружаем конфиг
+        config = BertConfig.from_pretrained(model_name)
 
-        if len(missing_k) != 0:
-            print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
-        if len(unexpected_k) != 0:
-            print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
+        # Инициализируем кастомный Bert без весов
+        self.bert = BertModel(config)
 
+        # ✅ Загружаем веса вручную (pytorch_model.bin)
+        weights_path = cached_file(model_name, "pytorch_model.bin")
+        state_dict = torch.load(weights_path, map_location="cpu")
+
+        # ✅ Удаляем префикс 'bert.' перед именами слоёв
+        updated_state_dict = {
+            k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+        }
+
+
+        # Загружаем веса в модель
+        missing_keys, unexpected_keys = self.bert.load_state_dict(updated_state_dict, strict=False)
+
+        # Выводим недостающие и неожиданные ключи
+        if missing_keys:
+            print("❗ Не найдены веса для следующих параметров:")
+            for k in missing_keys:
+                print(" -", k)
+
+        if unexpected_keys:
+            print("❗ Веса найдены, но не использованы моделью:")
+            for k in unexpected_keys:
+                print(" -", k)
 
         # 2) MLP для desc_vectors
         self.desc_fc = nn.Sequential(
-            nn.Linear(self.hidden_size_desc, bert_cfg.hidden_size),
+            nn.Linear(self.hidden_size_desc, config.hidden_size),
             nn.LeakyReLU(),
            # nn.Dropout(p=0.1),
-            nn.Linear(bert_cfg.hidden_size, bert_cfg.hidden_size),
+            nn.Linear(config.hidden_size, config.hidden_size),
         )
 
         # 3) Encoder
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=bert_cfg.hidden_size,
+            d_model=config.hidden_size,
             nhead=nhead,
             dim_feedforward=hidden_ff,
             batch_first=True
@@ -129,7 +118,7 @@ class ExpressionCounts(BertPreTrainedModel):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
 
         # 4) Classifier
-        self.classifier = nn.Linear(bert_cfg.hidden_size, 1)
+        self.classifier = nn.Linear(config.hidden_size, 1)
 
         # 5) Loss
         self.activation = activation
@@ -278,74 +267,72 @@ class ExpressionCounts(BertPreTrainedModel):
         )
 
 
-class cell_type_specific_loss_fn(nn.Module):
-    def __init__(self, 
-                 weight_mean,
-                 loss_fct_mean = nn.MSELoss(reduction="none"), 
-                 loss_fct_diviation = nn.MSELoss(reduction="none"),
-                 normalize_by_mean = True,
-                 ):
-        super().__init__()
-        assert 0 <= weight_mean <= 1, "weight_mean must be between 0 and 1"
-        self.loss_fct_mean = loss_fct_mean
-        self.loss_fct_diviation = loss_fct_diviation
-        self.weight_mean = weight_mean
-        self.weight_diviation = 1 - weight_mean
-        self.normalize_by_mean = normalize_by_mean
+# class cell_type_specific_loss_fn(nn.Module):
+#     def __init__(self, 
+#                  weight_mean,
+#                  loss_fct_mean = nn.MSELoss(reduction="none"), 
+#                  loss_fct_diviation = nn.MSELoss(reduction="none"),
+#                  normalize_by_mean = True,
+#                  ):
+#         super().__init__()
+#         assert 0 <= weight_mean <= 1, "weight_mean must be between 0 and 1"
+#         self.loss_fct_mean = loss_fct_mean
+#         self.loss_fct_diviation = loss_fct_diviation
+#         self.weight_mean = weight_mean
+#         self.weight_diviation = 1 - weight_mean
+#         self.normalize_by_mean = normalize_by_mean
 
-    def forward(self, cls_targets, cls_preds, cls_mask,
-                dataset_mean,
-                dataset_deviation):
-        # check that cls_mask.sum(dim=1) != 0
-        if cls_mask.sum(dim=1).eq(0).any():
-            raise ValueError("cls_mask.sum(dim=1) is 0 for some samples. This case is not supported.")
-            # this might happen if we have coverage data for a region where there is no tpm
-            # to handle this, we need to modify division by cls_mask.sum(dim=1) to be a sum over non-zero elements
+    # def forward(self, cls_targets, cls_preds, cls_mask,
+    #             dataset_mean,
+    #             dataset_deviation):
+    #     # check that cls_mask.sum(dim=1) != 0
+    #     if cls_mask.sum(dim=1).eq(0).any():
+    #         raise ValueError("cls_mask.sum(dim=1) is 0 for some samples. This case is not supported.")
+    #         # this might happen if we have coverage data for a region where there is no tpm
+    #         # to handle this, we need to modify division by cls_mask.sum(dim=1) to be a sum over non-zero elements
         
-        # mean across cell types
-        cls_targets_mean = (cls_targets * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
-        cls_targets_mean = cls_targets_mean.reshape(cls_targets_mean.shape[0],1)
-        cls_preds_mean = (cls_preds * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
-        cls_preds_mean = cls_preds_mean.reshape(cls_preds_mean.shape[0],1)
+    #     # mean across cell types
+    #     cls_targets_mean = (cls_targets * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
+    #     cls_targets_mean = cls_targets_mean.reshape(cls_targets_mean.shape[0],1)
+    #     cls_preds_mean = (cls_preds * cls_mask).sum(dim=1) / cls_mask.sum(dim=1)
+    #     cls_preds_mean = cls_preds_mean.reshape(cls_preds_mean.shape[0],1)
 
-        # TODO: DEBUG, remove at some point
-        # Check that dataset_mean tensor is close to cls_targets_mean tensor
-        if not torch.allclose(dataset_mean, torch.squeeze(cls_targets_mean), atol=1e-6, rtol=1e-5):
-            raise ValueError(f"dataset_mean tensor is not close to cls_targets_mean tensor. "
-                f"Max difference: {torch.max(torch.abs(dataset_mean - torch.squeeze(cls_targets_mean))) :.6f}")
-        # normalize by mean
-        if self.normalize_by_mean:
-            cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
-            cls_preds_diviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
-            debug_test_cls_targets_diviation = cls_targets_diviation
-        else:
-            cls_targets_diviation = (cls_targets - cls_targets_mean)
-            cls_preds_diviation = (cls_preds - cls_preds_mean)
-            debug_test_cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
+    #     # TODO: DEBUG, remove at some point
+    #     # Check that dataset_mean tensor is close to cls_targets_mean tensor
+    #     if not torch.allclose(dataset_mean, torch.squeeze(cls_targets_mean), atol=1e-6, rtol=1e-5):
+    #         raise ValueError(f"dataset_mean tensor is not close to cls_targets_mean tensor. "
+    #             f"Max difference: {torch.max(torch.abs(dataset_mean - torch.squeeze(cls_targets_mean))) :.6f}")
+    #     # normalize by mean
+    #     if self.normalize_by_mean:
+    #         cls_targets_diviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
+    #         cls_preds_diviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
+    #     else:
+    #         cls_targets_diviation = (cls_targets - cls_targets_mean)
+    #         cls_preds_diviation = (cls_preds - cls_preds_mean)
 
-        # TODO: DEBUG, remove at some point
-        if not torch.allclose(dataset_deviation[cls_mask.bool()], debug_test_cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
-            # shape is (B, N)
-            # find batch where allclose is False
-            for batch_idx in range(cls_mask.shape[0]):
-                if not torch.allclose(dataset_deviation[batch_idx], debug_test_cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
-                    print (f"Found batch_idx: {batch_idx}")
-                    break
-            # provide some debug information
-            print (f"dataset_deviation tensor is not close to cls_targets_deviation tensor. ")
-            print (f"batch_idx: {batch_idx}")
-            print (f"dataset_mean: {dataset_mean[batch_idx]}")
-            print (f"cls_targets_mean: {cls_targets_mean[batch_idx]}")
-            print (f"dataset_deviation: {dataset_deviation[batch_idx]}")
-            print (f"cls_targets_diviation: {cls_targets_diviation[batch_idx]}")
-            print (f"cls_mask: {cls_mask[batch_idx]}")
+    #     # TODO: DEBUG, remove at some point
+    #     if not torch.allclose(dataset_deviation[cls_mask.bool()], cls_targets_diviation[cls_mask.bool()], atol=1e-6, rtol=1e-5):
+    #         # shape is (B, N)
+    #         # find batch where allclose is False
+    #         for batch_idx in range(cls_mask.shape[0]):
+    #             if not torch.allclose(dataset_deviation[batch_idx], cls_targets_diviation[batch_idx], atol=1e-6, rtol=1e-5):
+    #                 print (f"Found batch_idx: {batch_idx}")
+    #                 break
+    #         # provide some debug information
+    #         print (f"dataset_deviation tensor is not close to cls_targets_deviation tensor. ")
+    #         print (f"batch_idx: {batch_idx}")
+    #         print (f"dataset_mean: {dataset_mean[batch_idx]}")
+    #         print (f"cls_targets_mean: {cls_targets_mean[batch_idx]}")
+    #         print (f"dataset_deviation: {dataset_deviation[batch_idx]}")
+    #         print (f"cls_targets_diviation: {cls_targets_diviation[batch_idx]}")
+    #         print (f"cls_mask: {cls_mask[batch_idx]}")
 
-            raise ValueError(f"dataset_deviation tensor is not close to cls_targets_deviation tensor. "
-                           f"Max difference: {torch.max(torch.abs(dataset_deviation[cls_mask.bool()] - cls_targets_diviation[cls_mask.bool()])):.6f}")
+    #         raise ValueError(f"dataset_deviation tensor is not close to cls_targets_deviation tensor. "
+    #                        f"Max difference: {torch.max(torch.abs(dataset_deviation[cls_mask.bool()] - cls_targets_diviation[cls_mask.bool()])):.6f}")
 
-        # loss
-        cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()
-        cls_loss_diviation = (self.loss_fct_diviation(cls_preds_diviation, cls_targets_diviation) * cls_mask).sum() / cls_mask.sum()
-        full_loss = self.weight_mean * cls_loss_mean + self.weight_diviation * cls_loss_diviation
+    #     # loss
+    #     cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()
+    #     cls_loss_diviation = (self.loss_fct_diviation(cls_preds_diviation, cls_targets_diviation) * cls_mask).sum() / cls_mask.sum()
+    #     full_loss = self.weight_mean * cls_loss_mean + self.weight_diviation * cls_loss_diviation
 
-        return full_loss, cls_loss_mean, cls_loss_diviation
+    #     return full_loss, cls_loss_mean, cls_loss_diviation
