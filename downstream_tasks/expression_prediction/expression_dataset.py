@@ -189,6 +189,17 @@ class ExpressionDataset(Dataset):
                     self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
                 pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
 
+        self.gene_cache = {}
+        for gene_id in self.h5_cache.keys():
+            g = self.h5_cache[gene_id]
+            self.gene_cache[gene_id] = {
+        "input_ids": np.array(g["input_ids"], dtype=np.int32),
+        "starts": np.array(g["starts"], dtype=np.int64),
+        "ends": np.array(g["ends"], dtype=np.int64),
+        "chrom": g["chrom"][()].decode("utf-8"),
+        "strand": g.attrs["strand"].decode("utf-8") if isinstance(g.attrs["strand"], bytes) else g.attrs["strand"],
+    }
+
         # Добавляем список валидных индексов
         self.valid_indices = []
         if not self.bw:  # Вычисляем валидные индексы только если bw=False
@@ -196,6 +207,7 @@ class ExpressionDataset(Dataset):
         else:
             # Если bw=True, все индексы валидны
             self.valid_indices = list(range(len(self.genes)))
+    
 
     # Вычисляем список валидных индексов
     def _compute_valid_indices(self):
@@ -582,7 +594,7 @@ class ExpressionDataset(Dataset):
 
         gene_id = self.genes.iloc[original_idx]['gene_id']
         # self.logger.debug(f"idx: {idx}, gene_id: {gene_id}")
-        gene_group = self.h5_cache[gene_id]
+        # gene_group = self.h5_cache[gene_id]
 
         # Get selected keys for current chunk
         if self.N_cell_type_specific_samples > 0:
@@ -616,11 +628,18 @@ class ExpressionDataset(Dataset):
 
         # self.logger.debug(f"selected_keys: {selected_keys}")
         
-        input_ids = np.array(gene_group['input_ids'])
-        starts = np.array(gene_group['starts'])
-        ends = np.array(gene_group['ends'])
-        chrom = gene_group['chrom'][()].decode('utf-8')
-        strand = gene_group.attrs['strand']
+        # input_ids = np.array(gene_group['input_ids'])
+        # starts = np.array(gene_group['starts'])
+        # ends = np.array(gene_group['ends'])
+        # chrom = gene_group['chrom'][()].decode('utf-8')
+        # strand = gene_group.attrs['strand']
+
+        data = self.gene_cache[gene_id]
+        input_ids = data["input_ids"]
+        starts = data["starts"]
+        ends = data["ends"]
+        chrom = data["chrom"]
+        strand = data["strand"]
 
         # sanity check
         assert strand == self.genes.iloc[original_idx]['strand']

@@ -1,4 +1,4 @@
-TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_mouse_quantloss
+TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_mouse_ln_2_gena
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -15,7 +15,7 @@ args_params:
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
-  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model_2_gena:ExpressionCounts"
 
   backbone_trainable: True
 
@@ -91,16 +91,16 @@ model_kwargs:
 
  # bert_cpt: "${HOME_PATH}/model/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth"
 
-  # loss_fct:
-
-  #   _target_: torch.nn.L1Loss
-
-  #   reduction: 'none'
-
   loss_fct:
-    _target_: downstream_tasks.expression_prediction.expression_model.QuantileLoss
-    quantile: 0.95
-    reduction: "none"
+
+    _target_: torch.nn.MSELoss
+
+    reduction: 'none'
+
+  # loss_fct:
+  #   _target_: downstream_tasks.expression_prediction.expression_model.QuantileLoss
+  #   quantile: 0.95
+  #   reduction: "none"
 
   activation:
 
