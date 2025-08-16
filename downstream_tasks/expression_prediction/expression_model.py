@@ -4,6 +4,8 @@ from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
+from transformers import AutoModel, BertConfig
+from transformers.utils import cached_file
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -64,6 +66,8 @@ class ExpressionCounts(BertPreTrainedModel):
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         cell_type_specific_loss_fn = None,
         text_model = None,
+        hf: bool = False,
+        hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
     ):
         super().__init__(config)
         self.config = config
@@ -80,7 +84,7 @@ class ExpressionCounts(BertPreTrainedModel):
             }
 
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = hf_config
+            config = hf_config
                                             
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
@@ -90,7 +94,6 @@ class ExpressionCounts(BertPreTrainedModel):
             updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
 
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            bert_cfg = config
 
         if len(missing_k) != 0:
             print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
