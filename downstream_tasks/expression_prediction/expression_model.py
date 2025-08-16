@@ -70,17 +70,32 @@ class ExpressionCounts(BertPreTrainedModel):
         self.hidden_size_desc = hidden_size_desc 
 
         # 1) GENA
-        self.bert = BertModel(config, add_pooling_layer=False)
+        if hf:
+            hf_config = BertConfig.from_pretrained(hf_model_name)
+            self.bert = BertModel(hf_config, add_pooling_layer=False)
+            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
+            state_dict = torch.load(weights_path, map_location="cpu")
+            updated_state_dict = {
+                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+            }
 
-        checkpoint = torch.load(bert_cpt, map_location='cpu')
-        state_dict = checkpoint['model_state_dict']
-        updated_state_dict = {k.replace('bert.', ''): v for k, v in state_dict.items()}
-        missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            bert_cfg = hf_config
+                                            
+        else:
+            self.bert = BertModel(config, add_pooling_layer=False)
+
+            checkpoint = torch.load(bert_cpt, map_location="cpu")
+            state_dict = checkpoint["model_state_dict"]
+            updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+
+            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            bert_cfg = config
+
         if len(missing_k) != 0:
-            print(f'{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.')
+            print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
         if len(unexpected_k) != 0:
-            print(f'{unexpected_k} were found in checkpoint, but model is not expecting them!')
-
+            print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
 
         if text_model is not None:
             self.desc_fc = text_model
