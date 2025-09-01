@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
-# from torchcrf import CRF
+from torchcrf import CRF
 import numpy as np
 from tqdm import tqdm
 import copy
@@ -350,332 +350,321 @@ class RMTEncoderForTokenClassification(RMTEncoderForSequenceClassification):
 
 
 
-# class DownSample1D(nn.Module):
-#     def __init__(self, input_channels, output_channels, num_layers=2):
-#         super().__init__()
-#         layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
-#         layers += [
-#             nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
-#             for _ in range(num_layers - 1)
-#         ]
-#         self.conv_layers = nn.ModuleList(layers)
-#         self.activation_fn = nn.SiLU()
-#         # Use ceil_mode=True to handle arbitrary sequence lengths
-#         self.avg_pool = nn.AvgPool1d(kernel_size=2, stride=2, ceil_mode=True)
-
-#     def forward(self, x):
-#         for conv_layer in self.conv_layers:
-#             x = self.activation_fn(conv_layer(x))
-#         hidden = x  # Save for skip connection
-#         x = self.avg_pool(hidden)
-#         return x, hidden
-
-# class UpSample1D(nn.Module):
-#     def __init__(self, input_channels, output_channels, num_layers=2):
-#         super().__init__()
-#         # Use ConvTranspose1d for upsampling
-#         self.up = nn.ConvTranspose1d(input_channels, output_channels, kernel_size=2, stride=2)
-#         layers = [nn.Conv1d(output_channels * 2, output_channels, kernel_size=3, padding=1)]
-#         layers += [
-#             nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
-#             for _ in range(num_layers - 1)
-#         ]
-#         self.conv_layers = nn.ModuleList(layers)
-#         self.activation_fn = nn.SiLU()
-
-#     def forward(self, x, skip_connection):
-#         x = self.up(x)
-#         # Adjust size if necessary to match the skip connection
-#         diff = skip_connection.size(2) - x.size(2)
-#         if diff > 0:
-#             x = F.pad(x, (0, diff))
-#         elif diff < 0:
-#             x = x[:, :, :skip_connection.size(2)]
-#         # Concatenate skip connection
-#         x = torch.cat([skip_connection, x], dim=1)
-#         for conv_layer in self.conv_layers:
-#             x = self.activation_fn(conv_layer(x))
-#         return x
-
-# class FinalConv1D(nn.Module):
-#     def __init__(self, input_channels, output_channels, num_layers=2):
-#         super().__init__()
-#         layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
-#         layers += [
-#             nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
-#             for _ in range(num_layers - 1)
-#         ]
-#         self.conv_layers = nn.ModuleList(layers)
-#         self.activation_fn = nn.SiLU()
-
-#     def forward(self, x):
-#         for i, conv_layer in enumerate(self.conv_layers):
-#             x = conv_layer(x)
-#             if i < len(self.conv_layers) - 1:
-#                 x = self.activation_fn(x)
-#         return x
-
-# class UNET1DSegmentationHead(nn.Module):
-#     def __init__(self, embed_dim, num_classes, output_channels_list=None, num_conv_layers_per_block=2):
-#         super().__init__()
-#         if output_channels_list is None:
-#             output_channels_list = [64, 128, 256]  # Default values
-#         else:
-#             output_channels_list = list(output_channels_list)  # Ensure it's a list
-
-#         self.num_pooling_layers = len(output_channels_list)
-
-#         # Downsampling blocks
-#         downsample_input_channels_list = [embed_dim] + output_channels_list[:-1]
-#         self.downsample_blocks = nn.ModuleList([
-#             DownSample1D(in_ch, out_ch, num_conv_layers_per_block)
-#             for in_ch, out_ch in zip(downsample_input_channels_list, output_channels_list)
-#         ])
-
-#         # Upsampling blocks
-#         reversed_output_channels_list = output_channels_list[::-1]
-#         upsample_input_channels_list = [output_channels_list[-1]] + reversed_output_channels_list[:-1]
-#         upsample_output_channels_list = reversed_output_channels_list
-#         self.upsample_blocks = nn.ModuleList([
-#             UpSample1D(in_ch, out_ch, num_conv_layers_per_block)
-#             for in_ch, out_ch in zip(upsample_input_channels_list, upsample_output_channels_list)
-#         ])
-
-#         self.final_block = FinalConv1D(output_channels_list[0], num_classes, num_conv_layers_per_block)
-
-#     def forward(self, x):
-#         hiddens = []
-#         # Downsampling path
-#         for downsample_block in self.downsample_blocks:
-#             x, hidden = downsample_block(x)
-#             hiddens.append(hidden)
-
-#         # Upsampling path
-#         for i, upsample_block in enumerate(self.upsample_blocks):
-#             skip_connection = hiddens[-(i + 1)]
-#             x = upsample_block(x, skip_connection)
-
-#         x = self.final_block(x)
-#         return x    
-
-
-
-
-
-
-
-
 class DownSample1D(nn.Module):
-    """
-    1D-UNET down-sampling block.
-    """
-
-    def __init__(self,
-                 input_channels: int,
-                 output_channels: int,
-                 num_layers: int = 2):
+    def __init__(self, input_channels, output_channels, num_layers=2):
         super().__init__()
-
-        self.first_layer = [nn.Conv1d(
-            in_channels=input_channels,
-            out_channels=output_channels,
-            kernel_size=3,
-            stride=1,
-            dilation=1,
-            padding="same",
-        )]
-
-        self.next_layers = [
-            nn.Conv1d(
-                in_channels=output_channels,
-                out_channels=output_channels,
-                kernel_size=3,
-                stride=1,
-                dilation=1,
-                padding="same",
-            )
+        layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
             for _ in range(num_layers - 1)
         ]
-        self.conv_layers = nn.ModuleList(self.first_layer + self.next_layers)
-
-        # ---- CHANGE 1:  ceil_mode=True → at most one pad element per block
-        self.avg_pool = nn.AvgPool1d(
-            kernel_size=2,
-            stride=2,
-            padding=0,
-            ceil_mode=True,            # ★ NEW ★
-        )
+        self.conv_layers = nn.ModuleList(layers)
         self.activation_fn = nn.SiLU()
+        # Use ceil_mode=True to handle arbitrary sequence lengths
+        self.avg_pool = nn.AvgPool1d(kernel_size=2, stride=2, ceil_mode=True)
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x):
         for conv_layer in self.conv_layers:
             x = self.activation_fn(conv_layer(x))
-
-        hidden = x
+        hidden = x  # Save for skip connection
         x = self.avg_pool(hidden)
         return x, hidden
 
-
 class UpSample1D(nn.Module):
-    """
-    1D-UNET up-sampling block.
-    """
-
-    def __init__(self,
-                 input_channels: int,
-                 output_channels: int,
-                 num_layers: int = 2):
+    def __init__(self, input_channels, output_channels, num_layers=2):
         super().__init__()
-
-        self._first_layer = [nn.ConvTranspose1d(
-            in_channels=input_channels,
-            out_channels=output_channels,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-        )]
-
-        self._next_layers = [
-            nn.ConvTranspose1d(
-                in_channels=output_channels,
-                out_channels=output_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-            )
+        # Use ConvTranspose1d for upsampling
+        self.up = nn.ConvTranspose1d(input_channels, output_channels, kernel_size=2, stride=2)
+        layers = [nn.Conv1d(output_channels * 2, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
             for _ in range(num_layers - 1)
         ]
-        self.conv_layers = nn.ModuleList(self._first_layer + self._next_layers)
-        self._activation_fn = nn.SiLU()
+        self.conv_layers = nn.ModuleList(layers)
+        self.activation_fn = nn.SiLU()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x, skip_connection):
+        x = self.up(x)
+        # Adjust size if necessary to match the skip connection
+        diff = skip_connection.size(2) - x.size(2)
+        if diff > 0:
+            x = F.pad(x, (0, diff))
+        elif diff < 0:
+            x = x[:, :, :skip_connection.size(2)]
+        # Concatenate skip connection
+        x = torch.cat([skip_connection, x], dim=1)
         for conv_layer in self.conv_layers:
-            x = self._activation_fn(conv_layer(x))
-
-        # keep “×2” behaviour; we’ll crop (or pad) outside
-        x = F.interpolate(x, size=2 * x.shape[2], mode="nearest")
+            x = self.activation_fn(conv_layer(x))
         return x
 
-
 class FinalConv1D(nn.Module):
-    """
-    Final output block of the 1D-UNET.
-    """
-    def __init__(self,
-                 input_channels: int,
-                 output_channels: int,
-                 num_layers: int = 2):
+    def __init__(self, input_channels, output_channels, num_layers=2):
         super().__init__()
-
-        self._first_layer = [nn.Conv1d(
-            in_channels=input_channels,
-            out_channels=output_channels,
-            kernel_size=3,
-            stride=1,
-            dilation=1,
-            padding="same",
-        )]
-
-        self._next_layers = [
-            nn.Conv1d(
-                in_channels=output_channels,
-                out_channels=output_channels,
-                kernel_size=3,
-                stride=1,
-                dilation=1,
-                padding="same",
-            )
+        layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
             for _ in range(num_layers - 1)
         ]
-        self.conv_layers = nn.ModuleList(self._first_layer + self._next_layers)
-        self._activation_fn = nn.SiLU()
+        self.conv_layers = nn.ModuleList(layers)
+        self.activation_fn = nn.SiLU()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x):
         for i, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x)
             if i < len(self.conv_layers) - 1:
-                x = self._activation_fn(x)
+                x = self.activation_fn(x)
         return x
 
-
 class UNET1DSegmentationHead(nn.Module):
-    """
-    1D-UNET head that now supports **any** input length with <1-element padding per level.
-    """
-
-    def __init__(self,
-                 embed_dim: int,
-                 num_classes: int,
-                 output_channels_list: Tuple[int, ...] = (64, 128, 256),
-                 num_conv_layers_per_block: int = 2):
+    def __init__(self, embed_dim, num_classes, output_channels_list=None, num_conv_layers_per_block=2):
         super().__init__()
+        if output_channels_list is None:
+            output_channels_list = [64, 128, 256]  # Default values
+        else:
+            output_channels_list = list(output_channels_list)  # Ensure it's a list
 
-        self._num_pooling_layers = len(output_channels_list)
+        self.num_pooling_layers = len(output_channels_list)
 
-        # ---------- Encoder ------------------------------------------------
-        downsample_input_channels_list = (embed_dim,) + output_channels_list[:-1]
-        self._downsample_blocks = nn.ModuleList([
-            DownSample1D(
-                input_channels=i_ch,
-                output_channels=o_ch,
-                num_layers=num_conv_layers_per_block,
-            )
-            for i_ch, o_ch in zip(downsample_input_channels_list,
-                                  output_channels_list)
+        # Downsampling blocks
+        downsample_input_channels_list = [embed_dim] + output_channels_list[:-1]
+        self.downsample_blocks = nn.ModuleList([
+            DownSample1D(in_ch, out_ch, num_conv_layers_per_block)
+            for in_ch, out_ch in zip(downsample_input_channels_list, output_channels_list)
         ])
 
-        # ---------- Decoder ------------------------------------------------
-        rev = tuple(reversed(output_channels_list))
-        upsample_input_channels_list = (output_channels_list[-1],) + rev
-        self._upsample_blocks = nn.ModuleList([
-            UpSample1D(
-                input_channels=i_ch,
-                output_channels=o_ch,
-                num_layers=num_conv_layers_per_block,
-            )
-            for i_ch, o_ch in zip(upsample_input_channels_list, rev)
+        # Upsampling blocks
+        reversed_output_channels_list = output_channels_list[::-1]
+        upsample_input_channels_list = [output_channels_list[-1]] + reversed_output_channels_list[:-1]
+        upsample_output_channels_list = reversed_output_channels_list
+        self.upsample_blocks = nn.ModuleList([
+            UpSample1D(in_ch, out_ch, num_conv_layers_per_block)
+            for in_ch, out_ch in zip(upsample_input_channels_list, upsample_output_channels_list)
         ])
 
-        # ---------- Output -------------------------------------------------
-        self.final_block = FinalConv1D(
-            input_channels=output_channels_list[0],
-            output_channels=num_classes * 2,
-            num_layers=num_conv_layers_per_block,
-        )
+        self.final_block = FinalConv1D(output_channels_list[0], num_classes, num_conv_layers_per_block)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        original_len = x.shape[2]
-
-        # ---------- Encoder ----------------------------------------------
+    def forward(self, x):
         hiddens = []
-        for downsample_block in self._downsample_blocks:
+        # Downsampling path
+        for downsample_block in self.downsample_blocks:
             x, hidden = downsample_block(x)
             hiddens.append(hidden)
 
-        # ---------- Decoder ----------------------------------------------
-        for upsample_block, hidden in zip(self._upsample_blocks, reversed(hiddens)):
-            x = upsample_block(x)
-
-            assert hidden.shape[2] <= x.shape[2] + 1, (f"Skip connection too long: hidden={hidden.shape[2]}, "f"up={x.shape[2]} (difference > 1)")
-
-            # ---- CHANGE 2: ensure same temporal length as skip ----------
-            if x.shape[2] > hidden.shape[2]:
-                x = x[:, :, :hidden.shape[2]]
-            elif x.shape[2] < hidden.shape[2]:          # happens rarely
-                hidden = hidden[:, :, :x.shape[2]]
-
-            x = x + hidden
+        # Upsampling path
+        for i, upsample_block in enumerate(self.upsample_blocks):
+            skip_connection = hiddens[-(i + 1)]
+            x = upsample_block(x, skip_connection)
 
         x = self.final_block(x)
+        return x    
 
-        # After the last crop above, `x` already has the exact
-        # same length as the very first hidden → original input.
-        # No further action needed, but kept for clarity:
-        assert x.shape[2] == original_len
-        if x.shape[2] > original_len:
-            x = x[:, :, :original_len]
 
-        return x
+
+
+
+
+
+
+# class DownSample1D(nn.Module):
+#     """
+#     1D-UNET down-sampling block.
+#     """
+
+#     def __init__(self,
+#                  input_channels: int,
+#                  output_channels: int,
+#                  num_layers: int = 2):
+#         super().__init__()
+
+#         self.first_layer = [nn.Conv1d(
+#             in_channels=input_channels,
+#             out_channels=output_channels,
+#             kernel_size=3,
+#             stride=1,
+#             dilation=1,
+#             padding="same",
+#         )]
+
+#         self.next_layers = [
+#             nn.Conv1d(
+#                 in_channels=output_channels,
+#                 out_channels=output_channels,
+#                 kernel_size=3,
+#                 stride=1,
+#                 dilation=1,
+#                 padding="same",
+#             )
+#             for _ in range(num_layers - 1)
+#         ]
+#         self.conv_layers = nn.ModuleList(self.first_layer + self.next_layers)
+
+#         self.avg_pool = nn.AvgPool1d(
+#             kernel_size=2,
+#             stride=2,
+#             padding=0,
+#             ceil_mode=True,
+#         )
+#         self.activation_fn = nn.SiLU()
+
+#     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+#         for conv_layer in self.conv_layers:
+#             x = self.activation_fn(conv_layer(x))
+
+#         hidden = x
+#         x = self.avg_pool(hidden)
+#         return x, hidden
+
+
+# class UpSample1D(nn.Module):
+#     """
+#     1D-UNET up-sampling block.
+#     """
+
+#     def __init__(self,
+#                  input_channels: int,
+#                  output_channels: int,
+#                  num_layers: int = 2):
+#         super().__init__()
+
+#         self._first_layer = [nn.ConvTranspose1d(
+#             in_channels=input_channels,
+#             out_channels=output_channels,
+#             kernel_size=3,
+#             stride=1,
+#             padding=1,
+#         )]
+
+#         self._next_layers = [
+#             nn.ConvTranspose1d(
+#                 in_channels=output_channels,
+#                 out_channels=output_channels,
+#                 kernel_size=3,
+#                 stride=1,
+#                 padding=1,
+#             )
+#             for _ in range(num_layers - 1)
+#         ]
+#         self.conv_layers = nn.ModuleList(self._first_layer + self._next_layers)
+#         self._activation_fn = nn.SiLU()
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         for conv_layer in self.conv_layers:
+#             x = self._activation_fn(conv_layer(x))
+
+#         x = F.interpolate(x, size=2 * x.shape[2], mode="nearest")
+#         return x
+
+
+# class FinalConv1D(nn.Module):
+#     """
+#     Final output block of the 1D-UNET.
+#     """
+#     def __init__(self,
+#                  input_channels: int,
+#                  output_channels: int,
+#                  num_layers: int = 2):
+#         super().__init__()
+
+#         self._first_layer = [nn.Conv1d(
+#             in_channels=input_channels,
+#             out_channels=output_channels,
+#             kernel_size=3,
+#             stride=1,
+#             dilation=1,
+#             padding="same",
+#         )]
+
+#         self._next_layers = [
+#             nn.Conv1d(
+#                 in_channels=output_channels,
+#                 out_channels=output_channels,
+#                 kernel_size=3,
+#                 stride=1,
+#                 dilation=1,
+#                 padding="same",
+#             )
+#             for _ in range(num_layers - 1)
+#         ]
+#         self.conv_layers = nn.ModuleList(self._first_layer + self._next_layers)
+#         self._activation_fn = nn.SiLU()
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         for i, conv_layer in enumerate(self.conv_layers):
+#             x = conv_layer(x)
+#             if i < len(self.conv_layers) - 1:
+#                 x = self._activation_fn(x)
+#         return x
+
+
+# class UNET1DSegmentationHead(nn.Module):
+#     """
+#     1D-UNET head that now supports **any** input length with <1-element padding per level.
+#     """
+
+#     def __init__(self,
+#                  embed_dim: int,
+#                  num_classes: int,
+#                  output_channels_list: Tuple[int, ...] = (64, 128, 256),
+#                  num_conv_layers_per_block: int = 2):
+#         super().__init__()
+
+#         self._num_pooling_layers = len(output_channels_list)
+
+#         downsample_input_channels_list = (embed_dim,) + output_channels_list[:-1]
+#         self._downsample_blocks = nn.ModuleList([
+#             DownSample1D(
+#                 input_channels=i_ch,
+#                 output_channels=o_ch,
+#                 num_layers=num_conv_layers_per_block,
+#             )
+#             for i_ch, o_ch in zip(downsample_input_channels_list,
+#                                   output_channels_list)
+#         ])
+
+#         rev = tuple(reversed(output_channels_list))
+#         upsample_input_channels_list = (output_channels_list[-1],) + rev
+#         self._upsample_blocks = nn.ModuleList([
+#             UpSample1D(
+#                 input_channels=i_ch,
+#                 output_channels=o_ch,
+#                 num_layers=num_conv_layers_per_block,
+#             )
+#             for i_ch, o_ch in zip(upsample_input_channels_list, rev)
+#         ])
+
+#         self.final_block = FinalConv1D(
+#             input_channels=output_channels_list[0],
+#             output_channels=num_classes * 2,
+#             num_layers=num_conv_layers_per_block,
+#         )
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         original_len = x.shape[2]
+
+#         hiddens = []
+#         for downsample_block in self._downsample_blocks:
+#             x, hidden = downsample_block(x)
+#             hiddens.append(hidden)
+
+#         for upsample_block, hidden in zip(self._upsample_blocks, reversed(hiddens)):
+#             x = upsample_block(x)
+
+#             assert hidden.shape[2] <= x.shape[2] + 1, (f"Skip connection too long: hidden={hidden.shape[2]}, "f"up={x.shape[2]} (difference > 1)")
+
+#             if x.shape[2] > hidden.shape[2]:
+#                 x = x[:, :, :hidden.shape[2]]
+#             elif x.shape[2] < hidden.shape[2]:       
+#                 hidden = hidden[:, :, :x.shape[2]]
+
+#             x = x + hidden
+
+#         x = self.final_block(x)
+
+#         assert x.shape[2] == original_len
+#         if x.shape[2] > original_len:
+#             x = x[:, :, :original_len]
+
+#         return x
 
 
 
@@ -4387,14 +4376,14 @@ class RMTEncoderForLetterLevelTokenClassificationUNETsegmentedRepeater(torch.nn.
         super().__init__() 
         self.model = base_model
         self.sub_model = UNET1DSegmentationHead(
-                            embed_dim=2048,
-                            num_classes=2048,
-                            output_channels_list=[256, 512, 1024],  # Example channel sizes as a list
+                            embed_dim=1536,
+                            num_classes=1536,
+                            output_channels_list=[192, 384, 768],  # Example channel sizes as a list
                             num_conv_layers_per_block=2
                         )
-        self.nucleotide_embedding = nn.Embedding(1000, 1024)
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
         self.activation_fn = nn.SiLU()
-        self.fc = nn.Linear(2048, 5)
+        self.fc = nn.Linear(1536, 9)
         # self.middle_norm = nn.LayerNorm(1024)
         # self.middle_dropout = nn.Dropout(p=0.992)
         
@@ -4503,7 +4492,7 @@ class RMTEncoderForLetterLevelTokenClassificationUNETsegmentedRepeater(torch.nn.
             # print(out)
             memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
 
-            logits.append(out['logits'].detach())
+            logits.append(out['logits'])
             labels_segm += [seg_kwargs['labels']]
 
             if labels_mask is not None:
@@ -4741,11 +4730,1171 @@ class RMTEncoderForLetterLevelTokenClassificationUNETsegmentedRepeater(torch.nn.
 
 
 
+class RMTEncoderForLetterLevelTokenClassificationUNETsegmentedRepeaterLargeCycles3(torch.nn.Module):
+    # todo: move segment looping into RMT class, also move help functions into RMT class
+    def __init__(self, base_model, **rmt_kwargs):
+        super().__init__() 
+        self.model = base_model
+        self.sub_model = UNET1DSegmentationHead(
+                            embed_dim=2048,
+                            num_classes=2048,
+                            output_channels_list=[256, 512, 1024],  # Example channel sizes as a list
+                            num_conv_layers_per_block=2
+                        )
+        self.nucleotide_embedding = nn.Embedding(1000, 1024)
+        self.activation_fn = nn.SiLU()
+        self.fc = nn.Linear(2048, 5)
+        # self.middle_norm = nn.LayerNorm(1024)
+        # self.middle_dropout = nn.Dropout(p=0.992)
+        
+        self.set_params(**rmt_kwargs)
+        
+        # self.sub_model.embeddings = self.sub_model.base_model.embeddings.word_embeddings
+        
+        self.rmt_config['sum_loss'] = True
+        
+        if self.rmt_config['use_crf']:
+            self.num_crf_classes = self.rmt_config['num_crf_classes']
+            self.crf_model = CRF(self.num_crf_classes, batch_first=True)
+        
+    def set_params(self, num_mem_tokens, tokenizer, **rmt_config):
+        self.rmt_config = rmt_config
+        self.extract_special_tokens(tokenizer)
+        self.extend_word_embeddings(num_mem_tokens)
+
+        self.segment_size = rmt_config['input_size'] - num_mem_tokens - 3
+
+    def set_memory(self, memory=None):
+        if memory is None:
+            mem_token_ids = self.mem_token_ids
+            memory = self.model.embeddings(mem_token_ids)
+        return memory
+
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.register_buffer('cls_token', torch.tensor([tokenizer.cls_token_id]))
+        self.register_buffer('sep_token', torch.tensor([tokenizer.sep_token_id]))
+
+    def extend_word_embeddings(self, num_mem_tokens):
+        vocab_size = self.model.base_model.embeddings.word_embeddings.weight.shape[0]
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
+        self.model.embeddings = self.model.base_model.embeddings.word_embeddings
+
+        mem_start_ind = 1
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None):
+        # todo: currently output from RMT model is not the same like from backbone model with 1 segment
+        # because of inserted memory tokens and operations with cls/sep/pad in pad_and_segment
+        # need to impl such that output from forward is like output from backbone model:
+        # input -> segmented_inp -> segmented_logits -> output
+        #                               | -> loss         | -> metrics
+        #                           segmented_labels <- labels
+
+        kwargs = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+                  'position_ids': position_ids, 'head_mask': head_mask, 'inputs_embeds': inputs_embeds,
+                  'labels': labels, 'labels_mask': labels_mask, 'pos_weight': pos_weight,
+                  'output_attentions': output_attentions, 'output_hidden_states': output_hidden_states,
+                  'return_dict': return_dict,
+                  }
+        # print('POSPOSPOSPOSPOS', pos_weight.shape)
+        bs, seq_len = input_ids.shape
+
+        memory = self.set_memory()
+        memory = memory.repeat(input_ids.shape[0], 1, 1)
+        segmented, segmented_labels, segmented_labels_mask = self.pad_and_segment(input_ids, labels, labels_mask)
+
+        losses = []
+        logits = []
+        logits_masks = []
+        labels_segm = []
+        pos_weight = pos_weight[0, 0, :][None, None, :]
+        for seg_num, (segment_input_ids, segment_labels, segment_labels_mask) in enumerate(zip(segmented,
+                                                                                               segmented_labels,
+                                                                                               segmented_labels_mask)):
+            if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
+                memory = memory.detach()
+
+            seg_kwargs = dict(**kwargs)
+            seg_kwargs['output_hidden_states'] = True
+
+            non_empty_mask = [s is not None for s in segment_input_ids]
+            if sum(non_empty_mask) == 0:
+                continue
+            input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+            attention_mask = self.get_attention_mask(input_ids)
+            token_type_ids = self.get_token_type_ids(input_ids)
+
+            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
+
+            seg_kwargs['input_ids'] = None
+            seg_kwargs['inputs_embeds'] = inputs_embeds
+            seg_kwargs['attention_mask'] = attention_mask
+            seg_kwargs['token_type_ids'] = token_type_ids
+            if labels is not None:
+                seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+            if labels_mask is not None:
+                seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+            if pos_weight is not None:
+                # all values in the second dimension of pos_weight should be the same
+                pos_weight = pos_weight[0, 0, :][None, None, :]
+                segm_bs, segm_seq_len, _ = seg_kwargs['labels'].shape
+                seg_kwargs['pos_weight'] = pos_weight.repeat(segm_bs, segm_seq_len, 1)
+
+            out = self.model(**seg_kwargs)
+            # print(out)
+            memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
+
+            logits.append(out['logits'])
+            labels_segm += [seg_kwargs['labels']]
+
+            if labels_mask is not None:
+                logits_masks.append(seg_kwargs['labels_mask'])
+        
+        
+        
+        # drop unnecessary hiddens to save memory
+        if not kwargs.get('output_hidden_states'):
+            for key in out.keys():
+                if 'hidden_state' in key:
+                    out[key] = None
+
+#         for i, l in enumerate(losses):
+#             out[f'loss_{i}'] = l.mean()
+
+#         # aggregate losses from all segments
+#         out['loss'] = torch.stack(losses).mean()
+
+        # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
+        # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, 0, 0, bs - labels_segm[i].shape[0]))
+            if len(logits_masks) > 0:
+                logits_masks[i] = F.pad(logits_masks[i], (0, 0, 0, bs - logits_masks[i].shape[0]))
+
+        out['logits'] = torch.cat(logits, dim=1)
+        # out['logits'] = self.middle_dropout(self.middle_norm(torch.cat(logits, dim=1)))
+        # print(out['logits'])
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        if len(logits_masks) > 0:
+            out['rmt_logits_masks'] = torch.cat(logits_masks, dim=1)
+            out['rmt_logits_masks_segm'] = [logits_masks]
+
+        # print(out['logits'])
+        mem_token_ids = self.mem_token_ids
+        
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses, edge_losses, no_edge_losses, batched_crf_predictions = [], [], [], [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = out['logits'][b, out['rmt_logits_masks'][b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / self.rmt_config['unet_sub_model_input_size'])
+
+                loss = 0
+
+                cycles = 3
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*self.rmt_config['unet_sub_model_input_size']:(i+1)*self.rmt_config['unet_sub_model_input_size'], :]
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+                        curr_unet_inputs_embeds = self.activation_fn(self.sub_model(curr_unet_inputs_embeds))
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(loss / cycles) # loss
+
+                if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                    collected_repeated_logits = F.pad(collected_repeated_logits, (0, 0, 0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]))
+                    if self.rmt_config['use_crf']:
+                        crf_decoding = F.pad(crf_decoding, (0, letter_level_tokens.shape[1] - crf_decoding.shape[1]))
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                if self.rmt_config['use_crf']:
+                    batched_crf_predictions.append(crf_decoding)
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        if self.rmt_config['use_crf']:
+            final_model_output = TokenClassifierOutput(
+                loss=torch.stack(batched_losses).mean(),
+                logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+            )
+            final_model_output['decode'] = torch.cat(batched_crf_predictions, dim=0)
+            return final_model_output
+        else:
+            # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            final_model_output = dict() # TokenClassifierOutput(
+            #     loss=torch.stack(batched_losses).mean(),
+            #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+            # )
+            
+            final_model_output['loss'] = torch.stack(batched_losses).mean()
+            final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+            final_model_output['hidden_state'] = curr_logits[:, curr_repeater, :]
+            final_model_output['embedding_repeater'] = curr_repeater.squeeze()
+            
+            return final_model_output
+
+    def pad_and_segment(self, input_ids, labels=None, labels_mask=None):
+        segmented_batch = []
+        segmented_batch_labels = []
+        segmented_batch_labels_mask = []
+
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+
+        if labels_mask is None:
+            labels_mask = [None] * input_ids.shape[0]
+        batch_labels_mask = labels_mask
+
+        for seq, labels, labels_mask in zip(input_ids, batch_labels, batch_labels_mask):
+            content_tokens_mask = (seq != self.pad_token_id) & (seq != self.cls_token.item()) & (seq != self.sep_token.item())
+            seq = seq[content_tokens_mask]
+            seq = seq[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels is not None:
+                labels = labels[content_tokens_mask]
+                labels = labels[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels_mask is not None:
+                labels_mask = labels_mask[content_tokens_mask]
+                labels_mask = labels_mask[:self.segment_size * self.rmt_config['max_n_segments']]
+
+            n_seg = math.ceil(len(seq) / self.segment_size)
+            input_segments = torch.chunk(seq, n_seg)
+            input_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size']) for t in input_segments]
+            segmented_batch.append(input_segments)
+
+            if labels is not None:
+                labels_segments = torch.chunk(labels, n_seg)
+                labels_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels') for t in labels_segments]
+                segmented_batch_labels.append(labels_segments)
+
+            if labels_mask is not None:
+                labels_mask_segments = torch.chunk(labels_mask, n_seg)
+                labels_mask_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels_mask') for t in labels_mask_segments]
+                segmented_batch_labels_mask.append(labels_mask_segments)
+
+        # batch of segments -> segmented batch
+        # + align segments to right border
+        # so that the last segment is always non-empty
+        segmented_batch = [[s[::-1][i] if len(s) > i else None for s in segmented_batch]
+                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels) > 0:
+            segmented_batch_labels = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels]
+                                      for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels_mask) > 0:
+            segmented_batch_labels_mask = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels_mask]
+                                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        return segmented_batch, segmented_batch_labels, segmented_batch_labels_mask
+
+    def pad_add_special_tokens(self, tensor, segment_size, add_to='inputs'):
+        input_elements = []
+        if add_to == 'inputs':
+            input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+        elif add_to == 'labels':
+            masked_labels = torch.zeros((1, tensor.shape[-1]), device=tensor.device)
+            input_elements += [masked_labels, masked_labels.repeat(self.num_mem_tokens, 1), masked_labels, tensor, masked_labels]
+        elif add_to == 'labels_mask':
+            mask_value = torch.zeros((1), device=tensor.device)
+            input_elements += [mask_value, mask_value.repeat(self.num_mem_tokens), mask_value, tensor, mask_value]
+
+        tensor = torch.cat(input_elements)
+
+        pad_size = segment_size - tensor.shape[0]
+        if pad_size > 0:
+            if add_to == 'inputs':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'labels':
+                # todo: labels pad value should be specified, if not multilable classification it could be just -100
+                tensor = F.pad(tensor, (0, 0, 0, pad_size), value=0)
+            elif add_to == 'labels_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+        return tensor
+
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+
+    def get_token_type_ids(self, tensor):
+        return torch.zeros_like(tensor)
+
+
+
+
+
+
+
+
+
+
+class RMTEncoderForLetterLevelTokenClassificationLinearSegmentedRepeater(torch.nn.Module):
+    # todo: move segment looping into RMT class, also move help functions into RMT class
+    def __init__(self, base_model, **rmt_kwargs):
+        super().__init__() 
+        self.model = base_model
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+        # self.activation_fn = nn.SiLU()
+        self.fc = nn.Linear(1536, 5)
+        # self.middle_norm = nn.LayerNorm(1024)
+        # self.middle_dropout = nn.Dropout(p=0.992)
+        
+        self.set_params(**rmt_kwargs)
+        
+        # self.sub_model.embeddings = self.sub_model.base_model.embeddings.word_embeddings
+        
+        self.rmt_config['sum_loss'] = True
+        
+        if self.rmt_config['use_crf']:
+            self.num_crf_classes = self.rmt_config['num_crf_classes']
+            self.crf_model = CRF(self.num_crf_classes, batch_first=True)
+        
+    def set_params(self, num_mem_tokens, tokenizer, **rmt_config):
+        self.rmt_config = rmt_config
+        self.extract_special_tokens(tokenizer)
+        self.extend_word_embeddings(num_mem_tokens)
+
+        self.segment_size = rmt_config['input_size'] - num_mem_tokens - 3
+
+    def set_memory(self, memory=None):
+        if memory is None:
+            mem_token_ids = self.mem_token_ids
+            memory = self.model.embeddings(mem_token_ids)
+        return memory
+
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.register_buffer('cls_token', torch.tensor([tokenizer.cls_token_id]))
+        self.register_buffer('sep_token', torch.tensor([tokenizer.sep_token_id]))
+
+    def extend_word_embeddings(self, num_mem_tokens):
+        vocab_size = self.model.base_model.embeddings.word_embeddings.weight.shape[0]
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
+        self.model.embeddings = self.model.base_model.embeddings.word_embeddings
+
+        mem_start_ind = 1
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None):
+        # todo: currently output from RMT model is not the same like from backbone model with 1 segment
+        # because of inserted memory tokens and operations with cls/sep/pad in pad_and_segment
+        # need to impl such that output from forward is like output from backbone model:
+        # input -> segmented_inp -> segmented_logits -> output
+        #                               | -> loss         | -> metrics
+        #                           segmented_labels <- labels
+
+        kwargs = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+                  'position_ids': position_ids, 'head_mask': head_mask, 'inputs_embeds': inputs_embeds,
+                  'labels': labels, 'labels_mask': labels_mask, 'pos_weight': pos_weight,
+                  'output_attentions': output_attentions, 'output_hidden_states': output_hidden_states,
+                  'return_dict': return_dict,
+                  }
+        # print('POSPOSPOSPOSPOS', pos_weight.shape)
+        bs, seq_len = input_ids.shape
+
+        memory = self.set_memory()
+        memory = memory.repeat(input_ids.shape[0], 1, 1)
+        segmented, segmented_labels, segmented_labels_mask = self.pad_and_segment(input_ids, labels, labels_mask)
+
+        losses = []
+        logits = []
+        logits_masks = []
+        labels_segm = []
+        pos_weight = pos_weight[0, 0, :][None, None, :]
+        for seg_num, (segment_input_ids, segment_labels, segment_labels_mask) in enumerate(zip(segmented,
+                                                                                               segmented_labels,
+                                                                                               segmented_labels_mask)):
+            if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
+                memory = memory.detach()
+
+            seg_kwargs = dict(**kwargs)
+            seg_kwargs['output_hidden_states'] = True
+
+            non_empty_mask = [s is not None for s in segment_input_ids]
+            if sum(non_empty_mask) == 0:
+                continue
+            input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+            attention_mask = self.get_attention_mask(input_ids)
+            token_type_ids = self.get_token_type_ids(input_ids)
+
+            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
+
+            seg_kwargs['input_ids'] = None
+            seg_kwargs['inputs_embeds'] = inputs_embeds
+            seg_kwargs['attention_mask'] = attention_mask
+            seg_kwargs['token_type_ids'] = token_type_ids
+            if labels is not None:
+                seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+            if labels_mask is not None:
+                seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+            if pos_weight is not None:
+                # all values in the second dimension of pos_weight should be the same
+                pos_weight = pos_weight[0, 0, :][None, None, :]
+                segm_bs, segm_seq_len, _ = seg_kwargs['labels'].shape
+                seg_kwargs['pos_weight'] = pos_weight.repeat(segm_bs, segm_seq_len, 1)
+
+            out = self.model(**seg_kwargs)
+            # print(out)
+            memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
+
+            logits.append(out['logits'])
+            labels_segm += [seg_kwargs['labels']]
+
+            if labels_mask is not None:
+                logits_masks.append(seg_kwargs['labels_mask'])
+        
+        
+        
+        # drop unnecessary hiddens to save memory
+        if not kwargs.get('output_hidden_states'):
+            for key in out.keys():
+                if 'hidden_state' in key:
+                    out[key] = None
+
+#         for i, l in enumerate(losses):
+#             out[f'loss_{i}'] = l.mean()
+
+#         # aggregate losses from all segments
+#         out['loss'] = torch.stack(losses).mean()
+
+        # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
+        # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, 0, 0, bs - labels_segm[i].shape[0]))
+            if len(logits_masks) > 0:
+                logits_masks[i] = F.pad(logits_masks[i], (0, 0, 0, bs - logits_masks[i].shape[0]))
+
+        out['logits'] = torch.cat(logits, dim=1)
+        # out['logits'] = self.middle_dropout(self.middle_norm(torch.cat(logits, dim=1)))
+        # print(out['logits'])
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        if len(logits_masks) > 0:
+            out['rmt_logits_masks'] = torch.cat(logits_masks, dim=1)
+            out['rmt_logits_masks_segm'] = [logits_masks]
+
+        # print(out['logits'])
+        mem_token_ids = self.mem_token_ids
+        
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses, edge_losses, no_edge_losses, batched_crf_predictions = [], [], [], [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = out['logits'][b, out['rmt_logits_masks'][b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / self.rmt_config['unet_sub_model_input_size'])
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*self.rmt_config['unet_sub_model_input_size']:(i+1)*self.rmt_config['unet_sub_model_input_size'], :]
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(loss / cycles) # loss
+
+                if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                    collected_repeated_logits = F.pad(collected_repeated_logits, (0, 0, 0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]))
+                    if self.rmt_config['use_crf']:
+                        crf_decoding = F.pad(crf_decoding, (0, letter_level_tokens.shape[1] - crf_decoding.shape[1]))
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                if self.rmt_config['use_crf']:
+                    batched_crf_predictions.append(crf_decoding)
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        if self.rmt_config['use_crf']:
+            final_model_output = TokenClassifierOutput(
+                loss=torch.stack(batched_losses).mean(),
+                logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+            )
+            final_model_output['decode'] = torch.cat(batched_crf_predictions, dim=0)
+            return final_model_output
+        else:
+            # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            final_model_output = dict() # TokenClassifierOutput(
+            #     loss=torch.stack(batched_losses).mean(),
+            #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+            # )
+            
+            final_model_output['loss'] = torch.stack(batched_losses).mean()
+            final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+            
+            return final_model_output
+
+    def pad_and_segment(self, input_ids, labels=None, labels_mask=None):
+        segmented_batch = []
+        segmented_batch_labels = []
+        segmented_batch_labels_mask = []
+
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+
+        if labels_mask is None:
+            labels_mask = [None] * input_ids.shape[0]
+        batch_labels_mask = labels_mask
+
+        for seq, labels, labels_mask in zip(input_ids, batch_labels, batch_labels_mask):
+            content_tokens_mask = (seq != self.pad_token_id) & (seq != self.cls_token.item()) & (seq != self.sep_token.item())
+            seq = seq[content_tokens_mask]
+            seq = seq[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels is not None:
+                labels = labels[content_tokens_mask]
+                labels = labels[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels_mask is not None:
+                labels_mask = labels_mask[content_tokens_mask]
+                labels_mask = labels_mask[:self.segment_size * self.rmt_config['max_n_segments']]
+
+            n_seg = math.ceil(len(seq) / self.segment_size)
+            input_segments = torch.chunk(seq, n_seg)
+            input_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size']) for t in input_segments]
+            segmented_batch.append(input_segments)
+
+            if labels is not None:
+                labels_segments = torch.chunk(labels, n_seg)
+                labels_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels') for t in labels_segments]
+                segmented_batch_labels.append(labels_segments)
+
+            if labels_mask is not None:
+                labels_mask_segments = torch.chunk(labels_mask, n_seg)
+                labels_mask_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels_mask') for t in labels_mask_segments]
+                segmented_batch_labels_mask.append(labels_mask_segments)
+
+        # batch of segments -> segmented batch
+        # + align segments to right border
+        # so that the last segment is always non-empty
+        segmented_batch = [[s[::-1][i] if len(s) > i else None for s in segmented_batch]
+                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels) > 0:
+            segmented_batch_labels = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels]
+                                      for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels_mask) > 0:
+            segmented_batch_labels_mask = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels_mask]
+                                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        return segmented_batch, segmented_batch_labels, segmented_batch_labels_mask
+
+    def pad_add_special_tokens(self, tensor, segment_size, add_to='inputs'):
+        input_elements = []
+        if add_to == 'inputs':
+            input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+        elif add_to == 'labels':
+            masked_labels = torch.zeros((1, tensor.shape[-1]), device=tensor.device)
+            input_elements += [masked_labels, masked_labels.repeat(self.num_mem_tokens, 1), masked_labels, tensor, masked_labels]
+        elif add_to == 'labels_mask':
+            mask_value = torch.zeros((1), device=tensor.device)
+            input_elements += [mask_value, mask_value.repeat(self.num_mem_tokens), mask_value, tensor, mask_value]
+
+        tensor = torch.cat(input_elements)
+
+        pad_size = segment_size - tensor.shape[0]
+        if pad_size > 0:
+            if add_to == 'inputs':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'labels':
+                # todo: labels pad value should be specified, if not multilable classification it could be just -100
+                tensor = F.pad(tensor, (0, 0, 0, pad_size), value=0)
+            elif add_to == 'labels_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+        return tensor
+
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+
+    def get_token_type_ids(self, tensor):
+        return torch.zeros_like(tensor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class CRFLayer(nn.Module):
+    def __init__(self, num_tags: int, bos_tag_id: int):
+        super(CRFLayer, self).__init__()
+        self.num_tags = num_tags  
+        self.bos_tag_id = bos_tag_id  
+
+        self.transitions = nn.Parameter(torch.randn(num_tags, num_tags))  
+
+    def forward(self, emissions: torch.Tensor, tags: torch.Tensor = None, initial_state: torch.Tensor = None):
+       
+        batch_size, seq_len, num_labels = emissions.size()
+        assert num_labels == self.num_tags - 1, "Emissions should have 24 labels (excluding BOS)."
+
+        bos_col = torch.full((batch_size, seq_len, 1), fill_value=-1e4, device=emissions.device)  
+
+        emissions25 = torch.cat([emissions, bos_col], dim=2)  
+
+        if initial_state is None:
+
+            initial_state = emissions25.new_zeros((batch_size, self.num_tags))
+
+        alpha = initial_state  
+
+        for t in range(seq_len):
+            emit_t = emissions25[:, t, :]  
+
+            prev_alpha = alpha.unsqueeze(2)              
+            trans = self.transitions.unsqueeze(0)        
+
+            score = prev_alpha + trans  
+
+            alpha = torch.logsumexp(score, dim=2)  
+
+            alpha = alpha + emit_t  
+
+        log_Z = torch.logsumexp(alpha, dim=1)  
+
+        if tags is None:
+
+            return log_Z
+
+        gold_score = emissions25.new_zeros((batch_size,))  
+
+        first_tags = tags[:, 0]  
+
+        init_prev_tag = initial_state.argmax(dim=1)  
+
+        trans_score = self.transitions[first_tags, init_prev_tag]   
+        emit_score = emissions25[:, 0].gather(1, first_tags.unsqueeze(1)).squeeze(1)  
+        gold_score += trans_score + emit_score
+
+        for t in range(1, seq_len):
+            curr_tags = tags[:, t]       
+            prev_tags = tags[:, t-1]     
+
+            trans_score = self.transitions[curr_tags, prev_tags]   
+
+            emit_score = emissions25[:, t].gather(1, curr_tags.unsqueeze(1)).squeeze(1)  
+            gold_score += trans_score + emit_score
+
+        nll = log_Z - gold_score  
+
+        return nll.mean()
+
+    def decode(self, emissions: torch.Tensor, initial_state: torch.Tensor):
+       
+        batch_size, seq_len, _ = emissions.size()
+
+        bos_col = torch.full((batch_size, seq_len, 1), fill_value=-1e4, device=emissions.device)
+        emissions25 = torch.cat([emissions, bos_col], dim=2)
+
+        viterbi_vars = initial_state.clone()  
+
+        backpointers = []
+
+        for t in range(seq_len):
+            emit_t = emissions25[:, t, :]  
+            next_vars = []    
+            bptr_t = []       
+
+            scores = viterbi_vars.unsqueeze(1) + self.transitions.unsqueeze(0)  
+
+            max_scores, best_prev_tags = scores.max(dim=2)  
+
+            max_scores = max_scores + emit_t  
+            backpointers.append(best_prev_tags)  
+            viterbi_vars = max_scores  
+
+        best_paths = []
+
+        end_best_scores, end_best_tags = viterbi_vars.max(dim=1)  
+
+        for b in range(batch_size):
+            best_tag = int(end_best_tags[b].item())
+            seq_tags = [best_tag]
+
+            for ptr_t in reversed(backpointers):
+                best_tag = int(ptr_t[b, best_tag].item())
+                seq_tags.append(best_tag)
+            seq_tags.reverse()
+
+            seq_tags = seq_tags[1:]
+            best_paths.append(seq_tags)
+        return best_paths
+
+# class CADUSEUS_for_token_classification_CRF(torch.nn.Module):
+#     def __init__(self, caduseus_model):
+#         super().__init__() 
+#         self.caduseus_model = caduseus_model
+#         self.fc = nn.Linear(256, 24)
+
+#     def forward(self, input_ids, attention_mask=None, labels=None, **kwargs):
+#         batch_size, total_seq_len = input_ids.shape[:2]
+
+#         total_loss = 0.0
+#         all_preds = [[] for _ in range(batch_size)]
+#         num_chunks_total = 0
+
+#         if attention_mask is not None:
+#             actual_lengths = attention_mask.sum(dim=1).tolist()  
+#         else:
+#             actual_lengths = [total_seq_len] * batch_size
+
+#         for b in range(batch_size):
+#             seq_len = actual_lengths[b]
+
+#             seq_input_ids = input_ids[b, :seq_len].unsqueeze(0)  
+#             seq_mask = attention_mask[b, :seq_len].unsqueeze(0) if attention_mask is not None else None
+#             seq_labels = labels[b, :seq_len].unsqueeze(0) if labels is not None else None
+
+#             prev_tag = None  
+
+#             for start in range(0, seq_len, self.max_chunk_len):
+#                 end = min(start + self.max_chunk_len, seq_len)
+#                 chunk_len = end - start
+
+#                 chunk_input_ids = seq_input_ids[:, start:end]
+#                 chunk_mask = seq_mask[:, start:end] if seq_mask is not None else None
+#                 chunk_labels = seq_labels[:, start:end] if seq_labels is not None else None
+
+#                 outputs = self.base_model(chunk_input_ids, attention_mask=chunk_mask, **kwargs)
+#                 sequence_output = outputs[0]  
+
+#                 chunk_logits = self.classifier(sequence_output)  
+
+#                 if start == 0:
+
+#                     init_dist = chunk_logits.new_zeros((1, 25))  
+
+#                 else:
+
+#                     init_dist = chunk_logits.new_full((1, 25), -1e4)
+#                     if labels is not None:
+
+#                         prev_tag_idx = int(prev_tag)  
+#                     else:
+
+#                         prev_tag_idx = int(prev_tag)
+#                     init_dist[0, prev_tag_idx] = 0.0  
+
+#                 if chunk_labels is not None:
+#                     nll = self.crf(chunk_logits, tags=chunk_labels, initial_state=init_dist)
+#                     total_loss += nll.item()  
+#                     num_chunks_total += 1
+
+#                 best_path = self.crf.decode(chunk_logits, initial_state=init_dist)[0]  
+
+#                 all_preds[b].extend(best_path)
+
+#                 prev_tag = best_path[-1]
+
+#         avg_loss = None
+#         if labels is not None:
+#             avg_loss = total_loss / num_chunks_total
+
+#         max_len = max(len(seq) for seq in all_preds)
+#         output_logits = torch.zeros((batch_size, max_len, 24), device=input_ids.device)
+
+#         for b in range(batch_size):
+#             pred_seq = all_preds[b]
+#             seq_length = len(pred_seq)
+#             for t, tag in enumerate(pred_seq):
+#                 if t < seq_length:
+
+#                     output_logits[b, t, tag] = 10.0  
+
+#         return TokenClassifierOutput(loss=avg_loss, logits=output_logits)
+
+
+
+
+
+
+
+class CADUSEUS_for_token_classification_CRF(torch.nn.Module):
+    def __init__(self, caduseus_model):
+        super().__init__() 
+        self.caduseus_model = caduseus_model
+        self.fc = nn.Linear(256, 24)
+        self.crf = CRF(24, batch_first=True)
+
+    def forward(self, input_ids=None, letter_level_labels=None, letter_level_labels_mask=None):
+        hidden_states = self.caduseus_model(input_ids).last_hidden_state
+        bs = hidden_states.shape[0]
+        batched_collected_preds, batched_losses = [], []
+        for b in range(bs):  # aggregate in one batch
+            curr_logits = hidden_states[b, letter_level_labels_mask[b], :].unsqueeze(0)
+            curr_logits = self.fc(curr_logits)
+            # Mask for CRF: shape (1, seq_len)
+            # curr_mask = torch.ones(curr_logits.shape[:2], dtype=torch.bool, device=curr_logits.device)
+            if letter_level_labels is not None:
+                curr_labels = letter_level_labels[b, letter_level_labels_mask[b]].unsqueeze(0)
+                print('AAAAAAAAAAA')
+                loss = -self.crf(curr_logits.float(), curr_labels.long(), reduction='mean')
+                print('BBBBBBBBBBB')
+                batched_losses.append(loss)
+            # Decoding
+            print('CCCCCCCCCC')
+            pred_labels = torch.tensor(self.crf.decode(curr_logits.float()), device=curr_logits.device)
+            print('DDDDDDDDDD')
+            # print('AAAAAAAAA', pred_labels.shape)
+            # assert False
+            pred_labels = F.pad(pred_labels, (letter_level_labels.shape[1] - pred_labels.shape[1] - 1, 1), value=-100)
+            # print('BBBBBBBBB', pred_labels.shape)
+            batched_collected_preds.append(pred_labels)
+        final_model_output = dict()
+        if letter_level_labels is not None and batched_losses:
+            final_model_output['loss'] = torch.stack(batched_losses).mean()
+        # Pad predictions to seq_len, fill with -100 for padding
+        # maxlen = letter_level_labels.shape[1] if letter_level_labels is not None else max([p.size(0) for p in batched_collected_preds])
+        # preds_padded = [F.pad(p, (0, maxlen - p.size(0)), value=-100) for p in batched_collected_preds]
+        final_model_output['logits'] = torch.cat(batched_collected_preds, dim=0)
+        # print(final_model_output['logits'].shape)
+        return final_model_output
+
+
+
+
+
+from torch_struct import LinearChainCRF
+# import torch
+# import torch.nn.functional as F
+# from torch import nn
+
+# class CADUSEUS_for_token_classification_CRF_fast(torch.nn.Module):
+#     """
+#     • takes `letter_level_labels_mask` to drop padding / system tokens
+#     • expects `letter_level_labels` to be class indices in [0, 23]
+#     • returns:
+#         - loss (mean NLL) if labels are given
+#         - logits = decoded label indices padded with –100
+#     """
+
+#     def __init__(self, caduseus_model):
+#         super().__init__()
+#         self.caduseus_model = caduseus_model           # any HF encoder
+#         self.num_labels     = 24                      # K
+#         self.fc             = nn.Linear(256, self.num_labels)
+#         # transition scores  (to , from)
+#         self.transitions    = nn.Parameter(torch.randn(self.num_labels,
+#                                                        self.num_labels))
+
+#     # ---------- helper ----------------------------------------------------
+#     def _pairwise_potentials(self, emis: torch.Tensor) -> torch.Tensor:
+#         """
+#         emis  : (B , T , K)  – per-token scores from the linear head
+#         return: (B , T-1 , K , K)  – log-potentials for LinearChainCRF
+#         pot[b,t,i,j] = trans[i,j] + emis[b,t,i] + emis[b,t+1,j]
+#         """
+#         B, T, K = emis.size()
+#         trans   = self.transitions                      # (K , K)
+#         # expand dims so broadcast adds correctly
+#         trans   = trans.unsqueeze(0).unsqueeze(0)       # (1 , 1 , K , K)
+#         emis_i  = emis[:, :-1].unsqueeze(3)             # (B , T-1 , K , 1)
+#         emis_j  = emis[:, 1: ].unsqueeze(2)             # (B , T-1 , 1 , K)
+#         return trans + emis_i + emis_j                  # (B , T-1 , K , K)
+
+#     # ---------- forward ---------------------------------------------------
+#     def forward(
+#         self,
+#         input_ids               = None,    # (bs , seq_len)
+#         letter_level_labels     = None,    # (bs , seq_len)  or  None
+#         letter_level_labels_mask = None    # bool mask
+#     ):
+#         hidden = self.caduseus_model(input_ids).last_hidden_state  # (bs , seq_len , 256)
+#         bs, full_len, _ = hidden.size()
+
+#         losses, pred_rows = [], []
+
+#         for b in range(bs):
+
+#             # ---- select only “real” tokens for this sample ----------------
+#             real_mask = letter_level_labels_mask[b]                 # (seq_len,)
+#             h        = hidden[b, real_mask]                         # (T , 256)
+#             if h.numel() == 0:                                      # empty after mask?
+#                 # pad entirely with –100 and continue
+#                 pred_rows.append(torch.full((1, full_len),
+#                                   -100, device=hidden.device, dtype=torch.long))
+#                 continue
+
+#             h        = h.unsqueeze(0)                               # (1 , T , 256)
+#             emis     = self.fc(h)                                   # (1 , T , K)
+#             T        = emis.size(1)
+
+#             # ---- build linear-chain potentials ---------------------------
+#             if T == 1:
+#                 # Torch-Struct needs length≥2; fall back to greedy
+#                 best = emis.argmax(-1)                              # (1 , 1)
+#                 pot  = emis.new_empty(1, 0, self.num_labels, self.num_labels)
+#                 dist = LinearChainCRF(pot)                          # dummy CRF
+#             else:
+#                 pot  = self._pairwise_potentials(emis)              # (1 , T-1 , K , K)
+#                 dist = LinearChainCRF(pot)
+
+#             # ---- loss -----------------------------------------------------
+#             if letter_level_labels is not None:
+#                 gold = letter_level_labels[b, real_mask]            # (T,)
+#                 # sanity-check: no label outside range
+#                 if (gold.min() < 0) or (gold.max() >= self.num_labels):
+#                     raise ValueError(
+#                         f"Gold labels out of range 0-{self.num_labels-1}: {gold}")
+#                 nll  = -(dist.log_prob(gold.unsqueeze(0))           # (1,)
+#                          if T > 1 else
+#                          emis.squeeze(0).log_softmax(-1)[torch.arange(T), gold].sum().neg())
+#                 losses.append(nll)
+
+#             # ---- decoding -------------------------------------------------
+#             if T == 1:
+#                 path = best.squeeze(0)                              # (1,)
+#             else:
+#                 path = dist.argmax.squeeze(0)                       # (T,)
+
+#             # ---- pad back to `full_len` with –100 ------------------------
+#             padded = torch.full((full_len,), -100,
+#                                 dtype=torch.long, device=hidden.device)
+#             padded[real_mask] = path
+#             pred_rows.append(padded.unsqueeze(0))                   # (1 , full_len)
+
+#         # ------------ aggregate batch --------------------------------------
+#         output = {}
+#         if losses:
+#             output["loss"] = torch.stack(losses).mean()
+#         output["logits"] = torch.cat(pred_rows, dim=0)              # (bs , seq_len)
+#         return output
+
+
+
+class CADUSEUS_for_token_classification_CRF_fast(torch.nn.Module):
+    def __init__(self, caduseus_model):
+        super().__init__() 
+        self.caduseus_model = caduseus_model
+        self.fcn = nn.Linear(512, 2)
+        # self.A = nn.Parameter(torch.load('/home/jovyan/dnalm/downstream_tasks/annotation/transition_matrix_neurips_rebuttal_human.pt'), requires_grad=False)
+        self.A = nn.Parameter(torch.tensor([[-7.0442418e-03, -4.9590716e+00], [-8.2220173e+00, -1.3983005e-03]]), requires_grad=False)
+   
+    def forward(self, input_ids=None, letter_level_labels=None, letter_level_labels_mask=None):
+
+        hidden_states = self.caduseus_model(input_ids).last_hidden_state
+
+        bs = hidden_states.shape[0]
+        
+        batched_collected_logits, batched_losses = [], []
+        for b in range(bs): # aggregate in one batch
+            repeater_kwargs = dict()
+            
+            curr_logits = hidden_states[b, letter_level_labels_mask[b], :].unsqueeze(0)
+            curr_logits = self.fcn(curr_logits)
+
+            # loss_fct = BCEWithLogitsLoss()
+
+            if letter_level_labels is not None:
+
+                device = curr_logits.device
+
+                tags = letter_level_labels[b, letter_level_labels_mask[b]].unsqueeze(0).long()
+                e = curr_logits
+
+                B, T, K = e.shape
+
+                # print(B, T, K)
+
+                big_neg = -1e4
+                first   = e.new_full((B, 1, K, K), big_neg)
+                first[:, 0, :, 0] = e[:, 0]
+        
+                # edges 1…T-1
+                rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+        
+                dist  = LinearChainCRF(pot)
+                logZ  = dist.partition                                  # (B,)
+        
+                parts = torch.zeros_like(pot)
+        
+                # edge 0
+                parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+        
+                # edges 1…T-1  (row = next , col = prev)
+                time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+        
+                gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                nll = (logZ - gold_score).mean() #################################################################################### FIX
+        
+                edges = dist.argmax[0]                 # (T,K,K)
+                rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                pred  = torch.empty(T, dtype=torch.long, device=device)
+                pred[0] = rows[0, 0]                   
+                for t in range(1, T):                 
+                    pred[t] = rows[t, pred[t-1]]
+                        
+                batched_losses.append(nll)
+
+            collected_repeated_logits = F.pad(pred.unsqueeze(0), (letter_level_labels.shape[1] - pred.shape[0] - 1, 1), value=-100)
+
+            batched_collected_logits.append(collected_repeated_logits)
+        
+        final_model_output = dict()
+
+        if letter_level_labels is not None:
+            final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_logits, dim=0)
+
+        # print(final_model_output['loss'], final_model_output['logits'].shape)
+        
+        return final_model_output
+
+
+
+
 class CADUSEUS_for_token_classification(torch.nn.Module):
     def __init__(self, caduseus_model):
         super().__init__() 
         self.caduseus_model = caduseus_model
-        self.fc = nn.Linear(256, 5)
+        self.fc = nn.Linear(512, 9)
    
     def forward(self, input_ids=None, letter_level_labels=None, letter_level_labels_mask=None):
 
@@ -4760,7 +5909,7 @@ class CADUSEUS_for_token_classification(torch.nn.Module):
             curr_logits = hidden_states[b, letter_level_labels_mask[b], :].unsqueeze(0)
             curr_logits = self.fc(curr_logits)
 
-            loss_fct = BCEWithLogitsLoss()
+            loss_fct = BCEWithLogitsLoss() # weight=torch.tensor([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 10.0, 10.0, 1.0], device=curr_logits.device)
 
             if letter_level_labels is not None:
 
@@ -4769,7 +5918,7 @@ class CADUSEUS_for_token_classification(torch.nn.Module):
                         
                 batched_losses.append(loss)
 
-            collected_repeated_logits = F.pad(curr_logits, (0, 0, 0, letter_level_labels.shape[1] - curr_logits.shape[1]))
+            collected_repeated_logits = F.pad(curr_logits, (0, 0, letter_level_labels.shape[1] - curr_logits.shape[1] - 1, 1))
 
             batched_collected_logits.append(collected_repeated_logits)
         
@@ -4780,6 +5929,1180 @@ class CADUSEUS_for_token_classification(torch.nn.Module):
         final_model_output['logits'] = torch.cat(batched_collected_logits, dim=0)
         
         return final_model_output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class RMTEncoderForLetterLevelTokenClassificationUNETsegmentedRepeaterCRFfast(torch.nn.Module):
+    # todo: move segment looping into RMT class, also move help functions into RMT class
+    def __init__(self, base_model, **rmt_kwargs):
+        super().__init__() 
+        self.model = base_model
+        self.sub_model = UNET1DSegmentationHead(
+                            embed_dim=1536,
+                            num_classes=1536,
+                            output_channels_list=[192, 384, 768],  # Example channel sizes as a list
+                            num_conv_layers_per_block=2
+                        )
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+        self.activation_fn = nn.SiLU()
+        self.fc = nn.Linear(1536, 24)
+        # self.middle_norm = nn.LayerNorm(1024)
+        # self.middle_dropout = nn.Dropout(p=0.992)
+        
+        self.set_params(**rmt_kwargs)
+        
+        # self.sub_model.embeddings = self.sub_model.base_model.embeddings.word_embeddings
+        
+        self.rmt_config['sum_loss'] = True
+
+        self.A   = nn.Parameter(torch.randn(24, 24))
+        
+        
+    def set_params(self, num_mem_tokens, tokenizer, **rmt_config):
+        self.rmt_config = rmt_config
+        self.extract_special_tokens(tokenizer)
+        self.extend_word_embeddings(num_mem_tokens)
+
+        self.segment_size = rmt_config['input_size'] - num_mem_tokens - 3
+
+    def set_memory(self, memory=None):
+        if memory is None:
+            mem_token_ids = self.mem_token_ids
+            memory = self.model.embeddings(mem_token_ids)
+        return memory
+
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.register_buffer('cls_token', torch.tensor([tokenizer.cls_token_id]))
+        self.register_buffer('sep_token', torch.tensor([tokenizer.sep_token_id]))
+
+    def extend_word_embeddings(self, num_mem_tokens):
+        vocab_size = self.model.base_model.embeddings.word_embeddings.weight.shape[0]
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
+        self.model.embeddings = self.model.base_model.embeddings.word_embeddings
+
+        mem_start_ind = 1
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None):
+        # todo: currently output from RMT model is not the same like from backbone model with 1 segment
+        # because of inserted memory tokens and operations with cls/sep/pad in pad_and_segment
+        # need to impl such that output from forward is like output from backbone model:
+        # input -> segmented_inp -> segmented_logits -> output
+        #                               | -> loss         | -> metrics
+        #                           segmented_labels <- labels
+
+        kwargs = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+                  'position_ids': position_ids, 'head_mask': head_mask, 'inputs_embeds': inputs_embeds,
+                  'labels': labels, 'labels_mask': labels_mask, 'pos_weight': pos_weight,
+                  'output_attentions': output_attentions, 'output_hidden_states': output_hidden_states,
+                  'return_dict': return_dict,
+                  }
+        # print('POSPOSPOSPOSPOS', pos_weight.shape)
+        bs, seq_len = input_ids.shape
+
+        memory = self.set_memory()
+        memory = memory.repeat(input_ids.shape[0], 1, 1)
+        segmented, segmented_labels, segmented_labels_mask = self.pad_and_segment(input_ids, labels, labels_mask)
+
+        losses = []
+        logits = []
+        logits_masks = []
+        labels_segm = []
+        pos_weight = pos_weight[0, 0, :][None, None, :]
+        for seg_num, (segment_input_ids, segment_labels, segment_labels_mask) in enumerate(zip(segmented,
+                                                                                               segmented_labels,
+                                                                                               segmented_labels_mask)):
+            if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
+                memory = memory.detach()
+
+            seg_kwargs = dict(**kwargs)
+            seg_kwargs['output_hidden_states'] = True
+
+            non_empty_mask = [s is not None for s in segment_input_ids]
+            if sum(non_empty_mask) == 0:
+                continue
+            input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+            attention_mask = self.get_attention_mask(input_ids)
+            token_type_ids = self.get_token_type_ids(input_ids)
+
+            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
+
+            seg_kwargs['input_ids'] = None
+            seg_kwargs['inputs_embeds'] = inputs_embeds
+            seg_kwargs['attention_mask'] = attention_mask
+            seg_kwargs['token_type_ids'] = token_type_ids
+            if labels is not None:
+                seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+            if labels_mask is not None:
+                seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+            if pos_weight is not None:
+                # all values in the second dimension of pos_weight should be the same
+                pos_weight = pos_weight[0, 0, :][None, None, :]
+                segm_bs, segm_seq_len, _ = seg_kwargs['labels'].shape
+                seg_kwargs['pos_weight'] = pos_weight.repeat(segm_bs, segm_seq_len, 1)
+
+            out = self.model(**seg_kwargs)
+            # print(out)
+            memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
+
+            logits.append(out['logits'])
+            labels_segm += [seg_kwargs['labels']]
+
+            if labels_mask is not None:
+                logits_masks.append(seg_kwargs['labels_mask'])
+        
+        
+        
+        # drop unnecessary hiddens to save memory
+        if not kwargs.get('output_hidden_states'):
+            for key in out.keys():
+                if 'hidden_state' in key:
+                    out[key] = None
+
+#         for i, l in enumerate(losses):
+#             out[f'loss_{i}'] = l.mean()
+
+#         # aggregate losses from all segments
+#         out['loss'] = torch.stack(losses).mean()
+
+        # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
+        # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, 0, 0, bs - labels_segm[i].shape[0]))
+            if len(logits_masks) > 0:
+                logits_masks[i] = F.pad(logits_masks[i], (0, 0, 0, bs - logits_masks[i].shape[0]))
+
+        out['logits'] = torch.cat(logits, dim=1)
+        # out['logits'] = self.middle_dropout(self.middle_norm(torch.cat(logits, dim=1)))
+        # print(out['logits'])
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        if len(logits_masks) > 0:
+            out['rmt_logits_masks'] = torch.cat(logits_masks, dim=1)
+            out['rmt_logits_masks_segm'] = [logits_masks]
+
+        # print(out['logits'])
+        mem_token_ids = self.mem_token_ids
+        
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses, edge_losses, no_edge_losses, batched_crf_predictions = [], [], [], [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = out['logits'][b, out['rmt_logits_masks'][b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                # loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / self.rmt_config['unet_sub_model_input_size'])
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*self.rmt_config['unet_sub_model_input_size']:(i+1)*self.rmt_config['unet_sub_model_input_size'], :]
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+                        curr_unet_inputs_embeds = self.activation_fn(self.sub_model(curr_unet_inputs_embeds))
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    device = collected_repeated_logits.device
+
+                    tags = curr_letter_level_labels
+                    e = collected_repeated_logits
+
+                    B, T, K = e.shape
+
+                    # print(B, T, K)
+    
+                    big_neg = -1e4
+                    first   = e.new_full((B, 1, K, K), big_neg)
+                    first[:, 0, :, 0] = e[:, 0]
+            
+                    # edges 1…T-1
+                    rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                    pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+            
+                    dist  = LinearChainCRF(pot)
+                    logZ  = dist.partition                                  # (B,)
+            
+                    parts = torch.zeros_like(pot)
+            
+                    # edge 0
+                    parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+            
+                    # edges 1…T-1  (row = next , col = prev)
+                    time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                    batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                    parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+            
+                    gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                    nll = (logZ - gold_score).mean() #################################################################################### FIX
+            
+                    edges = dist.argmax[0]                 # (T,K,K)
+                    rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                    pred  = torch.empty(T, dtype=torch.long, device=device)
+                    pred[0] = rows[0, 0]                   
+                    for t in range(1, T):                 
+                        pred[t] = rows[t, pred[t-1]]
+
+                    # loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(nll / cycles) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print(collected_repeated_logits)
+        
+        return final_model_output
+
+    def pad_and_segment(self, input_ids, labels=None, labels_mask=None):
+        segmented_batch = []
+        segmented_batch_labels = []
+        segmented_batch_labels_mask = []
+
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+
+        if labels_mask is None:
+            labels_mask = [None] * input_ids.shape[0]
+        batch_labels_mask = labels_mask
+
+        for seq, labels, labels_mask in zip(input_ids, batch_labels, batch_labels_mask):
+            content_tokens_mask = (seq != self.pad_token_id) & (seq != self.cls_token.item()) & (seq != self.sep_token.item())
+            seq = seq[content_tokens_mask]
+            seq = seq[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels is not None:
+                labels = labels[content_tokens_mask]
+                labels = labels[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels_mask is not None:
+                labels_mask = labels_mask[content_tokens_mask]
+                labels_mask = labels_mask[:self.segment_size * self.rmt_config['max_n_segments']]
+
+            n_seg = math.ceil(len(seq) / self.segment_size)
+            input_segments = torch.chunk(seq, n_seg)
+            input_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size']) for t in input_segments]
+            segmented_batch.append(input_segments)
+
+            if labels is not None:
+                labels_segments = torch.chunk(labels, n_seg)
+                labels_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels') for t in labels_segments]
+                segmented_batch_labels.append(labels_segments)
+
+            if labels_mask is not None:
+                labels_mask_segments = torch.chunk(labels_mask, n_seg)
+                labels_mask_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels_mask') for t in labels_mask_segments]
+                segmented_batch_labels_mask.append(labels_mask_segments)
+
+        # batch of segments -> segmented batch
+        # + align segments to right border
+        # so that the last segment is always non-empty
+        segmented_batch = [[s[::-1][i] if len(s) > i else None for s in segmented_batch]
+                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels) > 0:
+            segmented_batch_labels = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels]
+                                      for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels_mask) > 0:
+            segmented_batch_labels_mask = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels_mask]
+                                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        return segmented_batch, segmented_batch_labels, segmented_batch_labels_mask
+
+    def pad_add_special_tokens(self, tensor, segment_size, add_to='inputs'):
+        input_elements = []
+        if add_to == 'inputs':
+            input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+        elif add_to == 'labels':
+            masked_labels = torch.zeros((1, tensor.shape[-1]), device=tensor.device)
+            input_elements += [masked_labels, masked_labels.repeat(self.num_mem_tokens, 1), masked_labels, tensor, masked_labels]
+        elif add_to == 'labels_mask':
+            mask_value = torch.zeros((1), device=tensor.device)
+            input_elements += [mask_value, mask_value.repeat(self.num_mem_tokens), mask_value, tensor, mask_value]
+
+        tensor = torch.cat(input_elements)
+
+        pad_size = segment_size - tensor.shape[0]
+        if pad_size > 0:
+            if add_to == 'inputs':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'labels':
+                # todo: labels pad value should be specified, if not multilable classification it could be just -100
+                tensor = F.pad(tensor, (0, 0, 0, pad_size), value=0)
+            elif add_to == 'labels_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+        return tensor
+
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+
+    def get_token_type_ids(self, tensor):
+        return torch.zeros_like(tensor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class RMTEncoderForLetterLevelTokenClassificationLinearSegmentedRepeaterCRFfast(torch.nn.Module):
+    # todo: move segment looping into RMT class, also move help functions into RMT class
+    def __init__(self, base_model, **rmt_kwargs):
+        super().__init__() 
+        self.model = base_model
+        
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+       
+        self.fc = nn.Linear(1536, 24)
+        # self.middle_norm = nn.LayerNorm(1024)
+        # self.middle_dropout = nn.Dropout(p=0.992)
+        
+        self.set_params(**rmt_kwargs)
+        
+        # self.sub_model.embeddings = self.sub_model.base_model.embeddings.word_embeddings
+        
+        self.rmt_config['sum_loss'] = True
+
+        self.A   = nn.Parameter(torch.randn(24, 24))
+        
+        
+    def set_params(self, num_mem_tokens, tokenizer, **rmt_config):
+        self.rmt_config = rmt_config
+        self.extract_special_tokens(tokenizer)
+        self.extend_word_embeddings(num_mem_tokens)
+
+        self.segment_size = rmt_config['input_size'] - num_mem_tokens - 3
+
+    def set_memory(self, memory=None):
+        if memory is None:
+            mem_token_ids = self.mem_token_ids
+            memory = self.model.embeddings(mem_token_ids)
+        return memory
+
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.register_buffer('cls_token', torch.tensor([tokenizer.cls_token_id]))
+        self.register_buffer('sep_token', torch.tensor([tokenizer.sep_token_id]))
+
+    def extend_word_embeddings(self, num_mem_tokens):
+        vocab_size = self.model.base_model.embeddings.word_embeddings.weight.shape[0]
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
+        self.model.embeddings = self.model.base_model.embeddings.word_embeddings
+
+        mem_start_ind = 1
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None):
+        # todo: currently output from RMT model is not the same like from backbone model with 1 segment
+        # because of inserted memory tokens and operations with cls/sep/pad in pad_and_segment
+        # need to impl such that output from forward is like output from backbone model:
+        # input -> segmented_inp -> segmented_logits -> output
+        #                               | -> loss         | -> metrics
+        #                           segmented_labels <- labels
+
+        kwargs = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+                  'position_ids': position_ids, 'head_mask': head_mask, 'inputs_embeds': inputs_embeds,
+                  'labels': labels, 'labels_mask': labels_mask, 'pos_weight': pos_weight,
+                  'output_attentions': output_attentions, 'output_hidden_states': output_hidden_states,
+                  'return_dict': return_dict,
+                  }
+        # print('POSPOSPOSPOSPOS', pos_weight.shape)
+        bs, seq_len = input_ids.shape
+
+        memory = self.set_memory()
+        memory = memory.repeat(input_ids.shape[0], 1, 1)
+        segmented, segmented_labels, segmented_labels_mask = self.pad_and_segment(input_ids, labels, labels_mask)
+
+        losses = []
+        logits = []
+        logits_masks = []
+        labels_segm = []
+        pos_weight = pos_weight[0, 0, :][None, None, :]
+        for seg_num, (segment_input_ids, segment_labels, segment_labels_mask) in enumerate(zip(segmented,
+                                                                                               segmented_labels,
+                                                                                               segmented_labels_mask)):
+            if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
+                memory = memory.detach()
+
+            seg_kwargs = dict(**kwargs)
+            seg_kwargs['output_hidden_states'] = True
+
+            non_empty_mask = [s is not None for s in segment_input_ids]
+            if sum(non_empty_mask) == 0:
+                continue
+            input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+            attention_mask = self.get_attention_mask(input_ids)
+            token_type_ids = self.get_token_type_ids(input_ids)
+
+            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
+
+            seg_kwargs['input_ids'] = None
+            seg_kwargs['inputs_embeds'] = inputs_embeds
+            seg_kwargs['attention_mask'] = attention_mask
+            seg_kwargs['token_type_ids'] = token_type_ids
+            if labels is not None:
+                seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+            if labels_mask is not None:
+                seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+            if pos_weight is not None:
+                # all values in the second dimension of pos_weight should be the same
+                pos_weight = pos_weight[0, 0, :][None, None, :]
+                segm_bs, segm_seq_len, _ = seg_kwargs['labels'].shape
+                seg_kwargs['pos_weight'] = pos_weight.repeat(segm_bs, segm_seq_len, 1)
+
+            out = self.model(**seg_kwargs)
+            # print(out)
+            memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
+
+            logits.append(out['logits'])
+            labels_segm += [seg_kwargs['labels']]
+
+            if labels_mask is not None:
+                logits_masks.append(seg_kwargs['labels_mask'])
+        
+        
+        
+        # drop unnecessary hiddens to save memory
+        if not kwargs.get('output_hidden_states'):
+            for key in out.keys():
+                if 'hidden_state' in key:
+                    out[key] = None
+
+#         for i, l in enumerate(losses):
+#             out[f'loss_{i}'] = l.mean()
+
+#         # aggregate losses from all segments
+#         out['loss'] = torch.stack(losses).mean()
+
+        # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
+        # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, 0, 0, bs - labels_segm[i].shape[0]))
+            if len(logits_masks) > 0:
+                logits_masks[i] = F.pad(logits_masks[i], (0, 0, 0, bs - logits_masks[i].shape[0]))
+
+        out['logits'] = torch.cat(logits, dim=1)
+        # out['logits'] = self.middle_dropout(self.middle_norm(torch.cat(logits, dim=1)))
+        # print(out['logits'])
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        if len(logits_masks) > 0:
+            out['rmt_logits_masks'] = torch.cat(logits_masks, dim=1)
+            out['rmt_logits_masks_segm'] = [logits_masks]
+
+        # print(out['logits'])
+        mem_token_ids = self.mem_token_ids
+        
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses, edge_losses, no_edge_losses, batched_crf_predictions = [], [], [], [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = out['logits'][b, out['rmt_logits_masks'][b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                # loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / self.rmt_config['unet_sub_model_input_size'])
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*self.rmt_config['unet_sub_model_input_size']:(i+1)*self.rmt_config['unet_sub_model_input_size'], :]
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+
+                    device = collected_repeated_logits.device
+
+                    tags = curr_letter_level_labels
+                    e = collected_repeated_logits
+
+                    B, T, K = e.shape
+
+                    # print(B, T, K)
+    
+                    big_neg = -1e4
+                    first   = e.new_full((B, 1, K, K), big_neg)
+                    first[:, 0, :, 0] = e[:, 0]
+            
+                    # edges 1…T-1
+                    rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                    pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+            
+                    dist  = LinearChainCRF(pot)
+                    logZ  = dist.partition                                  # (B,)
+            
+                    parts = torch.zeros_like(pot)
+            
+                    # edge 0
+                    parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+            
+                    # edges 1…T-1  (row = next , col = prev)
+                    time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                    batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                    parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+            
+                    gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                    nll = (logZ - gold_score).mean() #################################################################################### FIX
+            
+                    edges = dist.argmax[0]                 # (T,K,K)
+                    rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                    pred  = torch.empty(T, dtype=torch.long, device=device)
+                    pred[0] = rows[0, 0]                   
+                    for t in range(1, T):                 
+                        pred[t] = rows[t, pred[t-1]]
+
+                    # loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                        
+                batched_losses.append(nll / cycles) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print(collected_repeated_logits)
+        
+        return final_model_output
+
+    def pad_and_segment(self, input_ids, labels=None, labels_mask=None):
+        segmented_batch = []
+        segmented_batch_labels = []
+        segmented_batch_labels_mask = []
+
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+
+        if labels_mask is None:
+            labels_mask = [None] * input_ids.shape[0]
+        batch_labels_mask = labels_mask
+
+        for seq, labels, labels_mask in zip(input_ids, batch_labels, batch_labels_mask):
+            content_tokens_mask = (seq != self.pad_token_id) & (seq != self.cls_token.item()) & (seq != self.sep_token.item())
+            seq = seq[content_tokens_mask]
+            seq = seq[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels is not None:
+                labels = labels[content_tokens_mask]
+                labels = labels[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels_mask is not None:
+                labels_mask = labels_mask[content_tokens_mask]
+                labels_mask = labels_mask[:self.segment_size * self.rmt_config['max_n_segments']]
+
+            n_seg = math.ceil(len(seq) / self.segment_size)
+            input_segments = torch.chunk(seq, n_seg)
+            input_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size']) for t in input_segments]
+            segmented_batch.append(input_segments)
+
+            if labels is not None:
+                labels_segments = torch.chunk(labels, n_seg)
+                labels_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels') for t in labels_segments]
+                segmented_batch_labels.append(labels_segments)
+
+            if labels_mask is not None:
+                labels_mask_segments = torch.chunk(labels_mask, n_seg)
+                labels_mask_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels_mask') for t in labels_mask_segments]
+                segmented_batch_labels_mask.append(labels_mask_segments)
+
+        # batch of segments -> segmented batch
+        # + align segments to right border
+        # so that the last segment is always non-empty
+        segmented_batch = [[s[::-1][i] if len(s) > i else None for s in segmented_batch]
+                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels) > 0:
+            segmented_batch_labels = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels]
+                                      for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels_mask) > 0:
+            segmented_batch_labels_mask = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels_mask]
+                                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        return segmented_batch, segmented_batch_labels, segmented_batch_labels_mask
+
+    def pad_add_special_tokens(self, tensor, segment_size, add_to='inputs'):
+        input_elements = []
+        if add_to == 'inputs':
+            input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+        elif add_to == 'labels':
+            masked_labels = torch.zeros((1, tensor.shape[-1]), device=tensor.device)
+            input_elements += [masked_labels, masked_labels.repeat(self.num_mem_tokens, 1), masked_labels, tensor, masked_labels]
+        elif add_to == 'labels_mask':
+            mask_value = torch.zeros((1), device=tensor.device)
+            input_elements += [mask_value, mask_value.repeat(self.num_mem_tokens), mask_value, tensor, mask_value]
+
+        tensor = torch.cat(input_elements)
+
+        pad_size = segment_size - tensor.shape[0]
+        if pad_size > 0:
+            if add_to == 'inputs':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'labels':
+                # todo: labels pad value should be specified, if not multilable classification it could be just -100
+                tensor = F.pad(tensor, (0, 0, 0, pad_size), value=0)
+            elif add_to == 'labels_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+        return tensor
+
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+
+    def get_token_type_ids(self, tensor):
+        return torch.zeros_like(tensor)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class RMTEncoderForLetterLevelTokenClassificationLinearSegmentedRepeaterCRFfastFixedTransition(torch.nn.Module):
+    # todo: move segment looping into RMT class, also move help functions into RMT class
+    def __init__(self, base_model, **rmt_kwargs):
+        super().__init__() 
+        self.model = base_model
+        
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+       
+        self.fc = nn.Linear(1536, 24)
+        # self.middle_norm = nn.LayerNorm(1024)
+        # self.middle_dropout = nn.Dropout(p=0.992)
+        
+        self.set_params(**rmt_kwargs)
+        
+        # self.sub_model.embeddings = self.sub_model.base_model.embeddings.word_embeddings
+        
+        self.rmt_config['sum_loss'] = True
+
+        self.A = nn.Parameter(torch.load('/home/jovyan/dnalm/downstream_tasks/annotation/transition_matrix_v2.pt'), requires_grad=True)
+        
+        
+    def set_params(self, num_mem_tokens, tokenizer, **rmt_config):
+        self.rmt_config = rmt_config
+        self.extract_special_tokens(tokenizer)
+        self.extend_word_embeddings(num_mem_tokens)
+
+        self.segment_size = rmt_config['input_size'] - num_mem_tokens - 3
+
+    def set_memory(self, memory=None):
+        if memory is None:
+            mem_token_ids = self.mem_token_ids
+            memory = self.model.embeddings(mem_token_ids)
+        return memory
+
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.register_buffer('cls_token', torch.tensor([tokenizer.cls_token_id]))
+        self.register_buffer('sep_token', torch.tensor([tokenizer.sep_token_id]))
+
+    def extend_word_embeddings(self, num_mem_tokens):
+        vocab_size = self.model.base_model.embeddings.word_embeddings.weight.shape[0]
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
+        self.model.embeddings = self.model.base_model.embeddings.word_embeddings
+
+        mem_start_ind = 1
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None):
+        # todo: currently output from RMT model is not the same like from backbone model with 1 segment
+        # because of inserted memory tokens and operations with cls/sep/pad in pad_and_segment
+        # need to impl such that output from forward is like output from backbone model:
+        # input -> segmented_inp -> segmented_logits -> output
+        #                               | -> loss         | -> metrics
+        #                           segmented_labels <- labels
+
+        kwargs = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids,
+                  'position_ids': position_ids, 'head_mask': head_mask, 'inputs_embeds': inputs_embeds,
+                  'labels': labels, 'labels_mask': labels_mask, 'pos_weight': pos_weight,
+                  'output_attentions': output_attentions, 'output_hidden_states': output_hidden_states,
+                  'return_dict': return_dict,
+                  }
+        # print('POSPOSPOSPOSPOS', pos_weight.shape)
+        bs, seq_len = input_ids.shape
+
+        memory = self.set_memory()
+        memory = memory.repeat(input_ids.shape[0], 1, 1)
+        segmented, segmented_labels, segmented_labels_mask = self.pad_and_segment(input_ids, labels, labels_mask)
+
+        losses = []
+        logits = []
+        logits_masks = []
+        labels_segm = []
+        pos_weight = pos_weight[0, 0, :][None, None, :]
+        for seg_num, (segment_input_ids, segment_labels, segment_labels_mask) in enumerate(zip(segmented,
+                                                                                               segmented_labels,
+                                                                                               segmented_labels_mask)):
+            if (self.rmt_config['bptt_depth'] > -1) and (len(segmented) - seg_num > self.rmt_config['bptt_depth']):
+                memory = memory.detach()
+
+            seg_kwargs = dict(**kwargs)
+            seg_kwargs['output_hidden_states'] = True
+
+            non_empty_mask = [s is not None for s in segment_input_ids]
+            if sum(non_empty_mask) == 0:
+                continue
+            input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+            attention_mask = self.get_attention_mask(input_ids)
+            token_type_ids = self.get_token_type_ids(input_ids)
+
+            inputs_embeds = self.model.embeddings(input_ids)
+            inputs_embeds[:, self.memory_position] = memory[non_empty_mask]
+
+            seg_kwargs['input_ids'] = None
+            seg_kwargs['inputs_embeds'] = inputs_embeds
+            seg_kwargs['attention_mask'] = attention_mask
+            seg_kwargs['token_type_ids'] = token_type_ids
+            if labels is not None:
+                seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+            if labels_mask is not None:
+                seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+            if pos_weight is not None:
+                # all values in the second dimension of pos_weight should be the same
+                pos_weight = pos_weight[0, 0, :][None, None, :]
+                segm_bs, segm_seq_len, _ = seg_kwargs['labels'].shape
+                seg_kwargs['pos_weight'] = pos_weight.repeat(segm_bs, segm_seq_len, 1)
+
+            out = self.model(**seg_kwargs)
+            # print(out)
+            memory[non_empty_mask] = out.hidden_states[-1][:, self.memory_position]
+
+            logits.append(out['logits'])
+            labels_segm += [seg_kwargs['labels']]
+
+            if labels_mask is not None:
+                logits_masks.append(seg_kwargs['labels_mask'])
+        
+        
+        
+        # drop unnecessary hiddens to save memory
+        if not kwargs.get('output_hidden_states'):
+            for key in out.keys():
+                if 'hidden_state' in key:
+                    out[key] = None
+
+#         for i, l in enumerate(losses):
+#             out[f'loss_{i}'] = l.mean()
+
+#         # aggregate losses from all segments
+#         out['loss'] = torch.stack(losses).mean()
+
+        # some sequences are skipped in some batches if they are empty, we need to put dummy predictions for them.
+        # this may lead to different order of samples in the batch, but we modify order of labels and masks as well
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, 0, 0, bs - labels_segm[i].shape[0]))
+            if len(logits_masks) > 0:
+                logits_masks[i] = F.pad(logits_masks[i], (0, 0, 0, bs - logits_masks[i].shape[0]))
+
+        out['logits'] = torch.cat(logits, dim=1)
+        # out['logits'] = self.middle_dropout(self.middle_norm(torch.cat(logits, dim=1)))
+        # print(out['logits'])
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        if len(logits_masks) > 0:
+            out['rmt_logits_masks'] = torch.cat(logits_masks, dim=1)
+            out['rmt_logits_masks_segm'] = [logits_masks]
+
+        # print(out['logits'])
+        mem_token_ids = self.mem_token_ids
+        
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses, edge_losses, no_edge_losses, batched_crf_predictions = [], [], [], [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = out['logits'][b, out['rmt_logits_masks'][b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                # loss_fct = BCEWithLogitsLoss(pos_weight=pos_weight)
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / self.rmt_config['unet_sub_model_input_size'])
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*self.rmt_config['unet_sub_model_input_size']:(i+1)*self.rmt_config['unet_sub_model_input_size'], :]
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+
+                    device = collected_repeated_logits.device
+
+                    tags = curr_letter_level_labels
+                    e = collected_repeated_logits
+
+                    B, T, K = e.shape
+
+                    # print(B, T, K)
+    
+                    big_neg = -1e4
+                    first   = e.new_full((B, 1, K, K), big_neg)
+                    first[:, 0, :, 0] = e[:, 0]
+            
+                    # edges 1…T-1
+                    rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                    pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+            
+                    dist  = LinearChainCRF(pot)
+                    logZ  = dist.partition                                  # (B,)
+            
+                    parts = torch.zeros_like(pot)
+            
+                    # edge 0
+                    parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+            
+                    # edges 1…T-1  (row = next , col = prev)
+                    time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                    batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                    parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+            
+                    gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                    nll = (logZ - gold_score).mean() #################################################################################### FIX
+            
+                    edges = dist.argmax[0]                 # (T,K,K)
+                    rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                    pred  = torch.empty(T, dtype=torch.long, device=device)
+                    pred[0] = rows[0, 0]                   
+                    for t in range(1, T):                 
+                        pred[t] = rows[t, pred[t-1]]
+
+                    # loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                        
+                batched_losses.append(nll / cycles) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print(collected_repeated_logits)
+        
+        return final_model_output
+
+    def pad_and_segment(self, input_ids, labels=None, labels_mask=None):
+        segmented_batch = []
+        segmented_batch_labels = []
+        segmented_batch_labels_mask = []
+
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+
+        if labels_mask is None:
+            labels_mask = [None] * input_ids.shape[0]
+        batch_labels_mask = labels_mask
+
+        for seq, labels, labels_mask in zip(input_ids, batch_labels, batch_labels_mask):
+            content_tokens_mask = (seq != self.pad_token_id) & (seq != self.cls_token.item()) & (seq != self.sep_token.item())
+            seq = seq[content_tokens_mask]
+            seq = seq[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels is not None:
+                labels = labels[content_tokens_mask]
+                labels = labels[:self.segment_size * self.rmt_config['max_n_segments']]
+            if labels_mask is not None:
+                labels_mask = labels_mask[content_tokens_mask]
+                labels_mask = labels_mask[:self.segment_size * self.rmt_config['max_n_segments']]
+
+            n_seg = math.ceil(len(seq) / self.segment_size)
+            input_segments = torch.chunk(seq, n_seg)
+            input_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size']) for t in input_segments]
+            segmented_batch.append(input_segments)
+
+            if labels is not None:
+                labels_segments = torch.chunk(labels, n_seg)
+                labels_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels') for t in labels_segments]
+                segmented_batch_labels.append(labels_segments)
+
+            if labels_mask is not None:
+                labels_mask_segments = torch.chunk(labels_mask, n_seg)
+                labels_mask_segments = [self.pad_add_special_tokens(t, self.rmt_config['input_size'], add_to='labels_mask') for t in labels_mask_segments]
+                segmented_batch_labels_mask.append(labels_mask_segments)
+
+        # batch of segments -> segmented batch
+        # + align segments to right border
+        # so that the last segment is always non-empty
+        segmented_batch = [[s[::-1][i] if len(s) > i else None for s in segmented_batch]
+                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels) > 0:
+            segmented_batch_labels = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels]
+                                      for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        if len(segmented_batch_labels_mask) > 0:
+            segmented_batch_labels_mask = [[s[::-1][i] if len(s) > i else None for s in segmented_batch_labels_mask]
+                                           for i in range(self.rmt_config['max_n_segments'])][::-1]
+
+        return segmented_batch, segmented_batch_labels, segmented_batch_labels_mask
+
+    def pad_add_special_tokens(self, tensor, segment_size, add_to='inputs'):
+        input_elements = []
+        if add_to == 'inputs':
+            input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+        elif add_to == 'labels':
+            masked_labels = torch.zeros((1, tensor.shape[-1]), device=tensor.device)
+            input_elements += [masked_labels, masked_labels.repeat(self.num_mem_tokens, 1), masked_labels, tensor, masked_labels]
+        elif add_to == 'labels_mask':
+            mask_value = torch.zeros((1), device=tensor.device)
+            input_elements += [mask_value, mask_value.repeat(self.num_mem_tokens), mask_value, tensor, mask_value]
+
+        tensor = torch.cat(input_elements)
+
+        pad_size = segment_size - tensor.shape[0]
+        if pad_size > 0:
+            if add_to == 'inputs':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'labels':
+                # todo: labels pad value should be specified, if not multilable classification it could be just -100
+                tensor = F.pad(tensor, (0, 0, 0, pad_size), value=0)
+            elif add_to == 'labels_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+        return tensor
+
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+
+    def get_token_type_ids(self, tensor):
+        return torch.zeros_like(tensor)
+
+
+
+
 
 
 

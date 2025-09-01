@@ -30,6 +30,8 @@ from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 import torch.nn.functional as F
 
+from torch_struct import LinearChainCRF
+
 from transformers.activations import ACT2FN
 from transformers.file_utils import (
     ModelOutput,
@@ -1974,125 +1976,125 @@ def _masked_maximum_torch(data, mask, dim=1):
     return masked_maximums
     
     
-class TripletSemiHardLoss(nn.Module):
-    def __init__(self, margin=0.2):
-        super(TripletSemiHardLoss, self).__init__()
+# class TripletSemiHardLoss(nn.Module):
+#     def __init__(self, margin=0.2):
+#         super(TripletSemiHardLoss, self).__init__()
         
-        self.margin = margin
+#         self.margin = margin
 
-    def forward(self, y_pred, y_true):
-        labels = y_true
-        embeddings = y_pred
+#     def forward(self, y_pred, y_true):
+#         labels = y_true
+#         embeddings = y_pred
 
-        convert_to_float32 = (
-            embeddings.dtype == torch.float16 or embeddings.dtype == torch.bfloat16
-        )
-        precise_embeddings = (
-            embeddings.type(torch.float32) if convert_to_float32 else embeddings
-        )
+#         convert_to_float32 = (
+#             embeddings.dtype == torch.float16 or embeddings.dtype == torch.bfloat16
+#         )
+#         precise_embeddings = (
+#             embeddings.type(torch.float32) if convert_to_float32 else embeddings
+#         )
 
-        # Reshape label tensor to [batch_size, 1].
-        lshape = labels.shape
-        labels = labels.view(lshape[0], 1)
+#         # Reshape label tensor to [batch_size, 1].
+#         lshape = labels.shape
+#         labels = labels.view(lshape[0], 1)
 
-        # Build pairwise squared distance matrix
+#         # Build pairwise squared distance matrix
 
-        pdist_matrix = torch.cdist(precise_embeddings, precise_embeddings)
+#         pdist_matrix = torch.cdist(precise_embeddings, precise_embeddings)
         
-#         print(pdist_matrix)
+# #         print(pdist_matrix)
 
-        # Build pairwise binary adjacency matrix.
-        adjacency = torch.eq(labels, labels.T).long()
-#         print(adjacency)
-        # Invert so we can select negatives only.
-        adjacency_not = torch.logical_not(adjacency).long()
-#         print(adjacency_not)
+#         # Build pairwise binary adjacency matrix.
+#         adjacency = torch.eq(labels, labels.T).long()
+# #         print(adjacency)
+#         # Invert so we can select negatives only.
+#         adjacency_not = torch.logical_not(adjacency).long()
+# #         print(adjacency_not)
 
-        batch_size = labels.shape[0]
+#         batch_size = labels.shape[0]
 
-        # Compute the mask.
-        pdist_matrix_tile = torch.tile(pdist_matrix, (batch_size, 1))
-#         print(pdist_matrix_tile)
+#         # Compute the mask.
+#         pdist_matrix_tile = torch.tile(pdist_matrix, (batch_size, 1))
+# #         print(pdist_matrix_tile)
         
-        mask = torch.logical_and(
-            torch.tile(adjacency_not, (batch_size, 1)),
-            torch.gt(
-                pdist_matrix_tile, pdist_matrix.T.reshape(-1, 1))
-            ).long()
-#         tf.print(mask)
+#         mask = torch.logical_and(
+#             torch.tile(adjacency_not, (batch_size, 1)),
+#             torch.gt(
+#                 pdist_matrix_tile, pdist_matrix.T.reshape(-1, 1))
+#             ).long()
+# #         tf.print(mask)
         
-        mask_final = torch.gt(
-                torch.sum(
-                    mask.type(torch.float32), axis=1, keepdims=True
-                ),
-                0.0,
-            ).view((batch_size, batch_size))
+#         mask_final = torch.gt(
+#                 torch.sum(
+#                     mask.type(torch.float32), axis=1, keepdims=True
+#                 ),
+#                 0.0,
+#             ).view((batch_size, batch_size))
         
-#         print(mask_final)
+# #         print(mask_final)
         
-        mask_final = mask_final.T
+#         mask_final = mask_final.T
 
-        adjacency_not = adjacency_not.type(torch.float32)
-        mask = mask.type(torch.float32)
+#         adjacency_not = adjacency_not.type(torch.float32)
+#         mask = mask.type(torch.float32)
 
-        # negatives_outside: smallest D_an where D_an > D_ap.
-        negatives_outside = _masked_minimum_torch(pdist_matrix_tile, mask).view(batch_size, batch_size)
+#         # negatives_outside: smallest D_an where D_an > D_ap.
+#         negatives_outside = _masked_minimum_torch(pdist_matrix_tile, mask).view(batch_size, batch_size)
         
-#         print(negatives_outside)
+# #         print(negatives_outside)
         
-        negatives_outside = negatives_outside.T
+#         negatives_outside = negatives_outside.T
 
-        # negatives_inside: largest D_an.
-        negatives_inside = torch.tile(
-            _masked_maximum_torch(pdist_matrix, adjacency_not), (1, batch_size)
-        )
-#         print(negatives_inside)
+#         # negatives_inside: largest D_an.
+#         negatives_inside = torch.tile(
+#             _masked_maximum_torch(pdist_matrix, adjacency_not), (1, batch_size)
+#         )
+# #         print(negatives_inside)
         
-        semi_hard_negatives = torch.where(mask_final, negatives_outside, negatives_inside)
+#         semi_hard_negatives = torch.where(mask_final, negatives_outside, negatives_inside)
         
-#         print(semi_hard_negatives)
+# #         print(semi_hard_negatives)
 
-        loss_mat = torch.add(self.margin, pdist_matrix - semi_hard_negatives)
+#         loss_mat = torch.add(self.margin, pdist_matrix - semi_hard_negatives)
     
-#         print(loss_mat)
+# #         print(loss_mat)
 
-        mask_positives = adjacency.type(torch.float32) - torch.diag(
-            torch.ones(batch_size).to('cuda')
-        )
+#         mask_positives = adjacency.type(torch.float32) - torch.diag(
+#             torch.ones(batch_size).to('cuda')
+#         )
     
-#         print(mask_positives)
+# #         print(mask_positives)
 
-        # In lifted-struct, the authors multiply 0.5 for upper triangular
-        #   in semihard, they take all positive pairs except the diagonal.
-        num_positives = torch.sum(mask_positives)
+#         # In lifted-struct, the authors multiply 0.5 for upper triangular
+#         #   in semihard, they take all positive pairs except the diagonal.
+#         num_positives = torch.sum(mask_positives)
         
-#         print(num_positives)
+# #         print(num_positives)
 
-        triplet_loss = torch.true_divide(
-            torch.sum(
-                torch.maximum(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))
-            ),
-            num_positives,
-        )
-    
-#         print(
-#                 torch.max(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))[0]
-#             )
-    ################################TF###############################
-#         triplet_loss = tf.math.truediv(
-#             tf.math.reduce_sum(
-#                 tf.math.maximum(tf.math.multiply(loss_mat, mask_positives), 0.0)
+#         triplet_loss = torch.true_divide(
+#             torch.sum(
+#                 torch.maximum(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))
 #             ),
 #             num_positives,
 #         )
-    ###############################TF#######################################
     
-#         print(triplet_loss)
+# #         print(
+# #                 torch.max(tmp := torch.multiply(loss_mat, mask_positives), torch.zeros(tmp.shape).to('cuda'))[0]
+# #             )
+#     ################################TF###############################
+# #         triplet_loss = tf.math.truediv(
+# #             tf.math.reduce_sum(
+# #                 tf.math.maximum(tf.math.multiply(loss_mat, mask_positives), 0.0)
+# #             ),
+# #             num_positives,
+# #         )
+#     ###############################TF#######################################
+    
+# #         print(triplet_loss)
 
-        if convert_to_float32:
-            return triplet_loss.type(embeddings.dtype)
-        else:
-            return triplet_loss
+#         if convert_to_float32:
+#             return triplet_loss.type(embeddings.dtype)
+#         else:
+#             return triplet_loss
     
     
 ###################################################################################################TRIPLET LOSS above###########################################################################################################
@@ -2836,6 +2838,1138 @@ class BertForLetterLevelTokenClassification(BertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         ) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class BertForLetterLevelTokenLinearClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+        self.fc = nn.Linear(1536, 24)
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                loss_fct = BCEWithLogitsLoss()
+
+                letter_level_segment_size = 8192
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / letter_level_segment_size)
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*letter_level_segment_size:(i+1)*letter_level_segment_size, :]
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    # print(collected_repeated_logits.float().shape, curr_letter_level_labels.float().shape)
+
+                    loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(loss / cycles) # loss
+
+                if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                    collected_repeated_logits = F.pad(collected_repeated_logits, (0, 0, 0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]))
+            
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+            
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+        
+        return final_model_output
+
+
+
+
+
+
+
+
+
+
+
+
+class BertForLetterLevelTokenLinearCRFClassificationNucleotideFixedTransition(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.fc = nn.Linear(768, 24)
+
+        # self.A   = nn.Parameter(torch.randn(24, 24))
+        self.A = nn.Parameter(torch.load('/home/jovyan/dnalm/downstream_tasks/annotation/transition_matrix_v2.pt'), requires_grad=False)
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        assert -100 not in input_ids
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0).long()
+
+                collected_repeated_logits = self.fc(curr_logits)
+
+
+                device = collected_repeated_logits.device
+
+                tags = curr_letter_level_labels
+                e = collected_repeated_logits
+
+                B, T, K = e.shape
+
+                # print(B, T, K)
+
+                big_neg = -1e4
+                first   = e.new_full((B, 1, K, K), big_neg)
+                first[:, 0, :, 0] = e[:, 0]
+        
+                # edges 1…T-1
+                rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+        
+                dist  = LinearChainCRF(pot)
+                logZ  = dist.partition                                  # (B,)
+        
+                parts = torch.zeros_like(pot)
+        
+                # edge 0
+                parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+        
+                # edges 1…T-1  (row = next , col = prev)
+                time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+        
+                gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                nll = (logZ - gold_score).mean() #################################################################################### FIX
+        
+                edges = dist.argmax[0]                 # (T,K,K)
+                rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                pred  = torch.empty(T, dtype=torch.long, device=device)
+                pred[0] = rows[0, 0]                   
+                for t in range(1, T):                 
+                    pred[t] = rows[t, pred[t-1]]
+                        
+                batched_losses.append(nll) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print('SSSSSSSSSSSSSSSSSSSSSSS', final_model_output['logits'])
+        # print('QQQQQQQQQQQQQQQQQQQQQ', curr_letter_level_labels)
+        
+        return final_model_output
+
+
+
+
+
+
+
+
+
+
+class BertForLetterLevelTokenLinearCRFClassificationNucleotide(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.fc = nn.Linear(768, 24)
+
+        self.A   = nn.Parameter(torch.randn(24, 24))
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        assert -100 not in input_ids
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0).long()
+
+                collected_repeated_logits = self.fc(curr_logits)
+
+
+                device = collected_repeated_logits.device
+
+                tags = curr_letter_level_labels
+                e = collected_repeated_logits
+
+                B, T, K = e.shape
+
+                # print(B, T, K)
+
+                big_neg = -1e4
+                first   = e.new_full((B, 1, K, K), big_neg)
+                first[:, 0, :, 0] = e[:, 0]
+        
+                # edges 1…T-1
+                rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+        
+                dist  = LinearChainCRF(pot)
+                logZ  = dist.partition                                  # (B,)
+        
+                parts = torch.zeros_like(pot)
+        
+                # edge 0
+                parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+        
+                # edges 1…T-1  (row = next , col = prev)
+                time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+        
+                gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                nll = (logZ - gold_score).mean() #################################################################################### FIX
+        
+                edges = dist.argmax[0]                 # (T,K,K)
+                rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                pred  = torch.empty(T, dtype=torch.long, device=device)
+                pred[0] = rows[0, 0]                   
+                for t in range(1, T):                 
+                    pred[t] = rows[t, pred[t-1]]
+                        
+                batched_losses.append(nll) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print('SSSSSSSSSSSSSSSSSSSSSSS', final_model_output['logits'])
+        # print('QQQQQQQQQQQQQQQQQQQQQ', curr_letter_level_labels)
+        
+        return final_model_output
+
+
+
+
+
+
+
+
+
+class BertForLetterLevelTokenLinearClassificationNucleotide(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.fc = nn.Linear(768, 24)
+
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        assert -100 not in input_ids
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0).long()
+
+                collected_repeated_logits = self.fc(curr_logits)
+
+
+                device = collected_repeated_logits.device
+
+                tags = curr_letter_level_labels
+                e = collected_repeated_logits
+
+                loss_fct = BCEWithLogitsLoss()
+
+                loss = loss_fct(e.float(), tags.float())
+
+                batched_losses.append(loss) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                # print('QQQQQQQQQQQQQQQQQQ', collected_repeated_logits.shape, letter_level_labels.shape, collected_repeated_logits.shape)
+                collected_repeated_logits = F.pad(collected_repeated_logits, (0, 0, 0, letter_level_labels.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                # print('GGGGGGGGGGGGGGG', collected_repeated_logits.shape)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+
+        # print('SSSSSSSSSSSSSSSSSSSSSSS', final_model_output['logits'].shape)
+        # print('QQQQQQQQQQQQQQQQQQQQQ', curr_letter_level_labels)
+        
+        return final_model_output
+
+
+
+
+
+
+
+class BertForLetterLevelTokenLinearCRFClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+        self.fc = nn.Linear(1536, 24)
+
+        self.A   = nn.Parameter(torch.randn(24, 24))
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                loss_fct = BCEWithLogitsLoss()
+
+                letter_level_segment_size = 8192
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / letter_level_segment_size)
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*letter_level_segment_size:(i+1)*letter_level_segment_size, :]
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    device = collected_repeated_logits.device
+
+                    tags = curr_letter_level_labels
+                    e = collected_repeated_logits
+
+                    B, T, K = e.shape
+
+                    # print(B, T, K)
+    
+                    big_neg = -1e4
+                    first   = e.new_full((B, 1, K, K), big_neg)
+                    first[:, 0, :, 0] = e[:, 0]
+            
+                    # edges 1…T-1
+                    rest = self.A.view(1, 1, K, K) + e[:, 1:].unsqueeze(3)  # (B,T-1,K,K)
+                    pot  = torch.cat([first, rest], 1)                      # (B,T,K,K)
+            
+                    dist  = LinearChainCRF(pot)
+                    logZ  = dist.partition                                  # (B,)
+            
+                    parts = torch.zeros_like(pot)
+            
+                    # edge 0
+                    parts[torch.arange(B), 0, tags[:, 0], 0] = 1.
+            
+                    # edges 1…T-1  (row = next , col = prev)
+                    time_idx   = torch.arange(1, T, device=device)          # (T-1,)
+                    batch_idx  = torch.arange(B, device=device).unsqueeze(1)# (B,1)
+                    parts[batch_idx, time_idx, tags[:, 1:], tags[:, :-1]] = 1.
+            
+                    gold_score = (pot * parts).sum((1, 2, 3))               # (B,)
+                    nll = (logZ - gold_score).mean() #################################################################################### FIX
+            
+                    edges = dist.argmax[0]                 # (T,K,K)
+                    rows  = edges.argmax(1)                # (T,K) row idx of 1 for each col
+                    pred  = torch.empty(T, dtype=torch.long, device=device)
+                    pred[0] = rows[0, 0]                   
+                    for t in range(1, T):                 
+                        pred[t] = rows[t, pred[t-1]]
+
+                    # loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(nll / cycles) # loss
+
+                # if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                collected_repeated_logits = F.pad(pred.unsqueeze(0), (0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]), value=-100)
+                    
+                # print(crf_decoding.shape, collected_repeated_logits.shape)
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+                
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+        
+        return final_model_output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class DownSample1D(nn.Module):
+    def __init__(self, input_channels, output_channels, num_layers=2):
+        super().__init__()
+        layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
+            for _ in range(num_layers - 1)
+        ]
+        self.conv_layers = nn.ModuleList(layers)
+        self.activation_fn = nn.SiLU()
+        # Use ceil_mode=True to handle arbitrary sequence lengths
+        self.avg_pool = nn.AvgPool1d(kernel_size=2, stride=2, ceil_mode=True)
+
+    def forward(self, x):
+        for conv_layer in self.conv_layers:
+            x = self.activation_fn(conv_layer(x))
+        hidden = x  # Save for skip connection
+        x = self.avg_pool(hidden)
+        return x, hidden
+
+class UpSample1D(nn.Module):
+    def __init__(self, input_channels, output_channels, num_layers=2):
+        super().__init__()
+        # Use ConvTranspose1d for upsampling
+        self.up = nn.ConvTranspose1d(input_channels, output_channels, kernel_size=2, stride=2)
+        layers = [nn.Conv1d(output_channels * 2, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
+            for _ in range(num_layers - 1)
+        ]
+        self.conv_layers = nn.ModuleList(layers)
+        self.activation_fn = nn.SiLU()
+
+    def forward(self, x, skip_connection):
+        x = self.up(x)
+        # Adjust size if necessary to match the skip connection
+        diff = skip_connection.size(2) - x.size(2)
+        if diff > 0:
+            x = F.pad(x, (0, diff))
+        elif diff < 0:
+            x = x[:, :, :skip_connection.size(2)]
+        # Concatenate skip connection
+        x = torch.cat([skip_connection, x], dim=1)
+        for conv_layer in self.conv_layers:
+            x = self.activation_fn(conv_layer(x))
+        return x
+
+class FinalConv1D(nn.Module):
+    def __init__(self, input_channels, output_channels, num_layers=2):
+        super().__init__()
+        layers = [nn.Conv1d(input_channels, output_channels, kernel_size=3, padding=1)]
+        layers += [
+            nn.Conv1d(output_channels, output_channels, kernel_size=3, padding=1)
+            for _ in range(num_layers - 1)
+        ]
+        self.conv_layers = nn.ModuleList(layers)
+        self.activation_fn = nn.SiLU()
+
+    def forward(self, x):
+        for i, conv_layer in enumerate(self.conv_layers):
+            x = conv_layer(x)
+            if i < len(self.conv_layers) - 1:
+                x = self.activation_fn(x)
+        return x
+
+class UNET1DSegmentationHead(nn.Module):
+    def __init__(self, embed_dim, num_classes, output_channels_list=None, num_conv_layers_per_block=2):
+        super().__init__()
+        if output_channels_list is None:
+            output_channels_list = [64, 128, 256]  # Default values
+        else:
+            output_channels_list = list(output_channels_list)  # Ensure it's a list
+
+        self.num_pooling_layers = len(output_channels_list)
+
+        # Downsampling blocks
+        downsample_input_channels_list = [embed_dim] + output_channels_list[:-1]
+        self.downsample_blocks = nn.ModuleList([
+            DownSample1D(in_ch, out_ch, num_conv_layers_per_block)
+            for in_ch, out_ch in zip(downsample_input_channels_list, output_channels_list)
+        ])
+
+        # Upsampling blocks
+        reversed_output_channels_list = output_channels_list[::-1]
+        upsample_input_channels_list = [output_channels_list[-1]] + reversed_output_channels_list[:-1]
+        upsample_output_channels_list = reversed_output_channels_list
+        self.upsample_blocks = nn.ModuleList([
+            UpSample1D(in_ch, out_ch, num_conv_layers_per_block)
+            for in_ch, out_ch in zip(upsample_input_channels_list, upsample_output_channels_list)
+        ])
+
+        self.final_block = FinalConv1D(output_channels_list[0], num_classes, num_conv_layers_per_block)
+
+    def forward(self, x):
+        hiddens = []
+        # Downsampling path
+        for downsample_block in self.downsample_blocks:
+            x, hidden = downsample_block(x)
+            hiddens.append(hidden)
+
+        # Upsampling path
+        for i, upsample_block in enumerate(self.upsample_blocks):
+            skip_connection = hiddens[-(i + 1)]
+            x = upsample_block(x, skip_connection)
+
+        x = self.final_block(x)
+        return x   
+
+
+
+
+class BertForLetterLevelTokenUNETClassification(BertPreTrainedModel):
+
+    _keys_to_ignore_on_load_unexpected = [r"pooler"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.config = config
+
+        self.bert = BertModel(config, add_pooling_layer=False)
+        self.sub_model = UNET1DSegmentationHead(
+                            embed_dim=1536,
+                            num_classes=1536,
+                            output_channels_list=[192, 384, 768],  # Example channel sizes as a list
+                            num_conv_layers_per_block=2
+                        )
+        self.nucleotide_embedding = nn.Embedding(1000, 768)
+        self.activation_fn = nn.SiLU()
+        self.fc = nn.Linear(1536, 24)
+        # classifier_dropout = (
+        #     config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        # )
+        # self.dropout = nn.Dropout(classifier_dropout)
+        # self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+
+    def forward(
+        self,
+        input_ids=None, attention_mask=None, token_type_ids=None, position_ids=None, head_mask=None,
+                inputs_embeds=None, labels=None, labels_mask=None, pos_weight=None, output_attentions=None,
+                output_hidden_states=None, return_dict=None, embedding_repeater=None, letter_level_tokens=None, letter_level_labels=None,
+                letter_level_labels_mask=None, letter_level_token_types_ids=None, letter_level_attention_mask=None
+    ):
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the token classification loss. Indices should be in `[0, ..., config.num_labels - 1]`.
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        sequence_output = outputs[0]
+        # print('OUTPUT', outputs)
+        # print('LAST HIDDEN STATE', sequence_output)
+        # assert False
+        # print('BertForLetterLevelTokenClassification sequence_output shape', sequence_output.shape)
+
+        # sequence_output = self.dropout(sequence_output)
+        # logits = self.classifier(sequence_output)
+
+        # return TokenClassifierOutput(
+        #     # loss=loss,
+        #     logits=sequence_output,
+        #     hidden_states=outputs.hidden_states,
+        #     attentions=outputs.attentions,
+        # ) 
+
+        bs = sequence_output.shape[0]
+
+        if embedding_repeater is not None:
+            batched_collected_repeated_logits, batched_losses = [], []
+            for b in range(bs): # aggregate in one batch
+                repeater_kwargs = dict()
+                
+                # print('google', out['rmt_logits_masks'][b, :].bool()[:10])
+                # print(out['logits'].shape, out['rmt_logits_masks'][b, :].bool().shape)
+                curr_logits = sequence_output[b, labels_mask[b, :].bool(), :].unsqueeze(0)
+                # print('CURR LOGITS SHAPE', curr_logits.shape)
+                lllm = letter_level_labels_mask[b]
+                curr_letter_level_labels = letter_level_labels[b, lllm].unsqueeze(0)
+                curr_repeater = embedding_repeater[b][lllm]
+                # print('LLT SHAPE', letter_level_tokens[b, lllm].shape)
+                # assert 0 == 1
+                # print(set(list(letter_level_tokens[b, lllm].unsqueeze(0).flatten().detach().cpu().numpy())))
+                # curr_letter_level_embedding = self.sub_model.base_model.embeddings.word_embeddings(letter_level_tokens[b, lllm].unsqueeze(0))#.requires_grad_() # check
+                curr_letter_level_embedding = self.nucleotide_embedding(letter_level_tokens[b, lllm].unsqueeze(0))
+                # print('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^', curr_letter_level_embedding)
+                # print('1111111111111111111111111111', curr_letter_level_embedding.shape)
+                # print('777777777777777777777777777', curr_repeater.shape, torch.max(curr_repeater))
+                # print('888888888888888888888888888', curr_logits.shape)
+
+                # print('ALL SHAPES!!!!!!!!!!!!!!!', curr_logits[:, curr_repeater, :].shape, curr_letter_level_embedding.shape)
+                # repeated_curr_logits_with_letter_embeddings = curr_letter_level_embedding + curr_logits[:, curr_repeater, :] # combine this with post merging?
+                repeated_curr_logits_with_letter_embeddings = torch.cat((curr_letter_level_embedding, curr_logits[:, curr_repeater, :]), dim=-1)
+                # # print('222222222222222222222')
+                # repeated_attention_mask = torch.ones((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # # print('3333333333333333333333333333')
+                # repeated_token_types_ids = torch.zeros((1, repeated_curr_logits_with_letter_embeddings.shape[1])).to(curr_logits.device)
+                # print(repeated_curr_logits_with_letter_embeddings)
+                # print(repeated_curr_logits_with_letter_embeddings.shape)
+                # assert False
+
+                # custom_pos_weight = np.ones(curr_letter_level_labels.shape)
+                # for lp in range(custom_pos_weight.shape[1]-1):
+                #     if np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 0, 1, 0, 0])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 1, 0, 0, 1])) or np.all(curr_letter_level_labels[0, lp, :] == np.array([0, 1, 0, 0, 1])) and np.all(curr_letter_level_labels[0, lp+1, :] == np.array([0, 0, 1, 0, 0])):
+                #         custom_pos_weight[0, np.clip(lp-4, 0, None):lp+4, :] = 100.0
+
+                loss_fct = BCEWithLogitsLoss()
+
+                letter_level_segment_size = 8192
+
+                num_letter_level_segments = math.ceil(repeated_curr_logits_with_letter_embeddings.shape[1] / letter_level_segment_size)
+
+                # print(repeated_curr_logits_with_letter_embeddings.shape[1])
+
+                loss = 0
+
+                cycles = 1
+                for c in range(cycles):
+
+                    repeated_logits = []
+                    repeated_embeddings = []
+                    for i in range(num_letter_level_segments):
+                        curr_unet_inputs_embeds = repeated_curr_logits_with_letter_embeddings[:, i*letter_level_segment_size:(i+1)*letter_level_segment_size, :]
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+                        curr_unet_inputs_embeds = self.activation_fn(self.sub_model(curr_unet_inputs_embeds))
+                        curr_unet_inputs_embeds = curr_unet_inputs_embeds.transpose(1, 2)
+
+                        repeated_embeddings.append(curr_unet_inputs_embeds)
+                        
+                        curr_unet_inputs_embeds = self.fc(curr_unet_inputs_embeds)
+                        repeated_logits.append(curr_unet_inputs_embeds)
+    
+                    collected_repeated_logits = torch.cat(repeated_logits, dim=1)
+                    collected_repeated_embeddings = torch.cat(repeated_embeddings, dim=1)
+
+                    # print(collected_repeated_logits.float().shape, curr_letter_level_labels.float().shape)
+
+                    loss += loss_fct(collected_repeated_logits.float(), curr_letter_level_labels.float())
+                    
+                    repeated_curr_logits_with_letter_embeddings += collected_repeated_embeddings
+                        
+                batched_losses.append(loss / cycles) # loss
+
+                if collected_repeated_logits.shape[1] != letter_level_tokens.shape[1]:
+                    collected_repeated_logits = F.pad(collected_repeated_logits, (0, 0, 0, letter_level_tokens.shape[1] - collected_repeated_logits.shape[1]))
+            
+                batched_collected_repeated_logits.append(collected_repeated_logits)
+            
+        else:
+            raise Exception('No embedding_repeater!')
+            
+        # print(torch.cat(batched_collected_repeated_logits, dim=0)) 
+          
+        # print('Done!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        final_model_output = dict() # TokenClassifierOutput(
+        #     loss=torch.stack(batched_losses).mean(),
+        #     logits=torch.cat(batched_collected_repeated_logits, dim=0) # CHANGE!
+        # )
+        
+        final_model_output['loss'] = torch.stack(batched_losses).mean()
+        final_model_output['logits'] = torch.cat(batched_collected_repeated_logits, dim=0)
+        
+        return final_model_output
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
     
     
