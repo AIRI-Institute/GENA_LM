@@ -1,0 +1,395 @@
+exon_id	gene_name	exon_name	transcript_biotype	in_VastDB	in_CHESS	phastCons_score	SR_support	Coverage	Inclusion_Retention_ratio	CHX_dPSI	GTEX_tissues_all	GTEX_max_PSI	GTEX_tissues	TCGA_max_dPSI	TCGA_cancer_types	ENCODE_max_dPSI	ENCODE_regulators
+chr1_100910370_100910412_+	SLC30A7	3b	poison	1	0	379	7	8	1.0	0.0	Brain, Muscle	0.121	NA	0.0	NA	0.0	NA
+chr1_10098592_10098668_+	UBE4B	3b	poison	1	1	568	9	13	0.995	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Lung, Muscle, Nerve, Pancreas, Pituitary, Prostate, Skin, Small Intestine, Stomach, Testis, Thyroid	0.025	NA	-0.024	NA	0.028	NA
+chr1_1042691_1042748_+	AGRN	7b	poison	1	0	260	4	20	0.454	0.002	Brain, Skin	0.039	NA	0.01	NA	0.009	NA
+chr1_109584622_109584713_+	GNAI3	5b	poison	1	0	634	55	71	0.931	0.014	Brain, Skin, Testis	0.1	NA	-0.009	NA	0.003	NA
+chr1_119924977_119925190_-	NOTCH2	25b	poison	0	0	208	8	15	0.559	0.0	Heart, Muscle, Testis	0.056	NA	0.0	NA	0.0	NA
+chr1_121379245_121379605_+	SRGAP2C	7b	poison	0	0	225	5	8	0.516	0.0	Brain	0.015	NA	0.005	NA	0.101	AQR, FTO, PABPN1, PUF60, SF3B4, SMNDC1, SRSF4, U2AF2
+chr1_150302452_150302524_+	MRPS21	2b	protein-coding	0	0	124	11	17	0.92	0.0	Adipose Tissue, Fallopian Tube, Nerve, Skin	0.003	NA	-0.002	NA	0.002	NA
+chr1_150842243_150842307_-	ARNT	5b	poison	1	0	147	11	26	0.717	0.0	Brain, Muscle	0.031	NA	-0.001	NA	0.004	NA
+chr1_151704130_151704191_-	CELF3	12b	poison	1	0	698	40	344	0.344	NA	Colon, Pancreas, Pituitary	0.171	Colon	0.035	NA	NA	NA
+chr1_153639368_153639451_+	CHTOP	3b	protein-coding	0	0	676	27	88	0.527	0.0	Blood Vessel, Heart, Muscle	0.093	NA	-0.007	NA	0.002	NA
+chr1_154241700_154241797_+	UBAP2L	9b	poison	1	0	588	40	67	0.544	0.119	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.159	Liver	-0.047	NA	0.206	DDX47, DDX59, ETF1, FASTKD1, HNRNPK, NSUN2, PUF60, SNRNP200, SRSF3
+chr1_155064442_155064560_+	EFNA4	1b	poison	1	0	175	10	22	0.684	0.001	Adipose Tissue, Adrenal Gland, Brain, Esophagus, Heart, Skin, Small Intestine, Uterus	0.316	Brain, Muscle	0.027	NA	0.063	FUBP3, HNRNPA1, PRPF6, PTBP1
+chr1_161511766_161511822_+	FCGR2A	5b	protein-coding	0	0	304	271	279	0.752	NA	Blood, Lung	0.003	NA	-0.008	NA	0.003	NA
+chr1_16210140_16210213_-	ARHGEF19	1b	protein-coding	1	0	171	5	8	0.535	NA	Skin	0.404	Colon, Nerve	-0.043	NA	NA	NA
+chr1_166923076_166923192_-	ILDR2	7b	poison	1	0	130	11	23	0.612	NA	Testis	0.23	Testis	0.001	NA	NA	NA
+chr1_176144005_176144100_-	COP1	6b	poison	1	0	639	9	14	0.99	0.0	Adipose Tissue, Blood, Blood Vessel, Bone Marrow, Brain, Heart, Lung, Nerve, Pituitary, Skin, Stomach, Testis, Thyroid	0.026	NA	0.014	NA	0.095	EIF4A3, HNRNPC, HNRNPLL, RBFOX2, SRSF3
+chr1_177209597_177209710_+	BRINP2	1b	protein-coding	1	1	128	38	45	0.996	NA	Adipose Tissue, Adrenal Gland, Brain, Breast, Esophagus, Heart, Pituitary	1.0	Adipose Tissue, Adrenal Gland, Brain, Breast, Testis	-0.042	NA	NA	NA
+chr1_180273510_180273572_-	LHX4	5b	unknown	1	0	100	61	176	0.251	NA	Blood	0.195	Blood	-0.017	NA	-0.036	NA
+chr1_202453534_202453573_+	PPP1R12B	13b	poison	1	0	274	7	13	0.967	0.0	Testis	0.065	NA	0.004	NA	0.028	NA
+chr1_20965672_20965744_-	EIF4G3	12b	poison	0	0	58	9	19	0.801	0.0	Testis	0.063	NA	0.001	NA	0.103	CNOT7, DDX52, EEF2, EFTUD2, EIF3D, FAM120A, FTO, GEMIN5, GPKOW, PABPN1, RPS19, SERBP1, SF3A3, YTHDC2
+chr1_211276023_211276135_+	RCOR3	4b	poison	1	0	111	7	16	0.526	0.0	Muscle, Testis	0.022	NA	-0.006	NA	-0.056	DROSHA, PPP1R8
+chr1_21693504_21693674_-	USP48	23b	poison	1	0	199	8	13	0.849	0.0	Adipose Tissue, Blood, Lung, Skin	0.001	NA	0.0	NA	0.0	NA
+chr1_217613713_217613807_-	GPATCH2	3b	poison	0	0	168	5	10	0.897	0.0	Testis	0.002	NA	0.0	NA	0.0	NA
+chr1_22501877_22501971_+	ZBTB40	4b	poison	1	0	94	5	10	0.264	0.0	Testis	0.035	NA	0.0	NA	0.101	METAP2, PRPF8, UTP3
+chr1_237742451_237742837_+	RYR2	80b	unknown	1	0	206	6	7	0.632	NA	Brain	0.013	NA	0.0	NA	NA	NA
+chr1_26734108_26734273_+	ARID1A	4b	poison	1	0	111	5	10	0.937	0.05	Adipose Tissue, Bone Marrow, Brain, Heart, Ovary, Skin, Testis	0.03	NA	-0.04	NA	0.057	HNRNPC
+chr1_35099351_35099447_+	ZMYM1	4b	poison	1	0	234	8	21	0.507	NA	Testis	0.34	Testis	-0.023	NA	0.1	CELF1, IGF2BP1, MAGOH, MATR3, PCBP1, PUM2
+chr1_35359596_35359777_+	ZMYM4	3b	poison	1	0	594	10	16	0.949	0.0	Blood Vessel, Bone Marrow, Skin, Small Intestine	0.029	NA	0.007	NA	0.078	DDX6, HNRNPK, PABPN1, PCBP1, PPP1R8, SNRNP200
+chr1_40375747_40375816_+	SMAP2	1b	poison	0	0	237	11	30	0.701	0.162	Adipose Tissue, Blood, Testis	0.029	NA	-0.024	NA	0.014	NA
+chr1_41123963_41124008_-	SCMH1	6b	poison	0	0	477	6	10	0.989	0.0	Muscle	0.005	NA	-0.002	NA	0.0	NA
+chr1_45488574_45488604_-	TESK2	1b	protein-coding	1	0	58	14	33	0.988	NA	Blood, Esophagus, Lung, Muscle, Prostate, Skin, Small Intestine, Spleen, Testis, Thyroid, Vagina	0.104	NA	-0.058	ESCA, READ	0.153	CIRBP, NPM1, PABPC1, PPIL4, RBM15, RBM17
+chr1_47995191_47995341_-	TRABD2B	1b	poison	1	0	237	21	71	0.979	NA	Blood Vessel, Heart	0.027	NA	0.018	NA	NA	NA
+chr1_50171785_50171892_+	ELAVL4	2b	poison	0	0	63	6	19	0.952	NA	Testis	0.023	NA	0.0	NA	NA	NA
+chr1_51442817_51442899_-	EPS15	11b	poison	1	0	688	7	21	0.951	0.0	Brain	0.006	NA	0.0	NA	0.0	NA
+chr1_53074056_53074174_+	PODN	3b	poison	0	0	138	7	11	0.44	NA	Nerve	0.015	NA	-0.002	NA	NA	NA
+chr1_66978667_66978838_+	MIER1	12b	poison	0	0	412	8	13	0.731	0.0	Testis	0.065	NA	-0.016	NA	0.006	NA
+chr1_66978775_66978838_+	MIER1	12c	poison	1	0	462	7	23	0.652	0.0	Testis	0.064	NA	-0.016	NA	0.006	NA
+chr1_70041420_70041625_+	LRRC7	21b	poison	1	0	485	5	8	0.95	NA	Testis	0.124	NA	0.01	NA	NA	NA
+chr1_90944287_90944338_-	ZNF644	2b	poison	1	0	271	6	12	0.704	0.0	Muscle, Skin	0.007	NA	0.001	NA	-0.043	NA
+chr1_93349919_93350001_+	DR1	1b	poison	1	0	88	10	15	0.977	0.0	Adipose Tissue, Blood, Blood Vessel, Esophagus, Liver, Lung, Skin, Stomach	0.019	NA	-0.017	NA	0.072	SNRNP70, U2AF2
+chr1_93522888_93523091_+	FNBP1L	3b	poison	0	0	677	11	21	0.812	0.0	Brain, Ovary, Testis	0.275	Testis	-0.007	NA	0.054	U2AF1
+chr1_93522946_93523091_+	FNBP1L	3c	poison	1	0	665	5	9	0.662	0.0	Testis	0.14	NA	0.005	NA	0.044	NA
+chr1_99693804_99693922_+	PALMD	7b	poison	1	0	517	10	28	0.525	NA	Brain	0.028	NA	0.0	NA	0.0	NA
+chr10_102508817_102508906_+	SUFU	1b	poison	0	0	117	8	24	0.768	0.0	Testis	0.018	NA	0.001	NA	0.0	NA
+chr10_103529824_103529937_+	NEURL1	1b	protein-coding	0	0	320	10	27	0.995	NA	Testis	0.069	NA	-0.011	NA	NA	NA
+chr10_113035941_113037175_+	TCF7L2	4b	poison	0	0	166	8	24	0.843	NA	Liver, Stomach	0.006	NA	0.0	NA	0.0	NA
+chr10_124962287_124962408_+	ZRANB1	1b	poison	1	0	594	43	75	0.971	0.169	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.103	NA	-0.069	KICH	0.171	ABT1, AKAP8, AKAP8L, BCCIP, CCAR2, CELF1, CKAP4, CSTF2T, DAZAP1, DDX21, DDX24, DDX28, EIF2S1, EIF3G, EIF4G2, ETF1, EWSR1, EXOSC9, FASTKD2, FMR1, FTO, FUS, G3BP2, GNB2L1, GRWD1, GTF2F1, HNRNPL, HSPD1, IGF2BP1, ILF3, KRR1, LARP7, MAGOH, MTPAP, NIP7, NKRF, NOL12, NONO, NSUN2, PCBP1, PCBP2, PHF6, PPIG, PRPF8, PUM1, PUM2, PUS1, RBM22, RBM25, RPLP0, RPS2, RPS3A, RPS5, SRSF5, SRSF9, SSRP1, SUB1, SUGP2, SUPV3L1, TARDBP, TBRG4, TFIP11, TIA1, TUFM, UBE2L3, XRCC6, XRN1
+chr10_24590777_24590931_-	ARHGAP21	24b	poison	0	0	259	26	33	0.555	0.0	Heart, Muscle	0.177	Muscle	-0.005	NA	0.0	NA
+chr10_24590908_24590931_-	ARHGAP21	24c	protein-coding	0	0	553	62	114	0.549	0.0	Heart, Muscle, Prostate	0.224	Muscle	-0.008	NA	0.0	NA
+chr10_28109731_28109772_-	MPP7	11b	poison	1	1	535	9	13	0.939	NA	Testis	0.111	NA	0.002	NA	0.0	NA
+chr10_29507737_29507814_-	SVIL	17b	unknown	0	0	659	422	611	0.595	NA	Blood Vessel, Colon, Esophagus, Heart, Muscle, Nerve	0.307	Heart, Muscle	-0.125	HNSC	NA	NA
+chr10_31822243_31822365_-	ARHGAP12	11b	protein-coding	1	0	524	46	86	0.807	0.0	Brain	0.037	NA	0.001	NA	0.0	NA
+chr10_34121829_34121951_-	PARD3	23b	protein-coding	0	0	240	15	20	0.921	0.0	Breast, Liver, Muscle, Nerve	0.001	NA	0.0	NA	0.0	NA
+chr10_49692103_49692628_+	C10orf53	1b	poison	1	1	188	29	88	0.916	NA	Testis	0.193	Brain	NA	NA	NA	NA
+chr10_49692405_49692628_+	C10orf53	1c	poison	0	0	242	11	169	0.779	NA	Testis	0.193	Brain	NA	NA	NA	NA
+chr10_63169616_63169865_-	JMJD1C	24b	poison	0	0	178	22	103	0.137	0.0	Brain	0.014	NA	0.002	NA	0.009	NA
+chr10_77989738_77989773_-	POLR3A	21b	protein-coding	0	0	348	7	13	0.84	0.0	Muscle	0.063	NA	0.0	NA	0.0	NA
+chr10_92987613_92987642_+	EXOC6	18b	protein-coding	1	0	640	6	10	0.959	0.0	Brain	0.019	NA	-0.002	NA	0.0	NA
+chr10_94447635_94447670_+	TBC1D12	2b	poison	1	0	578	6	9	0.999	NA	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Colon, Esophagus, Liver, Lung, Nerve, Pancreas, Skin, Spleen, Testis	0.062	NA	0.03	NA	0.135	AUH, CCDC124, CNOT7, CPSF6, DAZAP1, DDX3X, FTO, FUS, GTF2F1, HLTF, HNRNPF, IGF2BP2, MAK16, MBNL1, MSI2, NAA15, NKRF, PPIG, PRPF6, RBM22, RBM39, RTF1, SMNDC1, SUB1, TAF15, TARDBP, TBRG4, U2AF2, XRCC5, XRN1, ZNF622
+chr10_98240498_98240559_+	R3HCC1L	9b	poison	1	0	120	10	16	0.859	0.0	Colon, Stomach, Testis	0.02	NA	0.002	NA	0.018	NA
+chr11_108061040_108061172_+	CUL5	7b	poison	1	0	660	6	11	0.973	0.0	Adipose Tissue, Blood, Blood Vessel, Breast, Colon, Esophagus, Lung, Nerve, Ovary, Prostate, Salivary Gland, Skin, Testis, Thyroid, Uterus, Vagina	0.045	NA	-0.033	NA	0.103	AGGF1, CPSF6, DROSHA, EIF4G1, EWSR1, GLRX3, GRWD1, HNRNPA1, HNRNPA2B1, MARK2, NKRF, PARN, PPIL4, PPP1R8, RBM27, RPL23A, RPLP0, SERBP1, SF1, SF3A3, SF3B1, SFPQ, STIP1, SUGP2, UTP18, WDR43, XRN1, YTHDC2
+chr11_117914609_117914647_-	TMPRSS13	3b	poison	0	0	358	7	24	0.723	NA	Breast, Esophagus, Lung, Skin, Thyroid, Vagina	0.954	Blood, Brain, Small Intestine, Spleen, Thyroid	0.062	KICH, KIRC	NA	NA
+chr11_117914609_117914700_-	TMPRSS13	3c	poison	0	0	338	10	23	0.774	NA	Blood, Breast, Lung, Pancreas, Prostate, Skin, Spleen, Thyroid	0.952	Blood, Brain, Small Intestine, Spleen, Thyroid	0.077	KICH, KIRC	NA	NA
+chr11_126380830_126380908_+	ST3GAL4	1b	protein-coding	0	0	82	17	35	0.963	0.0	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Salivary Gland, Skin, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.024	NA	-0.101	COAD, READ, STAD	NA	NA
+chr11_129884986_129885095_-	NFRKB	6b	poison	1	0	527	24	48	0.761	NA	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.261	Liver, Pituitary, Testis, Thyroid, Vagina	-0.082	KIRP, LUSC, UCEC	0.288	AARS, AATF, ABCF1, ADAR, AGGF1, AGO1, AKAP1, AKAP8, AKAP8L, APOBEC3C, AQR, ATP5C1, AUH, BCCIP, BOP1, CCAR1, CELF1, CIRBP, CNOT7, CPEB4, CSTF2T, DDX21, DDX27, DDX28, DDX3X, DDX47, DDX52, DDX55, DDX6, DHX30, DROSHA, EIF2S2, EIF4B, ESF1, EXOSC9, FAM120A, FASTKD1, FASTKD2, FIP1L1, FKBP4, FMR1, FUBP3, FXR1, G3BP2, GLRX3, GRSF1, GTF2F1, HDGF, HLTF, HNRNPC, HNRNPK, HNRNPUL1, HSPD1, IGF2BP3, ILF3, KHSRP, LARP4, LARP7, LIN28B, LSM11, MAGOH, MATR3, MSI2, NAA15, NCBP2, NELFE, NFX1, NKRF, NOL12, NUFIP2, NUSAP1, PABPC4, PABPN1, PARN, PCBP2, PES1, PHF6, PKM, PNPT1, PPIG, PPIL4, PRPF8, PTBP1, PUF60, PUM1, PUS1, QKI, RAVER1, RBM15, RBM22, RBM39, RBM47, RECQL, RPS3A, RRP9, SAFB2, SART3, SBDS, SF1, SFPQ, SLTM, SMN1, SMNDC1, SNRNP200, SRFBP1, SRP68, SRPK2, SRSF4, SRSF5, SRSF7, SSB, SSRP1, STIP1, SUB1, TRA2A, TUFM, U2AF1, UBE2L3, UCHL5, UPF2, UTP18, WDR3, XRCC5, XRCC6, YTHDC2, ZRANB2
+chr11_13341634_13341677_+	BMAL1	3b	protein-coding	1	0	510	23	47	0.974	NA	Adipose Tissue, Blood Vessel, Breast, Colon, Esophagus, Lung, Muscle, Nerve, Salivary Gland, Skin	0.041	NA	-0.011	NA	NA	NA
+chr11_133918257_133918302_-	IGSF9B	18b	poison	1	1	721	40	94	0.762	NA	Adipose Tissue, Bladder, Blood Vessel, Brain, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	0.953	Adipose Tissue, Bladder, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Fallopian Tube, Heart, Lung, Muscle, Nerve, Ovary, Pituitary, Prostate, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	-0.338	BLCA, BRCA, PRAD	NA	NA
+chr11_13714145_13714238_+	FAR1	8b	poison	1	0	534	11	30	0.651	0.0	Testis	0.116	NA	0.0	NA	0.011	NA
+chr11_17873507_17873593_-	SERGEF	10b	protein-coding	1	0	141	17	37	0.942	0.0	Testis	0.078	NA	-0.0	NA	0.015	NA
+chr11_33028366_33028480_+	DEPDC7	3b	poison	1	0	404	9	24	0.236	0.086	Muscle, Skin, Testis	0.088	NA	0.006	NA	0.05	NA
+chr11_59657080_59657153_-	PATL1	5b	poison	1	1	687	49	59	0.973	0.274	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.361	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Kidney, Liver, Lung, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	-0.117	BRCA, CESC, ESCA, KICH, LUSC, THYM, UCEC	0.121	AQR, DDX24, DDX6, DROSHA, EIF4A3, EIF4G1, FASTKD1, FUBP1, MBNL1, NFX1, PABPN1, PCBP2, PRPF4, PRPF8, RBM22, RBM39, RBM47, RRP9, SF1, SF3B4, SNRNP200, SRSF4, U2AF2, UCHL5, XRN1
+chr11_61405118_61405138_-	CPSF7	9b	protein-coding	0	0	120	52	180	0.162	0.0	Blood Vessel, Esophagus	0.054	NA	-0.042	NA	0.0	NA
+chr11_62610636_62610768_-	EML3	4b	poison	1	0	154	39	88	0.418	0.001	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Thyroid, Uterus, Vagina	0.089	NA	0.034	NA	0.323	ABT1, AGO1, AQR, ATP5C1, AUH, CCAR1, CEBPZ, CELF1, CKAP4, DDX24, DDX3X, DDX47, DDX6, EIF4A3, FTO, FUS, FXR1, G3BP1, G3BP2, GEMIN5, GLRX3, GNB2L1, GPKOW, HDGF, HNRNPA1, HNRNPC, HNRNPK, HNRNPU, HNRNPUL1, HSPD1, IGF2BP1, ILF3, MAGOH, METAP2, NCBP2, NUFIP2, PA2G4, PCBP1, PPIG, PPIL4, PPP1R8, PRPF6, PRPF8, PUF60, RAVER1, RBFOX2, RBM15, RBM17, RBM22, RBM25, RBM27, RBM34, RBM39, RCC2, RPL23A, RPLP0, RPS10, RPS19, RPS2, RPS5, RRP9, RTF1, SERBP1, SF3A3, SF3B1, SF3B4, SFPQ, SND1, SNRNP200, SRFBP1, SRSF1, SRSF7, SSRP1, TBRG4, TIA1, TRA2A, UTP3, XPO1, XRCC5, XRCC6, XRN1, ZNF622, ZRANB2
+chr11_63583006_63583102_-	PLAAT3	4b	protein-coding	0	0	245	28	96	0.669	0.014	Adipose Tissue, Blood Vessel, Breast, Liver, Muscle, Skin	0.008	NA	-0.017	NA	0.033	NA
+chr11_63583006_63583126_-	PLAAT3	4c	protein-coding	0	0	200	20	44	0.917	0.007	Adipose Tissue, Blood Vessel, Brain, Esophagus, Muscle, Nerve, Skin	0.009	NA	-0.014	NA	0.0	NA
+chr11_63635847_63635993_-	ATL3	9b	poison	1	0	317	12	33	0.468	0.0	Adipose Tissue, Blood Vessel, Heart, Lung, Muscle, Nerve, Skin, Testis, Uterus	0.324	Muscle	0.002	NA	0.173	AATF, AQR, EIF3G, EIF4A3, FUBP1, FXR1, HNRNPA2B1, NFX1, NPM1, PABPN1, PCBP1, PPP1R8, SUGP2, SUPT6H, TRA2A, XRN1, ZRANB2
+chr11_68090979_68091089_-	CHKA	2b	poison	1	0	414	6	19	0.614	0.036	Heart, Muscle	0.35	Muscle	-0.024	NA	0.013	NA
+chr11_73962250_73962315_+	DNAJB13	3b	poison	0	0	240	8	19	0.327	NA	Testis	0.024	NA	0.001	NA	NA	NA
+chr11_74298048_74298099_-	P4HA3	4b	poison	1	0	75	7	15	0.85	0.069	Pituitary, Prostate, Testis	0.175	Testis	0.006	NA	NA	NA
+chr11_75267437_75267558_-	ARRB1	15b	poison	0	0	405	6	8	0.558	0.0	Testis	0.011	NA	0.002	NA	0.013	NA
+chr11_7603668_7603768_+	PPFIBP2	5b	poison	1	0	123	8	11	0.922	NA	Testis	0.02	NA	0.001	NA	0.033	NA
+chr11_77590772_77591038_+	AQP11	1b	poison	0	0	88	5	24	0.222	NA	Testis	0.023	NA	0.0	NA	0.0	NA
+chr11_94796966_94797020_+	AMOTL1	2b	poison	1	0	77	9	14	0.99	0.0	Blood Vessel, Bone Marrow, Breast, Esophagus, Lung, Muscle, Skin, Spleen, Stomach, Testis	0.081	NA	0.037	NA	0.126	AATF, CNOT7, HNRNPA0, HNRNPAB, ILF2, MATR3, PABPC1, PKM, PPIL4, RPS3A, RTF1, SBDS, SF3B4, SMN1, SRSF4, SRSF5, SRSF9, TBRG4, YTHDC2
+chr11_94796966_94797027_+	AMOTL1	2c	poison	0	0	69	8	15	0.997	0.0	Esophagus, Muscle, Skin, Testis	0.05	NA	0.024	NA	0.064	CELF1, NOL12, RTF1
+chr12_110852447_110852653_+	CCDC63	1b	protein-coding	0	1	77	19	41	0.942	NA	Testis	0.196	Testis	NA	NA	NA	NA
+chr12_121517000_121517031_-	KDM2B	9b	unknown	1	0	205	7	21	0.743	NA	Liver, Testis	0.56	Liver, Testis	0.152	KICH, LIHC	NA	NA
+chr12_22494639_22494682_-	C2CD5	10b	poison	0	0	493	6	14	0.427	0.0	Muscle	0.008	NA	0.0	NA	0.0	NA
+chr12_4279263_4279372_+	CCND2	3b	unknown	0	0	222	6	11	0.733	NA	Blood	0.049	NA	NA	NA	NA	NA
+chr12_4726987_4727097_+	GALNT8	2b	poison	0	0	52	8	17	0.91	NA	Testis	0.141	NA	0.001	NA	NA	NA
+chr12_49658251_49658335_-	FMNL3	6b	poison	1	1	451	30	56	0.811	NA	Brain, Muscle, Nerve, Testis	0.364	Brain, Muscle, Nerve	-0.004	NA	0.0	NA
+chr12_53056635_53056739_+	TNS2	10b	poison	1	0	474	19	91	0.198	0.0	Brain, Muscle	0.035	NA	-0.006	NA	0.069	MATR3
+chr12_54054478_54054526_+	HOXC4	1b	protein-coding	1	0	734	70	115	0.531	0.0	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Fallopian Tube, Kidney, Muscle, Nerve, Ovary, Prostate, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.565	Adipose Tissue, Blood Vessel, Breast, Fallopian Tube, Kidney, Muscle, Nerve, Prostate, Skin, Small Intestine, Uterus, Vagina	-0.111	BRCA, KIRP, PRAD, STAD, UCEC	NA	NA
+chr12_66463839_66463873_-	GRIP1	8b	poison	1	0	435	4	9	0.764	NA	Skin	0.03	NA	0.008	NA	NA	NA
+chr12_7013335_7013416_-	LPCAT3	1b	poison	1	0	144	12	16	0.978	0.0	Heart, Muscle	0.03	NA	-0.002	NA	0.003	NA
+chr12_71558684_71558815_+	LGR5	6b	poison	0	0	282	9	19	0.983	NA	Muscle	0.02	NA	0.007	NA	0.017	NA
+chr12_80640575_80640619_+	PTPRQ	35b	protein-coding	1	0	661	13	25	0.818	NA	Blood Vessel, Esophagus, Lung, Muscle, Skin	0.931	Adipose Tissue, Esophagus, Heart, Lung, Skin	NA	NA	NA	NA
+chr12_94303149_94303371_+	PLXNC1	28b	poison	0	0	303	16	29	0.626	NA	Blood, Colon, Lung	0.009	NA	0.0	NA	0.0	NA
+chr12_94303167_94303371_+	PLXNC1	28c	poison	1	0	328	8	29	0.543	NA	Blood	0.009	NA	0.0	NA	0.0	NA
+chr12_94304618_94304688_+	PLXNC1	30b	protein-coding	1	0	618	9	28	0.131	NA	Brain	0.011	NA	0.0	NA	0.0	NA
+chr12_95487638_95487659_+	METAP2	4b	poison	0	0	440	16	25	0.949	0.0	Brain	0.005	NA	0.0	NA	0.004	NA
+chr13_107172529_107172574_-	NALF1	2b	protein-coding	1	1	632	17	24	0.973	NA	Brain, Pituitary, Testis	0.217	Testis	0.03	NA	NA	NA
+chr13_27101486_27101568_-	USP12	3b	poison	1	0	474	17	37	0.973	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	0.073	NA	0.049	NA	0.079	GEMIN5, GNB2L1, HNRNPD, NIP7, RBM27
+chr13_28274916_28275083_+	PAN3	14b	poison	0	0	613	9	30	0.404	0.0	Testis	0.185	Testis	-0.025	NA	0.057	ETF1
+chr13_28274926_28275083_+	PAN3	14c	poison	1	0	611	7	27	0.392	0.0	Testis	0.196	Testis	-0.026	NA	0.054	MTPAP
+chr13_75568558_75568574_+	UCHL3	5b	poison	0	0	243	23	26	0.877	0.0	Brain, Muscle	0.023	NA	0.0	NA	0.0	NA
+chr13_77227042_77227157_-	MYCBP2	18b	poison	1	0	602	11	14	0.927	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Esophagus, Heart, Lung, Nerve, Ovary, Skin, Thyroid	0.074	NA	0.015	NA	0.222	AKAP8, APOBEC3C, DDX19B, DDX27, EIF4A3, FAM120A, FMR1, HLTF, HNRNPL, LARP7, LIN28B, LSM11, MAGOH, NUSAP1, PES1, PPP1R8, PUM2, PUS1, RBM15, RBM22, SF3A3, SRFBP1, SRSF5, SSB, SUPT6H, TIAL1, TRIM56, U2AF1, U2AF2, YTHDC2, ZRANB2
+chr13_98867064_98867105_-	DOCK9	30b	protein-coding	1	0	455	29	44	0.941	0.0	Brain, Muscle, Nerve	0.12	NA	0.001	NA	0.0	NA
+chr14_101921984_101922042_+	PPP2R5C	15b	protein-coding	1	1	288	23	56	0.695	0.0	Testis	0.203	Testis	-0.033	NA	0.103	ADAR, AGO1, AKAP8L, CCAR1, CPSF7, DDX1, DHX30, DNAJC2, DNAJC21, EEF2, EFTUD2, EIF3A, EIF3D, EIF3G, EIF4G1, FASTKD2, G3BP2, GLRX3, GTF2F1, HNRNPA2B1, HNRNPK, HNRNPU, MAGOH, MARK2, PARN, PCBP2, PTBP1, PUS1, RAVER1, RBM25, RPS10, RPS19, SF3B1, SF3B4, SLBP, SND1, TAF15, TRA2A, U2AF1, U2AF2
+chr14_101921984_101922134_+	PPP2R5C	15c	poison	0	0	172	11	22	0.886	0.0	Testis	0.165	Testis	-0.034	NA	0.103	ADAR, AGO1, AKAP8L, CCAR1, CPSF7, DDX1, DHX30, EEF2, EFTUD2, EIF3A, EIF3D, EIF3G, FASTKD2, G3BP2, GLRX3, GTF2F1, HNRNPA2B1, HNRNPK, HNRNPU, MAGOH, MARK2, PCBP2, PUS1, RAVER1, RBM25, RPS10, RPS19, SF3B1, SF3B4, SND1, TAF15, TRA2A, U2AF1, U2AF2
+chr14_103669689_103669726_+	KLC1	6b	poison	0	0	139	30	49	0.794	0.0	Colon, Kidney, Liver, Pancreas, Small Intestine, Thyroid	0.095	NA	-0.102	THCA	0.0	NA
+chr14_23136748_23136862_-	SLC7A8	7b	poison	1	0	351	28	98	0.63	NA	Blood Vessel, Brain, Esophagus, Heart, Muscle, Vagina	0.081	NA	-0.043	NA	0.0	NA
+chr14_23136807_23136862_-	SLC7A8	7c	poison	0	0	347	4	20	0.66	NA	Brain	0.07	NA	-0.06	CESC	0.0	NA
+chr14_35541538_35541632_-	RALGAPA1	41b	unknown	0	0	188	13	23	0.382	NA	Brain	0.028	NA	NA	NA	NA	NA
+chr14_52325772_52325901_+	PTGER2	1b	poison	0	0	213	9	12	0.368	NA	Blood	0.022	NA	0.002	NA	NA	NA
+chr14_52325772_52325988_+	PTGER2	1c	poison	0	0	140	11	28	0.411	NA	Blood	0.009	NA	-0.001	NA	NA	NA
+chr14_60291532_60291643_+	PPM1A	5b	poison	0	1	154	98	166	0.667	-0.031	Muscle	0.041	NA	-0.001	NA	0.053	SRSF3
+chr14_64729960_64729981_+	PLEKHG3	3b	poison	1	0	164	8	13	0.807	0.0	Brain	0.009	NA	0.006	NA	NA	NA
+chr14_64736285_64736374_+	PLEKHG3	12b	protein-coding	1	0	240	64	223	0.633	0.01	Adipose Tissue, Blood Vessel, Breast, Cervix Uteri, Colon, Esophagus, Heart, Lung, Nerve, Ovary, Pancreas, Prostate, Salivary Gland, Skin, Stomach, Uterus, Vagina	0.211	Skin	0.429	BLCA, BRCA, CESC, CHOL, ESCA, HNSC, LUAD, LUSC, PAAD, READ, STAD, THYM, UCEC	0.0	NA
+chr14_67092449_67092604_+	GPHN	12b	poison	0	0	623	58	61	0.99	0.0	Brain	0.05	NA	0.0	NA	0.0	NA
+chr14_69103318_69103378_-	DCAF5	5b	poison	1	0	155	16	27	0.972	0.0	Testis	0.022	NA	-0.001	NA	0.028	NA
+chr14_70029672_70029725_+	SMOC1	11b	protein-coding	0	0	565	4	22	0.301	0.051	Liver	0.016	NA	0.022	NA	0.052	RCC2
+chr14_70975663_70975760_+	PCNX1	5b	poison	1	0	82	6	12	0.636	0.0	Testis	0.065	NA	0.009	NA	0.08	U2AF2
+chr14_73253161_73253226_+	PAPLN	11b	protein-coding	1	0	217	6	33	0.152	NA	Skin, Stomach	0.063	NA	0.14	ESCA, HNSC, LUSC, THCA	NA	NA
+chr14_74423327_74423636_-	SYNDIG1L	1b	protein-coding	0	0	232	5	8	0.768	NA	Brain	0.007	NA	NA	NA	NA	NA
+chr14_75930601_75930634_+	TTLL5	31b	protein-coding	1	0	77	11	23	0.885	0.0	Testis	0.068	NA	0.002	NA	0.03	NA
+chr14_77253541_77253794_+	TMEM63C	23b	poison	1	0	133	8	48	0.537	0.0	Testis	0.351	Testis	0.024	NA	NA	NA
+chr14_90729435_90729458_-	TTC7B	5b	protein-coding	1	0	606	16	20	0.966	0.0	Brain	0.005	NA	0.0	NA	0.0	NA
+chr15_25722029_25722207_-	ATP10A	6b	poison	1	0	239	27	59	0.924	0.0	Brain, Esophagus	0.039	NA	-0.007	NA	NA	NA
+chr15_31542970_31543011_-	OTUD7A	5b	poison	1	0	152	4	10	0.957	NA	Brain	0.005	NA	0.014	NA	NA	NA
+chr15_51906430_51906516_+	TMOD3	9b	poison	1	0	126	19	25	0.915	0.0	Blood, Blood Vessel, Brain, Nerve, Salivary Gland, Testis	0.135	NA	-0.009	NA	0.012	NA
+chr15_55373472_55373651_-	CCPG1	5b	poison	0	0	172	13	60	0.233	0.0	Blood Vessel, Muscle	0.045	NA	0.0	NA	0.0	NA
+chr15_55587461_55587542_-	PYGO1	1b	poison	0	0	121	6	15	0.781	0.063	Muscle, Testis	0.37	Testis	0.071	ESCA	NA	NA
+chr15_57272274_57272308_+	TCF12	18b	poison	1	0	187	7	10	0.931	0.102	Lung, Skin	0.003	NA	-0.005	NA	0.132	NIP7
+chr15_58932528_58932593_-	SLTM	1b	protein-coding	1	0	186	8	15	0.528	0.0	Adipose Tissue, Blood Vessel, Colon	0.012	NA	-0.003	NA	0.0	NA
+chr15_58990916_58990948_+	RNF111	1b	unknown	1	0	184	7	13	1.0	NA	Blood, Bone Marrow, Testis	0.291	Bone Marrow, Muscle, Testis	0.078	STAD	NA	NA
+chr15_62740116_62740300_+	TLN2	31b	poison	0	0	135	7	12	0.877	0.0	Blood Vessel	0.011	NA	0.0	NA	NA	NA
+chr15_69053057_69053119_+	NOX5	14b	poison	0	0	107	7	10	0.984	NA	Spleen	0.02	NA	0.004	NA	NA	NA
+chr15_72306659_72306716_-	CELF6	2b	poison	0	0	426	6	13	0.898	NA	Brain	0.056	NA	-0.009	NA	NA	NA
+chr15_72725260_72725371_+	BBS4	8b	poison	0	0	227	7	13	0.745	0.0	Prostate	0.003	NA	0.0	NA	0.0	NA
+chr15_73944310_73945440_+	LOXL1	2b	poison	0	0	89	5	30	0.385	NA	Testis	0.16	Testis	0.002	NA	NA	NA
+chr16_21967122_21967230_+	UQCRC2	7b	poison	1	0	69	11	23	0.698	0.013	Testis	0.027	NA	0.002	NA	0.019	NA
+chr16_28978946_28979028_+	SPNS1	3b	poison	0	0	402	23	54	0.501	0.012	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Breast, Colon, Esophagus, Heart, Kidney, Liver, Lung, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.187	Testis	-0.049	NA	0.066	AQR, SRSF3
+chr16_58569984_58570175_-	CNOT1	16b	poison	0	0	363	8	21	0.928	0.0	Brain, Muscle	0.004	NA	-0.0	NA	0.0	NA
+chr16_89143948_89143971_+	ACSF3	8b	protein-coding	0	0	431	9	34	0.783	0.0	Blood Vessel, Colon, Esophagus, Small Intestine, Stomach	0.023	NA	-0.043	NA	0.0	NA
+chr17_10034111_10034237_-	GAS7	1b	unknown	1	0	89	29	42	0.963	NA	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Lung, Nerve, Prostate, Stomach, Vagina	0.058	NA	-0.061	LUSC	NA	NA
+chr17_17146824_17146873_+	MPRIP	10b	poison	0	0	137	14	38	0.746	0.0	Colon, Esophagus	0.039	NA	-0.006	NA	0.0	NA
+chr17_2035831_2035864_+	DPH1	3b	poison	1	0	200	4	19	0.543	0.0	Skin, Spleen	0.01	NA	0.008	NA	0.014	NA
+chr17_2213297_2213529_-	SMG6	10b	unknown	0	0	524	5	13	0.952	NA	Brain	0.107	NA	NA	NA	NA	NA
+chr17_2361225_2361327_+	SGSM2	2b	poison	0	0	99	15	26	0.833	0.0	Brain, Colon, Esophagus, Lung, Small Intestine	0.002	NA	0.004	NA	0.0	NA
+chr17_3622544_3622632_-	SHPK	4b	poison	0	0	291	33	49	0.99	0.019	Blood Vessel, Brain, Colon, Esophagus, Fallopian Tube, Heart, Lung, Muscle, Nerve, Ovary, Prostate, Skin, Small Intestine, Stomach, Testis, Uterus, Vagina	0.662	Heart, Muscle, Nerve	-0.009	NA	0.029	NA
+chr17_36567385_36567568_+	GGNBP2	5b	poison	0	0	643	21	52	0.723	0.0	Testis	0.061	NA	-0.0	NA	0.005	NA
+chr17_36567407_36567568_+	GGNBP2	5c	poison	1	0	704	16	44	0.546	0.0	Testis	0.056	NA	0.0	NA	0.005	NA
+chr17_37274622_37274690_-	ACACA	8b	protein-coding	1	0	507	13	24	0.989	0.0	Muscle	0.32	Muscle	-0.001	NA	0.004	NA
+chr17_37473732_37473801_+	TADA2A	14b	poison	1	0	204	7	14	0.867	-0.008	Adipose Tissue, Breast, Esophagus, Liver, Muscle, Skin, Small Intestine, Spleen, Testis	0.039	NA	0.015	NA	0.04	NA
+chr17_37556595_37556647_-	SYNRG	13b	poison	1	0	79	5	7	1.0	0.0	Blood	0.001	NA	0.0	NA	0.0	NA
+chr17_38596067_38596129_-	SRCIN1	1b	unknown	1	0	669	12	22	0.945	NA	Brain	0.193	Brain	NA	NA	NA	NA
+chr17_43542971_43543046_-	ETV4	4b	poison	0	0	541	5	23	0.915	0.0	Muscle, Pituitary	0.283	Muscle, Pituitary	0.063	PRAD	0.02	NA
+chr17_48613880_48613936_-	HOXB8	1b	poison	1	0	630	7	31	0.47	NA	Kidney, Stomach	0.106	NA	-0.143	BLCA, KICH, KIRC, STAD	NA	NA
+chr17_50140479_50141134_-	PPP1R9B	4b	poison	0	0	79	19	132	0.237	0.012	Adipose Tissue, Blood, Blood Vessel, Breast, Colon, Esophagus, Heart, Kidney, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Testis, Thyroid, Uterus, Vagina	0.036	NA	0.004	NA	0.033	NA
+chr17_5019849_5019871_+	KIF1C	18b	poison	1	1	208	121	148	0.893	0.0	Brain, Pituitary, Skin	0.048	NA	0.098	PCPG	0.008	NA
+chr17_51067932_51068012_-	SPAG9	2b	poison	1	0	662	31	40	0.997	0.309	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.098	NA	-0.034	NA	0.105	HNRNPM, PABPN1, PPP1R8, SFPQ, SRSF7, SSB, SUPT6H, XRN1, YTHDC2
+chr17_51219466_51219582_-	MBTD1	4b	poison	0	0	626	7	15	0.958	NA	Adipose Tissue, Blood Vessel, Brain, Breast, Colon, Heart, Lung, Muscle, Nerve, Ovary, Skin, Testis, Thyroid, Uterus	0.173	Nerve	-0.043	NA	0.051	XRN1
+chr17_55313652_55313978_+	HLF	2b	poison	0	0	176	8	13	0.87	NA	Heart, Ovary, Skin, Uterus, Vagina	0.016	NA	0.002	NA	0.027	NA
+chr17_59566109_59566328_+	DHX40	1b	poison	1	0	480	5	9	0.845	-0.003	Brain, Muscle	0.042	NA	0.007	NA	0.462	FASTKD1, HNRNPA2B1, HNRNPD, PUS1, RBM47, U2AF1, U2AF2
+chr17_61986361_61986485_-	MED13	12b	poison	0	0	70	8	10	0.995	0.0	Testis	0.055	NA	-0.012	NA	-0.037	NA
+chr17_67914424_67914565_+	BPTF	11b	poison	1	0	723	10	17	0.978	0.017	Blood Vessel, Brain, Muscle, Skin, Thyroid, Uterus	0.03	NA	0.008	NA	0.023	NA
+chr18_23821907_23822041_+	LAMA3	19b	poison	1	0	239	22	45	0.886	NA	Adipose Tissue, Blood Vessel, Breast, Cervix Uteri, Esophagus, Lung, Nerve, Prostate, Skin, Uterus, Vagina	0.354	Cervix Uteri, Muscle, Nerve, Prostate, Uterus	-0.049	NA	NA	NA
+chr18_24448903_24448925_+	IMPACT	9b	poison	0	1	162	10	13	0.899	0.0	Brain	0.005	NA	0.004	NA	0.0	NA
+chr18_2673017_2673194_+	SMCHD1	3b	poison	1	0	298	15	23	0.942	0.0	Adipose Tissue, Blood, Blood Vessel, Breast, Colon, Lung, Muscle, Nerve, Pancreas, Pituitary, Skin, Stomach, Testis	0.038	NA	0.01	NA	0.06	HNRNPD
+chr18_31891699_31891716_-	TRAPPC8	11b	protein-coding	0	0	652	9	18	0.401	0.0	Brain	0.054	NA	0.013	NA	0.012	NA
+chr18_31891699_31891719_-	TRAPPC8	11c	protein-coding	1	0	652	18	67	0.396	0.0	Brain	0.073	NA	0.014	NA	0.012	NA
+chr18_47868052_47868097_-	SMAD2	5b	poison	1	0	123	66	95	0.929	0.009	Testis	0.262	Testis	-0.004	NA	0.051	EIF4A3
+chr18_48923853_48924123_-	SMAD7	3b	poison	0	0	156	7	25	0.278	0.0	Lung	0.001	NA	-0.002	NA	0.0	NA
+chr18_5407437_5407502_-	EPB41L3	15b	protein-coding	1	0	713	19	43	0.728	NA	Brain, Esophagus, Heart, Muscle	0.274	Muscle	0.167	PCPG	NA	NA
+chr18_54375216_54375266_+	C18orf54	8b	protein-coding	1	0	76	10	19	0.806	NA	Testis	0.041	NA	0.001	NA	0.04	NA
+chr18_67516070_67516201_-	DSEL	1b	protein-coding	0	0	115	8	33	0.742	NA	Skin	0.034	NA	0.021	NA	NA	NA
+chr18_8785112_8785552_+	MTCL1	5b	poison	0	0	187	9	25	0.638	0.0	Brain	0.046	NA	0.001	NA	NA	NA
+chr18_8785309_8785552_+	MTCL1	5c	poison	0	0	233	14	36	0.599	0.0	Brain	0.046	NA	0.0	NA	NA	NA
+chr18_9563917_9563951_-	PPP4R1	11b	poison	1	0	422	32	51	0.795	0.0	Brain, Heart, Muscle, Nerve, Pituitary	0.146	NA	-0.0	NA	0.005	NA
+chr18_9576081_9576207_-	PPP4R1	10b	poison	1	0	538	9	14	0.69	0.0	Heart, Muscle	0.024	NA	0.0	NA	0.0	NA
+chr19_15509590_15509793_+	CYP4F22	1b	protein-coding	1	1	109	13	25	0.962	NA	Adipose Tissue, Esophagus, Salivary Gland, Skin, Vagina	0.064	NA	0.053	LIHC	NA	NA
+chr19_16167382_16167459_-	CIB3	4b	poison	0	0	202	5	8	0.968	NA	Testis	0.197	Testis	NA	NA	NA	NA
+chr19_19123354_19123431_-	TMEM161A	6b	poison	1	0	173	7	16	0.806	0.0	Liver, Stomach, Thyroid	0.081	NA	0.008	NA	0.038	NA
+chr19_38442603_38442623_+	RYR1	3b	protein-coding	1	0	561	7	11	0.943	NA	Brain, Prostate	0.097	NA	-0.082	PRAD	NA	NA
+chr19_38713709_38713786_+	ACTN4	8b	poison	0	0	544	199	354	0.412	0.016	Heart, Muscle	0.819	Heart, Muscle	-0.031	NA	0.067	PTBP1
+chr19_39832972_39833025_-	DYRK1B	1b	unknown	0	0	67	11	60	0.574	NA	Testis	0.198	Muscle, Salivary Gland, Testis	-0.58	BRCA, HNSC	NA	NA
+chr19_48301284_48301411_-	ODAD1	12b	poison	1	0	152	30	56	0.773	NA	Blood, Fallopian Tube, Lung, Testis	0.172	Cervix Uteri	0.025	NA	NA	NA
+chr19_56573911_56573984_+	ZNF470	3b	poison	1	0	78	8	12	0.964	NA	Brain, Ovary, Testis	0.157	Testis	0.023	NA	NA	NA
+chr19_56818876_56818939_-	ZIM2	7b	poison	0	0	435	6	13	0.263	NA	Brain	0.009	NA	0.003	NA	0.016	NA
+chr2_101845393_101845602_+	MAP4K4	12b	poison	1	0	164	8	11	0.879	0.0	Blood Vessel, Brain, Lung, Skin	0.011	NA	-0.001	NA	0.013	NA
+chr2_117985385_117985406_-	CCDC93	7b	poison	0	0	167	7	20	0.82	0.0	Heart, Muscle	0.558	Muscle	-0.011	NA	0.0	NA
+chr2_117985389_117985406_-	CCDC93	7c	protein-coding	1	1	153	19	35	0.702	0.0	Heart, Muscle	0.701	Muscle	-0.025	NA	0.0	NA
+chr2_120348737_120348846_+	INHBB	1b	protein-coding	0	0	475	6	25	0.187	0.0	Adipose Tissue	0.008	NA	-0.007	NA	NA	NA
+chr2_127715799_127715907_-	WDR33	17b	poison	0	0	482	10	13	0.511	0.027	Brain	0.019	NA	-0.004	NA	0.041	NA
+chr2_135619525_135619686_+	R3HDM1	5b	poison	0	0	69	22	51	0.951	NA	Blood Vessel, Bone Marrow, Brain, Colon, Esophagus, Muscle, Nerve, Ovary, Pituitary, Skin, Testis, Uterus	0.234	Testis	-0.019	NA	0.128	AATF, AKAP8, AKAP8L, AQR, ASCC1, BCCIP, BCLAF1, BOP1, CPSF6, DAZAP1, DDX27, DDX47, DDX6, EIF4A3, EIF4G2, GLRX3, HNRNPA2B1, HNRNPAB, ILF2, MAGOH, METAP2, MSI2, NUFIP2, PABPC1, PNPT1, PPIL4, PUS1, RAVER1, RBM15, RBM17, RBM39, RPS3, RPS3A, SF1, SF3B4, SMN1, SND1, SNRNP200, SSB, SUB1, SUGP2, TAF15, U2AF1, UTP18, WDR3, XPO5, XRCC5, XRCC6, XRN1, YTHDC2, ZRANB2
+chr2_147911537_147911560_+	ACVR2A	4b	protein-coding	1	1	716	8	11	0.961	0.0	Brain	0.041	NA	0.0	NA	0.0	NA
+chr2_158677730_158678399_+	PKP4	20b	poison	0	0	115	8	12	0.165	0.208	Testis	0.054	NA	-0.04	NA	0.017	NA
+chr2_169947883_169947937_+	UBR3	22b	poison	0	0	558	7	16	0.935	0.0	Muscle	0.615	Heart, Muscle	-0.251	HNSC	0.021	NA
+chr2_169947905_169947937_+	UBR3	22c	protein-coding	1	0	604	428	674	0.943	0.0	Adipose Tissue, Blood Vessel, Breast, Colon, Esophagus, Heart, Muscle, Prostate, Salivary Gland, Thyroid	0.783	Heart, Muscle	-0.412	BRCA, HNSC	-0.021	NA
+chr2_170067039_170067090_+	UBR3	35b	poison	1	0	78	13	20	0.976	0.022	Adipose Tissue, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Heart, Lung, Muscle, Nerve, Salivary Gland, Skin, Testis, Thyroid, Uterus	0.038	NA	-0.077	THYM	0.061	NFX1, SF3B1
+chr2_178752174_178752271_-	TTN	47b	unknown	1	0	804	10	34	0.337	NA	Heart, Muscle	0.215	Blood Vessel	0.019	NA	NA	NA
+chr2_178752174_178752274_-	TTN	47c	unknown	0	0	804	11	45	0.376	NA	Blood Vessel, Heart, Muscle	0.169	Blood Vessel	0.022	NA	NA	NA
+chr2_196901653_196901698_-	PGAP1	5b	poison	1	0	89	51	82	0.881	NA	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Ovary, Pituitary, Skin, Testis, Vagina	0.108	NA	-0.016	NA	NA	NA
+chr2_203946809_203947138_+	ICOS	1b	poison	0	0	125	6	11	0.885	NA	Blood	0.067	NA	0.007	NA	NA	NA
+chr2_205476127_205476283_+	PARD3B	20b	poison	1	0	398	7	13	1.0	NA	Testis	0.227	Testis	-0.003	NA	NA	NA
+chr2_210651163_210651333_+	CPS1	28b	poison	1	0	77	5	24	0.756	0.0	Testis	0.078	NA	0.0	NA	0.0	NA
+chr2_217839755_217839874_-	TNS1	19b	unknown	0	0	349	4	15	0.249	NA	Blood	0.391	Blood Vessel, Colon, Esophagus	NA	NA	0.0	NA
+chr2_218478754_218478865_-	USP37	18b	poison	1	0	721	5	21	0.886	0.0	Blood, Testis	0.092	NA	-0.044	NA	0.073	CCDC124, HLTF, PUS1, QKI, TAF15, U2AF1
+chr2_232006245_232006399_+	DIS3L2	1b	protein-coding	0	0	102	6	11	0.963	0.0	Testis	0.051	NA	0.001	NA	0.016	NA
+chr2_237732332_237732409_+	LRRFIP1	8b	protein-coding	1	0	200	5	36	0.667	NA	Heart	0.118	NA	0.0	NA	NA	NA
+chr2_241044420_241044530_+	SNED1	8b	poison	1	0	201	43	77	0.836	NA	Adipose Tissue, Adrenal Gland, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.286	Cervix Uteri, Fallopian Tube, Muscle, Pituitary, Prostate, Salivary Gland, Small Intestine, Thyroid, Uterus	-0.07	CESC, KICH, PAAD, THCA	NA	NA
+chr2_26123983_26124047_+	RAB10	3b	poison	1	1	372	66	217	0.748	0.02	Adipose Tissue, Adrenal Gland, Blood, Breast, Esophagus, Lung, Nerve, Pancreas, Skin, Stomach, Testis	0.037	NA	-0.011	NA	0.033	NA
+chr2_27616819_27616945_+	ZNF512	12b	poison	0	0	84	6	28	0.371	0.0	Blood, Blood Vessel, Testis	0.039	NA	-0.047	NA	0.102	AQR, CPSF6, EIF3A, GPKOW, NIP7, PRPF4, PUF60, RBM22, RBM27, RPL23A, RPS2, RPS5, YWHAG, ZNF622
+chr2_27841216_27841294_-	RBKS	5b	poison	0	0	96	6	13	0.855	0.0	Testis	0.038	NA	0.001	NA	0.0	NA
+chr2_27841216_27841318_-	RBKS	5c	poison	0	0	102	7	14	0.992	0.0	Testis	0.042	NA	0.001	NA	0.0	NA
+chr2_31886788_31887087_-	MEMO1	7b	poison	0	0	790	14	20	0.824	0.0	Brain	0.022	NA	0.004	NA	0.038	NA
+chr2_39297814_39297846_-	MAP4K3	16b	protein-coding	0	0	631	5	9	0.973	0.0	Brain, Muscle	0.005	NA	0.0	NA	0.0	NA
+chr2_46165941_46165970_+	PRKCE	14b	protein-coding	0	1	669	37	55	0.951	0.0	Brain, Skin	0.067	NA	0.0	NA	NA	NA
+chr2_53913871_53913931_-	PSME4	20b	poison	1	1	673	17	34	0.982	0.063	Adipose Tissue, Adrenal Gland, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Heart, Liver, Lung, Nerve, Ovary, Pancreas, Pituitary, Prostate, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus	0.209	Brain, Cervix Uteri, Ovary	-0.137	CESC, KICH	0.068	HNRNPC, METAP2, SRSF1
+chr2_61314001_61314153_-	USP34	25b	poison	1	0	692	12	17	0.98	0.0	Adipose Tissue, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Lung, Muscle, Pituitary, Testis, Thyroid	0.022	NA	0.027	NA	-0.064	AGGF1, CCDC124, DROSHA, EIF4A3
+chr2_72136163_72137354_-	CYP26B1	2b	poison	0	0	114	10	37	0.626	0.0	Skin	0.007	NA	0.001	NA	NA	NA
+chr2_86463509_86463656_+	KDM3A	8b	poison	0	0	293	9	26	0.643	0.0	Blood Vessel, Colon, Esophagus, Heart, Prostate, Thyroid, Vagina	0.019	NA	-0.004	NA	0.016	NA
+chr2_88029367_88029600_-	KRCC1	3b	protein-coding	1	0	210	6	25	0.359	0.039	Adipose Tissue, Testis	0.056	NA	0.005	NA	0.024	NA
+chr2_88612285_88612336_-	EIF2AK3	2b	poison	1	0	427	40	55	0.976	0.0	Heart, Muscle	0.37	Muscle	-0.007	NA	0.0	NA
+chr20_21216214_21216370_+	KIZ	9b	poison	0	0	324	19	26	0.972	0.0	Muscle	0.037	NA	0.0	NA	0.0	NA
+chr20_31831497_31831564_+	MYLK2	10b	poison	1	0	560	17	28	0.791	NA	Muscle	0.015	NA	-0.008	NA	NA	NA
+chr20_41486236_41486339_-	CHD6	14b	poison	1	0	602	8	16	0.568	0.0	Bone Marrow	0.03	NA	0.027	NA	0.14	AGGF1, BOP1, CEBPZ, CPEB4, CPSF6, DAZAP1, DROSHA, EEF2, EIF2S1, EIF3D, FTO, GPKOW, HNRNPC, HNRNPD, HNRNPK, LSM11, MAK16, MBNL1, PHF6, RBM17, SF3B1, SUB1, XRN1
+chr20_45944245_45944320_+	PCIF1	10b	poison	1	0	578	21	35	0.486	0.058	Blood, Brain, Colon, Pancreas, Small Intestine, Spleen, Testis	0.178	Testis	0.033	NA	0.263	FXR1, HNRNPL, PPIL4, SMN1, SRSF1
+chr20_46382206_46382241_-	ELMO2	10b	protein-coding	1	1	664	27	62	0.456	0.0	Brain, Pituitary, Testis	0.056	NA	-0.001	NA	0.0	NA
+chr20_56001290_56001368_-	CBLN4	1b	poison	1	0	117	9	22	0.516	NA	Adrenal Gland, Brain, Nerve, Ovary	0.032	NA	0.054	KIRP	NA	NA
+chr21_28961078_28961192_-	LTN1	11b	poison	1	0	384	8	21	0.474	0.185	Adipose Tissue, Blood	0.377	Ovary, Pancreas, Small Intestine, Testis	-0.051	BRCA	0.108	AGO1, AQR, BOP1, CPSF6, CSTF2T, DDX21, DDX51, DNAJC2, EEF2, EIF2S1, EIF2S2, EIF3D, EIF4G2, ETF1, FKBP4, FMR1, FTO, FUBP1, FUS, GPKOW, GRSF1, KHSRP, LARP7, LSM11, MSI2, MTPAP, PCBP2, PRPF6, PRPF8, PTBP1, SART3, SF3B1, SRSF9, SSB, TFIP11, TIA1, XRCC6, XRN2
+chr21_34794668_34798092_-	RUNX1	8b	poison	0	0	115	7	13	0.343	-0.008	Blood, Blood Vessel	0.02	NA	0.009	NA	0.049	NA
+chr21_39288768_39288827_-	BRWD1	8b	poison	1	0	333	7	11	0.983	NA	Adipose Tissue, Blood, Blood Vessel, Breast, Colon, Esophagus, Muscle, Nerve, Salivary Gland, Skin, Small Intestine, Testis	0.105	NA	-0.033	NA	0.138	AGO1, AKAP8, AKAP8L, AQR, ATP5C1, CELF1, DAZAP1, DDX19B, DKC1, EIF3G, GTF2F1, ILF2, KHDRBS1, KIF1C, NUFIP2, PTBP1, PUS1, RBM15, SAFB2, SRSF9, UTP18, WRN, XRCC5, ZC3H8
+chr22_19405463_19405531_-	HIRA	5b	poison	0	1	300	91	166	0.929	0.203	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.248	Bone Marrow, Breast, Nerve, Testis, Thyroid	0.071	BRCA, CESC, PCPG, THYM	0.304	AARS, AATF, ABCF1, AGGF1, AGO1, AKAP8, AKAP8L, AQR, BCLAF1, BOP1, BUD13, CCDC124, CELF1, CPSF6, CSTF2T, DAZAP1, DDX21, DDX47, DDX52, DDX6, DKC1, DNAJC2, DNAJC21, EIF2S1, EIF3G, ESF1, ETF1, EWSR1, EXOSC9, FAM120A, FASTKD1, FASTKD2, FIP1L1, FKBP4, FMR1, FUBP3, FUS, FXR1, G3BP2, GLRX3, GTF2F1, HDGF, HLTF, HNRNPA0, HNRNPA2B1, HNRNPAB, HNRNPD, HNRNPL, HNRNPU, HNRNPUL1, IGF2BP1, IGF2BP2, ILF2, ILF3, KHDRBS1, KHSRP, KIF1C, KRR1, MAK16, MARK2, MATR3, METAP2, MSI2, MTPAP, NCBP2, NELFE, NFX1, NKRF, NOL12, NPM1, NUSAP1, PA2G4, PABPC1, PABPC4, PABPN1, PCBP1, PCBP2, PES1, PHF6, PKM, PNPT1, PPIG, PPIL4, PPP1R8, PTBP1, PUF60, PUS1, QKI, RBFOX2, RBM15, RBM22, RBM27, RBM39, RBM47, RECQL, RPL23A, RPS10, RPS3, SAFB2, SART3, SBDS, SF1, SF3B1, SFPQ, SLBP, SLTM, SMN1, SMNDC1, SND1, SRP68, SRSF1, SRSF4, SRSF5, SRSF9, SSB, STAU1, SUB1, SUGP2, SUPT6H, SUPV3L1, TAF15, TBRG4, TFIP11, TIA1, TRA2A, TRIM56, TRIP6, TROVE2, U2AF2, UCHL5, UPF1, WRN, XPO5, XRCC5, XRCC6, XRN1, XRN2, YTHDC2, ZC3H8, ZRANB2
+chr22_19408274_19408407_-	HIRA	3b	poison	1	0	703	9	40	0.801	-0.019	Adipose Tissue, Blood Vessel, Bone Marrow, Brain, Breast, Esophagus, Liver, Lung, Muscle, Nerve, Pancreas, Skin, Stomach, Testis, Thyroid	0.289	Blood, Bone Marrow, Lung, Thyroid	0.063	BLCA, CESC, CHOL, LIHC	0.262	AARS, AGGF1, AKAP8, AKAP8L, APOBEC3C, BCLAF1, CCAR1, CCDC124, DDX21, DDX47, DDX59, DDX6, DKC1, DROSHA, EIF2S1, EIF3A, EIF3G, EIF4A3, EIF4G2, FUBP3, FUS, FXR1, G3BP1, G3BP2, HNRNPA2B1, HNRNPC, HNRNPD, HNRNPL, HNRNPLL, HNRNPUL1, IGF2BP2, KIF1C, MAGOH, MAK16, MATR3, MBNL1, MTPAP, NAA15, NELFE, NIP7, NPM1, NSUN2, PABPN1, PKM, PPIG, PPP1R8, PSIP1, PTBP1, PUF60, RAVER1, RBM15, RBM22, RBM25, RBM39, RBM47, SF1, SF3A3, SF3B4, SFPQ, SMNDC1, SND1, SNRNP200, SRSF1, SRSF3, SRSF4, SRSF5, SUB1, SUGP2, SUPT6H, TRIM56, TUFM, U2AF1, U2AF2, UTP18, UTP3, WDR43, XPO5, XRN1, YTHDC2
+chr22_20085037_20085272_+	DGCR8	1b	protein-coding	0	0	252	5	13	0.774	0.0	Muscle	0.074	NA	0.007	NA	0.066	AQR, ZC3H8
+chr22_31266532_31266550_+	LIMK2	8b	poison	1	0	539	14	28	0.413	0.0	Bladder, Blood Vessel, Brain, Colon, Esophagus, Heart, Muscle, Skin, Small Intestine, Stomach, Uterus	0.032	NA	0.011	NA	0.0	NA
+chr22_35759272_35759377_-	RBFOX2	10b	poison	1	0	681	6	11	0.74	0.0	Colon, Liver, Muscle, Prostate, Salivary Gland, Thyroid	0.04	NA	-0.02	NA	0.022	NA
+chr22_41445293_41445421_-	TOB2	1b	protein-coding	0	0	187	69	118	0.608	0.0	Brain, Esophagus, Muscle	0.024	NA	-0.02	NA	0.278	U2AF1
+chr3_101371567_101371603_-	SENP7	7b	poison	1	0	231	13	19	0.69	NA	Adipose Tissue, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Pancreas, Prostate, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.057	NA	-0.064	BLCA	0.124	AATF, ATP5C1, CCDC124, DDX28, FIP1L1, FUS, G3BP2, GRSF1, ILF2, KHSRP, KRR1, MAK16, METAP2, MSI2, MTPAP, NKRF, NPM1, RPS3, RTF1, SF3A3, SLTM, SRPK2, SRSF5, SUB1, TROVE2, WDR43
+chr3_101402967_101403047_-	SENP7	5b	poison	1	0	359	10	19	0.929	NA	Adipose Tissue, Bladder, Blood Vessel, Bone Marrow, Breast, Colon, Esophagus, Heart, Lung, Nerve, Ovary, Skin, Small Intestine, Testis, Thyroid, Uterus, Vagina	0.082	NA	0.019	NA	0.206	AGO1, AQR, DNAJC21, EEF2, EIF3A, EIF3G, EIF4B, FIP1L1, FTO, FUS, GEMIN5, GPKOW, HNRNPM, IGF2BP2, KHSRP, LARP7, LSM11, MAGOH, METAP2, NONO, NUFIP2, PA2G4, RBM17, RPS19, SERBP1, SNRNP70, SRSF1, SRSF9, TIAL1, XRN1, XRN2
+chr3_122475858_122475921_-	KPNA1	2b	poison	1	0	343	24	37	0.984	0.035	Adipose Tissue, Blood Vessel, Breast, Heart, Lung, Muscle, Nerve, Pituitary, Salivary Gland, Skin, Small Intestine, Stomach, Thyroid	0.014	NA	0.001	NA	0.026	NA
+chr3_123519277_123519329_-	HACD2	4b	poison	1	0	445	12	37	0.969	0.0	Heart, Muscle	0.58	Muscle	-0.001	NA	0.0	NA
+chr3_124772416_124772489_-	ITGB5	11b	poison	1	0	144	32	64	0.569	0.029	Breast, Heart, Liver, Skin, Vagina	0.026	NA	-0.006	NA	0.041	NA
+chr3_130660170_130660279_+	COL6A6	34b	poison	1	0	146	45	52	0.972	NA	Blood Vessel, Breast, Heart, Lung, Pituitary, Skin, Testis	0.284	Testis	-0.009	NA	NA	NA
+chr3_170098897_170102305_-	PHC3	14b	poison	0	0	102	11	7	0.965	0.042	Blood	0.071	NA	-0.039	NA	0.163	AATF, AGO1, APOBEC3C, BOP1, CEBPZ, CPEB4, DDX28, EIF2S1, EIF3D, EIF3G, EIF4A3, EIF4G1, EIF4G2, FXR1, G3BP2, GEMIN5, GPKOW, HNRNPA1, HNRNPK, HNRNPL, IGF2BP2, IGF2BP3, MAGOH, MAK16, MATR3, METAP2, MSI2, NCBP2, PRPF4, PTBP1, PUM1, PUM2, RBM22, RPS10, SRSF1, SRSF5, SSB, TIAL1, TROVE2, UTP3, WRN, XRN1
+chr3_170102178_170102305_-	PHC3	14c	poison	0	0	679	11	22	0.955	0.033	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.073	NA	-0.048	NA	0.123	AATF, AGO1, CKAP4, CPSF6, DDX28, EEF2, EIF2S1, EIF2S2, EIF3D, EIF3G, EIF4A3, EIF4G1, EXOSC9, FMR1, FXR1, G3BP2, GEMIN5, GPKOW, GRSF1, HLTF, HNRNPA1, HNRNPM, HNRNPUL1, IGF2BP3, ILF2, ILF3, KHSRP, MAK16, MATR3, METAP2, MSI2, NOL12, PRPF6, PSIP1, PTBP1, PUF60, PUM1, PUM2, RBFOX2, RBM17, RBM22, RCC2, SF1, SND1, SRSF1, SUPV3L1, TRIP6, TROVE2, UTP3, WRN, ZRANB2
+chr3_171136857_171136889_-	TNIK	15b	poison	1	0	308	9	12	0.973	NA	Blood Vessel, Colon, Esophagus, Small Intestine, Stomach, Uterus	0.059	NA	-0.028	NA	0.0	NA
+chr3_180975048_180975147_+	FXR1	15b	unknown	0	0	218	6	23	0.329	NA	Testis	0.224	Bone Marrow, Testis	0.006	NA	NA	NA
+chr3_183988269_183988359_-	ABCC5	4b	poison	0	0	354	6	12	0.286	0.0	Muscle	0.043	NA	-0.002	NA	0.0	NA
+chr3_183988293_183988359_-	ABCC5	4c	poison	1	0	455	8	59	0.271	0.0	Muscle	0.045	NA	-0.002	NA	0.009	NA
+chr3_184918587_184918644_+	VPS8	28b	poison	1	0	142	7	14	0.987	NA	Muscle, Pituitary	0.005	NA	0.0	NA	0.0	NA
+chr3_186060243_186060374_-	ETV5	9b	poison	1	0	120	16	25	0.525	0.0	Adrenal Gland, Lung	0.007	NA	-0.006	NA	0.029	NA
+chr3_193441790_193441898_-	ATP13A4	19b	poison	1	0	337	19	76	0.24	NA	Esophagus, Lung, Skin	0.11	NA	0.037	NA	NA	NA
+chr3_27409158_27409262_-	SLC4A7	13b	poison	1	0	825	7	16	0.549	0.0	Blood Vessel, Colon, Lung, Skin	0.014	NA	-0.003	NA	0.041	NA
+chr3_3051280_3051494_+	CNTN4	23b	poison	0	0	156	10	11	0.883	NA	Testis	0.031	NA	0.0	NA	NA	NA
+chr3_37307515_37307558_+	GOLGA4	10b	poison	0	0	682	5	10	0.925	0.0	Brain	0.01	NA	0.001	NA	0.0	NA
+chr3_37354422_37354480_+	GOLGA4	21b	poison	0	0	639	62	122	0.873	0.0	Brain	0.01	NA	0.0	NA	0.0	NA
+chr3_42559284_42559384_-	SEC22C	4b	poison	0	0	231	19	31	0.871	0.0	Brain, Muscle, Nerve	0.048	NA	-0.008	NA	0.018	NA
+chr3_4416576_4416659_-	SUMF1	6b	poison	1	0	104	48	68	0.999	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Liver, Muscle, Nerve, Ovary, Pancreas, Salivary Gland, Skin, Stomach, Thyroid, Uterus, Vagina	0.025	NA	-0.017	NA	0.059	RBM47
+chr3_48650268_48650289_-	CELSR3	16b	poison	0	0	573	5	12	0.961	0.0	Brain	0.918	Adrenal Gland, Brain, Pituitary	-0.065	STAD	0.0	NA
+chr3_48650275_48650289_-	CELSR3	16c	protein-coding	1	0	573	114	170	0.914	0.0	Adrenal Gland, Brain, Pituitary, Skin	0.947	Adrenal Gland, Brain, Pituitary	-0.095	STAD	0.0	NA
+chr3_49295176_49295642_-	USP4	13b	poison	0	0	104	5	18	0.778	0.0	Blood, Colon, Kidney, Spleen	0.023	NA	-0.014	NA	0.265	HNRNPC
+chr3_49295546_49295642_-	USP4	13c	poison	1	0	315	21	76	0.712	0.0	Adipose Tissue, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Liver, Lung, Nerve, Ovary, Pituitary, Prostate, Skin, Small Intestine, Spleen, Testis, Thyroid, Uterus, Vagina	0.041	NA	-0.024	NA	-0.05	NA
+chr3_51716780_51716911_+	GRM2	4b	poison	0	0	152	9	8	0.907	NA	Blood Vessel, Heart, Muscle	0.255	Blood Vessel, Colon	NA	NA	NA	NA
+chr3_64533566_64533645_-	ADAMTS9	37b	poison	1	0	205	6	12	0.528	NA	Breast, Heart, Lung	0.007	NA	-0.015	NA	NA	NA
+chr3_71783230_71783302_-	PROK2	1b	poison	1	0	153	10	16	0.408	NA	Testis	0.006	NA	0.0	NA	NA	NA
+chr3_94094385_94094525_+	NSUN3	4b	poison	1	0	99	6	12	0.537	0.0	Testis	0.025	NA	0.0	NA	0.0	NA
+chr4_102553875_102553891_+	NFKB1	5b	poison	0	0	597	16	20	0.986	0.0	Brain, Skin	0.085	NA	0.007	NA	0.0	NA
+chr4_106242902_106243024_-	TBCK	11b	poison	0	0	161	6	8	0.986	0.043	Brain, Skin	0.016	NA	0.006	NA	0.17	ABCF1, CKAP4, CPEB4, DAZAP1, EEF2, FTO, GEMIN5, HNRNPL, LARP4, MAGOH, NPM1, NSUN2, PARN, RPS2, SF3B1, TBRG4, TIAL1, XRN1, ZNF622
+chr4_106242941_106243024_-	TBCK	11c	poison	1	0	130	6	11	0.931	0.043	Blood, Lung, Pituitary, Skin, Thyroid	0.013	NA	0.013	NA	0.198	ABCF1, CPEB4, DDX59, FTO, GEMIN5, HNRNPL, LARP4, NPM1, NSUN2, PARN, RPL23A, RPS10, RPS2, SF3B1, SNRNP70, TBRG4, TIAL1
+chr4_109751292_109751350_-	CFI	8b	poison	1	0	98	10	15	0.903	NA	Adipose Tissue, Nerve, Skin, Thyroid	0.009	NA	0.002	NA	0.004	NA
+chr4_128092777_128093031_+	LARP1B	7b	poison	1	0	562	26	32	0.994	0.07	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Cervix Uteri, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	0.185	Cervix Uteri, Ovary, Uterus	-0.064	CESC	0.353	AARS, ACO1, AGGF1, AGO1, AKAP8L, AQR, BUD13, CCAR1, CKAP4, CPEB4, CPSF6, DDX19B, DDX55, DDX6, EIF3G, EIF4A3, FXR1, GRWD1, HDGF, HNRNPA1, HNRNPA2B1, HNRNPC, HNRNPF, HNRNPUL1, KHDRBS1, KIF1C, LARP4, LARP7, LSM11, MAK16, NAA15, NFX1, NPM1, PABPC1, PABPN1, PKM, PPP1R8, PTBP1, PUS1, RBFOX2, RBM15, RBM47, RCC2, RPS19, SF3B4, SNRNP200, SRSF7, STAU1, SUGP2, SUPT6H, TARDBP, TRIP6, UTP18, WDR43, XRN1, YTHDC2, ZRANB2
+chr4_147648970_147649038_-	PRMT9	9b	poison	1	0	252	7	15	0.851	0.0	Testis	0.022	NA	0.0	NA	0.0	NA
+chr4_168639946_168640058_+	PALLD	2b	unknown	0	0	279	10	16	0.992	NA	Blood Vessel, Muscle, Thyroid, Uterus	0.236	Muscle	0.04	NA	NA	NA
+chr4_185604344_185604367_-	SORBS2	24b	unknown	0	0	318	39	46	0.76	NA	Muscle	0.728	Brain, Muscle	0.0	NA	NA	NA
+chr4_185604344_185604529_-	SORBS2	24c	unknown	0	0	301	18	24	0.917	NA	Muscle	0.594	Brain, Muscle	0.0	NA	NA	NA
+chr4_186595141_186595191_-	FAT1	26b	unknown	1	0	672	11	17	0.615	NA	Brain	1.0	Blood Vessel, Esophagus, Skin	NA	NA	NA	NA
+chr4_20618202_20618325_+	SLIT2	36b	protein-coding	1	0	172	20	41	0.57	NA	Skin, Thyroid	0.007	NA	-0.006	NA	NA	NA
+chr4_41604227_41604273_+	LIMCH1	3b	protein-coding	1	0	94	6	13	0.92	0.03	Lung, Salivary Gland, Thyroid	0.013	NA	0.029	NA	NA	NA
+chr4_47545403_47545511_+	ATP10D	9b	poison	1	1	181	9	17	0.942	NA	Adipose Tissue, Blood, Blood Vessel, Breast, Esophagus, Lung, Nerve, Ovary, Skin, Spleen, Testis, Thyroid, Uterus, Vagina	0.119	NA	-0.08	PAAD	NA	NA
+chr4_52610291_52610398_-	USP46	5b	poison	0	0	61	11	21	0.733	NA	Testis	0.035	NA	0.0	NA	0.0	NA
+chr4_55866872_55866892_+	EXOC1	4b	protein-coding	1	0	676	125	175	0.997	0.0	Adrenal Gland, Brain, Colon, Heart, Muscle, Skin, Vagina	0.373	Brain	0.02	NA	0.0	NA
+chr4_68321372_68322358_-	YTHDC1	11b	poison	0	0	851	5	9	0.554	0.039	Adipose Tissue, Nerve	0.131	NA	-0.043	NA	0.129	ABT1, FUBP1, SNRNP70, XRN1
+chr4_83423358_83423431_-	HELQ	14b	poison	0	0	69	6	18	0.942	NA	Adipose Tissue, Blood Vessel, Breast, Cervix Uteri, Esophagus, Nerve, Pancreas, Skin, Small Intestine, Spleen, Testis, Thyroid, Uterus	0.126	NA	0.034	NA	-0.113	CELF1, EIF4G2, NOL12, PUF60, PUM1, PUM2, UBE2L3
+chr4_83423358_83423448_-	HELQ	14c	poison	0	0	74	5	12	0.962	NA	Breast, Colon, Nerve, Skin, Testis	0.125	NA	0.03	NA	-0.113	CELF1, EIF4G2, NOL12, PUF60, PUM1, PUM2, UBE2L3
+chr4_83423358_83423555_-	HELQ	14d	poison	0	1	129	14	21	0.931	NA	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Cervix Uteri, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Pituitary, Prostate, Salivary Gland, Skin, Spleen, Stomach, Testis, Thyroid, Vagina	0.166	Testis	0.03	NA	-0.113	CELF1, EIF4G2, NOL12, PUF60, PUM1, PUM2, UBE2L3
+chr5_102943170_102943268_+	PAM	7b	poison	1	0	288	9	15	0.476	0.0	Kidney, Muscle, Nerve, Testis	0.018	NA	0.001	NA	0.034	NA
+chr5_137653724_137653793_-	KLHL3	8b	poison	0	0	311	10	18	0.729	NA	Brain	0.05	NA	-0.007	NA	NA	NA
+chr5_140410745_140410837_+	ANKHD1	1b	poison	0	0	458	6	8	0.994	0.0	Blood, Testis	0.053	NA	0.005	NA	-0.039	NA
+chr5_146094831_146094950_-	PLAC8L1	2b	poison	1	0	128	10	19	0.934	NA	Adrenal Gland, Skin, Spleen, Testis	0.346	Nerve, Skin	NA	NA	NA	NA
+chr5_148411080_148411238_+	FBXO38	9b	poison	1	0	566	24	44	0.713	0.143	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Thyroid, Uterus, Vagina	0.063	NA	0.032	NA	0.208	ABCF1, ACO1, ADAR, BOP1, CALR, CELF1, CKAP4, CPSF6, DDX1, DNAJC21, EEF2, EIF4A3, ESF1, FTO, FUS, GEMIN5, HNRNPF, HNRNPK, HNRNPL, ILF2, KHDRBS1, KRR1, METAP2, MTPAP, NIP7, NUP35, SBDS, SF3B4, STAU1, TRA2A, TUFM, UCHL5, UPF1, WDR3, XRN1, ZNF622
+chr5_172225060_172225378_-	UBTD2	2b	poison	0	0	84	12	14	0.97	0.0	Testis	0.012	NA	0.0	NA	0.004	NA
+chr5_176324388_176324442_+	SIMC1	6b	poison	0	0	199	4	7	0.326	0.0	Muscle	0.004	NA	0.0	NA	0.0	NA
+chr5_177247924_177248079_+	NSD1	10b	poison	1	0	730	13	24	0.98	0.101	Adipose Tissue, Bladder, Blood, Bone Marrow, Breast, Colon, Lung, Nerve, Ovary, Pituitary, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Vagina	0.189	Testis	-0.06	PAAD	0.167	AARS, AKAP8L, AQR, ATP5C1, BCLAF1, CIRBP, CSTF2, DDX21, DDX47, DDX51, DDX55, DDX6, EEF2, EFTUD2, EIF2S2, EIF4A3, EIF4B, EWSR1, EXOSC9, FKBP4, FUBP1, FUBP3, FUS, G3BP1, G3BP2, GRSF1, HLTF, HNRNPA1, HNRNPA2B1, HNRNPC, HNRNPF, HNRNPL, IGF2BP2, IGF2BP3, KHSRP, LARP4, LARP7, LIN28B, LSM11, MAGOH, MAK16, MATR3, NELFE, NFX1, NOL12, NUP35, NUSAP1, PABPC4, PABPN1, PCBP2, PHF6, PKM, PPP1R8, PRPF4, PSIP1, PTBP1, PUS1, QKI, RAVER1, RBM22, RBM25, RBM34, RECQL, RPS19, RRP9, SF3B4, SFPQ, SLTM, SMNDC1, SNRNP200, SRSF1, SRSF4, SRSF5, SRSF9, SUB1, SUGP2, SUPT6H, SUPV3L1, TAF15, TARDBP, TBRG4, TIA1, TRA2A, TUFM, U2AF1, U2AF2, UCHL5, UPF1, UTP18, WRN, XRN1, YTHDC2, ZC3H8, ZRANB2
+chr5_177602032_177602193_+	B4GALT7	1b	protein-coding	0	0	169	22	70	0.659	0.0	Blood Vessel, Muscle, Uterus	0.559	Muscle	-0.02	NA	0.0	NA
+chr5_37048127_37048354_+	NIPBL	38b	poison	0	0	735	4	8	0.979	0.0	Blood, Lung, Muscle, Skin, Stomach	0.004	NA	-0.044	NA	0.019	NA
+chr5_5453116_5453212_+	ICE1	10b	poison	1	0	489	10	20	0.985	0.0	Bone Marrow, Nerve, Skin, Testis	0.267	Testis	-0.024	NA	0.218	AGO1, AKAP8L, APOBEC3C, ATP5C1, AUH, BUD13, CSTF2, DDX19B, DDX55, DKC1, EIF4A3, FASTKD2, FTO, FUBP3, G3BP1, GPKOW, GRSF1, HNRNPA0, HNRNPA1, HNRNPA2B1, HNRNPAB, HNRNPC, HNRNPL, HNRNPU, HNRNPUL1, ILF2, KIF1C, KRR1, LARP4, MAGOH, MTPAP, NAA15, NUFIP2, PCBP1, PKM, RBM17, SAFB2, SART3, SF3B1, SLBP, SRPK2, SRSF5, SRSF7, SRSF9, STIP1, SUCLG1, SUGP2, SUPT6H, SUPV3L1, TIA1, TROVE2, U2AF1, U2AF2, UPF2, UTP18, XPO5, YTHDC2, ZC3H8, ZRANB2
+chr5_61525016_61525147_+	ZSWIM6	5b	poison	1	0	612	17	22	0.968	0.145	Adipose Tissue, Bladder, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Ovary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	0.174	Muscle	-0.099	BLCA	0.021	NA
+chr5_75415955_75416072_-	CERT1	7b	poison	0	0	62	6	13	0.97	0.0	Testis	0.029	NA	0.0	NA	0.003	NA
+chr5_78103297_78103415_-	AP3B1	20b	poison	0	0	808	6	19	0.856	0.0	Breast, Colon	0.001	NA	0.0	NA	0.025	NA
+chr5_79660801_79660954_+	TENT2	11b	poison	0	0	101	25	48	0.774	0.026	Adipose Tissue, Blood, Blood Vessel, Breast, Esophagus, Lung, Muscle, Nerve, Ovary, Skin, Small Intestine, Thyroid	0.018	NA	-0.018	NA	0.03	NA
+chr5_83576701_83576765_+	VCAN	13b	poison	1	0	95	20	59	0.382	0.0	Adipose Tissue, Blood, Blood Vessel	0.001	NA	0.001	NA	0.015	NA
+chr5_9108521_9108538_-	SEMA5A	15b	protein-coding	0	0	555	4	9	0.97	NA	Brain	0.017	NA	0.0	NA	NA	NA
+chr5_94934877_94934924_-	MCTP1	5b	protein-coding	0	0	617	7	9	0.597	0.0	Adipose Tissue, Brain	0.052	NA	-0.027	NA	NA	NA
+chr6_107737025_107737191_-	SCML4	5b	poison	0	0	74	6	14	0.902	NA	Testis	0.111	NA	0.0	NA	NA	NA
+chr6_110125356_110125494_-	WASF1	4b	poison	0	0	61	5	23	0.856	0.0	Testis	0.029	NA	0.0	NA	0.0	NA
+chr6_110125383_110125494_-	WASF1	4c	poison	1	0	74	13	24	0.729	0.0	Testis	0.038	NA	0.0	NA	0.0	NA
+chr6_118988079_118988120_-	FAM184A	9b	protein-coding	0	0	695	4	8	0.932	NA	Esophagus, Heart	0.146	NA	0.0	NA	0.0	NA
+chr6_125258574_125258655_+	TPD52L1	6b	protein-coding	0	1	341	75	144	0.525	-0.009	Bladder, Blood Vessel, Colon, Esophagus, Heart, Lung, Prostate	0.253	Heart	-0.077	BLCA, READ	0.046	NA
+chr6_125750260_125750707_+	HEY2	1b	poison	0	0	171	8	111	0.519	NA	Blood Vessel	0.084	NA	0.009	NA	NA	NA
+chr6_129266862_129266915_+	LAMA2	15b	protein-coding	1	0	554	19	31	0.976	NA	Heart, Muscle	0.018	NA	-0.005	NA	NA	NA
+chr6_138424970_138425062_-	NHSL1	7b	protein-coding	0	0	296	8	15	0.424	NA	Brain, Skin	0.001	NA	0.0	NA	0.0	NA
+chr6_142901664_142901737_-	HIVEP2	1b	unknown	1	1	235	6	22	0.941	NA	Adipose Tissue, Blood Vessel, Esophagus, Lung, Muscle, Ovary, Salivary Gland, Skin, Stomach	1.0	Adipose Tissue, Blood, Blood Vessel, Brain, Muscle, Skin	0.0	NA	NA	NA
+chr6_144151096_144151405_+	STX11	1b	protein-coding	0	0	99	22	46	0.782	NA	Blood, Breast, Lung, Skin	0.012	NA	0.006	NA	NA	NA
+chr6_153016703_153016845_-	RGS17	4b	poison	0	0	249	6	9	0.784	0.0	Adipose Tissue, Skin	0.114	NA	-0.075	STAD	NA	NA
+chr6_154410717_154410840_-	CNKSR3	11b	poison	0	0	182	12	41	0.512	0.0	Adipose Tissue, Blood Vessel, Breast, Cervix Uteri, Colon, Heart, Lung, Nerve, Ovary, Skin, Uterus, Vagina	0.159	Breast	-0.009	NA	0.059	EXOSC9
+chr6_35348363_35349003_+	PPARD	2b	protein-coding	0	1	92	46	107	0.749	-0.047	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.371	Liver, Prostate, Small Intestine, Spleen, Testis, Thyroid	0.089	BLCA, CESC, LIHC	0.206	AARS, AATF, ADAR, AKAP1, AQR, AUH, BCCIP, BCLAF1, CKAP4, CPEB4, CSTF2T, DDX1, DDX21, DDX24, DDX27, DDX51, DDX52, DDX55, DHX30, DNAJC2, DROSHA, EFTUD2, EIF2S1, EIF4A3, EIF4B, ETF1, EXOSC9, FAM120A, FIP1L1, FKBP4, FTO, FUBP3, FXR1, G3BP1, GEMIN5, GLRX3, GRSF1, HNRNPA0, HNRNPA1, HNRNPC, HNRNPF, HNRNPK, ILF3, KHDRBS1, KHSRP, KRR1, LIN28B, MAGOH, MATR3, MSI2, MTPAP, NELFE, NONO, NUP35, NUSAP1, PABPC1, PCBP1, PCBP2, PRPF8, PTBP1, PUF60, PUS1, QKI, RAVER1, RBM15, RBM22, RCC2, RECQL, RPL23A, RRP9, SF3B4, SFPQ, SLBP, SRP68, SRPK2, SRSF1, SRSF5, SRSF9, SSRP1, STAU1, SUGP2, SUPT6H, SUPV3L1, TFIP11, TRA2A, TUFM, UCHL5, UPF2, UTP3, WDR3, XRCC6, XRN2
+chr6_35646730_35646850_-	FKBP5	1b	protein-coding	1	0	258	8	25	0.797	0.0	Blood, Blood Vessel, Brain, Breast, Esophagus, Lung, Pancreas, Prostate, Testis	0.02	NA	-0.016	NA	0.054	SRSF7
+chr6_36202661_36202684_+	BRPF3	2b	poison	1	0	354	16	23	0.974	0.0	Adipose Tissue, Cervix Uteri, Esophagus, Ovary, Skin, Vagina	0.08	NA	0.085	CESC	0.024	NA
+chr6_37282468_37282504_+	TBC1D22B	4b	poison	1	0	146	10	16	0.998	0.078	Bladder, Blood Vessel, Breast, Esophagus, Heart, Lung, Nerve, Pancreas, Salivary Gland, Skin, Spleen, Stomach, Thyroid, Vagina	0.093	NA	0.038	NA	0.079	HNRNPA0, KRR1, MAGOH, RPS3A, XRN1
+chr6_43635487_43635567_+	MAD2L1BP	2b'	unknown	0	0	81	13	18	0.286	NA	Testis	0.327	Testis	0.196	BRCA	NA	NA
+chr6_44432353_44432555_+	CDC5L	14b	poison	1	0	319	13	37	0.943	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Kidney, Liver, Lung, Nerve, Ovary, Prostate, Skin, Testis, Thyroid, Vagina	0.035	NA	-0.007	NA	0.052	XRN1
+chr6_72299090_72299177_+	RIMS1	26b	unknown	1	0	667	24	49	0.962	NA	Brain, Pituitary, Skin, Testis, Thyroid	0.441	Brain, Pituitary, Skin, Testis	0.086	PRAD	NA	NA
+chr6_89148525_89148574_+	PM20D2	1b	poison	1	1	654	22	104	0.456	0.25	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Lung, Muscle, Nerve, Ovary, Pancreas, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.31	Adipose Tissue, Bladder, Blood, Blood Vessel, Brain, Breast, Colon, Fallopian Tube, Kidney, Lung, Muscle, Nerve, Pancreas, Prostate, Small Intestine, Spleen, Stomach	-0.413	BLCA, BRCA, COAD, ESCA, HNSC, KICH, KIRP, LUAD, LUSC, PRAD, READ, STAD, THCA	0.415	ABCF1, AKAP8L, AQR, ATP5C1, AUH, BOP1, BUD13, CALR, CCAR1, CKAP4, CPSF6, CPSF7, DDX19B, DDX59, DKC1, EIF2S2, ESF1, ETF1, EWSR1, FTO, HLTF, HNRNPA2B1, HNRNPUL1, HSPD1, KIF1C, KRR1, LARP4, NAA15, NELFE, NKRF, NUP35, PCBP2, PES1, PPIG, PUM1, PUM2, PUS1, QKI, RBM15, RBM17, RBM39, RECQL, SF1, SF3B1, SNRNP200, SRFBP1, SSRP1, SUGP2, SUPT6H, TARDBP, TBRG4, U2AF1, UBE2L3, UTP18, ZNF622, ZRANB2
+chr6_96836265_96836377_-	GPR63	1b	protein-coding	0	0	69	7	30	0.854	NA	Testis	0.268	Testis	0.011	NA	NA	NA
+chr7_105125608_105125750_-	SRPK2	15b	poison	0	0	207	14	25	0.899	0.0	Testis	0.021	NA	0.003	NA	0.172	KIF1C, RBM39
+chr7_129202623_129202736_+	SMO	1b	poison	1	1	575	17	28	0.809	0.0	Brain, Heart, Muscle, Testis	0.874	Brain, Heart, Muscle	-0.008	NA	0.031	NA
+chr7_139363176_139363259_+	LUC7L2	1b	poison	0	0	755	30	71	0.635	0.122	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Cervix Uteri, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Thyroid, Uterus, Vagina	0.101	NA	0.082	KICH, PCPG	0.083	AGGF1, AKAP8L, BOP1, CNOT7, CPSF6, EIF4A3, EIF4G1, FMR1, ILF2, KHDRBS1, MAGOH, MAK16, RBM15, SART3
+chr7_139363176_139363452_+	LUC7L2	1c	poison	0	0	755	25	44	0.734	0.096	Adipose Tissue, Blood, Blood Vessel, Brain, Colon, Esophagus, Heart, Liver, Lung, Muscle, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Thyroid	0.073	NA	-0.032	NA	0.093	AGGF1, BOP1, CNOT7, CPSF6, EIF4A3, EIF4G1, FMR1, ILF2, KHDRBS1, MAK16, RBM15, SART3
+chr7_30860287_30860384_+	MINDY4	13b	poison	0	0	84	8	8	1.0	0.0	Blood Vessel, Brain, Nerve, Pituitary, Testis, Thyroid	0.006	NA	-0.004	NA	0.0	NA
+chr7_39665191_39665290_+	RALA	1b	protein-coding	0	0	320	5	9	1.0	0.016	Brain	0.04	NA	-0.033	NA	0.074	PTBP1, RRP9, XRCC5
+chr7_39665226_39665290_+	RALA	1c	protein-coding	1	1	320	17	29	0.971	0.016	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Heart, Lung, Muscle, Nerve, Skin, Small Intestine, Thyroid, Vagina	0.059	NA	-0.058	THYM	0.079	PTBP1, RRP9, XRCC5
+chr7_74715123_74715166_+	GTF2I	10b	poison	1	0	614	67	103	0.735	0.0	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Brain, Breast, Colon, Esophagus, Lung, Muscle, Nerve, Pituitary, Skin, Small Intestine, Stomach, Thyroid	0.145	NA	0.007	NA	0.333	ABT1, GTF2F1, LARP7, LIN28B, LSM11, METAP2, MSI2, PA2G4, PTBP1, RAVER1, SSRP1, TROVE2, WDR3, XRCC5, XRCC6, XRN1
+chr7_76280055_76280074_+	SRRM3	11b	poison	1	0	767	22	402	0.8	NA	Brain	1.0	Brain, Pituitary, Skin	NA	NA	NA	NA
+chr7_76356905_76357030_-	YWHAG	1b	poison	0	0	668	5	9	0.729	0.0	Testis	0.009	NA	-0.0	NA	0.0	NA
+chr7_99917772_99917885_-	TRIM4	1b	poison	1	1	480	39	61	0.97	0.253	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Kidney, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.552	Bladder, Brain, Colon, Heart, Muscle, Nerve	-0.037	NA	0.203	EIF2S2, HNRNPK, PTBP1, RPS19, SERBP1, SNRNP70, SRSF3
+chr8_100223662_100223753_+	SPAG1	13b	poison	1	0	571	10	21	0.937	0.0	Brain	0.064	NA	0.0	NA	0.0	NA
+chr8_102302271_102302481_-	UBR5	22b	poison	1	1	703	32	52	0.643	0.152	Adipose Tissue, Adrenal Gland, Bladder, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Heart, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Stomach, Testis, Thyroid, Uterus, Vagina	0.249	Brain, Ovary, Pituitary	-0.036	NA	0.125	ACO1, CKAP4, EIF4A3, HNRNPC, HNRNPLL, MAGOH, NIP7, RBM22, RBM27, SRSF7, XRN1, YWHAG
+chr8_103057549_103057642_+	ATP6V1C1	8b	poison	1	0	440	5	9	0.96	0.028	Brain, Nerve	0.038	NA	-0.068	SARC	0.013	NA
+chr8_116764119_116764182_-	EIF3H	1b'	unknown	0	0	133	6	13	0.912	NA	Testis	0.215	Testis	NA	NA	NA	NA
+chr8_124351038_124351118_-	TMEM65	1b	protein-coding	1	0	406	11	21	0.964	0.0	Muscle	0.071	NA	-0.009	NA	0.0	NA
+chr8_130180513_130180598_-	ASAP1	8b	poison	1	0	448	9	22	0.437	0.0	Heart, Muscle	0.064	NA	-0.001	NA	0.0	NA
+chr8_132813884_132813903_+	PHF20L1	9b	poison	0	0	508	7	9	0.968	0.0	Testis	0.036	NA	0.0	NA	0.0	NA
+chr8_17941647_17941835_+	PCM1	6b	unknown	1	0	567	10	20	0.94	NA	Blood, Bone Marrow, Skin, Testis	0.152	Testis	0.033	NA	-0.105	ADAR, ASCC1, CCAR1, CKAP4, CPSF7, DDX1, DDX47, DDX51, DDX52, DHX30, DNAJC21, EEF2, EFTUD2, EIF2S2, EIF4A3, EIF4G1, FTO, FXR1, GEMIN5, GRWD1, HNRNPA1, HNRNPC, HNRNPLL, HSPD1, KHDRBS1, LSM11, NCBP2, NUSAP1, PCBP2, PKM, PPIG, PRPF8, PTBP1, RBM27, RCC2, RPL23A, RPS2, RRP9, SAFB2, SERBP1, SF3A3, SRSF4, SUCLG1, TRIM56, UBE2L3, UPF2, YBX3, YWHAG
+chr8_23441393_23441487_-	ENTPD4	8b	unknown	1	0	394	24	62	0.398	NA	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Breast, Colon, Esophagus, Heart, Liver, Lung, Muscle, Nerve, Ovary, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.493	Adipose Tissue, Adrenal Gland, Bladder, Blood Vessel, Breast, Cervix Uteri, Colon, Esophagus, Fallopian Tube, Kidney, Liver, Lung, Muscle, Nerve, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Thyroid, Uterus, Vagina	-0.065	BRCA	0.274	AATF, ABT1, AGO1, AKAP1, ATP5C1, AUH, BCCIP, CCDC124, CELF1, CIRBP, CNOT7, CSTF2T, DDX21, DDX24, DDX27, DDX28, DDX3X, DDX47, DDX55, DDX6, DKC1, EIF2S1, EIF4B, EWSR1, EXOSC9, FASTKD2, FUBP1, FUS, FXR1, G3BP1, GRSF1, GTF2F1, HNRNPA0, HNRNPA2B1, HNRNPK, HNRNPUL1, IGF2BP1, IGF2BP3, KHSRP, KIF1C, LARP4, MAGOH, MATR3, MBNL1, MSI2, NCBP2, NELFE, NOL12, NPM1, NUP35, PABPC1, PABPC4, PCBP1, PCBP2, PKM, PNPT1, PPIG, PPP1R8, PUF60, PUM1, PUM2, PUS1, QKI, RAVER1, RBM15, RBM25, RBM39, RECQL, RTF1, SART3, SBDS, SFPQ, SLTM, SMN1, SMNDC1, SRP68, SRSF5, SRSF7, SRSF9, STIP1, SUB1, SUGP2, SUPV3L1, TAF15, TARDBP, TIA1, TROVE2, U2AF1, UBE2L3, UTP18, XPO1, XPO5, XRCC5, ZC3H8
+chr8_30478920_30478973_+	RBPMS	3b	poison	1	0	568	168	271	0.727	0.013	Blood Vessel, Esophagus, Kidney, Lung, Pituitary, Salivary Gland, Small Intestine, Stomach, Testis, Thyroid	0.058	NA	0.042	NA	0.026	NA
+chr8_30613326_30613482_-	GTF2E2	4b	poison	0	0	169	8	18	0.907	0.0	Brain, Muscle	0.008	NA	0.001	NA	0.007	NA
+chr8_63076453_63076587_-	TTPA	1b	poison	1	0	172	5	19	0.634	NA	Liver	0.023	NA	-0.041	NA	NA	NA
+chr8_73734124_73734179_-	STAU2	3b	protein-coding	0	0	364	5	10	0.996	NA	Muscle	0.012	NA	-0.005	NA	0.0	NA
+chr8_86542046_86542074_+	CPNE3	8b	poison	1	0	540	9	15	0.918	0.0	Brain	0.026	NA	0.0	NA	0.0	NA
+chr9_100241452_100241556_+	INVS	6b	poison	0	0	203	21	25	0.974	0.0	Brain, Esophagus, Heart, Muscle, Nerve, Testis	0.422	Brain, Heart, Muscle	-0.008	NA	0.2	MATR3, PTBP1
+chr9_100251968_100252073_+	INVS	8b	poison	1	0	105	6	13	0.805	0.0	Testis	0.288	Testis	0.003	NA	0.288	AGO1, APOBEC3C, BCLAF1, BUD13, DAZAP1, DDX19B, DDX21, DDX47, EIF2S1, EIF3G, ESF1, FASTKD2, FMR1, FUBP1, G3BP2, GTF2F1, HNRNPA1, ILF2, LARP4, MTPAP, NKRF, NPM1, NUFIP2, PABPC4, PRPF6, PUF60, QKI, RAVER1, RBM25, RBM39, RPS10, RTF1, SF3B4, SLTM, SRSF9, STAU1, SUB1, TAF15, TRA2A, TROVE2, UPF1, UPF2, XRN1, ZRANB2
+chr9_100251968_100252093_+	INVS	8c	poison	0	0	90	18	49	0.878	0.0	Adipose Tissue, Blood, Blood Vessel, Bone Marrow, Breast, Colon, Lung, Ovary, Prostate, Skin, Testis, Thyroid, Uterus	0.439	Testis	0.005	NA	0.414	AARS, ABCF1, ADAR, AKAP1, APOBEC3C, AQR, ASCC1, BCLAF1, BUD13, CELF1, CIRBP, DAZAP1, DDX1, DDX19B, DDX21, DDX47, DDX6, DNAJC21, EIF2S1, EIF3G, EIF4A3, EIF4G1, ESF1, EXOSC9, FIP1L1, FMR1, FUBP1, FUBP3, FXR1, G3BP1, GRSF1, GRWD1, GTF2F1, HNRNPA1, HNRNPC, HNRNPK, HNRNPL, HNRNPU, IGF2BP2, LARP4, LIN28B, NCBP2, NKRF, NPM1, NUP35, PCBP1, PCBP2, PKM, PNPT1, PPIL4, PRPF6, PUF60, PUS1, QKI, RAVER1, RBM25, RBM39, RCC2, RPS10, SF3B4, SLTM, SND1, SRFBP1, SRSF7, SRSF9, STAU1, SUB1, SUGP2, TAF15, TIA1, TIAL1, TRA2A, TROVE2, TUFM, U2AF2, UCHL5, UPF1, UPF2, UTP18, WRN, XRN1, YBX3, ZRANB2
+chr9_101559923_101560065_+	RNF20	16b	poison	1	0	471	15	39	0.482	0.0	Brain	0.01	NA	0.0	NA	0.072	HNRNPM
+chr9_108964585_108964672_-	CTNNAL1	11b	poison	1	0	581	5	41	0.979	0.0	Brain	0.066	NA	0.023	NA	0.001	NA
+chr9_108983417_108983459_-	CTNNAL1	5b	poison	1	0	591	8	12	0.979	0.0	Brain	0.029	NA	0.004	NA	0.002	NA
+chr9_122040374_122040479_-	TTLL11	1b	poison	0	0	69	7	17	0.966	NA	Testis	0.086	NA	-0.006	NA	0.0	NA
+chr9_131486481_131486541_+	PRRC2B	26b	poison	1	0	142	70	112	0.66	0.126	Adipose Tissue, Adrenal Gland, Blood, Blood Vessel, Bone Marrow, Brain, Breast, Colon, Esophagus, Heart, Kidney, Liver, Lung, Muscle, Nerve, Pancreas, Pituitary, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Vagina	0.279	Bone Marrow, Muscle, Testis	-0.052	CESC, PAAD, THYM	0.147	ABT1, AGGF1, AKAP8L, DDX21, DDX47, EIF3A, EIF3G, FUBP1, GNB2L1, HLTF, HNRNPC, HNRNPK, HNRNPU, HNRNPUL1, IGF2BP1, IGF2BP3, KHSRP, KIF1C, MAGOH, MAK16, MATR3, MBNL1, NAA15, NPM1, PABPN1, PPIG, PPP1R8, PTBP1, PUS1, RBM22, RBM39, SF1, SF3A3, SF3B1, SMN1, SRSF3, SRSF4, SRSF9, TRIP6, U2AF2, WDR43, XRCC6, YTHDC2
+chr9_132165979_132166113_+	NTNG2	1b	protein-coding	0	1	250	23	56	0.932	NA	Blood, Brain, Heart	0.32	Adrenal Gland, Blood, Brain, Heart, Lung, Prostate	-0.011	NA	NA	NA
+chr9_132166029_132166113_+	NTNG2	1c	protein-coding	1	0	251	11	37	0.807	NA	Blood, Brain	0.309	Adrenal Gland, Brain, Heart, Lung, Prostate	-0.016	NA	NA	NA
+chr9_132586213_132586392_+	BARHL1	1b	poison	0	0	164	7	10	0.241	NA	Brain	0.003	NA	NA	NA	NA	NA
+chr9_134049676_134049757_-	BRD3	5b	poison	1	0	326	18	32	0.951	0.092	Adipose Tissue, Adrenal Gland, Bladder, Blood Vessel, Brain, Breast, Colon, Esophagus, Fallopian Tube, Heart, Liver, Lung, Muscle, Ovary, Pancreas, Prostate, Salivary Gland, Skin, Small Intestine, Spleen, Stomach, Testis, Thyroid, Uterus, Vagina	0.157	Muscle	-0.104	CESC, UCEC	0.074	EIF3A, EIF3D, LARP7, MARK2
+chr9_135863788_135863847_-	CAMSAP1	4b	protein-coding	1	0	400	8	14	0.805	0.0	Brain	0.148	NA	0.0	NA	0.0	NA
+chr9_138017139_138017201_+	CACNA1B	18b	protein-coding	1	0	703	25	57	0.943	NA	Brain	0.126	NA	NA	NA	NA	NA
+chr9_138032682_138032770_+	CACNA1B	20b	poison	1	0	577	12	22	0.983	NA	Brain, Pituitary, Testis	0.098	NA	0.0	NA	NA	NA
+chr9_14750412_14750510_-	FREM1	29b	protein-coding	0	0	656	5	9	0.271	NA	Brain	0.097	NA	0.329	BLCA, ESCA, KICH, KIRC, READ	0.092	HNRNPD, PABPC1, RAVER1, U2AF1
+chr9_35390066_35390121_+	UNC13B	25b	poison	0	0	558	9	20	0.831	0.0	Muscle	0.14	NA	0.0	NA	0.0	NA
+chr9_35390066_35390253_+	UNC13B	25c	poison	1	0	412	16	40	0.766	0.0	Muscle	0.152	Muscle	0.0	NA	0.0	NA
+chr9_70276669_70276731_+	SMC5	3b	poison	1	0	438	12	24	0.907	0.0	Adipose Tissue, Adrenal Gland, Blood Vessel, Brain, Breast, Colon, Lung, Nerve, Skin, Thyroid, Vagina	0.031	NA	-0.008	NA	0.059	AGGF1, CCDC124, EIF4A3, MAK16, RAVER1, U2AF2, WDR43
+chr9_71700061_71700191_-	CEMIP2	19b	poison	0	0	449	5	16	0.248	0.0	Brain	0.01	NA	-0.002	NA	0.007	NA
+chr9_71700092_71700191_-	CEMIP2	19c	poison	1	0	506	6	48	0.244	0.0	Brain, Nerve	0.008	NA	-0.001	NA	0.004	NA
+chr9_71705003_71705116_-	CEMIP2	17b	poison	0	0	117	7	33	0.27	0.0	Adipose Tissue, Blood, Blood Vessel, Brain, Lung, Skin, Small Intestine	0.014	NA	-0.005	NA	0.038	NA
+chr9_76138790_76138884_+	PCSK5	10b	poison	1	0	657	6	16	0.945	0.032	Blood Vessel, Ovary	0.074	NA	-0.006	NA	NA	NA
+chr9_86325230_86325254_-	TUT7	12b	poison	1	0	173	13	23	0.278	0.0	Blood, Lung	0.006	NA	0.001	NA	0.017	NA
+chr9_97598733_97598797_+	TMOD1	9b	protein-coding	1	0	156	123	263	0.443	NA	Adipose Tissue, Blood Vessel, Breast, Esophagus, Lung, Nerve, Ovary, Stomach, Thyroid	0.064	NA	-0.042	NA	0.0	NA
+chr9_98836541_98836641_+	GALNT12	5b	poison	1	0	466	61	176	0.433	0.0	Brain	0.961	Brain	0.0	NA	0.0	NA
+chr9_99043594_99043619_+	COL15A1	24b	poison	1	0	348	12	28	0.406	NA	Brain, Testis	0.129	NA	-0.003	NA	0.0	NA
+chr9_99827348_99827466_+	NR4A3	2b	protein-coding	1	0	293	8	19	0.352	NA	Blood, Brain, Heart, Muscle	0.401	Blood Vessel, Brain, Heart, Muscle, Nerve	-0.241	BLCA, LUSC, PRAD, THCA	NA	NA
+chrX_103091304_103091348_-	NXF3	1b	protein-coding	0	0	276	45	68	0.844	NA	Lung, Testis	0.005	NA	0.0	NA	NA	NA
+chrX_106955955_106956010_-	MORC4	13b	poison	0	0	682	24	59	0.797	0.022	Bladder, Blood Vessel, Brain, Colon, Esophagus, Heart, Prostate, Small Intestine, Stomach, Thyroid, Vagina	0.081	NA	-0.031	NA	0.021	NA
+chrX_110993386_110993482_+	PAK3	1b'	unknown	1	0	199	6	13	1.0	NA	Testis, Thyroid	0.439	Breast, Nerve, Pancreas, Testis, Thyroid	-0.236	THCA	NA	NA
+chrX_11197769_11197922_-	ARHGAP6	2b	poison	0	0	184	8	11	0.903	NA	Adipose Tissue	0.004	NA	0.001	NA	0.011	NA
+chrX_115123558_115123756_-	LRCH2	17b	poison	1	0	682	8	11	0.971	NA	Brain	0.021	NA	0.0	NA	0.0	NA
+chrX_134485467_134485507_+	HPRT1	3b	poison	1	0	546	7	15	0.989	0.0	Brain	0.002	NA	-0.0	NA	0.0	NA
+chrX_134779844_134779977_-	PABIR2	9b	unknown	0	0	362	10	13	0.962	NA	Muscle	0.09	NA	0.001	NA	NA	NA
+chrX_151960115_151960172_-	GABRE	5b	poison	1	0	127	8	37	0.397	NA	Adipose Tissue, Breast	0.118	NA	0.022	NA	NA	NA
+chrX_24621815_24621883_-	PCYT1B	1b	protein-coding	0	0	213	6	11	0.981	NA	Testis	0.033	NA	0.0	NA	NA	NA
+chrX_40715118_40715220_-	MED14	3b	poison	1	0	112	11	32	0.525	0.018	Blood, Esophagus, Muscle	0.037	NA	-0.025	NA	0.051	SNRNP70
+chrX_43740826_43741022_+	MAOA	11b	poison	1	1	73	22	29	0.736	0.0	Testis	0.186	Testis	0.0	NA	0.0	NA
+chrX_50603656_50603803_-	SHROOM4	6b	poison	1	0	217	6	18	0.776	NA	Colon, Lung	0.02	NA	-0.003	NA	NA	NA
+chrX_53402287_53402379_-	SMC1A	15b	poison	1	0	93	4	8	0.83	0.01	Testis	0.035	NA	0.0	NA	0.005	NA
+chrX_65531844_65531913_-	LAS1L	3b	poison	1	0	262	6	8	0.899	0.0	Nerve	0.003	NA	0.0	NA	0.006	NA
+chrX_96936374_96936500_+	DIAPH2	10b	poison	1	0	416	6	10	0.993	0.0	Esophagus, Muscle	0.032	NA	-0.002	NA	NA	NA
