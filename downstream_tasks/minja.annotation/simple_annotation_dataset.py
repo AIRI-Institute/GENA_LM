@@ -18,6 +18,8 @@ class GenomicAnnotationDataset(Dataset):
 	a BPE tokenizer, and extracts annotation targets (TSS and polyA sites) from
 	a GFF database.
 	"""
+
+	NUM_LABELS = 8
 	
 	def __init__(
 		self,
@@ -270,13 +272,13 @@ class GenomicAnnotationDataset(Dataset):
 		assert len_bp > 0, f"len_bp is {len_bp} for {chrom}:{start}-{end}"
 
 		targets = {
-			'intragenic_regions': torch.zeros(len_bp, dtype=torch.long),
+			'intragenic_regions': torch.zeros(len_bp, dtype=torch.float32),
 		}
 		for strand in ["+", "-"]:
 			for tss_type in ["primary", "uncertain"]:
 				for polya_type in ["primary", "uncertain"]:
-					targets[f"{tss_type}_tss_{strand}"] = torch.zeros(len_bp, dtype=torch.long)
-					targets[f"{polya_type}_polya_{strand}"] = torch.zeros(len_bp, dtype=torch.long)
+					targets[f"{tss_type}_tss_{strand}"] = torch.zeros(len_bp, dtype=torch.float32)
+					targets[f"{polya_type}_polya_{strand}"] = torch.zeros(len_bp, dtype=torch.float32)
 					
 		try:
 			# Query GFF database for features in this region
@@ -366,26 +368,11 @@ class GenomicAnnotationDataset(Dataset):
 		for target_type in targets.keys():
 			targets_token[target_type] = torch.zeros(len(offset_mapping), dtype=torch.float32)
 
-			# if target_type.find("primary_polya_+") != -1:
-			# 	print (target_type, target_type.find("primary_polya_+"))
-			# 	print ("ids of max values in basepair resolution:")
-			# 	N = 30
-			# 	ids = torch.argsort(targets[target_type], descending=True).numpy()[:N]
-			# 	print (ids)
-			# 	print (targets[target_type][ids])
-			# 	raise Exception("stop here")
 			for tok_id in range(len(offset_mapping)):
 				if offset_mapping[tok_id][0] == offset_mapping[tok_id][1]: # special token
 					targets_token[target_type][tok_id] = -100
 				else:
 					targets_token[target_type][tok_id] = targets[target_type][offset_mapping[tok_id][0]:offset_mapping[tok_id][1]].max()
-
-		# print ("after mapped to token resolution")
-		# for target_type in targets.keys():
-		# 	print (f"----{target_type}----")
-		# 	print (f"{target_type}.max()", targets_token[target_type].max())
-		# 	print (f"{target_type}[{target_type}<1].max()", targets_token[target_type][targets_token[target_type]<1].max())
-		# 	print (sorted(targets_token[target_type].tolist(), reverse=True)[:40])
 
 		return targets_token
 		
