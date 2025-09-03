@@ -6,7 +6,7 @@ cd ../..
 CUBLAS_WORKSPACE_CONFIG=:4096:2
 CUDA_LAUNCH_BLOCKING=1
 
-TASK=PIPELINE_CADUSEUS_ps_10k_backbone_trainable_shuffle_starts_only_whole_chrs_STRANDED_continue
+TASK=encode4_10k
 
 
 TOKENIZER=./data/tokenizers/t2t_1000h_multi_32k/
@@ -28,14 +28,13 @@ for (( i=0; i<3; i++ ))
 do
 MODEL_PATH=./runs/${TASK}/lr${LR}_${OPT}_${SCHEDULER}_wd${WD}_p${PATIENCE}_bs${TBS}_it${ITERS}/run_${N}
 echo $MODEL_PATH
-accelerate launch --main_process_port=29510 --num_processes $NP --config_file ./downstream_tasks/annotation/accelerate.yaml ./downstream_tasks/annotation/run_annotation_finetuning_CADUSEUS_intergenic.py \
-        --data_path /home/jovyan/shares/SR003.nfs2/stranded_human_tss_polya_only/tss_polya_dataset-stranded-train.hdf5 \
-        --valid_data_path /home/jovyan/shares/SR003.nfs2/stranded_human_tss_polya_only/tss_polya_dataset-stranded-valid.hdf5 \
-        --test_data_path /home/jovyan/shares/SR003.nfs2/stranded_human_tss_polya_only/tss_polya_dataset-stranded-valid.hdf5 \
+accelerate launch --main_process_port=29511 --num_processes $NP --config_file ./downstream_tasks/annotation/accelerate.yaml ./downstream_tasks/annotation/run_annotation_finetuning_CADUSEUS_intergenic.py \
+        --data_path tss_polya_dataset-mega_hg38-stranded-train.hdf5 \
+        --valid_data_path tss_polya_dataset-mega_hg38-stranded-valid.hdf5 \
+        --test_data_path tss_polya_dataset-mega_hg38-stranded-valid.hdf5 \
         --model_path ${MODEL_PATH} \
         --tokenizer $TOKENIZER \
         --backbone_cls src.gena_lm.modeling_rmt:CADUSEUS_for_token_classification \
-        --checkpoint /home/jovyan/dnalm/runs/PIPELINE_CADUSEUS_ps_10k_backbone_trainable_shuffle_starts_only_whole_chrs_STRANDED/lr1e-05_AdamW_constant_with_warmup_wd0.0_p10000_bs_it500000/run_1/model_best/model.safetensors \
         --letter_level_input_seq_len $LETTER_LEVEL_INPUT_SEQ_LEN --data_n_workers 16 \
         --iters $ITERS \
         --backbone_trainable \
