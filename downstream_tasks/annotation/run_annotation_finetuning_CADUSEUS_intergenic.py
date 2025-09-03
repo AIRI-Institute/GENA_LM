@@ -25,6 +25,7 @@ from lm_experiments_tools import TrainerAccelerate as Trainer
 from lm_experiments_tools import TrainerAccelerateArgs as TrainerArgs
 
 from lm_experiments_tools.utils import prepare_run, get_cls_by_name, get_optimizer
+from huggingface_hub import hf_hub_download
 
 load_dotenv()
 import sys
@@ -154,7 +155,7 @@ if __name__ == '__main__':
 
     # get train dataset
     logger.info(f'preparing training data from: {args.data_path}')
-    data_path = Path(args.data_path).expanduser().absolute()
+    data_path = hf_hub_download(repo_id="shmelev/encode4_full_human", filename=args.data_path, repo_type="dataset") # Path(args.data_path).expanduser().absolute()
     train_dataset = AnnotationDataset(data_path, tokenizer=tokenizer, max_atcg_seq_len=args.letter_level_input_seq_len, tokenizer_caduseus=tokenizer_caduseus)
     logger.info(f'len(train_dataset): {len(train_dataset)}')
     # shuffle train data each epoch (one loop over train_dataset)
@@ -164,7 +165,7 @@ if __name__ == '__main__':
 
     if args.valid_data_path:
         logger.info(f'preparing validation data from: {args.valid_data_path}')
-        valid_data_path = Path(args.valid_data_path).expanduser().absolute()
+        valid_data_path = hf_hub_download(repo_id="shmelev/encode4_full_human", filename=args.valid_data_path, repo_type="dataset") # Path(args.valid_data_path).expanduser().absolute()
         valid_dataset = AnnotationDataset(valid_data_path, tokenizer=tokenizer, max_atcg_seq_len=args.letter_level_input_seq_len, tokenizer_caduseus=tokenizer_caduseus, tmp_valid_len=1000)
         valid_sampler = DistributedSampler(valid_dataset, rank=accelerator.process_index, num_replicas=accelerator.num_processes, shuffle=True, drop_last=False)
         valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size, sampler=valid_sampler, **kwargs)
@@ -280,14 +281,14 @@ if __name__ == '__main__':
         
         # label_dict = {0: 'CDS-0', 1:'CDS-1', 2:'CDS-2', 3:'CDS-skip', 4:'intron-0', 5:'intron-1', 6:'intron-2', 7:'ASS-0', 8:'ASS-1', 9:'ASS-2', 10:'DSS-0', 11:'DSS-1', 12:'DSS-2', 13:'START', 14:'STOP', 15:'nc_exon_plus', 16:'nc_exon_minus', 17:'nc_intron_plus', 18:'nc_intron_minus', 19:'nc_ASS', 20:'nc_DSS', 21:'TSS' , 22:'PolyA', 23:'IR'}
 
-        label_dict = {8: 'nothing', 0:'TSS_mRNA_+', 1:'TSS_mRNA_-', 2:'TSS_lnc_RNA_+', 3:'TSS_lnc_RNA_-', 4:'PolyA_mRNA_+', 5:'PolyA_mRNA_-', 6:'PolyA_lnc_RNA_+', 7:'PolyA_lnc_RNA_-'} #???
+        label_dict = {0:'TSS_+', 1:'TSS_-', 2:'PolyA_+', 3:'PolyA_-'} #???
 
 
         metrics['pr_auc_mean'] = 0
         # metrics['f1_mean'] = 0
         # metrics['val_counter'] = val_counter
         # val_counter += 1
-        for label in range(9):
+        for label in range(4):
             # print(y_rmt)
             y_label = all_y[:, label]
             p_label = all_pred[:, label]
@@ -332,7 +333,7 @@ if __name__ == '__main__':
             # metrics[f'precision_{label_dict[label]}_level'] = precision
             # metrics[f'recall_{label_dict[label]}_level'] = recall
 
-        metrics['pr_auc_mean'] /= 9
+        metrics['pr_auc_mean'] /= 4
         # metrics['pr_auc_tss_polya'] = (metrics[f'pr_auc_TSS'] + metrics[f'pr_auc_PolyA']) / 2
         # metrics['f1_mean'] /= 24
         
