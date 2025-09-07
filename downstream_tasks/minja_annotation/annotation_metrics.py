@@ -1,0 +1,1 @@
+from torchmetrics.aggregation import MeanMetric
