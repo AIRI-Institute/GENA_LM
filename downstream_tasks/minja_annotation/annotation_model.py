@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-from transformers import BertPreTrainedModel, BertConfig, BertModel, AutoModel
+from transformers import BertModel, AutoModel
 import importlib
 from dataclasses import dataclass
 from typing import Optional
 from transformers.modeling_outputs import TokenClassifierOutput
-import json
 
 import os, logging
 
@@ -101,7 +100,7 @@ class WeightedBCEWithLogitsLoss(nn.Module):
 class AnnotationModel(torch.nn.Module):
 	def __init__(
 		self,
-		output_dir,
+		output_dir = None, # currently unused, for compatibility with older models
 		config = None,
 		pretrained_cpt = None,
 		activation = None,
