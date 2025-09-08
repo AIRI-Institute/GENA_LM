@@ -9,6 +9,13 @@ from hydra import initialize_config_dir, compose
 import math
 from accelerate import Accelerator
 
+# Fix for PyTorch 2.6+ weights_only default change
+import numpy
+torch.serialization.add_safe_globals([
+    numpy.core.multiarray._reconstruct,
+    numpy.ndarray, numpy.dtype, numpy.dtypes.UInt32DType
+])
+
 def gradient_accumulation_steps(batch_size: int, total_batch_size: int) -> int:
 	return min(1, math.ceil(total_batch_size / batch_size))
 
@@ -51,7 +58,8 @@ def main():
 	trainer = accelerator.prepare(trainer)
 
 	# Train and evaluate
-	trainer.train()
+	resume_from_checkpoint = experiment_config.get('resume_from_checkpoint', None)
+	trainer.train(resume_from_checkpoint=resume_from_checkpoint)
 	trainer.evaluate()
 
 if __name__ == "__main__":

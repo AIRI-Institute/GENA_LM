@@ -26,12 +26,14 @@ model:
     w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
     w_intergenic: 0.5  # Weight for intergenic regions (only affects polyA)
 
-region: "chr21:13500000-20000000"
+# region: "chr21:13500000-13600000"
+# region: "chr21:13500000-20000000"
 
 eval_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
   model_input_length_token: 512
   av_token_len: 9.0
+  chunk_overlap: 0.3
   path_to_gff_db: ${HOME_PATH}/data/annotation/gencode.v48.annotation.gtf.db
   path_to_fasta: ${HOME_PATH}/data/annotation/hg38.fa
   tokenizer:
