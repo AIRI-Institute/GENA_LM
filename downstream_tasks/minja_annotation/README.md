@@ -14,7 +14,12 @@ bash annotation_setup.sh
 python3 prepare_data.py
 ```
 
-## Test run
+## Train:
 ```bash
 CUDA_VISIBLE_DEVICES=1 GENALM_HOME=$(realpath ../../)  python train_with_accelerate.py --config configs/test.yaml
+```
+
+## Evaluate:
+```bash
+CUDA_VISIBLE_DEVICES=0 GENALM_HOME=$(realpath ../../) python evaluate_on_chromosome.py --config configs/eval_on_21.yaml
 ```

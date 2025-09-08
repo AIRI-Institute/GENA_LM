@@ -1,0 +1,43 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+output_dir: ${HOME_PATH}/runs/annotation/test/eval_on_21/
+batch_size: 32
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+model_cpt: ${HOME_PATH}/runs/annotation/basic/checkpoint-17250/model.safetensors
+
+model:
+  _target_: "annotation_model.AnnotationModel"
+  output_dir: ${output_dir}
+  config: null  # Path to the BERT configuration file; null will load from huggingface
+  pretrained_cpt: "AIRI-Institute/gena-lm-bert-base-t2t"  # Path to the pretrained checkpoint
+  classifier:
+    _target_: "annotation_model.Linear_Classifier_with_dropout"
+    num_labels: 4  # TSS and polyA for + and - strands
+    num_layers: 1  # Number of layers
+    classifier_dropout: 0.0  # Dropout rate
+  activation:
+    _target_: "torch.nn.Identity"
+  loss_fct:
+    _target_: "annotation_model.WeightedBCEWithLogitsLoss"
+    # set both weight to 1 to get standard BCEWithLogitsLoss
+    w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
+    w_intergenic: 0.5  # Weight for intergenic regions (only affects polyA)
+
+region: "chr21:13500000-20000000"
+
+eval_dataset:
+  _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
+  model_input_length_token: 512
+  av_token_len: 9.0
+  path_to_gff_db: ${HOME_PATH}/data/annotation/gencode.v48.annotation.gtf.db
+  path_to_fasta: ${HOME_PATH}/data/annotation/hg38.fa
+  tokenizer:
+    _target_: "transformers.AutoTokenizer.from_pretrained"
+    pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t"
+  exclude_chromosomes: null
+  include_chromosomes: "chr21"
+  primary_transcript_types: ["protein_coding"]
+  primary_tags: ["GENCODE_Primary", "MANE_Select"]
