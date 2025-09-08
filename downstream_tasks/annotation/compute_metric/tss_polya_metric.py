@@ -94,11 +94,11 @@ def plot_overlaps(results, label, output_path):
     
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
 
-#Example
-gt_path = 'path/gt.tsv'
-label = 'TSS'
-output_path = 'path/fig.png'
-predictions = [0, 1, 0, 0, 1, 0, 1]
-df = pd.read_csv(gt_path, sep='\t')
-results = compute_overlaps(find_segments_ones(predictions), df, label, max_k=50)
-plot_overlaps(results, label, output_path)
+# #Example
+# gt_path = 'path/gt.tsv'
+# label = 'TSS'
+# output_path = 'path/fig.png'
+# predictions = [0, 1, 0, 0, 1, 0, 1]
+# df = pd.read_csv(gt_path, sep='\t')
+# results = compute_overlaps(find_segments_ones(predictions), df, label, max_k=50)
+# plot_overlaps(results, label, output_path)
