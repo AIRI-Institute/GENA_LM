@@ -11,6 +11,7 @@ from typing import List, Dict, Tuple
 import pyBigWig as bw
 from safetensors.torch import load_file
 from tqdm import tqdm
+import numpy as np
 
 parser = ArgumentParser()
 parser.add_argument('--config', type=str, help='path to the experiment config') 
@@ -18,95 +19,74 @@ parser.add_argument('--log_level', type=int, default=logging.INFO, help='log lev
 parser.add_argument('--output_dir', type=str, help='output directory')
 
 class bigWigExporter:
-	def __init__(self, output_dir: str, chroms: List[str], chrom_lengths: List[int]):
+	def __init__(self, output_dir: str, chroms: List[str], chrom_lengths: List[int], logger: logging.Logger = None, context_fraction: float = 0.1):
 		self.output_dir = output_dir
 		self.bigWigFiles = {}
 		self.chroms = chroms
 		self.chrom_lengths = chrom_lengths
+		self.logger = logger if logger is not None else logging.getLogger(__name__)
+		self.context_fraction = context_fraction
 		self.last_chrom = None
 		self.last_end = None
 		self.last_value = {}
 		self.sigmoid = torch.nn.Sigmoid()
-		self.bedFile = open(os.path.join(self.output_dir, "sample_coords.bed"), "w")
+		self.chrom_data = {}
 	
 	def open_bw(self, output_name: str):
 		self.bigWigFiles[output_name] = bw.open(os.path.join(self.output_dir, output_name+".bw"), "w")
 		for chrom, length in zip(self.chroms, self.chrom_lengths):
 			self.bigWigFiles[output_name].addHeader([(chrom, length)])
 	
-	def add_values(self, chrom: str, starts: List[int], ends: List[int], values: List[float], output_name: str):
-		# cast starts and ends to int
-		filtered_starts = []
-		filtered_ends = []
-		filtered_values = []
-		for i in range(len(starts)):
-			if starts[i] == ends[i]:
-				continue
-			else:
-				filtered_starts.append(int(starts[i]))
-				filtered_ends.append(int(ends[i]))
-				filtered_values.append(values[i])
-		if len(filtered_starts) > 0:
-			self.last_end = max(filtered_ends)
-			self.last_chrom = chrom
-			chrom = [chrom]*len(filtered_starts)
-			# if len(filtered_starts) == 1:
-			# 	filtered_starts = [filtered_starts[0]]
-			# 	filtered_ends = [filtered_ends[0]]
-			# 	filtered_values = [filtered_values[0]]
-
-			self.bigWigFiles[output_name].addEntries(chrom, filtered_starts, filtered_ends, values=filtered_values)
-		else:
-			print (chrom, starts[0], ends[-1], "no values")
-
-	def process_sample(self, chrom, chrom_start, offset_mappings: List[Tuple[int, int]], values: Dict[str, List[float]]):
-		starts = [om[0] + chrom_start for om in offset_mappings]
-		ends = [om[1] + chrom_start for om in offset_mappings]
-		
-		for k,v in values.items():
-			assert len(starts) == len(ends) == len(v), f"len(starts) = {len(starts)}, len(ends) = {len(ends)}, len(v) = {len(v)}"
-			self.add_values(chrom, starts, ends, v, k)
-		self.bedFile.write(f"{chrom}\t{starts[0]}\t{ends[-1]}\t{chrom}\n")
+	def write_data(self):
+		for chrom, data in self.chrom_data.items():
+			for label, values in data.items():
+				if label not in self.bigWigFiles.keys():
+					self.open_bw(label)
+				first_nonzero = (~np.isnan(values)).nonzero()[0][0]
+				last_nonzero = (~np.isnan(values)).nonzero()[0][-1]
+				print (first_nonzero, last_nonzero)
+				starts = np.arange(first_nonzero, last_nonzero, dtype=np.int32)
+				ends = np.arange(first_nonzero, last_nonzero, dtype=np.int32) + 1
+				values = np.nan_to_num(values[first_nonzero:last_nonzero], -1).astype(np.float32)
+				self.logger.info(f"Saving bigWig file for {label} with {len(starts)} entries")
+				self.bigWigFiles[label].addEntries([chrom]*len(starts), 
+												  starts.tolist(),
+												  ends=ends.tolist(),
+												  values=values.tolist(),
+												  )
 
 	def process_batch(self, outputs, metadata: List[Dict]):
 		for s,m in zip(outputs["predicts"], metadata):
-			s_om = m['offset_mapping']
-			if self.last_chrom is None or self.last_chrom != m['chrom']:
-				s_start = 1
-			else:
-				# find start: we start from the first token after the last end
-				s_start = 0
-				for ind,val in enumerate(s_om[:-1]):
-					if m["start"] + val[1] > self.last_end and val[0] != val[1]:
-						s_start = ind
-						break
-				if s_start == 0:
-					print (m['chrom'], m['start'], m['end'], "no starts")
-					return
+			s_om = np.array(m['offset_mapping'])
+			s_chrom = m['chrom']
+			if s_chrom not in self.chrom_data.keys():
+				self.chrom_data[s_chrom] = {}
+			s_start = min(1, int(self.context_fraction * len(s)))
+			s_end = max(len(s)-1, int((1-self.context_fraction) * len(s)))
 
 			# outputs have shape of num_tokens x num_labels
-			values = {}
 			class_number = 0
 			for class_name in ["tss", "polya"]:
 				for strand in ["+", "-"]:
 					label = f"{class_name}_{strand}"
-					values[label] = self.sigmoid(s[s_start:,class_number]).cpu().numpy().tolist()
-					# print (label, max(values[label][:-1]))
-					if self.last_chrom is not None and self.last_chrom != m['chrom']:
-						values[label][0] = (self.last_value[label] + values[label][0])/2.
-	
-					self.last_value[label] = values[label][-1]
-					if label not in self.bigWigFiles.keys():
-						self.open_bw(label)
+					if label not in self.chrom_data[s_chrom]:
+						self.chrom_data[s_chrom][label] = np.empty(shape=(self.chrom_lengths[self.chroms.index(s_chrom)],))
+						self.chrom_data[s_chrom][label][:] = np.nan
+					values = self.sigmoid(s[s_start:s_end, class_number]).cpu().numpy()
+					for v,(start,end) in zip(values, s_om[s_start:s_end]):
+						if start == end:
+							continue
+						if np.isnan(self.chrom_data[s_chrom][label][m['start']+start:m['start']+end]).any():
+							self.chrom_data[s_chrom][label][m['start']+start:m['start']+end] = v
+						else:
+							self.chrom_data[s_chrom][label][m['start']+start:m['start']+end] = (
+								np.mean(self.chrom_data[s_chrom][label][m['start']+start:m['start']+end]) + v) / 2
 					class_number += 1
-					assert len(s_om[s_start:]) == len(values[label]), f"len(s_om[s_start:]) = {len(s_om[s_start:])}, len(values[label]) = {len(values[label])}"
-			
-			self.process_sample(m['chrom'], m["start"], s_om[s_start:], values)
 
-	def close(self):
+	def write_data_and_close(self):
+		self.write_data()
 		for k in self.bigWigFiles.keys():
 			self.bigWigFiles[k].close()
-		self.bedFile.close()
 
 def main():	
 	# Set up logging
@@ -142,7 +122,7 @@ def main():
 	dataset = instantiate(dataset_config)
 	dataset.open_files()
 
-	exporter = bigWigExporter(output_dir, dataset.chrom_info.keys(), list(dataset.chrom_info.values()))
+	exporter = bigWigExporter(output_dir, list(dataset.chrom_info.keys()), list(dataset.chrom_info.values()), logger=logger)
 
 	region = experiment_config.get('region', None)
 	if region is not None:
@@ -213,7 +193,7 @@ def main():
 		sample_id += experiment_config.batch_size
 
 	dataset.close()
-	exporter.close()
+	exporter.write_data_and_close()
 
 	logger.info(f"Exported {samples_written} samples to {output_dir}")
 
