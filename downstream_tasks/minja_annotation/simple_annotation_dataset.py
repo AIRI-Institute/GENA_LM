@@ -125,6 +125,7 @@ class GenomicAnnotationDataset(Dataset):
 		self.chrom_info = {}
 		for i, chrom in enumerate(self.fasta.references):
 			if self.exclude_chromosomes is not None and chrom in self.exclude_chromosomes:
+				self.logger.info(f"Excluding chromosome {chrom}")
 				continue
 			if self.include_chromosomes is not None and chrom not in self.include_chromosomes:
 				continue
