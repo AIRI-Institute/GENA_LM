@@ -4,7 +4,7 @@ from tqdm import tqdm
 import numpy as np
 import bisect
 
-def compute_metrics(tss_polya, df, label, labels, output_path, max_k=250):
+def compute_metrics(tss_polya, df, label, output_path, max_k=250):
     def find_segments_ones(array):
         
         ones_idx = np.where(array == 1)[0]
@@ -139,5 +139,5 @@ def compute_metrics(tss_polya, df, label, labels, output_path, max_k=250):
         plt.savefig(output_path2, dpi=300, bbox_inches=None)
         plt.close()
 
-    results = compute_overlaps(find_segments_ones(tss_polya[labels.index(label)]), df, label, max_k)
+    results = compute_overlaps(find_segments_ones(tss_polya), df, label, max_k)
     plot_overlaps(results, label, output_path)
