@@ -1,11 +1,18 @@
 import os
 import gffutils
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--genome_dir", type=str, default="../../data/annotation")
+parser.add_argument("--base_name", type=str, default="gencode.v48.annotation.gtf")
+parser.add_argument("--fasta_name", type=str, default="hg38.fa")
+args = parser.parse_args()
 
 # Define paths
-genome_dir = "../../data/annotation"
-base_name = "gencode.v48.annotation.gtf"
-gff_path = os.path.join(genome_dir, base_name)
-db_path = os.path.join(genome_dir, f"{base_name}.db")
+gff_path = os.path.join(args.genome_dir, args.base_name)
+db_path = os.path.join(args.genome_dir, f"{args.base_name}.db")
+
+print (f"Creating GFF database from {gff_path} to {db_path}")
 
 try:
 	# Create or load the database
@@ -14,7 +21,8 @@ try:
 			gff_path,
 			dbfn=db_path,
 			disable_infer_transcripts=True,
-			disable_infer_genes=True
+			disable_infer_genes=True,
+			merge_strategy="create_unique"
 		)
 	else:
 		db = gffutils.FeatureDB(db_path)
@@ -25,10 +33,9 @@ except Exception as e:
 print ("GFF database created or loaded")
 
 import pysam
-fasta_path = genome_dir + "/hg38.fa"
+fasta_path = os.path.join(args.genome_dir, args.fasta_name)
 try:
-	fasta = pysam.FastaFile(fasta_path)
-	fasta.fetch("chr1", 0, 1000000)
+	reference_lengths = pysam.FastaFile(fasta_path).references
 except Exception as e:
 	print ("Error fetching fasta")
 	raise e

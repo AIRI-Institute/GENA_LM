@@ -104,7 +104,13 @@ def main():
 	with initialize_config_dir(str(experiment_config_path.parents[0])):
 		experiment_config = compose(config_name=experiment_config_path.name)
 
-	output_dir = experiment_config.output_dir
+	output_dir = os.path.join(
+		os.path.dirname(experiment_config.model_cpt),
+		"eval",
+		os.path.basename(experiment_config.eval_dataset.path_to_fasta).split(".")[0],
+		experiment_config.chromosome
+		)
+		
 	logger.info(f"Output directory: {output_dir}")
 	# copy experiment config to output_dir
 	if not os.path.exists(output_dir):
