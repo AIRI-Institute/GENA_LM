@@ -8,32 +8,9 @@ from argparse import ArgumentParser
 from hydra import initialize_config_dir, compose
 import math
 from accelerate import Accelerator
-from torch.utils.data import DataLoader
-from transformers import Trainer
-import numpy as np
 
 def gradient_accumulation_steps(batch_size: int, total_batch_size: int) -> int:
 	return min(1, math.ceil(total_batch_size / batch_size))
-
-def compute_metrics(eval_pred):
-    """Compute metrics for evaluation."""
-    predictions, labels = eval_pred
-    
-    # Extract loss from the model output
-    # The model returns AnnotationModelOutput with loss field
-    if hasattr(predictions, 'loss'):
-        eval_loss = predictions.loss
-    elif isinstance(predictions, dict) and 'loss' in predictions:
-        eval_loss = predictions['loss']
-    else:
-        # Fallback: compute loss from logits and labels if available
-        eval_loss = None
-    
-    metrics = {}
-    if eval_loss is not None:
-        metrics['eval_loss'] = float(eval_loss)
-    
-    return metrics
 
 parser = ArgumentParser()
 parser.add_argument('--config', type=str, help='path to the experiment config') 

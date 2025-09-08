@@ -108,9 +108,7 @@ class AnnotationModel(torch.nn.Module):
 		classifier = None,
 		loss_fct = None,
 		logger = None,
-	):
-		# TODO: shell we generate and save config if we have hf model?
-		
+	):		
 		super().__init__()
 
 		if logger is None:
