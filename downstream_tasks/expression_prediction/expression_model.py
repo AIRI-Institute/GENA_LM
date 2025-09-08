@@ -15,8 +15,27 @@ class ExpressionModelOutput(TokenClassifierOutput):
     other_loss: Optional[torch.FloatTensor] = None
     mean_loss: Optional[torch.FloatTensor] = None
     diviation_loss: Optional[torch.FloatTensor] = None
+    
+class QuantileLoss(nn.Module):
+    def __init__(self, quantile: float, reduction: str = "none"):
+        super().__init__()
+        if not (0 < quantile < 1):
+            raise ValueError("quantile must be in (0, 1)")
+        if reduction not in ("none", "mean", "sum"):
+            raise ValueError("reduction must be 'none', 'mean', or 'sum'")
+        self.q = quantile
+        self.reduction = reduction
 
-
+    def forward(self, preds: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        errors = target - preds
+        loss = torch.max(self.q * errors, (self.q - 1) * errors)  
+        if self.reduction == "none":
+            return loss
+        elif self.reduction == "mean":
+            return loss.mean()
+        else:  
+            return loss.sum()
+            
 class OneHotEncoder(nn.Module):
     def __init__(self, max_N_cell_types, hidden_size_desc=768):
         super().__init__()

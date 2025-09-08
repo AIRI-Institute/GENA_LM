@@ -1,0 +1,150 @@
+TASK_NAME: expression/qnorm/qnorm_v1_mouse_caduceus
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+
+
+args_params:
+
+  _target_: builtins.dict
+  
+  # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
+
+  resume: #"20250811-155853/model_best.pth"
+
+  model_cfg: "kuleshov-group/caduceus-ps_seqlen-131k_d_model-256_n_layer-16"
+
+  #  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+
+  # backbone_trainable: True
+
+  model_cls: "downstream_tasks.expression_prediction.expression_model_caduceus_simple:ExpressionCounts"
+
+  model_path: ${MODEL_PATH_ROOT}
+
+  clip_grad_norm: 1
+
+  # input_seq_len: 
+  
+  # input_size: 512  
+  
+  # num_mem_tokens: 5
+
+  # mixed_length_ratio: 0.0
+  
+  # max_n_segments: 4
+
+  # bptt_depth: -1 
+
+  optimizer: "AdamW"
+
+  weight_decay: 1e-4
+
+  seed: 43
+
+  num_warmup_steps: 1000
+
+  log_interval: 25
+
+  valid_interval: 25
+
+  save_best: True
+
+  save_interval: 5000
+
+  optimize_metric: "score_predictions_Expression_dataset_v1_mm10_CPM dataset"
+
+  optimize_mode: "max"
+
+  data_n_workers: 7
+
+  lr: 2e-03
+
+  lr_scheduler: "constant_with_warmup"
+
+  reset_lr: True
+
+  reset_optimizer: True
+
+  reset_iteration: True
+
+  early_stopping_patience: 50000
+
+  iters: 350000
+
+  gen_tokenizer: "kuleshov-group/caduceus-ph_seqlen-131k_d_model-256_n_layer-16"
+  
+  save_predictions: True
+  
+
+selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
+
+
+model_kwargs:
+
+  _target_: builtins.dict
+  
+
+  loss_fct:
+
+    _target_: torch.nn.MSELoss
+
+    reduction: 'none'
+
+  # loss_fct:
+  #   _target_: downstream_tasks.expression_prediction.expression_model.QuantileLoss
+  #   quantile: 0.9
+  #   reduction: "none"
+
+  activation:
+
+    _target_: torch.nn.Identity
+
+  # config:
+
+  #   _target_: builtins.dict
+
+
+# shared dataset parameters
+shared_dataset_params:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_caduceus.ExpressionDataset
+  num_before: 1000
+  gen_max_seq_len: 2000
+  gen_tokenizer: "kuleshov-group/caduceus-ph_seqlen-131k_d_model-256_n_layer-16"
+  # gen_max_seq_len: ${args_params.input_seq_len}
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    "level": "DEBUG"
+
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_caduceus.logtransform    
+    pseudocount: 1
+    
+  seed: ${args_params.seed}
+
+
+train_dataset_mouse:
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  tpm: CPM
+  
+
+valid_dataset_mouse:
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
+  
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  
+  tpm: CPM

@@ -44,10 +44,9 @@ args_params:
   seed: 43
 
   num_warmup_steps: 4000
-
-  log_interval: 20
-
-  valid_interval: 20
+  
+  log_interval: 200
+  valid_interval: 200
 
   save_best: True
 

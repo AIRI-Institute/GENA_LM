@@ -772,11 +772,18 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                     loss_components_metrics[loss_component].append(component_value)
 
             # handle other outputs
-            logits.append(out['logits'].detach())
+            # logits.append(out['logits'].detach())
+            # labels_reshaped = out.get('labels_reshaped', None)
+            # labels_mask_reshaped = out.get('labels_mask_reshaped', None)
+            # labels_reshaped_l.append(labels_reshaped.detach())
+            # labels_mask_reshaped_l.append(labels_mask_reshaped.detach())
+            # labels_segm += [seg_kwargs['labels']]
+
+            logits.append(out['logits'])
             labels_reshaped = out.get('labels_reshaped', None)
             labels_mask_reshaped = out.get('labels_mask_reshaped', None)
-            labels_reshaped_l.append(labels_reshaped.detach())
-            labels_mask_reshaped_l.append(labels_mask_reshaped.detach())
+            labels_reshaped_l.append(labels_reshaped)
+            labels_mask_reshaped_l.append(labels_mask_reshaped)
             labels_segm += [seg_kwargs['labels']]
 
             if labels_mask is not None:

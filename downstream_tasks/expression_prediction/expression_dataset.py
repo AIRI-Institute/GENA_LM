@@ -70,7 +70,7 @@ class ExpressionDataset(Dataset):
         assert sys.version_info >= (3, 8), "Python version must be 3.8 or higher" # we use dicts and realay on order of keys
 
         if isinstance(gen_tokenizer, str):
-            self.gen_tokenizer = AutoTokenizer.from_pretrained(gen_tokenizer)
+            self.gen_tokenizer = AutoTokenizer.from_pretrained(gen_tokenizer, trust_remote_code=True)
         else:
             self.gen_tokenizer = gen_tokenizer
 
@@ -196,11 +196,12 @@ class ExpressionDataset(Dataset):
 
         # Добавляем список валидных индексов
         self.valid_indices = []
-        if not self.bw:  # Вычисляем валидные индексы только если bw=False
-            self._compute_valid_indices()
-        else:
-            # Если bw=True, все индексы валидны
-            self.valid_indices = list(range(len(self.genes)))
+        self._compute_valid_indices()
+        # if self.bw and not self.tpm:  # Вычисляем валидные индексы только если bw=False
+        #     self._compute_valid_indices()
+        # else:
+        #     # Если bw=True, все индексы валидны
+        #     self.valid_indices = list(range(len(self.genes)))           
 
         # assert len(self.valid_indices) > 10, "Less than 10 valid indices found. Are you sure you have enough data?"
 
@@ -316,12 +317,12 @@ class ExpressionDataset(Dataset):
                 }
 
                 # сохраняем кэш в h5
-                cov_norm_path = self.get_signals_hash_path() + ".coverage_norm.h5"
-                with h5py.File(cov_norm_path, "w") as f:
-                    for k, strands in self.coverage_norm.items():
-                        g = f.create_group(k)
-                        g.attrs["+"] = strands["+"]
-                        g.attrs["-"] = strands["-"]
+                # cov_norm_path = self.get_signals_hash_path() + ".coverage_norm.h5"
+                # with h5py.File(cov_norm_path, "w") as f:
+                #     for k, strands in self.coverage_norm.items():
+                #         g = f.create_group(k)
+                #         g.attrs["+"] = strands["+"]
+                #         g.attrs["-"] = strands["-"]
         else:
             self.paths = {k:[{"+": None, "-": None}] for ind,k in enumerate(df["id"])}
 
@@ -736,28 +737,27 @@ class ExpressionDataset(Dataset):
 
         # Получаем TPM значения
         tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
+        features["dataset_mean"] = torch.tensor(np.nan, dtype=torch.float32)
+        features["dataset_deviation"] = torch.full_like(torch.from_numpy(tpm_values), np.nan, dtype=torch.float32)
         if self.tpm:
             for i, key in enumerate(selected_keys):
                 if gene_id in self.tpm_lookup[key].index:
                     tpm_values[i] = self.tpm_lookup[key].loc[gene_id].iloc[0]
             
-            if not np.all(np.isnan(tpm_values)) and self.transform_targets_tpm is not None:
+            if self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
-            dataset_mean = np.nanmean(tpm_values)
-            features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
-            features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean).float()
-        else:
-            features["dataset_mean"] = torch.tensor(np.nan, dtype=torch.float32)
-            features["dataset_deviation"] = torch.full_like(torch.from_numpy(tpm_values), np.nan, dtype=torch.float32)
-        
+            if not np.all(np.isnan(tpm_values)):
+                dataset_mean = np.nanmean(tpm_values)
+                features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
+                features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean).float()
             if np.all(np.isnan(tpm_values)):
                 raise ValueError(f"All TPM values are NaN for {gene_id}")
         features["tpm"] = torch.from_numpy(tpm_values)
 
         # for debug purposes
-        dataset_mean = np.nanmean(tpm_values)
-        features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
-        features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean)
+        # dataset_mean = np.nanmean(tpm_values)
+        # features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
+        # features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean)
 
         # Получаем desc_vectors только для текущего чанка
         desc_vectors_list = []

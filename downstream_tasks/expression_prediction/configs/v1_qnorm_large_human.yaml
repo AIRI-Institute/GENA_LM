@@ -1,4 +1,4 @@
-TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_human
+TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_human_bw_norm
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -9,13 +9,13 @@ args_params:
 
   _target_: builtins.dict
   
-#  init_checkpoint: "/mnt/nfs_dna/DNALM/downstream_tasks/runs/expression_bozoi/coverage_2seg_ps1/model_best.pth"
+  # init_checkpoint:  "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_large_1seg_human/resume_20250818-155449/model_best/pytorch_model.bin/20250819-001254/model_best/pytorch_model.bin"
 
-  resume:  "20250802-233751/model_best.pth"
+  resume: #"resume_20250818-155449/model_best/pytorch_model.bin/20250819-001254/model_best/pytorch_model.bin"
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
-  backbone_cls: "downstream_tasks.expression_prediction.expression_model_large:ExpressionCounts"
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
 
   backbone_trainable: True
 
@@ -55,7 +55,9 @@ args_params:
 
   optimize_metric: "score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
 
-  data_n_workers: 7
+  optimize_mode: "max"
+
+  data_n_workers: 10
 
   lr: 3e-05
 
@@ -73,6 +75,8 @@ args_params:
 
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   
+  save_predictions: True
+  
 
 selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
 
@@ -80,10 +84,18 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
 
   _target_: builtins.dict
+  
+  hf: True
 
-  bert_cpt: "${HOME_PATH}/model/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth"
+  hf_model_name: "AIRI-Institute/gena-lm-bert-large-t2t"
 
   loss_fct:
+
+    # _target_: "downstream_tasks.expression_prediction.expression_model.QuantileLoss"
+
+    # reduction: 'none'
+
+    # quantile: 0.9
 
     _target_: torch.nn.MSELoss
 
@@ -97,7 +109,7 @@ model_kwargs:
 
     _target_: builtins.dict
 
-  # weight: 30
+  weight: 100
   # cell_type_specific_loss_fn:
   #   _target_: downstream_tasks.expression_prediction.expression_model.cell_type_specific_loss_fn
   #   weight_mean: 0.1
@@ -110,13 +122,18 @@ shared_dataset_params:
   num_before: 250
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   gen_max_seq_len: ${args_params.input_seq_len}
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
+  tpm: csv
+  bw: bw
+  norm_bw: True
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
   loglevel: 
     "_target_": "logging.getLevelName"
     "level": "DEBUG"
-  # transform_targets_bw:
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
-  #   pseudocount: 1
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    pseudocount: 1
 
   transform_targets_tpm:
     _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform    
@@ -132,44 +149,11 @@ train_dataset_human:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
-
-  tpm: csv
-
-# train_dataset_mouse:
-
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
-
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
-
-#   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
-  
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
-  
-#   tpm: CPM
   
 valid_dataset_human:
 
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
   
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
-  
-  tpm: csv
 
-# valid_dataset_mouse:
-
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
-
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
-
-#   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
-  
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
-  
-#   tpm: CPM
