@@ -75,6 +75,7 @@ TrainingArguments:
   eval_strategy: "steps"
   save_steps: 20
   eval_steps: 10
+  logging_steps: 10
   metric_for_best_model: "eval_loss"
 
 trainer:

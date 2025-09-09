@@ -32,7 +32,9 @@ class LogTrainMetricsCallback(TrainerCallback):
             for m in trainer.train_metrics:
                 result = m.compute().cpu().numpy().item()
                 m.reset()
-                trainer.log({f'train_{m.cls_name}': result})
+                original_should_log_state = control.should_log
+                trainer.log({f'train_{m.cls_name}': result}) # this will set should_log to False
+                control.should_log = original_should_log_state
         control.is_in_train_step = False
         self.trainer_instance = None # remove trainer instance from state to avoid looping
         return control
@@ -104,8 +106,8 @@ class CustomTrainer(Trainer):
             from simple_annotation_dataset import worker_init_fn
             return worker_init_fn
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        loss, outputs = super().compute_loss(model=model, inputs=inputs, return_outputs=True, **kwargs)
         if self.log_train_metrics is not None and self.control.is_in_train_step:
             self.state.trainer_instance = self # save trainer instance to state   
             # accumulate metrics

@@ -8,6 +8,23 @@ from transformers.modeling_outputs import TokenClassifierOutput
 
 import os, logging
 
+# Monkey patch to make functions available in transformers.modeling_utils where the Hugging Face model expects them
+# These functions are available in transformers but in different modules
+# This is used as backward compatibility for transformers versions > 4.42.4
+
+# Import the actual functions from their current locations
+from transformers import apply_chunking_to_forward
+from transformers.pytorch_utils import prune_linear_layer, find_pruneable_heads_and_indices
+
+# Apply the monkey patches to transformers.modeling_utils
+import transformers.modeling_utils
+if not hasattr(transformers.modeling_utils, 'apply_chunking_to_forward'):
+    transformers.modeling_utils.apply_chunking_to_forward = apply_chunking_to_forward
+if not hasattr(transformers.modeling_utils, 'find_pruneable_heads_and_indices'):
+    transformers.modeling_utils.find_pruneable_heads_and_indices = find_pruneable_heads_and_indices
+if not hasattr(transformers.modeling_utils, 'prune_linear_layer'):
+    transformers.modeling_utils.prune_linear_layer = prune_linear_layer
+
 @dataclass
 class AnnotationModelOutput(TokenClassifierOutput):
 	loss: Optional[torch.FloatTensor] = None
