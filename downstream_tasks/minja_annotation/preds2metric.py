@@ -13,7 +13,7 @@ import pyBigWig as bw
 
 # Import the metric computation functions
 sys.path.append('../annotation/compute_metric')
-from tss_polya_metric import find_segments_ones, compute_overlaps, plot_overlaps
+from tss_polya_metric_v2 import compute_metrics
 
 
 def parse_arguments():
@@ -90,19 +90,9 @@ def compute_metrics_and_plot(predictions, gt_path, label, output_path, max_k=50)
     
     # Load ground truth data
     df = pd.read_csv(gt_path, sep='\t')
+
+    compute_metrics(predictions, df=df, label=label, output_path=output_path, max_k=max_k)
     
-    # Find segments of ones in predictions
-    segments = find_segments_ones(predictions)
-    print(f"Found {len(segments)} segments for {label}")
-    
-    # Compute overlaps
-    results = compute_overlaps(segments, df, label, max_k=max_k)
-    
-    # Generate plot
-    plot_overlaps(results, label, output_path)
-    print(f"Saved plot to {output_path}")
-    
-    return results
 
 
 def main():
@@ -156,12 +146,14 @@ def main():
     # Compute metrics and generate plots
     print("\nComputing TSS metrics...")
     _ = compute_metrics_and_plot(
-        tss_combined, args.gt_path, "TSS", tss_output
+        tss_combined, args.gt_path, "TSS", tss_output,
+        max_k=args.max_k
     )
     
     print("\nComputing PolyA metrics...")
     _ = compute_metrics_and_plot(
-        polya_combined, args.gt_path, "PolyA", polya_output
+        polya_combined, args.gt_path, "PolyA", polya_output,
+        max_k=args.max_k
     )
     
     print(f"\n✓ Processing complete!")
