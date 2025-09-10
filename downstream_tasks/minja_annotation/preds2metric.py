@@ -84,16 +84,15 @@ def combine_strands(tss_plus, tss_minus, polya_plus, polya_minus):
     return tss_combined, polya_combined
 
 
-def compute_metrics_and_plot(predictions, gt_path, label, output_path, max_k=50):
+def compute_metrics_and_plot(predictions, gt_path, label, output_path, max_k=250):
     """Compute overlap metrics and generate plot."""
     print(f"Computing metrics for {label}...")
     
     # Load ground truth data
     df = pd.read_csv(gt_path, sep='\t')
 
-    compute_metrics(predictions, df=df, label=label, output_path=output_path, max_k=max_k)
-    
-
+    results = compute_metrics(predictions, df=df, label=label, output_path=output_path, max_k=max_k)
+    return results
 
 def main():
     """Main function."""
@@ -145,16 +144,28 @@ def main():
     
     # Compute metrics and generate plots
     print("\nComputing TSS metrics...")
-    _ = compute_metrics_and_plot(
+    results_tss = compute_metrics_and_plot(
         tss_combined, args.gt_path, "TSS", tss_output,
         max_k=args.max_k
     )
     
     print("\nComputing PolyA metrics...")
-    _ = compute_metrics_and_plot(
+    results_polya = compute_metrics_and_plot(
         polya_combined, args.gt_path, "PolyA", polya_output,
         max_k=args.max_k
     )
+
+    # finally, write the metrics to a text file
+    with open(
+        os.path.join(output_dir, f"metrics_threshold_{args.threshold}_max_k_{args.max_k}.txt"),
+        "w"
+    ) as f:
+        # TSS O (k=50)	TSS NO (k=50)	PolyA O (k=50)	PolyA NO (k=50)	TSS O (k=250)	TSS NO (k=250)	PolyA O (k=250)	PolyA NO (k=250)
+        for k in [50, 250]:
+            for r in [results_tss, results_polya]:
+                for t in ["O", "NO"]:
+                    f.write(str(r[t + "_" + str(k)]) + "\t")
+        f.write("\n")
     
     print(f"\n✓ Processing complete!")
     print(f"✓ TSS plot saved to: {tss_output}")

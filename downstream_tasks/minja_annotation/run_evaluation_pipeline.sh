@@ -99,7 +99,7 @@ for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
     CHECKPOINT_BASENAME=$(basename "$CHECKPOINT_PATH" .safetensors)
     
     # We need to find the eval directory - it should be in the checkpoint directory
-    EVAL_DIR="$CHECKPOINT_DIR/eval/NC_060944.1"
+    EVAL_DIR="$CHECKPOINT_DIR/eval/T2T-CHM13v2/NC_060944.1"
     
     if [ ! -d "$EVAL_DIR" ]; then
         echo "Error: Expected eval directory '$EVAL_DIR' not found"
