@@ -85,9 +85,11 @@ def compute_metrics(tss_polya, df, label, output_path, max_k=250):
         plt.plot(k_values, num_genes, color='orange', label=f'Number of Overlapped Genes (k=50: {num_genes[k_values.index(50)] if 50 in k_values else "N/A"}, k=250: {num_genes[k_values.index(250)] if 250 in k_values else "N/A"})', linewidth=2)
         
         # Add red dots at k=50 and k=250
+        results = {}
         for k in [50, 250]:
             if k in k_values:
                 idx = k_values.index(k)
+                results["O_" + str(k)] = num_genes[idx]
                 plt.plot(k, num_genes[idx], 'ro', markersize=8)
         
         plt.gca().xaxis.set_major_locator(MultipleLocator(5))
@@ -119,6 +121,7 @@ def compute_metrics(tss_polya, df, label, output_path, max_k=250):
         for k in [50, 250]:
             if k in k_values:
                 idx = k_values.index(k)
+                results["NO_" + str(k)] = num_non_overlap_preds[idx]
                 plt.plot(k, num_non_overlap_preds[idx], 'ro', markersize=8)
         
         plt.gca().xaxis.set_major_locator(MultipleLocator(5))
@@ -138,6 +141,8 @@ def compute_metrics(tss_polya, df, label, output_path, max_k=250):
         output_path2 = output_path.replace('.png', '_non_overlapped_preds.png')
         plt.savefig(output_path2, dpi=300, bbox_inches=None)
         plt.close()
+        return results
 
     results = compute_overlaps(find_segments_ones(tss_polya), df, label, max_k)
-    plot_overlaps(results, label, output_path)
+    results = plot_overlaps(results, label, output_path)
+    return results
