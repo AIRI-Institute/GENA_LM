@@ -37,6 +37,7 @@ class GenomicAnnotationDataset(Dataset):
 		primary_transcript_types: List[str] | None = None, # transcript types to require for a transcript to be included as primary
 		primary_tags: List[str] | None = ["GENCODE_Primary", "MANE_Select"], # tags to require for a transcript to be included as primary
 		logger: logging.Logger = None,
+		seed: int = 42,
 	):
 		"""
 		Initialize the GenomicAnnotationDataset.
@@ -71,6 +72,8 @@ class GenomicAnnotationDataset(Dataset):
 		self.polyA_prob_width = polyA_prob_width
 		self.logger = logger if logger is not None else logging.getLogger(__name__)
 		self.files_opened = False
+		self.seed = seed
+		random.seed(self.seed)
 
 		if exclude_chromosomes is not None and isinstance(exclude_chromosomes, str):
 			exclude_chromosomes = exclude_chromosomes.split(",")
