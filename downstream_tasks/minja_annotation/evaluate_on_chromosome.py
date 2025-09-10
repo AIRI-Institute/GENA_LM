@@ -16,7 +16,7 @@ import numpy as np
 parser = ArgumentParser()
 parser.add_argument('--config', type=str, help='path to the experiment config') 
 parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
-parser.add_argument('--output_dir', type=str, help='output directory')
+parser.add_argument('--model_cpt', type=str, default=None, help='path to the model checkpoint')
 
 class bigWigExporter:
 	def __init__(self, output_dir: str, chroms: List[str], chrom_lengths: List[int], logger: logging.Logger = None, context_fraction: float = 0.1):
@@ -104,8 +104,13 @@ def main():
 	with initialize_config_dir(str(experiment_config_path.parents[0])):
 		experiment_config = compose(config_name=experiment_config_path.name)
 
+	assert not ("model_cpt" in experiment_config.keys() and (args.model_cpt is not None)), "model_cpt and args.model_cpt cannot both be provided"
+	assert ("model_cpt" in experiment_config.keys()) or (args.model_cpt is not None), "model_cpt or args.model_cpt must be provided"
+
+	model_cpt = experiment_config.model_cpt if "model_cpt" in experiment_config.keys() else args.model_cpt
+
 	output_dir = os.path.join(
-		os.path.dirname(experiment_config.model_cpt),
+		os.path.dirname(model_cpt),
 		"eval",
 		os.path.basename(experiment_config.eval_dataset.path_to_fasta).split(".")[0],
 		experiment_config.chromosome
@@ -119,7 +124,7 @@ def main():
 
 	model_config = experiment_config.model
 	model = instantiate(model_config)
-	state = load_file(experiment_config.model_cpt)
+	state = load_file(model_cpt)
 	model.load_state_dict(state, strict=True)
 	model.to(torch.device("cuda"))
 	model.eval()
