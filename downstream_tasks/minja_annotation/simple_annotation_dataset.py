@@ -29,6 +29,7 @@ class GenomicAnnotationDataset(Dataset):
 		max_samples_number: int | None = None,
 		chunk_overlap: float = 0,
 		max_genomic_chunk_ratio: float = 1.5,
+		strand: str = "+",
 		TSS_prob_width: float = 10, # in base pairs
 		polyA_prob_width: float = 10, # in base pairs
 		min_chromosome_length: int = 100000, # minimum length of a chromosome to be included in the dataset
@@ -51,6 +52,7 @@ class GenomicAnnotationDataset(Dataset):
 			tokenizer: AutoTokenizer from transformers (BPE tokenizer)
 			chunk_overlap: Overlap between chunks as a fraction of the chunk length
 			max_genomic_chunk_ratio: Ratio to increase genomic chunk size for tokenization
+			strand: Strand of the sequence, options are "+", "-", or "random"
 			TSS_prob_width: Width of the TSS probability distribution in base pairs, will be used to compute TSS probability as exp(-dist/TSS_prob_width)
 			polyA_prob_width: Width of the polyA probability distribution in base pairs, will be used to compute polyA probability as exp(-dist/polyA_prob_width)
 			exclude_chromosomes: Chromosomes to exclude
@@ -74,6 +76,9 @@ class GenomicAnnotationDataset(Dataset):
 		self.files_opened = False
 		self.seed = seed
 		random.seed(self.seed)
+		self.complement_map = str.maketrans("ATGCN", "TACGN")
+		self.strand = strand
+		assert self.strand in ["+", "-", "random"], "Strand must be +, -, or random"
 
 		if exclude_chromosomes is not None and isinstance(exclude_chromosomes, str):
 			exclude_chromosomes = exclude_chromosomes.split(",")
@@ -181,9 +186,12 @@ class GenomicAnnotationDataset(Dataset):
 		
 	def __len__(self) -> int:
 		"""Return the number of chunks in the dataset."""
-		return self.total_chunks
+		if self.strand == "random":
+			return self.total_chunks * 2
+		else:
+			return self.total_chunks
 		
-	def _decode_item_id(self, item_id: int) -> Tuple[str, int, int]:
+	def _decode_item_id(self, item_id: int) -> Tuple[str, int, int, str]:
 		"""
 		Decode item_id to chromosome and position.
 		
@@ -191,15 +199,22 @@ class GenomicAnnotationDataset(Dataset):
 			item_id: Index of the item
 			
 		Returns:
-			Tuple of (chromosome, start_pos, end_pos)
+			Tuple of (chromosome, start_pos, end_pos, strand)
 		"""
+		if self.strand == "random":
+			strand = "+" if item_id < self.total_chunks else "-"
+			item_id = item_id % self.total_chunks
+		else:
+			item_id = item_id
+			strand = self.strand
+
 		if item_id >= self.total_chunks:
 			raise IndexError(f"Item ID {item_id} out of range (max: {self.total_chunks - 1})")
 			
 		chunk_info = self.chunks[item_id]
-		return chunk_info['chrom'], chunk_info['start'], chunk_info['end']
+		return chunk_info['chrom'], chunk_info['start'], chunk_info['end'], strand
 		
-	def _get_genomic_sequence(self, chrom: str, start: int, end: int) -> str:
+	def _get_genomic_sequence(self, chrom: str, start: int, end: int, strand: str) -> str:
 		"""
 		Extract genomic sequence from FASTA file.
 		
@@ -207,7 +222,7 @@ class GenomicAnnotationDataset(Dataset):
 			chrom: Chromosome name
 			start: Start position (0-based)
 			end: End position (0-based, exclusive)
-			
+			strand: Strand of the sequence
 		Returns:
 			Genomic sequence as string
 		"""
@@ -220,8 +235,11 @@ class GenomicAnnotationDataset(Dataset):
 		# Get extended sequence for tokenization
 		extended_end = min(end + int(self.genomic_chunk_length - self.chunk_length), chrom_length)
 		assert extended_end >= end >= start
-		sequence = self.fasta.fetch(chrom, start, extended_end)
-		return sequence.upper()
+		sequence = self.fasta.fetch(chrom, start, extended_end).upper()
+		assert strand in ["+", "-"], "Strand must be + or -"
+		if strand == "-":
+			sequence = sequence.translate(self.complement_map)[::-1]
+		return sequence, start, extended_end
 		
 	def _tokenize_sequence(self, sequence: str) -> Tuple[torch.Tensor, List[Tuple[int, int]]]:
 		"""
@@ -278,7 +296,8 @@ class GenomicAnnotationDataset(Dataset):
 		chrom: str, 
 		start: int, 
 		end: int, 
-		offset_mapping: List[Tuple[int, int]]
+		reference_strand: str,
+		offset_mapping: List[Tuple[int, int]],
 	) -> Dict[str, torch.Tensor]:
 		"""
 		Extract annotation targets (TSS and polyA sites) from GFF database.
@@ -287,6 +306,7 @@ class GenomicAnnotationDataset(Dataset):
 			chrom: Chromosome name
 			start: Chunk start position
 			end: Chunk end position
+			reference_strand: Reference strand
 			offset_mapping: Token offset mapping
 			
 		Returns:
@@ -300,6 +320,8 @@ class GenomicAnnotationDataset(Dataset):
 			'intragenic_regions_+': torch.zeros(len_bp, dtype=torch.float32),
 			'intragenic_regions_-': torch.zeros(len_bp, dtype=torch.float32),
 		}
+		# we should not confuse 'strand' (which is the strand of the feature) 
+		# with 'reference_strand' (which is the strand of the reference genome)
 		for strand in ["+", "-"]:
 			for transcript_type in ["primary", "uncertain"]:
 				for signal_type in ["tss", "polya"]:
@@ -366,6 +388,23 @@ class GenomicAnnotationDataset(Dataset):
 			print(f"Warning: Could not query GFF database for {chrom}:{start}-{end}: {e}")
 			raise e
 
+		assert reference_strand in ["+", "-"], "reference_strand must be + or -"
+		# if reference_strand is -, we need to flip the targets and flip the strand of the targets
+		if reference_strand == "-":
+			# flip the targets
+			for target_type in targets.keys():
+				targets[target_type] = torch.flip(targets[target_type], dims=[0])
+			
+			# flip the strand of the targets
+			for transcript_type in ["primary", "uncertain"]:
+				for signal_type in ["tss", "polya"]:
+					_ = targets[f"{transcript_type}_{signal_type}_+"].clone()
+					targets[f"{transcript_type}_{signal_type}_+"] = targets[f"{transcript_type}_{signal_type}_-"].clone()
+					targets[f"{transcript_type}_{signal_type}_-"] = _
+			_ = targets["intragenic_regions_+"].clone()
+			targets["intragenic_regions_+"] = targets["intragenic_regions_-"].clone()
+			targets["intragenic_regions_-"] = _
+
 		# map basepair resolution targets to token resolution targets
 		targets_token = {}
 		for target_type in targets.keys():
@@ -397,17 +436,31 @@ class GenomicAnnotationDataset(Dataset):
 			self.open_files()
 
 		# Decode chromosome and position
-		chrom, start, end = self._decode_item_id(item_id)
-		
+		chrom, start, end, strand = self._decode_item_id(item_id)
+
+		###############################################################
+		# (-----T1-----P1-----P2--)---T2-----> # strand == +
+		# START-------------------END
+		#
+		# <----T1---(--P1-----P2-----T2------) # strand == -
+		# 			START-------------------END
+		###############################################################
+
 		# Get genomic sequence
-		sequence = self._get_genomic_sequence(chrom, start, end)
+		sequence, start, end = self._get_genomic_sequence(chrom, start, end, strand)
+
 		
 		# Tokenize sequence
 		token_ids, offset_mapping = self._tokenize_sequence(sequence)
-		end = start + max([i[1] for i in offset_mapping]) # for original end we used some overhead, now shrink it to the last token
+
+		# for original end we used some overhead, now shrink it to the last token
+		if strand == "+":
+			end = start + max([i[1] for i in offset_mapping]) 
+		else:
+			start = end - max([i[1] for i in offset_mapping]) 
 		
 		# Extract annotation targets
-		targets_token = self._extract_annotation_targets(chrom, start, end, offset_mapping)
+		targets_token = self._extract_annotation_targets(chrom, start, end, strand, offset_mapping)
 		
 		# Create attention mask
 		attention_mask = torch.ones(len(token_ids), dtype=torch.long)
@@ -422,6 +475,7 @@ class GenomicAnnotationDataset(Dataset):
 				'chrom': chrom,
 				'start': start,
 				'end': end,
+				'strand': strand,
 				'chunk_id': item_id,
 				'sequence_length': len(sequence),
 				'offset_mapping': offset_mapping,
@@ -451,12 +505,13 @@ def toIGV(sample: Dict, tokenizer: AutoTokenizer, IGV_files_prefix: str, file_mo
 	chrom = metadata['chrom']
 	start = metadata['start']
 	end = metadata['end']
-	region_name = f"{chrom}:{start}-{end}:{metadata['index']}"
+	strand = metadata['strand']
+	region_name = f"{chrom}:{start}-{end}:{strand}:{metadata['index']}"
 
 	# Save coordinates as BED file
 	bed_path = f"{IGV_files_prefix}_coords.bed"
 	with open(bed_path, file_mode) as bed_file:
-		bed_file.write(f"{chrom}\t{start}\t{end}\t{region_name}\n")
+		bed_file.write(f"{chrom}\t{start}\t{end}\t{strand}\t{region_name}\n")
 
 	# Save each target as bedGraph file
 	targets = sample['targets']
@@ -468,24 +523,41 @@ def toIGV(sample: Dict, tokenizer: AutoTokenizer, IGV_files_prefix: str, file_mo
 		if not os.path.exists(bedgraph_path):
 			# write header
 			with open(bedgraph_path, file_mode) as bg_file:
-				bg_file.write(f"track type=bedGraph name=\"{target_name}\" description=\"{target_name}\" visibility=full autoScale=off viewLimits=0:1\n")
+				bg_file.write(f"track type=bedGraph name=\"{target_name}\" description=\"{target_name}\" visibility=full autoScale=on viewLimits=0:1\n")
 
 		with open(bedgraph_path, file_mode) as bg_file:
 			# Assume target_tensor is 1D and corresponds to tokens along the region
 			# Map each token to a genomic position using offset mapping if available
-			# Here, we assume uniform distribution of tokens across the region
 			for i in range(len(offset_mapping)):
-				token_start = offset_mapping[i][0]
-				token_end = offset_mapping[i][1]
-				value = float(target_tensor[i].item())
-				bg_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\n")
-	bedgraph_path = f"{IGV_files_prefix}_sequence.bed"
-	with open(bedgraph_path, file_mode) as bg_file:
+				if strand == "-":
+					ind = len(offset_mapping) - i - 1
+					token_start = offset_mapping[ind][0]
+					token_end = offset_mapping[ind][1]
+					value = float(target_tensor[ind].item())
+					bg_file.write(f"{chrom}\t{end-token_end}\t{end-token_start}\t{value}\n")
+				else:
+					ind = i
+					token_start = offset_mapping[ind][0]
+					token_end = offset_mapping[ind][1]
+					value = float(target_tensor[ind].item())
+					bg_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\n")
+	
+	# now save the sequence
+	bed_path = f"{IGV_files_prefix}_sequence.bed"
+	with open(bed_path, file_mode) as bed_file:
 		for i in range(len(input_ids)):
-			token_start = offset_mapping[i][0]
-			token_end = offset_mapping[i][1]
-			value = '"' + tokenizer.decode(input_ids[i].item()) + '"'
-			bg_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\n")
+			if strand == "-":
+				ind = len(offset_mapping) - i - 1
+				token_start = offset_mapping[ind][0]
+				token_end = offset_mapping[ind][1]
+				value = '"' + tokenizer.decode(input_ids[ind].item()) + '"'
+				bed_file.write(f"{chrom}\t{end-token_end}\t{end-token_start}\t{value}\t{strand}\n")
+			else:
+				ind = i
+				token_start = offset_mapping[ind][0]
+				token_end = offset_mapping[ind][1]
+				value = '"' + tokenizer.decode(input_ids[ind].item()) + '"'
+				bed_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\t{strand}\n")
 
 def worker_init_fn(worker_id):
     """Initialize worker with proper file handling for multi-GPU training."""
@@ -537,7 +609,8 @@ if __name__ == "__main__":
 		path_to_gff_db=path_to_gff_db,
 		path_to_fasta=path_to_fasta,
 		tokenizer=tokenizer,
-		primary_transcript_types=["protein_coding"]
+		primary_transcript_types=["protein_coding"],
+		strand="random"
 	)
 	
 	print(f"Dataset length: {len(dataset)}")
@@ -550,7 +623,18 @@ if __name__ == "__main__":
 	print(f"Target keys: {sample['targets'].keys()}")
 	m = {k:v for k, v in sample['metadata'].items() if k != 'offset_mapping'}
 	print(f"Metadata: {m}")
-	toIGV(sample, tokenizer, f"../../data/annotation/tmp/test_{index}", file_mode="w")
+	toIGV(sample, tokenizer, f"../../data/annotation/tmp/test_{index}_'+'", file_mode="w")
+	
+	# Get a rev-complemented of the sample
+	assert len(dataset) % 2 == 0
+	index_rc = index + len(dataset) // 2
+	sample_rc = dataset[index_rc]
+	print(f"Sample keys: {sample_rc.keys()}")
+	print(f"Input shape: {sample_rc['input_ids'].shape}")
+	print(f"Target keys: {sample_rc['targets'].keys()}")
+	m_rc = {k:v for k, v in sample_rc['metadata'].items() if k != 'offset_mapping'}
+	print(f"Metadata: {m_rc}")
+	toIGV(sample_rc, tokenizer, f"../../data/annotation/tmp/test_{index_rc}_'-'", file_mode="w")
 
 	import datetime
 	start_time = datetime.datetime.now()
@@ -564,4 +648,14 @@ if __name__ == "__main__":
 	print (f"Time taken per sample: {(end_time - start_time) / (index_range[1] - index_range[0])}")
 
 	for sample in samples:
-		toIGV(sample, tokenizer, f"../../data/annotation/tmp/test_{index_range[0]}-{index_range[1]}", file_mode="a")
+		toIGV(sample, tokenizer, f"../../data/annotation/tmp/test_{index_range[0]}-{index_range[1]}_'+'", file_mode="a")
+
+	# Get a rev-complemented of the samples
+	assert len(dataset) % 2 == 0
+	samples_rc = []
+	for index in range(index_range[0], index_range[1]):
+		sample = dataset[index + len(dataset) // 2]
+		samples_rc.append(sample)
+
+	for sample in samples_rc:
+		toIGV(sample, tokenizer, f"../../data/annotation/tmp/test_{index_range[0]}-{index_range[1]}_'-'", file_mode="a")
