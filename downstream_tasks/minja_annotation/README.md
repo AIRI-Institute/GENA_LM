@@ -5,6 +5,10 @@
 ```bash
 conda env create -f environment.yml
 conda activate annotation
+# for modernbert support, also install FA (provided below for A100):
+# pip install "flash_attn==2.6.3" --no-build-isolation
+
+# see https://github.com/minjaf/ModernBERT/tree/main for H100 support and more details
 ```
 
 ## Data Download and Preparation
@@ -17,6 +21,8 @@ python3 prepare_data.py
 ## Train:
 ```bash
 CUDA_VISIBLE_DEVICES=1 GENALM_HOME=$(realpath ../../)  python train_with_accelerate.py --config configs/test.yaml
+# for modergena:
+MODERNBERT_HOME="/disk/10tb/home/fishman/DNALM/ModernBERT" GENALM_HOME=$(realpath ../../) python train_with_accelerate.py --config configs/modernGENA.yaml
 ```
 
 ## Evaluate:

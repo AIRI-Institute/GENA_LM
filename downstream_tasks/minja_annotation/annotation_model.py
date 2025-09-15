@@ -8,23 +8,6 @@ from transformers.modeling_outputs import TokenClassifierOutput
 
 import os, logging
 
-# Monkey patch to make functions available in transformers.modeling_utils where the Hugging Face model expects them
-# These functions are available in transformers but in different modules
-# This is used as backward compatibility for transformers versions > 4.42.4
-
-# Import the actual functions from their current locations
-from transformers import apply_chunking_to_forward
-from transformers.pytorch_utils import prune_linear_layer, find_pruneable_heads_and_indices
-
-# Apply the monkey patches to transformers.modeling_utils
-import transformers.modeling_utils
-if not hasattr(transformers.modeling_utils, 'apply_chunking_to_forward'):
-    transformers.modeling_utils.apply_chunking_to_forward = apply_chunking_to_forward
-if not hasattr(transformers.modeling_utils, 'find_pruneable_heads_and_indices'):
-    transformers.modeling_utils.find_pruneable_heads_and_indices = find_pruneable_heads_and_indices
-if not hasattr(transformers.modeling_utils, 'prune_linear_layer'):
-    transformers.modeling_utils.prune_linear_layer = prune_linear_layer
-
 @dataclass
 class AnnotationModelOutput(TokenClassifierOutput):
 	loss: Optional[torch.FloatTensor] = None
@@ -120,6 +103,7 @@ class AnnotationModel(torch.nn.Module):
 		output_dir = None, # currently unused, for compatibility with older models
 		config = None,
 		pretrained_cpt = None,
+		modernbert_cpt = None,
 		activation = None,
 		classifier = None,
 		loss_fct = None,
@@ -132,6 +116,16 @@ class AnnotationModel(torch.nn.Module):
 		else:
 			self.logger = logger
 			
+		assert (pretrained_cpt is not None) != (modernbert_cpt is not None), "Either pretrained_cpt or modernbert_cpt must be provided, not both"
+		
+		if modernbert_cpt is not None:
+			from modernbert_utils import load_flexbert_model
+			self.logger.info(f"Loading ModernBERT model from {modernbert_cpt}")
+			self.bert = load_flexbert_model(modernbert_cpt, logger=self.logger)
+			self.is_modernbert_model = True
+		else:
+			self.is_modernbert_model = False
+		
 		if pretrained_cpt is not None:
 			if os.path.exists(pretrained_cpt):
 				raise NotImplementedError("TODO: check this draft of the code below before using it")
@@ -150,9 +144,9 @@ class AnnotationModel(torch.nn.Module):
 				module_name = model.__class__.__module__
 				cls = getattr(importlib.import_module(module_name), 'BertModel')
 				self.bert = cls.from_pretrained(pretrained_cpt, add_pooling_layer=False)
-		else:
-			self.logger.warning(f"Randomly initialized backbone.")
-			self.bert = BertModel(config, add_pooling_layer=False)
+		# else:
+		# 	self.logger.warning(f"Randomly initialized backbone.")
+		# 	self.bert = BertModel(config, add_pooling_layer=False)
 
 		self.classifier = classifier
 		self.classifier.set_params(self.bert.config)
@@ -161,9 +155,17 @@ class AnnotationModel(torch.nn.Module):
 		self.loss_fct = loss_fct
 	
 	def forward(self, input_ids, attention_mask, targets, return_loss=True):
-		outputs = self.bert(input_ids, attention_mask)
-		# todo: check what is output here
-		logits = self.classifier(outputs.last_hidden_state)
+		if self.is_modernbert_model:
+			outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+			assert len(outputs.size()) == 3 # Batch_size x Seq_len x Hidden_size
+			assert outputs.size()[0] == input_ids.size()[0] # batch size dimension
+			assert outputs.size()[1] == input_ids.size()[1] # sequence length dimension
+			logits = self.classifier(outputs)
+		else:
+			outputs = self.bert(input_ids, attention_mask)
+			outputs = outputs.last_hidden_state
+
+		logits = self.classifier(outputs)
 		predicts = self.activation(logits)
 		if targets is not None:
 			loss = self.loss_fct(predicts, targets)
