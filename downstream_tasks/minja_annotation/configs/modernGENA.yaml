@@ -62,7 +62,7 @@ TrainingArguments:
   output_dir: ${output_dir}
   per_device_train_batch_size: ${batch_size}
   per_device_eval_batch_size: ${batch_size}
-  dataloader_num_workers: 8
+  dataloader_num_workers: 4
   gradient_accumulation_steps:
     _target_: train_with_accelerate.gradient_accumulation_steps
     batch_size: ${batch_size}
