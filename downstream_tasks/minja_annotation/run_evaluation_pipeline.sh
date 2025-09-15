@@ -80,19 +80,7 @@ for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
         continue
     fi
     
-    # Step 1: Run evaluate_on_chromosome.py
-    echo "Step 1: Running evaluate_on_chromosome.py..."
-    GENALM_HOME=$(realpath ../../) CUDA_VISIBLE_DEVICES="$DEVICE" python evaluate_on_chromosome.py \
-        --config "$CONFIG_PATH" \
-        --model_cpt "$CHECKPOINT_PATH"
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: evaluate_on_chromosome.py failed for checkpoint $CHECKPOINT_PATH"
-        echo "Skipping to next checkpoint..."
-        continue
-    fi
-    
-    # Determine the output directory where bigWig files were created
+    # Determine the output directory where bigWig will be created
     # Based on the evaluate_on_chromosome.py logic:
     # output_dir = os.path.join(os.path.dirname(model_cpt), "eval", fasta_basename, chromosome)
     CHECKPOINT_DIR=$(dirname "$CHECKPOINT_PATH")
@@ -100,7 +88,37 @@ for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
     
     # We need to find the eval directory - it should be in the checkpoint directory
     EVAL_DIR="$CHECKPOINT_DIR/eval/T2T-CHM13v2/NC_060944.1"
+
+    # Check if all required bigwig files already exist
+    REQUIRED_BIGWIG_FILES=("polya_-.bw" "polya_+.bw" "tss_-.bw" "tss_+.bw")
+    ALL_FILES_EXIST=true
     
+    echo "Checking for existing bigwig files in: $EVAL_DIR"
+    for bigwig_file in "${REQUIRED_BIGWIG_FILES[@]}"; do
+        if [ -f "$EVAL_DIR/$bigwig_file" ]; then
+            echo "  ✓ Found: $bigwig_file"
+        else
+            echo "  ✗ Missing: $bigwig_file"
+            ALL_FILES_EXIST=false
+        fi
+    done
+    
+    if [ "$ALL_FILES_EXIST" = true ]; then
+        echo "All required bigwig files already exist. Skipping evaluate_on_chromosome.py..."
+    else
+        # Step 1: Run evaluate_on_chromosome.py
+        echo "Step 1: Running evaluate_on_chromosome.py..."
+        GENALM_HOME=$(realpath ../../) CUDA_VISIBLE_DEVICES="$DEVICE" python evaluate_on_chromosome.py \
+            --config "$CONFIG_PATH" \
+            --model_cpt "$CHECKPOINT_PATH"
+        
+        if [ $? -ne 0 ]; then
+            echo "Error: evaluate_on_chromosome.py failed for checkpoint $CHECKPOINT_PATH"
+            echo "Skipping to next checkpoint..."
+            continue
+        fi
+    fi
+        
     if [ ! -d "$EVAL_DIR" ]; then
         echo "Error: Expected eval directory '$EVAL_DIR' not found"
         echo "Skipping to next checkpoint..."
