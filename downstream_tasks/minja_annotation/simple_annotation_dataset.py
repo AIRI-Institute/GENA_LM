@@ -37,6 +37,8 @@ class GenomicAnnotationDataset(Dataset):
 		include_chromosomes: List[str] | str | None = None, # chromosomes to include
 		primary_transcript_types: List[str] | None = None, # transcript types to require for a transcript to be included as primary
 		primary_tags: List[str] | None = ["GENCODE_Primary", "MANE_Select"], # tags to require for a transcript to be included as primary
+		gap_token_id: int = 5, # token id for gap
+		unknown_token_id: int = 12, # token id for unknown
 		logger: logging.Logger = None,
 		seed: int = 42,
 	):
@@ -66,12 +68,21 @@ class GenomicAnnotationDataset(Dataset):
 		self.path_to_gff_db = path_to_gff_db
 		self.path_to_fasta = path_to_fasta
 		self.max_samples_number = max_samples_number
+
+		# tokenizer
 		self.tokenizer = tokenizer
+		self.gap_token_id = gap_token_id
+		self.unknown_token_id = unknown_token_id
+		
+		# chunking
 		self.chunk_overlap = chunk_overlap
 		assert chunk_overlap >= 0 and chunk_overlap < 1, "Chunk overlap must be between 0 and 1"
 		self.max_genomic_chunk_ratio = max_genomic_chunk_ratio
+		
+		# annotation targets
 		self.TSS_prob_width = TSS_prob_width
 		self.polyA_prob_width = polyA_prob_width
+		
 		self.logger = logger if logger is not None else logging.getLogger(__name__)
 		self.files_opened = False
 		self.seed = seed
@@ -265,14 +276,19 @@ class GenomicAnnotationDataset(Dataset):
 		token_ids = encoding['input_ids'].squeeze(0)
 		offset_mapping = encoding['offset_mapping'].squeeze(0).tolist()
 		for idx, token_id in enumerate(token_ids):
-			if token_id.item() == 5: # gap token
+			if token_id.item() == self.gap_token_id: # gap token
 				offset_mapping[idx][0] = offset_mapping[idx-1][1]
 		
 		# sanity check. TODO: remove at some point
 		for tok,om in zip(token_ids, offset_mapping):
-			if tok.item() != 5 and om[0] < om[1]:
+			if tok.item() != self.gap_token_id and om[0] < om[1]:
 				token_chars = self.tokenizer.decode(tok.item())
-				assert token_chars[0] == sequence[om[0]]
+				assert (token_chars[0] == sequence[om[0]]) or \
+					(tok.item() == self.unknown_token_id and token_chars[0] == "N"), \
+					f"""token_chars is {token_chars} but sequence[om[0]:om[1]] is {sequence[om[0]:om[1]]}, 
+					om is {om},
+					tok is {tok.item()},
+					full sequence is: {sequence}"""
 		return token_ids, offset_mapping
 
 	def _is_main_transcript(self, feature: gffutils.Feature) -> bool:
@@ -447,11 +463,20 @@ class GenomicAnnotationDataset(Dataset):
 		###############################################################
 
 		# Get genomic sequence
-		sequence, start, end = self._get_genomic_sequence(chrom, start, end, strand)
+		sequence, refined_start, refined_end = self._get_genomic_sequence(chrom, start, end, strand)
 
 		
 		# Tokenize sequence
-		token_ids, offset_mapping = self._tokenize_sequence(sequence)
+		try:
+			token_ids, offset_mapping = self._tokenize_sequence(sequence)
+		except Exception as e:
+			self.logger.error(f"Error tokenizing sequence for {chrom}:{start}-{end}: {e}")
+			self.logger.error(f"refined_start: {refined_start}, refined_end: {refined_end}")
+			self.logger.error(f"item_id: {item_id}")
+			raise e
+
+		start = refined_start
+		end = refined_end
 
 		# for original end we used some overhead, now shrink it to the last token
 		if strand == "+":

@@ -12,13 +12,55 @@ import pyBigWig as bw
 from safetensors.torch import load_file
 from tqdm import tqdm
 import numpy as np
+from torch.utils.data import DataLoader, Sampler
+from collections.abc import Sized, Iterator
+from simple_annotation_dataset import worker_init_fn, collate_fn
 
 parser = ArgumentParser()
 parser.add_argument('--config', type=str, help='path to the experiment config') 
 parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
 parser.add_argument('--model_cpt', type=str, default=None, help='path to the model checkpoint')
 
+class SequentialRegionalSampler(Sampler[int]):
+	r"""Samples elements sequentially, always in the same order.
+	If region is provided, samples are sampled sequentially from the region.
+
+	Args:
+		data_source (Dataset): dataset to sample from
+	"""
+
+	data_source: Sized
+
+	def __init__(self, data_source: Sized, region: str) -> None:
+		self.region = region
+		self.data_source = data_source
+		self.indices = []
+		if region is not None:
+			self.chrom = region.split(':')[0]
+			self.region_start = int(region.split(':')[1].split('-')[0])
+			self.region_end = int(region.split(':')[1].split('-')[1])
+			for i in tqdm(range(len(self.data_source)), desc="Filtering samples by region"):
+				chrom, start, end, strand = self.data_source._decode_item_id(i)
+				if chrom == self.chrom and start >= self.region_start and end <= self.region_end:
+					self.indices.append(i)
+		else:
+			self.indices = list(range(len(self.data_source)))
+
+	def __iter__(self) -> Iterator[int]:
+		return iter(self.indices)
+
+	def __len__(self) -> int:
+		return len(self.indices)
+
+def identity_fn(x):
+	return x
+
 class bigWigExporter:
+	strand2prefix = {
+		"+": "",
+		"-": "rev_comp_",
+	}
+
 	def __init__(self, output_dir: str, chroms: List[str], chrom_lengths: List[int], logger: logging.Logger = None, context_fraction: float = 0.1):
 		self.output_dir = output_dir
 		self.bigWigFiles = {}
@@ -28,7 +70,7 @@ class bigWigExporter:
 		self.context_fraction = context_fraction
 		self.last_chrom = None
 		self.last_end = None
-		self.last_value = {}
+		self.last_strand = None
 		self.sigmoid = torch.nn.Sigmoid()
 		self.chrom_data = {}
 	
@@ -44,7 +86,6 @@ class bigWigExporter:
 					self.open_bw(label)
 				first_nonzero = (~np.isnan(values)).nonzero()[0][0]
 				last_nonzero = (~np.isnan(values)).nonzero()[0][-1]
-				print (first_nonzero, last_nonzero)
 				starts = np.arange(first_nonzero, last_nonzero, dtype=np.int32)
 				ends = np.arange(first_nonzero, last_nonzero, dtype=np.int32) + 1
 				values = np.nan_to_num(values[first_nonzero:last_nonzero], -1).astype(np.float32)
@@ -57,6 +98,7 @@ class bigWigExporter:
 
 	def process_batch(self, outputs, metadata: List[Dict]):
 		for s,m in zip(outputs["predicts"], metadata):
+			s_strand = m['strand']
 			s_om = np.array(m['offset_mapping'])
 			s_chrom = m['chrom']
 			if s_chrom not in self.chrom_data.keys():
@@ -64,24 +106,65 @@ class bigWigExporter:
 			s_start = min(1, int(self.context_fraction * len(s)))
 			s_end = max(len(s)-1, int((1-self.context_fraction) * len(s)))
 
-			# outputs have shape of num_tokens x num_labels
+			# let's create a dictionary of values for each label
 			class_number = 0
+			values = {}
 			for class_name in ["tss", "polya"]:
 				for strand in ["+", "-"]:
-					label = f"{class_name}_{strand}"
-					if label not in self.chrom_data[s_chrom]:
+					label = f"{class_name}_{strand}"+self.strand2prefix[s_strand]
+					if label not in self.chrom_data[s_chrom]: # initialize the array with nan
 						self.chrom_data[s_chrom][label] = np.empty(shape=(self.chrom_lengths[self.chroms.index(s_chrom)],))
 						self.chrom_data[s_chrom][label][:] = np.nan
-					values = self.sigmoid(s[s_start:s_end, class_number]).cpu().numpy()
-					for v,(start,end) in zip(values, s_om[s_start:s_end]):
-						if start == end:
-							continue
-						if np.isnan(self.chrom_data[s_chrom][label][m['start']+start:m['start']+end]).any():
-							self.chrom_data[s_chrom][label][m['start']+start:m['start']+end] = v
-						else:
-							self.chrom_data[s_chrom][label][m['start']+start:m['start']+end] = (
-								np.mean(self.chrom_data[s_chrom][label][m['start']+start:m['start']+end]) + v) / 2
+					
+					# outputs have shape of num_tokens x num_labels
+					values[label] = self.sigmoid(s[s_start:s_end, class_number]).cpu().numpy()
 					class_number += 1
+
+			# let's process the sample, filling the chromosome data with values
+			current_sample_coverage_start = None
+			current_sample_coverage_end = None
+			
+			for token_index, s_om_i in enumerate(s_om[s_start:s_end]):
+				start,end = s_om_i
+				if start == end:
+					continue
+				
+				if s_strand == "-":
+					genome_start = m['end']-end
+					genome_end = m['end']-start
+				else:
+					genome_start = m['start']+start
+					genome_end = m['start']+end
+
+				assert genome_end > genome_start, f"genome_end is {genome_end} and genome_start is {genome_start}, s_chrom is {s_chrom}, s_strand is {s_strand}, start is {start}, end is {end}, om_i is {s_om_i}"
+
+				if current_sample_coverage_end is None:
+					current_sample_coverage_end = genome_end
+					current_sample_coverage_start = genome_start
+				else:
+					current_sample_coverage_end = max(current_sample_coverage_end, genome_end)
+					current_sample_coverage_start = min(current_sample_coverage_start, genome_start)
+
+				# we use tss_+ to check here, but it doesn't matter which one we use, because all 4 labeles are filled simultaneously
+				test_label = "tss_+"+self.strand2prefix[s_strand]
+
+				if np.isnan(self.chrom_data[s_chrom][test_label][genome_start:genome_end]).any():
+					for label, v in values.items():
+						self.chrom_data[s_chrom][label][genome_start:genome_end] = v[token_index]
+				else:
+					for label, v in values.items():
+						self.chrom_data[s_chrom][label][genome_start:genome_end] = (
+							np.mean(self.chrom_data[s_chrom][label][genome_start:genome_end]) + v[token_index]) / 2
+
+			# once we have processed the sample, let's ensure that it overlaps with the previous sample
+			if (self.last_chrom is not None) and (self.last_chrom == s_chrom) and (self.last_strand == s_strand):
+				# it's not first sample of the chromosome
+				# let's ensure that samples overlap with the previous sample
+				assert current_sample_coverage_start <= self.last_end, f"current_sample_coverage_start is {current_sample_coverage_start} and last_end is {self.last_end}, s_chrom is {s_chrom}, s_strand is {s_strand}, start is {start}, end is {end}, om_i is {s_om_i}"
+			
+			self.last_chrom = s_chrom
+			self.last_strand = s_strand
+			self.last_end = current_sample_coverage_end
 
 	def write_data_and_close(self):
 		self.write_data()
@@ -122,6 +205,21 @@ def main():
 		os.makedirs(output_dir)
 	shutil.copy(args.config, os.path.join(output_dir, "config.yaml"))
 
+	dataset_config = experiment_config.eval_dataset
+	dataset_strandedness = dataset_config.get('strand', '+')
+		
+	dataset = instantiate(dataset_config)
+
+	if dataset_strandedness == "random":
+		assert len(dataset) % 2 == 0, "Dataset must have even number of samples for random strandedness"
+
+	exporter = bigWigExporter(output_dir,
+									chroms=list(dataset.chrom_info.keys()), 
+									chrom_lengths=list(dataset.chrom_info.values()), 
+									logger=logger)
+
+	dataloader = instantiate(experiment_config.dataloader)
+
 	model_config = experiment_config.model
 	model = instantiate(model_config)
 	state = load_file(model_cpt)
@@ -129,63 +227,8 @@ def main():
 	model.to(torch.device("cuda"))
 	model.eval()
 
-	dataset_config = experiment_config.eval_dataset
-	dataset = instantiate(dataset_config)
-	dataset.open_files()
-
-	exporter = bigWigExporter(output_dir, list(dataset.chrom_info.keys()), list(dataset.chrom_info.values()), logger=logger)
-
-	region = experiment_config.get('region', None)
-	if region is not None:
-		target_chrom = region.split(':')[0]
-		target_start = int(region.split(':')[1].split('-')[0])
-		target_end = int(region.split(':')[1].split('-')[1])
-
-	sample_id = 0
-	samples_written = 0
-
-	progress_bar = tqdm(total=len(dataset), desc="Processing samples")
-
-	while sample_id < len(dataset):
-		slice_start = sample_id
-		slice_end = min(sample_id+experiment_config.batch_size, len(dataset))
-
-		if region is not None: 		# prefetch batch coordinates and check if we need to process them
-			batch_coordinates = [dataset._decode_item_id(i) for i in range(slice_start, slice_end)]
-			need_to_process = False
-			for chrom, start, end in batch_coordinates:
-				if chrom == target_chrom and start >= target_start and end <= target_end:
-					need_to_process = True
-					break
-			if not need_to_process:
-				sample_id += experiment_config.batch_size
-				progress_bar.update(slice_end - slice_start)
-				if batch_coordinates[-1][0] == target_chrom and batch_coordinates[-1][1] > target_end:
-					logger.info(f"Reached end of region {region}")
-					break
-				continue
-		
-		batch = [dataset[i] for i in range(slice_start, slice_end)]		
-		progress_bar.update(len(batch))
-		
-		if region is not None: # filter batch by region
-			region_filtered_batch = []
-			region_filtered_metadata = []
-			for b in batch:
-				if b['metadata']['chrom'] == target_chrom and \
-					b['metadata']['start'] >= target_start and \
-						b['metadata']['end'] <= target_end:
-
-					region_filtered_batch.append(b)
-					region_filtered_metadata.append(b['metadata'])
-			
-			assert len(region_filtered_batch) > 0
-			batch = region_filtered_batch
-			metadata = region_filtered_metadata
-		else:
-			metadata = [b['metadata'] for b in batch]
-
-		samples_written += len(batch)
+	for batch in tqdm(dataloader, desc="Processing samples"):
+		metadata = [b['metadata'] for b in batch]
 		batch = collate_fn(batch)
 		for k in batch.keys(): # TODO: make it more general
 			if isinstance(batch[k], torch.Tensor):
@@ -201,12 +244,11 @@ def main():
 		with torch.no_grad():
 			output = model.forward(**batch)
 		exporter.process_batch(output, metadata)
-		sample_id += experiment_config.batch_size
 
 	dataset.close()
 	exporter.write_data_and_close()
 
-	logger.info(f"Exported {samples_written} samples to {output_dir}")
+	logger.info(f"Exported {len(dataloader.sampler)} samples to {output_dir}")
 
 if __name__ == "__main__":
 	main()

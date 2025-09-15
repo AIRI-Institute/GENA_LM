@@ -2,7 +2,7 @@ HOME_PATH: ${oc.env:GENALM_HOME}
 # model_cpt: ${HOME_PATH}/runs/annotation/basic_with_warmup/checkpoint-14750/model.safetensors
 chromosome: "NC_060944.1"
 
-batch_size: 8
+batch_size: 48
 
 logging:
   level: INFO
@@ -28,12 +28,13 @@ model:
 
 # region: "chr21:13500000-13600000"
 # region: "chr21:13500000-20000000"
+region: null
 
 eval_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
   model_input_length_token: 512
   av_token_len: 9.0
-  chunk_overlap: 0.3
+  chunk_overlap: 0.5
   path_to_gff_db: ${HOME_PATH}/data/annotation/GCF_009914755.1_T2T-CHM13v2.0.gff.db
   path_to_fasta: ${HOME_PATH}/data/annotation/T2T-CHM13v2.0_genomic.fna
   tokenizer:
@@ -43,3 +44,23 @@ eval_dataset:
   include_chromosomes: ${chromosome}
   primary_transcript_types: ["protein_coding"]
   primary_tags: ["GENCODE_Primary", "MANE_Select"]
+
+dataloader:
+  _target_: "torch.utils.data.DataLoader"
+  dataset: ${eval_dataset}
+  sampler:
+    _target_: evaluate_on_chromosome.SequentialRegionalSampler
+    data_source: ${eval_dataset}
+    region: ${region}
+  batch_size: ${batch_size}
+  shuffle: False
+  num_workers: 16
+  collate_fn:
+    _target_: hydra.utils.get_object
+    path: evaluate_on_chromosome.identity_fn
+  pin_memory: False
+  drop_last: False
+  timeout: 0
+  worker_init_fn:
+    _target_: hydra.utils.get_object
+    path: simple_annotation_dataset.worker_init_fn
