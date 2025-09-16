@@ -34,6 +34,8 @@ def parse_arguments():
                        help='Apply postprocessing to keep only highest signal bp in continuous regions')
     parser.add_argument('--min_dist', type=int, default=0,
                        help='Minimum distance: fill gaps shorter than min_dist with 1s before postprocessing')
+    parser.add_argument('--strand', type=str, default="+",
+                       help='Strand to process')
     return parser.parse_args()
 
 
@@ -86,6 +88,10 @@ def combine_strands(tss_plus, tss_minus, polya_plus, polya_minus):
     tss_combined = np.maximum(tss_plus, tss_minus)
     polya_combined = np.maximum(polya_plus, polya_minus)
     return tss_combined, polya_combined
+
+def merge_rev_comp(signal_plus, signal_minus):
+    """Merge plus and minus strands of a signal."""
+    return np.mean([signal_plus, signal_minus], axis=0)
 
 
 def postprocess_signal(binary_signal, original_signal, min_dist=0):
@@ -216,10 +222,24 @@ def main():
     
     # Read bigWig files for chromosome NC_060945.1
     print("\nReading bigWig files...")
-    tss_plus = read_bigwig_chromosome(args.bigwig_path, "tss_+.bw")
-    tss_minus = read_bigwig_chromosome(args.bigwig_path, "tss_-.bw")
-    polya_plus = read_bigwig_chromosome(args.bigwig_path, "polya_+.bw")
-    polya_minus = read_bigwig_chromosome(args.bigwig_path, "polya_-.bw")
+
+    if args.strand == "+":
+        tss_plus = read_bigwig_chromosome(args.bigwig_path, "tss_+.bw")
+        tss_minus = read_bigwig_chromosome(args.bigwig_path, "tss_-.bw")
+        polya_plus = read_bigwig_chromosome(args.bigwig_path, "polya_+.bw")
+        polya_minus = read_bigwig_chromosome(args.bigwig_path, "polya_-.bw")
+    elif args.strand == "-":
+        tss_plus = read_bigwig_chromosome(args.bigwig_path, "tss_-rev_comp_.bw")
+        tss_minus = read_bigwig_chromosome(args.bigwig_path, "tss_+rev_comp_.bw")
+        polya_plus = read_bigwig_chromosome(args.bigwig_path, "polya_-rev_comp_.bw")
+        polya_minus = read_bigwig_chromosome(args.bigwig_path, "polya_+rev_comp_.bw")
+    elif args.strand == "both":
+        tss_plus = merge_rev_comp(read_bigwig_chromosome(args.bigwig_path, "tss_+.bw"), read_bigwig_chromosome(args.bigwig_path, "tss_-rev_comp_.bw"))
+        tss_minus = merge_rev_comp(read_bigwig_chromosome(args.bigwig_path, "tss_-.bw"), read_bigwig_chromosome(args.bigwig_path, "tss_+rev_comp_.bw"))
+        polya_plus = merge_rev_comp(read_bigwig_chromosome(args.bigwig_path, "polya_+.bw"), read_bigwig_chromosome(args.bigwig_path, "polya_-rev_comp_.bw"))
+        polya_minus = merge_rev_comp(read_bigwig_chromosome(args.bigwig_path, "polya_-.bw"), read_bigwig_chromosome(args.bigwig_path, "polya_+rev_comp_.bw"))
+    else:
+        raise ValueError(f"Invalid strand: {args.strand}")
     
     # Apply threshold to convert to binary predictions
     print(f"\nApplying threshold {args.threshold}...")
@@ -251,8 +271,9 @@ def main():
     # Generate output filenames with threshold and postprocessing flags
     postprocess_suffix = "_postprocessed" if args.postprocess else ""
     min_dist_suffix = f"_mindist_{args.min_dist}" if args.postprocess and args.min_dist > 0 else ""
-    tss_output = os.path.join(output_dir, f"TSS_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}.png")
-    polya_output = os.path.join(output_dir, f"PolyA_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}.png")
+    strand_suffix = f"_strand_{args.strand}" if args.strand != "+" else ""
+    tss_output = os.path.join(output_dir, f"TSS_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}{strand_suffix}.png")
+    polya_output = os.path.join(output_dir, f"PolyA_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}{strand_suffix}.png")
     
     # Compute metrics and generate plots
     print("\nComputing TSS metrics...")
@@ -269,7 +290,7 @@ def main():
 
     # finally, write the metrics to a text file
     with open(
-        os.path.join(output_dir, f"metrics_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}.txt"),
+        os.path.join(output_dir, f"metrics_threshold_{args.threshold}_max_k_{args.max_k}{postprocess_suffix}{min_dist_suffix}{strand_suffix}.txt"),
         "w"
     ) as f:
         # TSS O (k=50)	TSS NO (k=50)	PolyA O (k=50)	PolyA NO (k=50)	TSS O (k=250)	TSS NO (k=250)	PolyA O (k=250)	PolyA NO (k=250)

@@ -68,6 +68,9 @@ echo "=========================================="
 
 # Process each checkpoint
 for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
+
+    CHECKPOINT_PATH="${CHECKPOINT_PATH}/model.safetensors"
+
     echo ""
     echo "=========================================="
     echo "Processing checkpoint: $CHECKPOINT_PATH"
@@ -90,7 +93,7 @@ for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
     EVAL_DIR="$CHECKPOINT_DIR/eval/T2T-CHM13v2/NC_060944.1"
 
     # Check if all required bigwig files already exist
-    REQUIRED_BIGWIG_FILES=("polya_-.bw" "polya_+.bw" "tss_-.bw" "tss_+.bw")
+    REQUIRED_BIGWIG_FILES=("polya_-.bw" "polya_+.bw" "tss_-.bw" "tss_+.bw" "polya_-rev_comp_.bw" "polya_+rev_comp_.bw" "tss_-rev_comp_.bw" "tss_+rev_comp_.bw")
     ALL_FILES_EXIST=true
     
     echo "Checking for existing bigwig files in: $EVAL_DIR"
@@ -125,34 +128,34 @@ for CHECKPOINT_PATH in "${CHECKPOINT_PATHS[@]}"; do
         continue
     fi
     
-    # Step 2: Run preds2metric.py with different thresholds
+    # Step 2: Run preds2metric.py with different thresholds and strands
     echo "Step 2: Running preds2metric.py..."
     
-    # Run with threshold 0.1
-    echo "  Running with threshold 0.1..."
-    python preds2metric.py \
-        --bigwig_path "$EVAL_DIR" \
-        --threshold 0.1 \
-        --max_k 250
+    # Define thresholds and strands to iterate over
+    THRESHOLDS=(0.5 0.25)
+    STRANDS=("+" "-" "both")
     
-    if [ $? -ne 0 ]; then
-        echo "Error: preds2metric.py failed for checkpoint $CHECKPOINT_PATH with threshold 0.1"
-    else
-        echo "  ✓ Completed with threshold 0.1"
-    fi
-    
-    # Run with threshold 0.5
-    echo "  Running with threshold 0.5..."
-    python preds2metric.py \
-        --bigwig_path "$EVAL_DIR" \
-        --threshold 0.5 \
-        --max_k 250
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: preds2metric.py failed for checkpoint $CHECKPOINT_PATH with threshold 0.5"
-    else
-        echo "  ✓ Completed with threshold 0.5"
-    fi
+    # Iterate over thresholds
+    for threshold in "${THRESHOLDS[@]}"; do
+        echo "  Processing threshold: $threshold"
+        
+        # Iterate over strands
+        for strand in "${STRANDS[@]}"; do
+            echo "    Running with threshold $threshold and strand $strand..."
+            
+            python preds2metric.py \
+                --bigwig_path "$EVAL_DIR" \
+                --threshold "$threshold" \
+                --strand "$strand" \
+                --max_k 250
+            
+            if [ $? -ne 0 ]; then
+                echo "    Error: preds2metric.py failed for checkpoint $CHECKPOINT_PATH with threshold $threshold and strand $strand"
+            else
+                echo "    ✓ Completed with threshold $threshold and strand $strand"
+            fi
+        done
+    done
     
     echo "✓ Completed processing checkpoint: $CHECKPOINT_PATH"
 done
