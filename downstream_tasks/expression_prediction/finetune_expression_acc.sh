@@ -18,7 +18,7 @@ BS=35
 NP=1
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="v1_qnorm_large_mouse_test"
+config_name="v1_qnorm_large_mouse"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29517 \
