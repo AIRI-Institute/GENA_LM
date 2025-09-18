@@ -4,6 +4,20 @@
 
 Follow steps in [datasets-->README.md](https://github.com/minjaf/ExpressionPredict/blob/main/README.md#download-preprocessed-data-and-generate-annotations-starting-from-scratch) (section *Download preprocessed data and generate annotations starting from scratch*)
 
+## Conda environment
+```
+cd ..
+mkdir -p soft
+cd GENA_LM/downstream_tasks/expression_prediction/
+cp -v environment.yml ../../../soft/
+cd ../../../soft
+git clone --branch feat/trainer_with_accelerate https://github.com/yurakuratov/t5-experiments.git
+conda env create -f environment.yml
+cd t5-experiments
+python -m pip install -e .
+conda activate aspeedok_acc 
+```
+
 ## Configuration
 Model and dataset parameters are specified in `*.yaml` files
 
