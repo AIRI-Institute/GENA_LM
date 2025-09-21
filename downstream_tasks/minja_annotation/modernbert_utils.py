@@ -1,6 +1,7 @@
 import os
 import torch
 from omegaconf import DictConfig, OmegaConf as om
+import numpy as np
 
 # Add ModernBERT to path
 import sys
@@ -92,8 +93,40 @@ def load_flexbert_model(model_path, logger,
 	model_state = state_dict.get("model", {})
 	assert len(model_state) > 0, "Model state is empty, please check the checkpoint and checkpoint path"
 	model_state = {k.replace("model.bert.", ""): v for k, v in model_state.items()}
+	
+	############# DEBUGGING CODE ##############
+	# DEBUG: get weights for the first layer of the model
+	# TODO: remove this debugging code at some point, leaving only one line:
+	# test = model.load_state_dict(model_state, strict=False)
+	# Print all layer names and the shape of their weights to help identify layers
+	for layer_name, debug_param in model.named_parameters():
+		if layer_name.find("tok_embeddings") != -1:
+			continue
+		if not layer_name in model_state:
+			continue
+		break
+	debug_param = np.array(debug_param.detach().cpu().numpy(), copy=True)
+	# logger.info(f"Layer name: {layer_name}, Weight shape: {debug_param.shape} saved for debugging")
+	# logger.info(f"Is it the same as in cpt? {np.allclose(debug_param, model_state[layer_name])}")
+	# logger.info(f"Debug param: {debug_param[:5]}")
+	# logger.info(f"Model state: {model_state[layer_name][:5]}")
+	
 	test = model.load_state_dict(model_state, strict=False)
 
+	# assert that params are changed
+	for _, debug_param_updated in model.named_parameters():
+		if _ == layer_name:	break
+	debug_param_updated = np.array(debug_param_updated.detach().cpu().numpy(), copy=True)
+	# logger.info(f"Debug param updated: {debug_param_updated[:5]}")
+
+	# logger.info(f"Layer name: {_}, Weight shape: {debug_param_updated.shape} saved for debugging")
+	# logger.info(f"Is it the same as before loading? {np.allclose(debug_param_updated, debug_param)}")
+	# logger.info(f"Is it the same as in cpt? {np.allclose(debug_param_updated, model_state[_])}")
+
+	assert not np.allclose(debug_param_updated, debug_param), f"Params are not changed, {layer_name}\n{debug_param}\n{debug_param_updated}"
+	assert debug_param_updated.shape == debug_param.shape, "Shape mismatch"
+	############# END DEBUGGING CODE ##############
+	
 	# ensure that the missing and unexpected keys are as expected
 	assert len(test.missing_keys) == 0 or \
 			(set(test.missing_keys) == expected_missing and len(test.missing_keys) == len(expected_missing)), \

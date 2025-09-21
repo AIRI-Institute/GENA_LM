@@ -3,6 +3,8 @@ from transformers import Trainer
 from transformers.trainer import _is_peft_model
 from torch.utils.data import DataLoader
 from torchmetrics import Metric
+from torchmetrics.classification import BinaryAveragePrecision
+from torchmetrics.utilities import dim_zero_cat
 from transformers.models.auto.modeling_auto import (
     MODEL_FOR_CAUSAL_LM_MAPPING_NAMES,
 )
@@ -12,16 +14,42 @@ class NamedMean(Metric):
     def __init__(self, cls_name: str, **kwargs):
         super().__init__(**kwargs)
         self.cls_name = cls_name
+        self.log_name = f"{cls_name}"
         self.add_state("sum", default=torch.tensor(0, dtype=torch.float32), dist_reduce_fx="sum")
         self.add_state("count", default=torch.tensor(0, dtype=torch.float32), dist_reduce_fx="sum")
     
-    def update(self, model_outputs):
+    def update(self, inputs, model_outputs):
         self.sum += model_outputs[self.cls_name]
         self.count += 1
     
     def compute(self):
         return self.sum / self.count
 
+class NamedBinaryAveragePrecision(BinaryAveragePrecision):
+    def __init__(self, cls_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.cls_name = cls_name
+        self.log_name = f"PRAUC_{cls_name}"
+    
+    def update(self, inputs, model_outputs):
+        targets = inputs["targets"]
+        predicts = model_outputs["logits"]
+        class_index = 0
+        updated = False
+        for class_name in ["tss", "polya"]:
+            for strand in ["+", "-"]:
+                cls_name = f"primary_{class_name}_{strand}"
+                if self.cls_name == cls_name:
+                    X = predicts[:, :, class_index]
+                    Y = targets[cls_name] > 0.5
+                    super().update(X, Y)
+                    updated = True
+                    break
+                class_index += 1
+            if updated: break
+        if not updated:
+            raise ValueError(f"Class name {self.cls_name} not found in targets: \n{targets.keys()}")
+            
 class LogTrainMetricsCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):
         trainer = state.trainer_instance
@@ -33,7 +61,7 @@ class LogTrainMetricsCallback(TrainerCallback):
                 result = m.compute().cpu().numpy().item()
                 m.reset()
                 original_should_log_state = control.should_log
-                trainer.log({f'train_{m.cls_name}': result}) # this will set should_log to False
+                trainer.log({f'train_{m.log_name}': result}) # this will set should_log to False
                 control.should_log = original_should_log_state
         control.is_in_train_step = False
         self.trainer_instance = None # remove trainer instance from state to avoid looping
@@ -112,6 +140,6 @@ class CustomTrainer(Trainer):
             self.state.trainer_instance = self # save trainer instance to state   
             # accumulate metrics
             for m in self.train_metrics:
-                m.update(outputs)
+                m.update(inputs, outputs)
 
         return (loss, outputs) if return_outputs else loss
