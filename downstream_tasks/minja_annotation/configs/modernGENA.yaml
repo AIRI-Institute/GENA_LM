@@ -98,3 +98,11 @@ trainer:
       cls_name: "loss_TSS"
     - _target_: custom_trainer.NamedMean
       cls_name: "loss_polya"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_-"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_-"
