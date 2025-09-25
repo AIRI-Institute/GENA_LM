@@ -18,6 +18,9 @@ from src import mosaic_bert as mosaic_bert_module
 from src.bert_layers.model import FlexBertModel
 import src.bert_layers.configuration_bert as configuration_bert_module
 from composer.utils.checkpoint import _ensure_valid_checkpoint
+from datetime import timedelta, datetime, timezone, date, time
+from torch.torch_version import TorchVersion
+import contextlib
 
 def build_model(cfg: DictConfig):
 	if cfg.name == "hf_bert":
@@ -60,7 +63,8 @@ def load_modernbert_model (model_path, logger):
 	# checkpoint_filepath = os.path.join(model_path, "ep11-ba68300-rank0.pt")
 	checkpoint_filepath = os.path.join(model_path, "latest-rank0.pt")	
 	logger.info(f"Loading checkpoint from {checkpoint_filepath}")
-	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
+	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu", 
+						weights_only=True)
 	state_dict = state.get("state", {})
 	model_state = state_dict.get("model", {})
 	assert len(model_state) > 0, "Model state is empty, please check the checkpoint and checkpoint path"
@@ -88,7 +92,12 @@ def load_flexbert_model(model_path, logger,
 
 	checkpoint_filepath = os.path.join(model_path, "latest-rank0.pt")	
 	logger.info(f"Loading checkpoint from {checkpoint_filepath}")
-	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
+	safe_ctx = getattr(torch.serialization, "safe_globals", None)
+	SAFE_GLOBALS = [timedelta, datetime, timezone, date, time, TorchVersion]
+	ctx = safe_ctx(SAFE_GLOBALS) if safe_ctx else contextlib.nullcontext()
+	with ctx:
+		state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu",
+							weights_only=True)
 	state_dict = state.get("state", {})
 	model_state = state_dict.get("model", {})
 	assert len(model_state) > 0, "Model state is empty, please check the checkpoint and checkpoint path"

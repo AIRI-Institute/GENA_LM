@@ -3,8 +3,10 @@
 ## Environment Setup
 
 ```bash
-conda env create -f environment.yml
-conda activate annotation
+conda env create -n bert24 -f bert24_env.yml
+conda activate bert24
+python -m pip install -r requirements.txt
+
 # for modernbert support, also install FA (provided below for A100):
 # pip install "flash_attn==2.6.3" --no-build-isolation
 
