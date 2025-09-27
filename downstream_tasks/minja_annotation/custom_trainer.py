@@ -72,6 +72,11 @@ class DetectTrainStepStart(TrainerCallback):
         control.is_in_train_step = True # save train step flag to state
         return control
 
+class DataloaderWithEpochReseed(DataLoader):    
+    def set_epoch(self, epoch):
+        if hasattr(self.dataset, 'reseed_epoch'):
+            self.dataset.reseed_epoch(epoch+1)
+
 class CustomTrainer(Trainer):
     """Custom trainer that properly handles DataLoader with worker_init_fn for multi-GPU training."""
 
@@ -95,7 +100,7 @@ class CustomTrainer(Trainer):
         
         train_sampler = self._get_train_sampler()
         
-        return DataLoader(
+        return DataloaderWithEpochReseed(
             self.train_dataset,
             batch_size=self.args.per_device_train_batch_size,
             sampler=train_sampler,
@@ -113,7 +118,7 @@ class CustomTrainer(Trainer):
         eval_dataset = eval_dataset if eval_dataset is not None else self.eval_dataset
         eval_sampler = self._get_eval_sampler(eval_dataset)
         
-        return DataLoader(
+        return DataloaderWithEpochReseed(
             eval_dataset,
             sampler=eval_sampler,
             batch_size=self.args.per_device_eval_batch_size,

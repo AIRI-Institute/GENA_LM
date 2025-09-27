@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple
 from transformers import AutoTokenizer
 import logging
 import random
+import subprocess
 
 class GenomicAnnotationDataset(Dataset):
 	"""
@@ -35,12 +36,14 @@ class GenomicAnnotationDataset(Dataset):
 		min_chromosome_length: int = 100000, # minimum length of a chromosome to be included in the dataset
 		exclude_chromosomes: List[str] | str | None = None, # chromosomes to exclude
 		include_chromosomes: List[str] | str | None = None, # chromosomes to include
+		variants_path: str | None = None, # path to variants file (bcf)
 		primary_transcript_types: List[str] | None = None, # transcript types to require for a transcript to be included as primary
 		primary_tags: List[str] | None = ["GENCODE_Primary", "MANE_Select"], # tags to require for a transcript to be included as primary
 		gap_token_id: int = 5, # token id for gap
 		unknown_token_id: int = 12, # token id for unknown
 		logger: logging.Logger = None,
 		seed: int = 42,
+		epoch_base_seed: int | None = None,
 	):
 		"""
 		Initialize the GenomicAnnotationDataset.
@@ -60,8 +63,11 @@ class GenomicAnnotationDataset(Dataset):
 			exclude_chromosomes: Chromosomes to exclude
 			include_chromosomes: Chromosomes to include
 			min_chromosome_length: Minimum length of a chromosome to be included in the dataset
+			variants_path: Path to variants file (bcf). May contain %s to indicate the chromosome name, i.e. "vcf/1kGP_high_coverage_Illumina.%s.filtered.SNV_INDEL_SV_phased_panel.vcf"
 			primary_transcript_types: Transcript types to require for a transcript to be included as primary
 			primary_tags: Tags to require for a transcript to be included as primary
+			seed: Seed for the random number generator
+			epoch_base_seed: Seed for the random number generator, will be modified each epoch. If set to None, will be set to the seed
 		"""
 		self.model_input_length_token = model_input_length_token
 		self.av_token_len = av_token_len
@@ -87,6 +93,14 @@ class GenomicAnnotationDataset(Dataset):
 		self.files_opened = False
 		self.seed = seed
 		random.seed(self.seed)
+		self.current_epoch = 0 # DEBUG
+
+		if epoch_base_seed is None:
+			self.epoch_base_seed = self.seed
+		else:
+			self.epoch_base_seed = epoch_base_seed
+		self.epoch_reseeded = False
+
 		self.complement_map = str.maketrans("ATGCN", "TACGN")
 		self.strand = strand
 		assert self.strand in ["+", "-", "random"], "Strand must be +, -, or random"
@@ -98,8 +112,13 @@ class GenomicAnnotationDataset(Dataset):
 
 		self.exclude_chromosomes = exclude_chromosomes
 		self.include_chromosomes = include_chromosomes
+		assert self.exclude_chromosomes is None or self.include_chromosomes is None, "Only one of exclude_chromosomes and include_chromosomes can be provided"
+
 		self.min_chromosome_length = min_chromosome_length
 		assert self.min_chromosome_length > 0, "min_chromosome_length must be greater than 0"
+
+		self.variants_path = variants_path
+		assert (self.variants_path is None) or os.path.exists(self.variants_path) or self.variants_path.find("%s") != -1, f"provided {self.variants_path} is not valid path or does not contain %s"
 
 		if primary_transcript_types is not None and isinstance(primary_transcript_types, str):
 			primary_transcript_types = primary_transcript_types.split(",")
@@ -107,9 +126,7 @@ class GenomicAnnotationDataset(Dataset):
 			primary_tags = primary_tags.split(",")
 		self.transcript_type_filter = primary_transcript_types
 		self.tags_filter = primary_tags
-		
-		assert self.exclude_chromosomes is None or self.include_chromosomes is None, "Only one of exclude_chromosomes and include_chromosomes can be provided"
-						
+								
 		# Compute chunk parameters
 		self.chunk_length = int(model_input_length_token * av_token_len)
 		self.genomic_chunk_length = int(self.chunk_length * max_genomic_chunk_ratio)
@@ -132,6 +149,11 @@ class GenomicAnnotationDataset(Dataset):
 			self.logger.error(f"Failed to open files: {e}")
 			raise e
 
+	def reseed_epoch(self, epoch_number: int):
+		"""Re-seed the random number generator for the current epoch."""
+		self.epoch_reseeded = True
+		self.logger.info(f"Re-seeding dataset random number generator for epoch {epoch_number}")
+		self.current_epoch = epoch_number
 
 	def _init_fasta(self):
 		"""Initialize FASTA file reader using pysam."""
@@ -152,6 +174,36 @@ class GenomicAnnotationDataset(Dataset):
 				continue
 			self.chrom_info[chrom] = self.fasta.get_reference_length(chrom)
 		self.logger.info(f"Initialized FASTA file with {len(self.chrom_info)} out of {len(self.fasta.references)} chromosomes")
+
+		if self.variants_path is not None:
+			self.vcf = {}
+			self.vcf_samples = None
+			if self.variants_path.find("%s") == -1:
+				vcf_file = pysam.VariantFile(self.variants_path)
+				vcf_chroms = list(vcf_file.header.contigs)
+				self.vcf_samples = list(vcf_file.header.samples)
+			
+			for chrom in self.chrom_info.keys():
+				if self.variants_path.find("%s") == -1 and chrom in vcf_chroms:
+					vcf_path = self.variants_path
+				else:
+					vcf_path = self.variants_path % chrom
+					if not os.path.exists(vcf_path):
+						self.logger.info(f"VCF file {vcf_path} not found")
+						vcf_path = None
+					else:
+						vcf_file = pysam.VariantFile(vcf_path)
+						vcf_chroms = list(vcf_file.header.contigs)
+						assert chrom in vcf_chroms, f"Chromosome {chrom} not found in VCF file {vcf_path}"
+						if self.vcf_samples is None:
+							self.vcf_samples = list(vcf_file.header.samples)
+						else:
+							assert set(self.vcf_samples) == set(list(vcf_file.header.samples)), f"VCF file {vcf_path} has different samples compared to the first VCF file seen: \n {self.vcf_samples} \n {list(vcf_file.header.samples)}"
+				self.vcf[chrom] = vcf_path
+			
+			existing_vcf_files = sum([i is not None for i in self.vcf.values()])
+			assert existing_vcf_files > 0, "No variants overlapped with reference chromosomes found in any of the VCF files"
+			self.logger.info(f"Found variants for {existing_vcf_files} out of {len(self.vcf)} chromosomes")
 			
 	def _init_gff_db(self):
 		"""Initialize GFF database."""
@@ -224,7 +276,85 @@ class GenomicAnnotationDataset(Dataset):
 			
 		chunk_info = self.chunks[item_id]
 		return chunk_info['chrom'], chunk_info['start'], chunk_info['end'], strand
+
+	def _get_genomic_sequence_with_variants(self, chrom: str, start: int, end: int, vcf_file: str, vcf_sample: str, vcf_haplotype: int = 0) -> str:
+		"""
+		Extract genomic sequence from FASTA file augmenting it with variants.
+
+		Args:
+			chrom: Chromosome name
+			start: Start position (0-based)
+			end: End position (0-based, exclusive)
+			vcf_sample: Sample name
+			vcf_haplotype: Haplotype number
+		"""
 		
+		# Run samtools faidx and pipe to bcftools consensus
+		# note: 1-based closed interval is used for samtools faidx, but we expect 0-based half-open interval output
+		samtools_cmd = [
+			"samtools", "faidx", self.path_to_fasta, f"{chrom}:{start+1}-{end}"
+		]
+		bcftools_cmd = [
+			"bcftools", "consensus",
+			"--sample", str(vcf_sample),
+			"--haplotype", str(vcf_haplotype),
+			"--include", "MAX(ILEN)=0", # exclude indels
+			vcf_file
+		]
+
+		try:
+			samtools_proc = subprocess.Popen(
+				samtools_cmd,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.PIPE
+			)
+			bcftools_proc = subprocess.Popen(
+				bcftools_cmd,
+				stdin=samtools_proc.stdout,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.PIPE,
+				text=True
+			)
+			samtools_proc.stdout.close()  # Allow samtools to receive a SIGPIPE if bcftools exits
+			out, err = bcftools_proc.communicate()
+		except Exception as e:
+			self.logger.error(f"Error running pipeline: {e}")
+			self.logger.error(f"samtools_cmd: {' '.join(samtools_cmd)}")
+			self.logger.error(f"bcftools_cmd: {' '.join(bcftools_cmd)}")
+			raise e
+
+		if bcftools_proc.returncode != 0:
+			self.logger.error(f"bcftools consensus error: {err}")
+			raise e
+		else:
+			resulting_fasta = "".join(out.split("\n")[1:]).upper() # remove header line
+			assert len(set(resulting_fasta) - {"A", "C", "G", "T", "N"}) == 0, f"""
+				resulting_fasta contains invalid characters: 
+				chrom: {chrom} 
+				start: {start} 
+				end: {end} 
+				vcf_file: {vcf_file} 
+				vcf_sample: {vcf_sample} 
+				vcf_haplotype: {vcf_haplotype} 
+				resulting_fasta: {resulting_fasta}
+				invalid characters: {set(resulting_fasta) - {"A", "C", "G", "T", "N"}}
+				number of invalid characters: {len(set(resulting_fasta) - {"A", "C", "G", "T", "N"})}
+				"""
+			assert len(resulting_fasta) == end - start, f"""
+			resulting_fasta length is {len(resulting_fasta)} but end - start is {end - start}
+			chrom: {chrom} 
+			start: {start} 
+			end: {end} 
+			vcf_file: {vcf_file} 
+			vcf_sample: {vcf_sample} 
+			vcf_haplotype: {vcf_haplotype} 
+			resulting_fasta: {resulting_fasta}
+			samtools_cmd: {' '.join(samtools_cmd)}
+			bcftools_cmd: {' '.join(bcftools_cmd)}
+			"""
+			return resulting_fasta
+
+
 	def _get_genomic_sequence(self, chrom: str, start: int, end: int, strand: str) -> str:
 		"""
 		Extract genomic sequence from FASTA file.
@@ -246,7 +376,18 @@ class GenomicAnnotationDataset(Dataset):
 		# Get extended sequence for tokenization
 		extended_end = min(end + int(self.genomic_chunk_length - self.chunk_length), chrom_length)
 		assert extended_end >= end >= start
-		sequence = self.fasta.fetch(chrom, start, extended_end).upper()
+		if self.variants_path is not None and chrom in self.vcf: # call bcftools consensus to get the sequence with variants
+			if not self.epoch_reseeded:
+				self.logger.warning("Epoch was not reseeded, using the same vcf files order for all epochs")
+			generator = np.random.default_rng(self.epoch_base_seed + self.current_epoch + start)
+			vcf_sample = generator.choice(self.vcf_samples)
+			sequence = self._get_genomic_sequence_with_variants(chrom, start, extended_end, 
+																vcf_file=self.vcf[chrom], 
+																vcf_sample=vcf_sample, 
+																vcf_haplotype=1
+															)
+		else: # get the sequence from the FASTA file
+			sequence = self.fasta.fetch(chrom, start, extended_end).upper()
 		assert strand in ["+", "-"], "Strand must be + or -"
 		if strand == "-":
 			sequence = sequence.translate(self.complement_map)[::-1]
@@ -585,11 +726,11 @@ def toIGV(sample: Dict, tokenizer: AutoTokenizer, IGV_files_prefix: str, file_mo
 				bed_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\t{strand}\n")
 
 def worker_init_fn(worker_id):
-    """Initialize worker with proper file handling for multi-GPU training."""
-    worker_info = torch.utils.data.get_worker_info()
-    if worker_info is not None:
-        dataset = worker_info.dataset
-        dataset.open_files()
+	"""Initialize worker with proper file handling for multi-GPU training."""
+	worker_info = torch.utils.data.get_worker_info()
+	if worker_info is not None:
+		dataset = worker_info.dataset
+		dataset.open_files()
 
 def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
 		"""
