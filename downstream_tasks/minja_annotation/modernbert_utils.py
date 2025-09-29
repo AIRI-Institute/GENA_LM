@@ -18,7 +18,14 @@ from src import mosaic_bert as mosaic_bert_module
 from src.bert_layers.model import FlexBertModel
 import src.bert_layers.configuration_bert as configuration_bert_module
 from composer.utils.checkpoint import _ensure_valid_checkpoint
+
+#########################################
+# those imports are required to add into safe_globals
 from datetime import timedelta, datetime, timezone, date, time
+from numpy.core.multiarray import _reconstruct
+from numpy import ndarray, dtype
+########################################
+
 from torch.torch_version import TorchVersion
 import contextlib
 
@@ -93,7 +100,16 @@ def load_flexbert_model(model_path, logger,
 	checkpoint_filepath = os.path.join(model_path, "latest-rank0.pt")	
 	logger.info(f"Loading checkpoint from {checkpoint_filepath}")
 	safe_ctx = getattr(torch.serialization, "safe_globals", None)
-	SAFE_GLOBALS = [timedelta, datetime, timezone, date, time, TorchVersion]
+	SAFE_GLOBALS = [timedelta, datetime, timezone, date, time, TorchVersion, _reconstruct, ndarray, dtype]
+	try:
+		from numpy import dtypes as _npdt
+		for n in ["UInt32DType","UInt64DType","Int32DType","Int64DType","Float32DType","Float64DType","BoolDType"]:
+			if hasattr(_npdt,n): 
+				SAFE_GLOBALS.append(getattr(_npdt,n))
+	except Exception as e: 
+		print ("Error adding numpy dtypes")
+		raise e
+
 	ctx = safe_ctx(SAFE_GLOBALS) if safe_ctx else contextlib.nullcontext()
 	with ctx:
 		state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu",
