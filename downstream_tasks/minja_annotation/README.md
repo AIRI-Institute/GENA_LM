@@ -25,6 +25,8 @@ python3 prepare_data.py
 CUDA_VISIBLE_DEVICES=1 GENALM_HOME=$(realpath ../../)  python train_with_accelerate.py --config configs/test.yaml
 # for modergena:
 MODERNBERT_HOME="/disk/10tb/home/fishman/DNALM/ModernBERT" GENALM_HOME=$(realpath ../../) python train_with_accelerate.py --config configs/modernGENA.yaml
+# or this one-liner with cd and tmp dir:
+cd ~/DNALM/GENA_LM/downstream_tasks/minja_annotation/; conda activate bert24; TMPDIR=$HOME/tmp/ CUDA_VISIBLE_DEVICES=0 MODERNBERT_HOME="/disk/10tb/home/fishman/DNALM/ModernBERT" GENALM_HOME=$(realpath ../../) python train_with_accelerate.py --config configs/test_vcf.yaml
 ```
 
 ## Evaluate:
