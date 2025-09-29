@@ -68,10 +68,10 @@ for chr in {1..22}; do
 done
 
 vcf_file="1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.v2.vcf.gz"
-output_vcf_file=${outdir}/"1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.vcf"
+output_vcf_file=${outdir}/"1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.vcf.gz"
 
 tbi_file="1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.v2.vcf.gz.tbi"
-output_tbi_file=${outdir}/"1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.vcf.tbi"
+output_tbi_file=${outdir}/"1kGP_high_coverage_Illumina.chrX.filtered.SNV_INDEL_SV_phased_panel.vcf.gz.tbi"
 
 download_if_not_exists "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20220422_3202_phased_SNV_INDEL_SV/${vcf_file}" "$output_vcf_file" "1000 Genomes VCF for chromosome ${chr}"
 download_if_not_exists "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/20220422_3202_phased_SNV_INDEL_SV/${tbi_file}" "$output_tbi_file" "1000 Genomes TBI index for chromosome ${chr}"

@@ -376,7 +376,7 @@ class GenomicAnnotationDataset(Dataset):
 		# Get extended sequence for tokenization
 		extended_end = min(end + int(self.genomic_chunk_length - self.chunk_length), chrom_length)
 		assert extended_end >= end >= start
-		if self.variants_path is not None and chrom in self.vcf: # call bcftools consensus to get the sequence with variants
+		if self.variants_path is not None and chrom in self.vcf and self.vcf[chrom] is not None: # call bcftools consensus to get the sequence with variants
 			if not self.epoch_reseeded:
 				self.logger.warning("Epoch was not reseeded, using the same vcf files order for all epochs")
 			generator = np.random.default_rng(self.epoch_base_seed + self.current_epoch + start)
