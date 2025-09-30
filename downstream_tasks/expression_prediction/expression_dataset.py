@@ -104,11 +104,11 @@ class ExpressionDataset(Dataset):
 
         self.read_paths()
 
-        forward_genes = pd.read_csv(forward_intervals_path, sep = '\t') if forward_intervals_path is not None else pd.DataFrame()
-        assert not "strand" in forward_genes.columns.values, "forward_intervals_path must not contain strand column"
+        forward_genes = pd.read_csv(forward_intervals_path, sep=None, engine="python") if forward_intervals_path is not None else pd.DataFrame()
+#        assert not "strand" in forward_genes.columns.values, "forward_intervals_path must not contain strand column"
         forward_genes["strand"] = "+"
-        reverse_genes = pd.read_csv(reverse_intervals_path, sep = '\t') if reverse_intervals_path is not None else pd.DataFrame()
-        assert not "strand" in reverse_genes.columns.values, "reverse_intervals_path must not contain strand column"
+        reverse_genes = pd.read_csv(reverse_intervals_path, sep=None, engine="python") if reverse_intervals_path is not None else pd.DataFrame()
+#        assert not "strand" in reverse_genes.columns.values, "reverse_intervals_path must not contain strand column"
         reverse_genes["strand"] = "-"
         self.genes = pd.concat([forward_genes, reverse_genes])
 
