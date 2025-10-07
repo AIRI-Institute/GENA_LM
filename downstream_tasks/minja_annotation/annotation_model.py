@@ -1,12 +1,14 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, AutoModel
+from transformers import BertModel, AutoModel, AutoModelForCausalLM
 import importlib
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any, Dict
 from transformers.modeling_outputs import TokenClassifierOutput
-
 import os, logging
+import types
+from collections import Counter
+
 
 @dataclass
 class AnnotationModelOutput(TokenClassifierOutput):
@@ -174,6 +176,210 @@ class AnnotationModel(torch.nn.Module):
 			loss=loss['total'],
 			loss_TSS=loss['tss'],
 			loss_polya=loss['polya'],
+			logits=logits,
+			predicts=predicts,
+		)
+
+
+
+
+
+class ARMT_AnnotationModel(nn.Module):
+	"""
+	Wrap a GENA-LM BERT TokenClassification model with ARMT (AssociativeMemoryCell + AssociativeRecurrentWrapper).
+	The base encoder is pulled from HF as a pretrained AutoModel, then packed into BertForTokenClassification
+	with its classifier replaced by nn.Identity() so the model returns logits equal to last_hidden_state.
+	"""
+
+	def __init__(
+		self,
+		output_dir: Optional[str] = None,
+		config: Optional[Any] = None,
+		pretrained_cpt: Optional[str] = None,		# unused; require base_model_name explicitly
+		modernbert_cpt: Optional[str] = None,		# unused; require base_model_name explicitly
+		activation: Optional[nn.Module] = None,
+		classifier: Optional[nn.Module] = None,
+		loss_fct: Optional[nn.Module] = None,
+		logger: Optional[logging.Logger] = None,
+
+		# ARMT source (to import its classes)
+		armt_repo_id: str = "irodkin/armt-neox-tiny",
+
+		# REQUIRED backbone on HF (e.g., "AIRI-Institute/gena-lm-bert-base-t2t")
+		base_model_name: Optional[str] = None,
+
+		# ARMT configuration (complete set wired through)
+		num_mem_tokens: int = 16,
+		d_mem: int = 32,
+		segment_size: int = 128,
+		segment_alignment: str = "left",
+		sliding_window: bool = False,
+		layers_attr: str = "bert.encoder.layer",
+		wrap_pos: bool = False,
+		correction: bool = True,
+		n_heads: int = 1,
+		use_denom: bool = True,
+		gating: bool = False,
+		freeze_mem: bool = False,
+		act_on: bool = False,
+		max_hop: int = 4,
+		act_type: str = "associative",
+		constant_depth: bool = False,
+		act_format: str = "linear",
+		noisy_halting: bool = False,
+		attend_to_previous_input: bool = False,
+		use_sink: bool = False,
+		time_penalty: float = 0.0,
+	):
+		super().__init__()
+		self.logger = logger or logging.getLogger(__name__)
+		self.activation = activation
+		self.loss_fct = loss_fct
+
+		if base_model_name is None:
+			raise ValueError("Provide `base_model_name` (HF repo id).")
+
+		# Import ARMT classes from the remote module
+		loaded = AutoModelForCausalLM.from_pretrained(armt_repo_id, trust_remote_code=True)
+		armt_mod = importlib.import_module(loaded.__class__.__module__)
+		AssociativeMemoryCell = getattr(armt_mod, "AssociativeMemoryCell")
+		AssociativeRecurrentWrapper = getattr(armt_mod, "AssociativeRecurrentWrapper")
+
+		# Pull pretrained encoder and assemble a TokenClassification model with Identity head
+		auto_backbone = AutoModel.from_pretrained(base_model_name, trust_remote_code=True)
+		gena_mod = importlib.import_module(auto_backbone.__class__.__module__)
+		BertForTokenClassification = getattr(gena_mod, "BertForTokenClassification")
+
+		base_tc = BertForTokenClassification(auto_backbone.config)
+		# Load encoder weights as-is (state dict names are already compatible in the repo)
+		missing, unexpected = base_tc.load_state_dict(auto_backbone.state_dict(), strict=False)
+		if any(k for k in missing if not k.startswith("classifier.")):
+			self.logger.warning(f"[ARMT_AnnotationModel] Missing non-classifier keys: {missing}")
+		if unexpected:
+			self.logger.warning(f"[ARMT_AnnotationModel] Unexpected keys during load: {unexpected}")
+
+		if not hasattr(base_tc, "classifier"):
+			raise RuntimeError("BertForTokenClassification must have `.classifier`.")
+		base_tc.classifier = nn.Identity()
+
+		# Accept and ignore cache-related kwargs ARMT may pass
+		base_tc._orig_forward = base_tc.forward
+		def _forward_ignoring_cache(self_, *args, use_cache=None, past_key_values=None, **kwargs):
+			kwargs.pop("use_cache", None)
+			kwargs.pop("past_key_values", None)
+			return self_._orig_forward(*args, **kwargs)
+		base_tc.forward = types.MethodType(_forward_ignoring_cache, base_tc)
+
+		self._encoder_cfg = auto_backbone.config
+		bert_encoder = base_tc.bert
+
+		def collect_param_summaries(model: nn.Module) -> tuple[float, int, Dict[str, float]]:
+			"""
+			Return (total_sum, param_count, per_param_sum_map) for all parameters in `model`.
+			Per-parameter values are simple scalar sums of the underlying tensors.
+			"""
+			total = 0.0
+			count = 0
+			vals: Dict[str, float] = {}
+			for name, p in model.named_parameters():
+				if p is None or p.data is None:
+					continue
+				s = p.data.float().sum().item()
+				vals[name] = s
+				total += s
+				count += 1
+			return total, count, vals
+
+		def quantize_sum(value: float, decimals: int = 6) -> float:
+			"""Round a float to `decimals` places to absorb tiny numeric noise when matching by value."""
+			return float(f"{value:.{decimals}f}")
+
+		# First pass: capture encoder totals and value multiset
+		pre_total_sum, pre_count, pre_map = collect_param_summaries(bert_encoder)
+		self.logger.info(f"[ARMT_AnnotationModel] Encoder pre-ARMT total sum: {pre_total_sum:.6f}")
+		first_pass_value_multiset = Counter(quantize_sum(v) for v in pre_map.values())
+
+		# Build ARMT stack on the full TC model so outputs carry `logits`
+		memory_cell = AssociativeMemoryCell(
+			base_model=base_tc,
+			num_mem_tokens=num_mem_tokens,
+			d_mem=d_mem,
+			layers_attr=layers_attr,
+			wrap_pos=wrap_pos,
+			correction=correction,
+			n_heads=n_heads,
+			use_denom=use_denom,
+			gating=gating,
+			freeze_mem=freeze_mem,
+			act_on=act_on,
+			max_hop=max_hop,
+			act_type=act_type,
+			constant_depth=constant_depth,
+			act_format=act_format,
+			noisy_halting=noisy_halting,
+			attend_to_previous_input=attend_to_previous_input,
+			use_sink=use_sink
+		)
+
+		recurrent = AssociativeRecurrentWrapper(
+			memory_cell,
+			segment_size=segment_size,
+			segment_alignment=segment_alignment,
+			sliding_window=sliding_window,
+			attend_to_previous_input=attend_to_previous_input,
+			act_on=act_on,
+			time_penalty=time_penalty
+		)
+		self.armt = recurrent
+
+		# Second pass: totals and value-based multiset matching (name-agnostic)
+		enc_after = self.armt.memory_cell.model.bert
+		post_total_sum, post_count, post_map = collect_param_summaries(enc_after)
+		self.logger.info(f"[ARMT_AnnotationModel] Encoder post-ARMT total sum: {post_total_sum:.6f}")
+
+		remaining = first_pass_value_multiset.copy()
+		matches = 0
+		for s in post_map.values():
+			key = quantize_sum(s)
+			if remaining.get(key, 0) > 0:
+				remaining[key] -= 1
+				if remaining[key] == 0:
+					del remaining[key]
+				matches += 1
+
+		assert matches == pre_count, \
+			f"Value-based match count mismatch: matched {matches} vs first-pass param count {pre_count}"
+
+		# Size the downstream classifier head from the encoder config
+		self.classifier = classifier
+		self.classifier.set_params(self._encoder_cfg)
+
+	def forward(self, input_ids, attention_mask, targets=None, return_loss: bool = True):
+		out = self.armt(input_ids=input_ids, attention_mask=attention_mask)
+
+		assert hasattr(out, "logits") and out.logits is not None, "ARMT output must provide `logits`"
+		hidden = out.logits
+		assert len(hidden.size()) == 3, f"Expected 3D hidden states, got {hidden.size()}"
+		assert hidden.size(0) == input_ids.size(0), f"Batch mismatch: {hidden.size(0)} != {input_ids.size(0)}"
+		assert hidden.size(1) == input_ids.size(1), f"Seq len mismatch: {hidden.size(1)} != {input_ids.size(1)}"
+		assert hidden.size(2) == getattr(self._encoder_cfg, "hidden_size"), \
+			f"Hidden size mismatch: {hidden.size(2)} != {getattr(self._encoder_cfg, 'hidden_size')}"
+
+		logits = self.classifier(hidden)
+		predicts = self.activation(logits)
+
+		losses = {
+			"total": torch.tensor(0.0, device=logits.device),
+			"tss":   torch.tensor(0.0, device=logits.device),
+			"polya": torch.tensor(0.0, device=logits.device),
+		}
+		if (targets is not None) and return_loss:
+			losses = self.loss_fct(predicts, targets)
+
+		return AnnotationModelOutput(
+			loss=losses["total"],
+			loss_TSS=losses["tss"],
+			loss_polya=losses["polya"],
 			logits=logits,
 			predicts=predicts,
 		)
