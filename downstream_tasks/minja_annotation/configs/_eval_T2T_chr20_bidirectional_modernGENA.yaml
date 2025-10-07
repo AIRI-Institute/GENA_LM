@@ -45,6 +45,7 @@ eval_dataset:
   primary_transcript_types: ["protein_coding"]
   primary_tags: ["GENCODE_Primary", "MANE_Select"]
   strand: "random"
+  drop_last: False
 
 dataloader:
   _target_: "torch.utils.data.DataLoader"

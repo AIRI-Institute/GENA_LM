@@ -30,6 +30,7 @@ class GenomicAnnotationDataset(Dataset):
 		max_samples_number: int | None = None,
 		chunk_overlap: float = 0,
 		max_genomic_chunk_ratio: float = 1.5,
+		drop_last: bool = True,
 		strand: str = "+",
 		TSS_prob_width: float = 10, # in base pairs
 		polyA_prob_width: float = 10, # in base pairs
@@ -57,6 +58,7 @@ class GenomicAnnotationDataset(Dataset):
 			tokenizer: AutoTokenizer from transformers (BPE tokenizer)
 			chunk_overlap: Overlap between chunks as a fraction of the chunk length
 			max_genomic_chunk_ratio: Ratio to increase genomic chunk size for tokenization
+			drop_last: If True, will drop the last chunk if it is not a full chunk
 			strand: Strand of the sequence, options are "+", "-", or "random"
 			TSS_prob_width: Width of the TSS probability distribution in base pairs, will be used to compute TSS probability as exp(-dist/TSS_prob_width)
 			polyA_prob_width: Width of the polyA probability distribution in base pairs, will be used to compute polyA probability as exp(-dist/polyA_prob_width)
@@ -84,6 +86,7 @@ class GenomicAnnotationDataset(Dataset):
 		self.chunk_overlap = chunk_overlap
 		assert chunk_overlap >= 0 and chunk_overlap < 1, "Chunk overlap must be between 0 and 1"
 		self.max_genomic_chunk_ratio = max_genomic_chunk_ratio
+		self.drop_last = drop_last
 		
 		# annotation targets
 		self.TSS_prob_width = TSS_prob_width
@@ -227,7 +230,10 @@ class GenomicAnnotationDataset(Dataset):
 				continue
 				
 			# Compute number of chunks for this chromosome
-			num_chunks = max(1, (length - shift) // step_size)
+			if self.drop_last:
+				num_chunks = max(1, (length - shift) // step_size)
+			else:
+				num_chunks = max(1, length // step_size)
 			
 			for chunk_idx in range(num_chunks):
 				start_pos = chunk_idx * step_size
@@ -237,6 +243,15 @@ class GenomicAnnotationDataset(Dataset):
 					'chrom': chrom,
 					'start': start_pos,
 					'end': end_pos,
+					'chunk_id': total_chunks
+				})
+				total_chunks += 1
+		
+			if not self.drop_last and end_pos < length:
+				self.chunks.append({
+					'chrom': chrom,
+					'start': end_pos,
+					'end': length,
 					'chunk_id': total_chunks
 				})
 				total_chunks += 1
