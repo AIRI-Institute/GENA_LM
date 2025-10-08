@@ -1,9 +1,9 @@
 HOME_PATH: ${oc.env:GENALM_HOME}
-model_cpt: /home/jovyan/shmelev/annotation_minja_edition/GENA_LM/runs/annotation/basic/checkpoint-24000/model.safetensors
-output_dir: /home/jovyan/shmelev/annotation_minja_edition/GENA_LM/runs/annotation/basic/checkpoint-24000/
+model_cpt: /home/jovyan/shmelev/annotation_minja_edition/GENA_LM/runs/annotation/basic/checkpoint-19986/model.safetensors
+output_dir: /home/jovyan/shmelev/annotation_minja_edition/GENA_LM/runs/annotation/basic/checkpoint-19986/
 chromosome: "NC_060944.1"
 
-batch_size: 8
+batch_size: 1
 
 logging:
   level: INFO
@@ -50,7 +50,7 @@ region: null
 
 eval_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
-  model_input_length_token: 4096
+  model_input_length_token: 32000
   av_token_len: 9.0
   chunk_overlap: 0.5
   path_to_gff_db: ${HOME_PATH}/data/annotation/GCF_009914755.1_T2T-CHM13v2.0.gff.db
