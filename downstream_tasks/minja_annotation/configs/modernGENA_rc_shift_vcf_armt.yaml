@@ -2,7 +2,7 @@
 # https://github.com/facebookresearch/hydra/issues/1286 - some notes on how to use hydra configs
 
 HOME_PATH: ${oc.env:GENALM_HOME}
-output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift/
+output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift_vcf_armt/
 batch_size: 1
 total_batch_size: 960
 
@@ -11,26 +11,41 @@ logging:
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 model:
-  _target_: "annotation_model.AnnotationModel"
+  _target_: "annotation_model.ARMT_AnnotationModel"
   output_dir: ${output_dir}
-  config: null  # Path to the BERT configuration file; null will load from huggingface
-  modernbert_cpt: "/home/jovyan/shmelev/annotation_minja_edition/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/"  # Path to the ModernBERT checkpoint
+  config: null
+  modernbert_cpt: "/home/jovyan/shmelev/annotation_minja_edition/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/"
   classifier:
     _target_: "annotation_model.Linear_Classifier_with_dropout"
-    num_labels: 4  # TSS and polyA for + and - strands
-    num_layers: 1  # Number of layers
-    classifier_dropout: 0.0  # Dropout rate
+    num_labels: 4
+    num_layers: 1
+    classifier_dropout: 0.0
   activation:
     _target_: "torch.nn.Identity"
   loss_fct:
     _target_: "annotation_model.WeightedBCEWithLogitsLoss"
-    # set both weight to 1 to get standard BCEWithLogitsLoss
-    w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
-    w_intergenic: 0.1  # Weight for intergenic regions (only affects polyA)
+    w_nonprimary_exists: 0.0
+    w_intergenic: 0.5
+
+  armt_repo_id: "irodkin/armt-neox-tiny"
+
+  num_mem_tokens: 5
+  d_mem: 64
+  segment_size: 507
+  segment_alignment: "left"
+  sliding_window: false
+  layers_attr: "encoder.layers"
+  wrap_pos: false
+  correction: true
+  n_heads: 1
+  use_denom: true
+  gating: false
+  freeze_mem: false
+  act_on: false
 
 train_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
-  model_input_length_token: 1024
+  model_input_length_token: 4096
   av_token_len: 9.0
   path_to_gff_db: ${HOME_PATH}/data/annotation/gencode.v48.annotation.gtf.db
   path_to_fasta: ${HOME_PATH}/data/annotation/hg38.fa
@@ -43,6 +58,7 @@ train_dataset:
   primary_tags: ["GENCODE_Primary", "MANE_Select"]
   chunk_overlap: 0.5
   strand: "random"
+  variants_path: ${HOME_PATH}/data/annotation/1kg_variants/1kGP_high_coverage_Illumina.%s.filtered.SNV_INDEL_SV_phased_panel.vcf.gz
 
 valid_dataset:
   _target_: ${train_dataset._target_}
@@ -79,7 +95,7 @@ TrainingArguments:
   eval_steps: 250
   metric_for_best_model: "eval_loss"
   lr_scheduler_type: "constant"
-  num_train_epochs: 10
+  num_train_epochs: 100
   logging_steps: 50
   report_to: "tensorboard"
 
