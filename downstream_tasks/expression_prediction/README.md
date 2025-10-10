@@ -8,14 +8,12 @@ Follow steps in [datasets-->README.md](https://github.com/minjaf/ExpressionPredi
 ```
 cd ..
 mkdir -p soft
-cd GENA_LM/downstream_tasks/expression_prediction/
-cp -v environment.yml ../../../soft/
-cd ../../../soft
+cd soft
+conda create -n expression python=3.11
+conda activate expression
 git clone --branch feat/trainer_with_accelerate https://github.com/yurakuratov/t5-experiments.git
-conda env create -f environment.yml
 cd t5-experiments
-python -m pip install -e .
-conda activate aspeedok_acc 
+python -m pip install -e . 
 ```
 
 ## Configuration
