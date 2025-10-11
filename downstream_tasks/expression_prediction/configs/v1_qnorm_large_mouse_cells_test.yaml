@@ -1,0 +1,51 @@
+# shared dataset parameters
+shared_dataset_params:
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+  num_before: 250
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+  gen_max_seq_len: ${args_params.input_seq_len}
+  loglevel: 
+    "_target_": "logging.getLevelName"
+    "level": "DEBUG"
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    pseudocount: 1
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform    
+    pseudocount: 1   
+  seed: ${args_params.seed}
+
+
+train_dataset_mouse_full:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
+  tpm: tpm
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_mm10_CPM_file_mappings_qnorm.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+
+train_dataset_mouse_snRNA_MAT_artem:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
+  tpm: tpm
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+train_dataset_mouse_snRNA_Plant_artem:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
+  tpm: tpm
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+
+valid_dataset_mouse:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
+  tpm: tpm
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
+  
