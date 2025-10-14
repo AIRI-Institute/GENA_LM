@@ -1,0 +1,42 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+TASK_NAME: expression/qnorm_v1_mouse_large_test
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+OUTPUT_DIR_PATH: ${HOME_PATH}/results/${TASK_NAME}
+LOGGING_DIR_PATH: ${HOME_PATH}/logging/${TASK_NAME}
+training_arguments:
+  _target_: transformers.TrainingArguments
+  num_train_epochs: 10
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 32
+  warmup_steps: 500
+  weight_decay: 0.01
+  logging_dir: ${LOGGING_DIR_PATH}
+  logging_strategy: steps
+  logging_steps: 50
+  output_dir: ${OUTPUT_DIR_PATH}
+  eval_strategy: steps
+  eval_steps: 50
+  remove_unused_columns: false
+  load_best_model_at_end: true
+  save_strategy: steps
+  save_steps: 250
+  save_total_limit: 2
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: AIRI-Institute/gena-lm-bert-base-t2t
+training_dataset:
+  _target_: ddataset.ExpressionDataset
+  num_before: 250
+  gen_tokenizer: AIRI-Institute/gena-lm-bert-base-t2t
+  gen_max_seq_len: ${args_params.input_seq_len}
+  text_data_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl
+  loglevel:
+    _target_: logging.getLevelName
+    level: DEBUG
+  transform_targets_tpm:
+    _target_: dataset.LogTransform
+    pseudocount: 1
+model:
+  _target_: null
+trainer:
+  _target_: transformers.Trainer
