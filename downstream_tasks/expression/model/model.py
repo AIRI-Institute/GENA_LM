@@ -3,8 +3,11 @@ import torch.nn as nn
 
 from dataclasses import dataclass
 
-from transformers.models.bert.modeling_bert import BertPreTrainedModel
+from typing import Optional
+
+from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertConfig, BertModel
 from transformers.modeling_outputs import TokenClassifierOutput
+from transformers.utils import cached_file
 
 @dataclass
 class ExpressionCountsModelOutput(TokenClassifierOutput):
@@ -39,7 +42,7 @@ class ExpressionCountsModel(BertPreTrainedModel):
     def __init__(
         self,
         config,
-        loss_fct=nn.MSELoss(reduction="none"),
+        losses = None,
         activation = nn.Identity(),
         hidden_size_desc = 768,
         hidden_ff = 1024,
@@ -61,10 +64,10 @@ class ExpressionCountsModel(BertPreTrainedModel):
             self.bert = BertModel(hf_config, add_pooling_layer=False)
             weights_path = cached_file(hf_model_name, "pytorch_model.bin")
             state_dict = torch.load(weights_path, map_location="cpu")
+
             updated_state_dict = {
                 k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
             }
-
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
             config = hf_config
                                             
@@ -106,9 +109,8 @@ class ExpressionCountsModel(BertPreTrainedModel):
 
         # 5) Loss
         self.activation = activation
-        self.loss_fct = loss_fct
         self.weight = weight
-        self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
+        self.losses = losses
 
         self.post_init()
 
@@ -211,7 +213,7 @@ class ExpressionCountsModel(BertPreTrainedModel):
         dataset_deviation = None,
     ):
 
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = return_dict if not (return_dict is None) else self.config.use_return_dict
 
         # Прогоняем через GENA
         bert_outputs = self.bert(

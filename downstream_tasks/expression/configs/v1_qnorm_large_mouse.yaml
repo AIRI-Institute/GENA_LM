@@ -1,4 +1,5 @@
 HOME_PATH: ${oc.env:GENALM_HOME}
+DATA_PATH: ${oc.env:GENALM_HOME}/ExpressionPredict
 TASK_NAME: expression/qnorm_v1_mouse_large_test
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
 OUTPUT_DIR_PATH: ${HOME_PATH}/results/${TASK_NAME}
@@ -22,6 +23,14 @@ training_arguments:
   save_strategy: "steps"
   save_steps: 250
   save_total_limit: 2
+  learning_rate: 3e-5
+  optimizer: "adamw_torch"
+  max_steps: 350000
+  max_grad_norm: 1.0
+  lr_scheduler_type: "constant_with_warmup"
+  bf16: True
+  bf16_full_eval: True
+  torch_compile: True
 
 tokenizer:
   _target_: "transformers.AutoTokenizer.from_pretrained"
@@ -50,12 +59,6 @@ training_dataset:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   tpm: CPM
 
-training_dataloader:
-  _target_: torch.utils.data.
-  collate_fn:
-    _target_: dataset.ExpressionCollator
-    tokenizer: ${tokenizer}
-
 
 validation_dataset:
   _target_: utils.apply.apply_partial
@@ -65,9 +68,37 @@ validation_dataset:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   tpm: CPM
 
-model:
-  _target_: 
+base_model:
+  _target_: model.ExpressionCountsModel
+  config:
+    _target_: transformers.AutoConfig.from_pretrained
+    pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t" 
+    #"${HOME_PATH}/GENA_LM/data/configs/L12-H768-A12-V32k-preln.json"
+  hf: True
+  hf_model_name: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+rmt_model:
+  _target_: gena_lm.modeling_rmt.RMTEncoderExpression
+  base_model: ${base_model}
+  num_mem_tokens: 5
+  max_n_segments: 1
+  input_size: 256
+  bptt_depth: -1
+  sum_loss: True
+  tokenizer: ${tokenizer}
+  mixed_length_ratio: 0.0
+
+model: ${rmt_model}
+
+collate_fn:
+  _target_: dataset.ExpressionCollator
+  tokenizer: ${tokenizer}
 
 trainer:
   _target_: transformers.Trainer
+  model: ${model}
+  args: ${training_arguments}
+  data_collator: ${collate_fn}
+  train_dataset: ${training_dataset}
+  eval_dataset: ${validation_dataset}
 

@@ -16,10 +16,10 @@ def main(config: DictConfig) -> dict[str, int | float]:
 
 
     trainer = hydra.utils.instantiate(
-        config.get("training_dataset")
+        config.get("model")
     )
 
-    print(trainer, trainer[17])
+    print(trainer)
 
 if __name__ == "__main__":
     print(main())
