@@ -26,7 +26,7 @@ model:
     _target_: "annotation_model.WeightedBCEWithLogitsLoss"
     # set both weight to 1 to get standard BCEWithLogitsLoss
     w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
-    w_intergenic: 0.1  # Weight for intergenic regions (only affects polyA)
+    w_intergenic: 0.1  # Weight for intergenic regions (only affects polyA) (use 1 in case of stranded dataset)
 
 train_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"

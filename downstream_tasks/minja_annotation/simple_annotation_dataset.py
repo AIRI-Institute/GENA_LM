@@ -577,6 +577,10 @@ class GenomicAnnotationDataset(Dataset):
 			targets["intragenic_regions_+"] = targets["intragenic_regions_-"].clone()
 			targets["intragenic_regions_-"] = _
 
+		# add parametr to config
+		# zero this thing targets["intragenic_regions_-"]
+		# zero all combinations wuth ["primary", "uncertain"] and ["tss", "polya"] with - sign
+
 		# map basepair resolution targets to token resolution targets
 		targets_token = {}
 		for target_type in targets.keys():

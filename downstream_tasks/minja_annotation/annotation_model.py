@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, AutoModel, AutoModelForCausalLM
+from transformers import BertModel, AutoModel, AutoModelForCausalLM, ModernBertModel
 import importlib
 from dataclasses import dataclass
 from typing import Optional, Any, Dict
@@ -182,7 +182,7 @@ class AnnotationModel(torch.nn.Module):
 
 
 
-
+# MODERNBERT_HOME="/home/jovyan/DNALM/ModernBERT"
 
 
 
@@ -193,8 +193,7 @@ class ARMT_AnnotationModel(nn.Module):
     (AssociativeMemoryCell + AssociativeRecurrentWrapper).
 
     - HF BERT path: AutoModel -> BertForTokenClassification with Identity head.
-    - ModernBERT path: AutoModel (ModernBertModel) loaded with SDPA so layers
-      operate on padded (B, S, H) tensors and use the padded RoPE.
+    - ModernBERT path: ModernBertModel loaded with SDPA.
 
     Downstream `classifier` must implement `set_params(config)` and accept a
     3D tensor of shape (batch, seq, hidden_size).
@@ -204,26 +203,20 @@ class ARMT_AnnotationModel(nn.Module):
         self,
         output_dir: Optional[str] = None,
         config: Optional[Any] = None,
-        pretrained_cpt: Optional[str] = None,     # unused; require base_model_name explicitly
-        modernbert_cpt: Optional[str] = None,     # ModernBERT path (mutually exclusive with base_model_name)
+        pretrained_cpt: Optional[str] = None,
+        modernbert_cpt: Optional[str] = None,
         activation: Optional[nn.Module] = None,
         classifier: Optional[nn.Module] = None,
         loss_fct: Optional[nn.Module] = None,
         logger: Optional[logging.Logger] = None,
-
-        # ARMT source (to import its classes)
         armt_repo_id: str = "irodkin/armt-neox-tiny",
-
-        # REQUIRED HF backbone (e.g., "AIRI-Institute/gena-lm-bert-base-t2t") OR ModernBERT path
         base_model_name: Optional[str] = None,
-
-        # ARMT configuration (complete set wired through)
         num_mem_tokens: int = 16,
         d_mem: int = 32,
         segment_size: int = 128,
         segment_alignment: str = "left",
         sliding_window: bool = False,
-        layers_attr: str = "bert.encoder.layer",  # you set "layers" via YAML; we use exactly what you pass
+        layers_attr: str = "bert.encoder.layer",
         wrap_pos: bool = False,
         correction: bool = True,
         n_heads: int = 1,
@@ -239,8 +232,6 @@ class ARMT_AnnotationModel(nn.Module):
         attend_to_previous_input: bool = False,
         use_sink: bool = False,
         time_penalty: float = 0.0,
-
-        # Optional SDPA mask override (leave None to respect model defaults)
         sdpa_use_attn_mask: Optional[bool] = None,
     ):
         super().__init__()
@@ -248,19 +239,16 @@ class ARMT_AnnotationModel(nn.Module):
         self.activation = activation
         self.loss_fct = loss_fct
 
-        # Either HF backbone or ModernBERT (exactly one)
         if (base_model_name is None) and (modernbert_cpt is None):
             raise ValueError("Provide either `base_model_name` (HF repo id) or `modernbert_cpt` (ModernBERT path).")
         if (base_model_name is not None) and (modernbert_cpt is not None):
             raise ValueError("Provide exactly one of `base_model_name` or `modernbert_cpt` (not both).")
 
-        # Import ARMT classes
         loaded = AutoModelForCausalLM.from_pretrained(armt_repo_id, trust_remote_code=True)
         armt_mod = importlib.import_module(loaded.__class__.__module__)
         AssociativeMemoryCell = getattr(armt_mod, "AssociativeMemoryCell")
         AssociativeRecurrentWrapper = getattr(armt_mod, "AssociativeRecurrentWrapper")
 
-        # HF BERT path: AutoModel -> BertForTokenClassification with Identity head
         if base_model_name is not None:
             auto_backbone = AutoModel.from_pretrained(base_model_name, trust_remote_code=True)
             gena_mod = importlib.import_module(auto_backbone.__class__.__module__)
@@ -277,7 +265,6 @@ class ARMT_AnnotationModel(nn.Module):
                 raise RuntimeError("BertForTokenClassification must have `.classifier`.")
             base_tc.classifier = nn.Identity()
 
-            # Ignore cache-related kwargs ARMT may pass
             base_tc._orig_forward = base_tc.forward
             def _forward_ignoring_cache(self_, *args, **kwargs):
                 kwargs.pop("use_cache", None)
@@ -288,42 +275,23 @@ class ARMT_AnnotationModel(nn.Module):
             self._encoder_cfg = auto_backbone.config
             bert_encoder = base_tc.bert
 
-        # ModernBERT path: load with SDPA so modules are built with padded RoPE
         else:
             self.logger.info(f"Loading ModernBERT model from {modernbert_cpt}")
+            base_tc = ModernBertModel.from_pretrained(
+                modernbert_cpt,
+                trust_remote_code=True,
+                attn_implementation="sdpa",
+            )
+            base_tc.config.deterministic_flash_attn = True
+            base_tc.config.use_sdpa_attn_mask = True
+            if sdpa_use_attn_mask is not None and hasattr(base_tc.config, "use_sdpa_attn_mask"):
+                base_tc.config.use_sdpa_attn_mask = bool(sdpa_use_attn_mask)
 
-            # Instantiate with SDPA at load time (avoids FA2-built submodules).
-            # try:
-            base_tc = AutoModel.from_pretrained(
-				modernbert_cpt,
-				trust_remote_code=True,
-				attn_implementation="sdpa"
-			)
-			# except TypeError:
-            #     # Older Transformers that don't accept the kwarg on from_pretrained
-            #     base_tc = AutoModel.from_pretrained(modernbert_cpt, trust_remote_code=True)
-            #     if hasattr(base_tc, "set_attn_implementation"):
-            #         base_tc.set_attn_implementation("sdpa")
-
-            # # Optional SDPA mask override
-            # if sdpa_use_attn_mask is not None and hasattr(base_tc.config, "use_sdpa_attn_mask"):
-            #     base_tc.config.use_sdpa_attn_mask = True # bool(sdpa_use_attn_mask)
-
-            # # Keep internal fields consistent
-            # for k in ("attn_implementation", "_attn_implementation", "_attn_implementation_internal"):
-            #     if hasattr(base_tc.config, k):
-            #         setattr(base_tc.config, k, "sdpa")
-
-            # Validate we really have padded rotary in every attention block (no patches)
-            # self._assert_sdpa_uses_padded_rope(base_tc)
-
-            # Wrap ModernBERT so ARMT sees `.logits` (last_hidden_state); drop cache kwargs
             _orig_modern_forward = base_tc.forward
             def _forward_modern_return_logits(self_, *args, **kwargs):
                 kwargs.pop("use_cache", None)
                 kwargs.pop("past_key_values", None)
                 out = _orig_modern_forward(*args, **kwargs)
-                print('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', out.last_hidden_state)
                 if hasattr(out, "last_hidden_state"):
                     seq = out.last_hidden_state
                 elif isinstance(out, (tuple, list)) and len(out) > 0:
@@ -334,11 +302,9 @@ class ARMT_AnnotationModel(nn.Module):
                 o = _Out()
                 o.logits = seq
                 o.hidden_states = getattr(out, "hidden_states", None)
-                # o.attentions = getattr(out, "attentions", None)
                 return o
             base_tc.forward = types.MethodType(_forward_modern_return_logits, base_tc)
 
-            # Config for classifier sizing
             if hasattr(base_tc, "config"):
                 self._encoder_cfg = base_tc.config
             else:
@@ -350,36 +316,13 @@ class ARMT_AnnotationModel(nn.Module):
                 class _Cfg: pass
                 self._encoder_cfg = _Cfg(); self._encoder_cfg.hidden_size = h
 
-            # Pre-ARMT param snapshot uses the ModernBERT model itself (no self-alias)
             bert_encoder = base_tc
 
-        # -------- value-based param multiset check (names can differ) --------
-        def collect_param_summaries(model: nn.Module) -> tuple[float, int, Dict[str, float]]:
-            total = 0.0
-            count = 0
-            vals: Dict[str, float] = {}
-            for name, p in model.named_parameters():
-                if p is None or p.data is None:
-                    continue
-                s = p.data.float().sum().item()
-                vals[name] = s
-                total += s
-                count += 1
-            return total, count, vals
-
-        def quantize_sum(value: float, decimals: int = 6) -> float:
-            return float(f"{value:.{decimals}f}")
-
-        pre_total_sum, pre_count, pre_map = collect_param_summaries(bert_encoder)
-        self.logger.info(f"[ARMT_AnnotationModel] Encoder pre-ARMT total sum: {pre_total_sum:.6f}")
-        first_pass_value_multiset = Counter(quantize_sum(v) for v in pre_map.values())
-
-        # Build ARMT stack on the full base model so outputs carry `logits`
         memory_cell = AssociativeMemoryCell(
             base_model=base_tc,
             num_mem_tokens=num_mem_tokens,
             d_mem=d_mem,
-            layers_attr=layers_attr,  # exactly what you pass (e.g., "layers" for ModernBERT)
+            layers_attr=layers_attr,
             wrap_pos=wrap_pos,
             correction=correction,
             n_heads=n_heads,
@@ -407,62 +350,10 @@ class ARMT_AnnotationModel(nn.Module):
         )
         self.armt = recurrent
 
-        # Second pass
-        model_after = self.armt.memory_cell.model
-        enc_after = getattr(model_after, "bert", model_after)  # safe fallback (no self-alias)
-        post_total_sum, post_count, post_map = collect_param_summaries(enc_after)
-        self.logger.info(f"[ARMT_AnnotationModel] Encoder post-ARMT total sum: {post_total_sum:.6f}")
-
-        # Value-based matching (names can differ). Must match the number of first-pass params.
-        remaining = first_pass_value_multiset.copy()
-        matches = 0
-        for s in post_map.values():
-            key = quantize_sum(s)
-            if remaining.get(key, 0) > 0:
-                remaining[key] -= 1
-                if remaining[key] == 0:
-                    del remaining[key]
-                matches += 1
-        assert matches == pre_count, \
-            f"Value-based match count mismatch: matched {matches} vs first-pass param count {pre_count}"
-
-        # Downstream head sized from the encoder config
         self.classifier = classifier
         if not hasattr(self.classifier, "set_params"):
             raise RuntimeError("`classifier` must implement `set_params(config)`.")
         self.classifier.set_params(self._encoder_cfg)
-
-    # ---- helpers ----
-    @staticmethod
-    def _assert_sdpa_uses_padded_rope(model: nn.Module):
-        """
-        Ensure SDPA path is paired with padded rotary embedding.
-        If any attention block still holds the *unpadded* RoPE, raise with guidance.
-        """
-        mod = importlib.import_module(model.__class__.__module__)
-        ModernBertAttention = getattr(mod, "ModernBertAttention", None)
-        ModernBertRotaryEmbedding = getattr(mod, "ModernBertRotaryEmbedding", None)
-        ModernBertUnpaddedRotaryEmbedding = getattr(mod, "ModernBertUnpaddedRotaryEmbedding", None)
-
-        if not (ModernBertAttention and ModernBertRotaryEmbedding and ModernBertUnpaddedRotaryEmbedding):
-            return  # older/newer variants; skip strict check
-
-        bad_layers = []
-        for i, m in enumerate(model.modules()):
-            if isinstance(m, ModernBertAttention):
-                rot = getattr(m, "rotary_emb", None)
-                if isinstance(rot, ModernBertUnpaddedRotaryEmbedding):
-                    bad_layers.append(i)
-
-        if bad_layers:
-            raise RuntimeError(
-                "ModernBERT was constructed with an *unpadded* rotary embedding while using SDPA, "
-                "which causes `position_ids` kwarg errors. Re-instantiate the model with "
-                "`attn_implementation='sdpa'` passed to `from_pretrained` (do not switch after "
-                "construction). Example:\n\n"
-                "  AutoModel.from_pretrained(MODEL_ID, attn_implementation='sdpa', trust_remote_code=True)\n\n"
-                f"Affected attention modules (indices in .modules() traversal): {bad_layers[:8]}{' ...' if len(bad_layers)>8 else ''}"
-            )
 
     def forward(self, input_ids, attention_mask, targets=None, return_loss: bool = True):
         out = self.armt(input_ids=input_ids, attention_mask=attention_mask)
@@ -493,6 +384,10 @@ class ARMT_AnnotationModel(nn.Module):
             logits=logits,
             predicts=predicts,
         )
+
+
+
+
 
 
 

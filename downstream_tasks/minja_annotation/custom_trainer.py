@@ -1,6 +1,6 @@
 import torch
 from transformers import Trainer
-from transformers.trainer import _is_peft_model
+# from transformers.trainer import _is_peft_model
 from torch.utils.data import DataLoader
 from torchmetrics import Metric
 from torchmetrics.classification import BinaryAveragePrecision
