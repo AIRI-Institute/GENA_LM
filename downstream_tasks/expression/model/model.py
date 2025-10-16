@@ -267,7 +267,7 @@ class ExpressionCountsModel(BertPreTrainedModel):
         logits = self.activation(logits)
 
         # Loss
-        losses: dict[str, torch.Tensor] = self.loss(
+        losses: dict[str, torch.Tensor] = self.losses(
             logits = logits,
             labels = labels,
             labels_mask = labels_mask,
@@ -282,11 +282,11 @@ class ExpressionCountsModel(BertPreTrainedModel):
             logits=logits,
             hidden_states=bert_outputs.hidden_states,
             attentions=bert_outputs.attentions,
-            labels_reshaped=labels_reshaped,
-            labels_mask_reshaped=labels_mask_reshaped,
-            loss=losses["loss"],
-            cls_loss=losses["cls_loss"],
-            mean_loss=losses["mean_loss"],
-            other_loss=losses["other_loss"],
-            deviation_loss=losses["deviation_loss"],
+            loss=losses.get("loss"),
+            cls_loss=losses.get("cls_loss"),
+            mean_loss=losses.get("mean_loss"),
+            other_loss=losses.get("other_loss"),
+            deviation_loss=losses.get("deviation_loss"),
+            labels_reshaped=losses.get("labels_reshaped"),
+            labels_mask_reshaped=losses.get("labels_mask_reshaped"),
         )

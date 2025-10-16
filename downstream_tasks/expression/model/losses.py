@@ -48,17 +48,15 @@ class CellTypeLoss(nn.Module):
 class ExpressionCountsLoss(nn.Module):
     def __init__(self: Self,
                  weight: torch.Tensor | float = 1.0,
-                 cell_type_specific_loss_fn: torch.nn.Module = None) -> None:
+                 fct_loss_fn: torch.nn.Module | None = nn.MSELoss(reduction="none"),
+                 cell_type_specific_loss_fn: torch.nn.Module | None = None) -> None:
         super().__init__()
-
-        self.zero: torch.nn.Buffer = torch.nn.Buffer(
-            torch.asarray(0.0, dtype = torch.float32)
-        )
 
         self.weight: torch.nn.Buffer = torch.nn.Buffer(
             torch.asarray(weight, dtype = torch.float32)
         )
 
+        self.fct_loss_fn = fct_loss_fn
         self.cell_type_specific_loss_fn = cell_type_specific_loss_fn
 
     def forward(self: Self,
@@ -67,65 +65,72 @@ class ExpressionCountsLoss(nn.Module):
                 labels_mask: torch.BoolTensor | None,
                 dataset_mean: torch.Tensor | None = None,
                 dataset_deviation: torch.Tensor | None = None,):
-        if labels is None:
-            assert labels_mask is None
-            return (self.zero.clone())
+        # Loss
+        loss = None
+        cls_loss = None
+        other_loss = None
+        mean_loss = None
+        deviation_loss = None
+        labels_reshaped = None
+        labels_mask_reshaped = None
+    
+        if labels is not None:
+            B, seq_len, N = labels.shape
+            device: torch.device = logits.device
+            assert labels_mask.shape == (B, seq_len, N)
 
-        B, seq_len, N = labels.shape
-        assert labels_mash.shape == (B, seq_len, N)
+            # labels, labels_mask: (B, seq_len, N)
+            # Нужно:   (B*N, seq_len, 1)
+            # 1) permute(0,2,1) -> (B, N, seq_len)
+            # 2) reshape -> (B*N, seq_len)
+            # 3) unsqueeze -> (B*N, seq_len, 1)
+            labels_reshaped = labels.permute(0, 2, 1).reshape(B*N, seq_len, 1).to(logits.device)
+            labels_mask_reshaped = labels_mask.permute(0, 2, 1).reshape(B*N, seq_len, 1).to(logits.device)
 
-        device: torch.device = logits.device
-        loss: torch.Tensor = self.zero.clone()
+            # loss
+            # Cчитаем общий лосс
+            unreduced_loss = self.fct_loss_fn(logits, labels_reshaped)  # (B*N, seq_len, 1)
 
-        # labels, labels_mask: (B, seq_len, N)
-        # Нужно:   (B*N, seq_len, 1)
-        # 1) permute(0,2,1) -> (B, N, seq_len)
-        # 2) reshape -> (B*N, seq_len)
-        # 3) unsqueeze -> (B*N, seq_len, 1)
-        def reshape_labels(values: torch.Tensor) -> torch.Tensor:
-            return values.permute(0, 2, 1).reshape(B * N, seq_len, 1).to(device)
+            if torch.any(labels_mask_reshaped.bool()).cpu().item():
+                # Разделяем маску на CLS и остальные токены
+                cls_mask = labels_mask_reshaped[:, 0:1, :]  # (B*N, 1, 1)
+                other_mask = labels_mask_reshaped[:, 1:, :]  # (B*N, seq_len-1, 1)
 
-        labels_reshaped: torch.Tensor = reshape_labels(labels)
-        labels_mask_reshaped: torch.Tensor = reshape_labels(labels_mask)
-
-        # loss
-        # Cчитаем общий лосс
-        unreduced_loss: torch.Tensor = self.loss_fct(logits, labels_reshaped)  # (B*N, seq_len, 1)
-
-        if torch.any(labels_mask_reshaped).cpu().item():
-            # Разделяем маску на CLS и остальные токены
-            cls_mask = labels_mask_reshaped[:, :1, :]  # (B*N, 1, 1)
-            other_mask = labels_mask_reshaped[:, 1:, :]  # (B*N, seq_len-1, 1)
-
-            # Считаем лосс для CLS  
-            cls_loss = self.zero.clone()
-
-            if torch.any(cls_mask).cpu().item():
-                if not (self.cell_type_specific_loss_fn is None):
-                    cls_loss, mean_loss, deviation_loss = self.cell_type_specific_loss_fn(
-                        cls_targets = labels_reshaped[:, :1, :].reshape(B,N),
-                        cls_preds = logits[:, :1, :].reshape(B,N),
-                        cls_mask = cls_mask.reshape(B,N),
-                        dataset_mean = dataset_mean,
-                        dataset_deviation = dataset_deviation
-                    )
-                else:
-                    denom: torch.Tensor = torch.sum(cls_mask)
-                    cls_loss = (unreduced_loss[:, :1, :] * cls_mask).sum() / denom
+                # Считаем лосс для CLS  
+                cls_loss = None
+                if torch.any(cls_mask.bool()).cpu().item():
+                    if self.cell_type_specific_loss_fn is not None:
+                        cls_loss, mean_loss, deviation_loss = self.cell_type_specific_loss_fn(
+                            cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
+                            cls_preds = logits[:, 0:1, :].reshape(B,N),
+                            cls_mask = cls_mask.reshape(B,N),
+                            dataset_mean = dataset_mean,
+                            dataset_deviation = dataset_deviation
+                        )
+                    else:
+                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
+                        mean_loss = None
+                        deviation_loss = None
 
                 # Считаем лосс для остальных токенов
-                other_loss = self.zero.clone()
-                if torch.any(other_mask).cpu().item():
-                    denom: torch.Tensor = torch.sum(other_mask)
-                    other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / denom
+                other_loss = None
+                if torch.any(other_mask.bool()).cpu().item():
+                    other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / other_mask.sum()
 
-                
-                loss = cls_loss + self.weight * other_loss
+                # Объединяем лоссы
+                if cls_loss is not None and other_loss is not None:
+                    loss = cls_loss + self.weight * other_loss
+                elif cls_loss is not None:
+                    loss = cls_loss
+                elif other_loss is not None:
+                    loss = self.weight * other_loss
 
         return dict(
             loss = loss,
             cls_loss = cls_loss,
-            other_loss = other_loss,
             mean_loss = mean_loss,
+            other_loss = other_loss,
             deviation_loss = deviation_loss,
+            labels_reshaped = labels_reshaped,
+            labels_mask_reshaped = labels_mask_reshaped,
         )

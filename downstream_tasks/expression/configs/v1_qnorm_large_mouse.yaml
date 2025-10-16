@@ -24,7 +24,6 @@ training_arguments:
   save_steps: 250
   save_total_limit: 2
   learning_rate: 3e-5
-  optimizer: "adamw_torch"
   max_steps: 350000
   max_grad_norm: 1.0
   lr_scheduler_type: "constant_with_warmup"
@@ -62,11 +61,16 @@ training_dataset:
 
 validation_dataset:
   _target_: utils.apply.apply_partial
+  partial: ${base_dataset}
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   tpm: CPM
+
+losses:
+  _target_: model.ExpressionCountsLoss
+
 
 base_model:
   _target_: model.ExpressionCountsModel
@@ -76,9 +80,10 @@ base_model:
     #"${HOME_PATH}/GENA_LM/data/configs/L12-H768-A12-V32k-preln.json"
   hf: True
   hf_model_name: "AIRI-Institute/gena-lm-bert-base-t2t"
+  losses: ${losses}
 
 rmt_model:
-  _target_: gena_lm.modeling_rmt.RMTEncoderExpression
+  _target_: model.RMTEncoderExpression
   base_model: ${base_model}
   num_mem_tokens: 5
   max_n_segments: 1
