@@ -8,8 +8,8 @@ LOGGING_DIR_PATH: ${HOME_PATH}/logging/${TASK_NAME}
 training_arguments:
   _target_: transformers.TrainingArguments
   num_train_epochs: 10
-  per_device_train_batch_size: 16
-  per_device_eval_batch_size: 32
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
   warmup_steps: 500
   weight_decay: 0.01
   logging_dir: ${LOGGING_DIR_PATH}
@@ -17,19 +17,21 @@ training_arguments:
   logging_steps: 50
   output_dir: ${OUTPUT_DIR_PATH}
   eval_strategy: "steps"
-  eval_steps: 50
+  eval_steps: 10
   remove_unused_columns: false
   load_best_model_at_end: true
   save_strategy: "steps"
   save_steps: 250
   save_total_limit: 2
+  save_only_model: True
+  save_safetensors: False
   learning_rate: 3e-5
   max_steps: 350000
   max_grad_norm: 1.0
   lr_scheduler_type: "constant_with_warmup"
   bf16: True
   bf16_full_eval: True
-  torch_compile: True
+  torch_compile: False #True
 
 tokenizer:
   _target_: "transformers.AutoTokenizer.from_pretrained"
@@ -99,11 +101,22 @@ collate_fn:
   _target_: dataset.ExpressionCollator
   tokenizer: ${tokenizer}
 
+#metrics:
+#  _target_: metrics.new_metrics.Metrics
+
+custom_callbacks:
+  - _target_: metrics.old_metrics.OldMetrics
+    selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
+
 trainer:
-  _target_: transformers.Trainer
+  _target_: utils.trainer.TrainerWrapper
   model: ${model}
   args: ${training_arguments}
   data_collator: ${collate_fn}
   train_dataset: ${training_dataset}
   eval_dataset: ${validation_dataset}
+  custom_callbacks: ${custom_callbacks}
+  callbacks:
+    - _target_: metrics.new_metrics.LogTrainMetricsCallback
+    - _target_: transformers.PrinterCallback
 

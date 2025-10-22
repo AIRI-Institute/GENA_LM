@@ -1,0 +1,99 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+DATA_PATH: ${oc.env:GENALM_HOME}/ExpressionPredict
+TASK_NAME: expression/qnorm_v1_mouse_large_test
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+OUTPUT_DIR_PATH: ${HOME_PATH}/results/${TASK_NAME}
+LOGGING_DIR_PATH: ${HOME_PATH}/logging/${TASK_NAME}
+training_arguments:
+  _target_: transformers.TrainingArguments
+  num_train_epochs: 10
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 64
+  warmup_steps: 500
+  weight_decay: 0.01
+  logging_dir: ${LOGGING_DIR_PATH}
+  logging_strategy: steps
+  logging_steps: 50
+  output_dir: ${OUTPUT_DIR_PATH}
+  eval_strategy: steps
+  eval_steps: 50
+  remove_unused_columns: false
+  load_best_model_at_end: true
+  save_strategy: steps
+  save_steps: 250
+  save_total_limit: 2
+  save_only_model: true
+  save_safetensors: false
+  learning_rate: 3.0e-05
+  max_steps: 350000
+  max_grad_norm: 1.0
+  lr_scheduler_type: constant_with_warmup
+  bf16: true
+  bf16_full_eval: true
+  torch_compile: false
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: AIRI-Institute/gena-lm-bert-base-t2t
+base_dataset:
+  _target_: dataset.ExpressionDataset
+  _partial_: true
+  num_before: 250
+  gen_tokenizer: AIRI-Institute/gena-lm-bert-base-t2t
+  gen_max_seq_len: 128
+  text_data_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl
+  loglevel:
+    _target_: logging.getLevelName
+    level: DEBUG
+  transform_targets_tpm:
+    _target_: dataset.LogTransform
+    pseudocount: 1
+training_dataset:
+  _target_: utils.apply.apply_partial
+  partial: ${base_dataset}
+  forward_intervals_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv
+  reverse_intervals_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv
+  targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv
+  genome: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa
+  tpm: CPM
+validation_dataset:
+  _target_: utils.apply.apply_partial
+  partial: ${base_dataset}
+  forward_intervals_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv
+  reverse_intervals_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv
+  targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv
+  genome: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa
+  tpm: CPM
+losses:
+  _target_: model.ExpressionCountsLoss
+base_model:
+  _target_: model.ExpressionCountsModel
+  config:
+    _target_: transformers.AutoConfig.from_pretrained
+    pretrained_model_name_or_path: AIRI-Institute/gena-lm-bert-base-t2t
+  hf: true
+  hf_model_name: AIRI-Institute/gena-lm-bert-base-t2t
+  losses: ${losses}
+rmt_model:
+  _target_: model.RMTEncoderExpression
+  base_model: ${base_model}
+  num_mem_tokens: 5
+  max_n_segments: 1
+  input_size: 256
+  bptt_depth: -1
+  sum_loss: true
+  tokenizer: ${tokenizer}
+  mixed_length_ratio: 0.0
+model: ${rmt_model}
+collate_fn:
+  _target_: dataset.ExpressionCollator
+  tokenizer: ${tokenizer}
+metrics:
+  _target_: metrics.dummy.DummyMetrics
+trainer:
+  _target_: transformers.Trainer
+  model: ${model}
+  args: ${training_arguments}
+  data_collator: ${collate_fn}
+  train_dataset: ${training_dataset}
+  eval_dataset: ${validation_dataset}
+  compute_metrics: ${metrics}

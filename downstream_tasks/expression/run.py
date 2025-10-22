@@ -19,10 +19,6 @@ def main(config: DictConfig) -> dict[str, int | float]:
         config.get("trainer")
     )
 
-
-
-    print(trainer)
-
     trainer.train()
 
 if __name__ == "__main__":
