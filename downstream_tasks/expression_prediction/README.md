@@ -6,14 +6,15 @@ Follow steps in [datasets-->README.md](https://github.com/minjaf/ExpressionPredi
 
 ## Conda environment
 ```
-cd ..
-mkdir -p soft
-cd soft
+cd ../../..
 conda create -n expression python=3.11
 conda activate expression
+pip install -r GENA_LM/downstream_tasks/expression_prediction/requirements.txt
+mkdir -p soft
+cd soft
 git clone --branch feat/trainer_with_accelerate https://github.com/yurakuratov/t5-experiments.git
 cd t5-experiments
-python -m pip install -e . 
+python -m pip install -e .
 ```
 
 ## Configuration
