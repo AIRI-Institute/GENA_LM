@@ -162,51 +162,77 @@ def main():
     # --- Tokenizer ---
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer)
 
-    # --- Collate function (как в твоём коде) ---
     def collate_fn(batch):
+        # Тензоры, которые нужно выровнять по длине L
         pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
-        no_pad_keys = ['desc_vectors', 'tpm', 'dataset_mean', 'dataset_deviation']
-        special_keys = ['gene_id', 'selected_keys', 'dataset_description']
+        no_pad_keys = ['desc_vectors', 'tpm', 'dataset_flag', 'dataset_deviation', 'dataset_mean']
+        special_keys = ['gene_id', 'selected_keys', 'dataset_description', 'name', 'chrom', 'reverse', 'start', 'end']
 
         pad_token_ids = {
             'input_ids': tokenizer.pad_token_id,
             'token_type_ids': 0,
             'attention_mask': 0,
-            'labels': 0,
-            'labels_mask': 0
+            'labels': 0.0,
+            'labels_mask': 0,
         }
 
-        max_seq_len = max([len(sample['input_ids']) for sample in batch])
-        batch_dict = {key: [] for key in pad_keys + no_pad_keys + special_keys}
-
+        # 1) найдём максимальную длину L по последней оси среди ВСЕХ ключей, которые паддим
+        max_L = 0
         for sample in batch:
             for key in pad_keys:
-                seq = sample[key]
-                pad_len = max_seq_len - len(seq)
-                if pad_len > 0:
-                    if key in ['labels', 'labels_mask']:
-                        pad = torch.full((pad_len, seq.size(1)), pad_token_ids[key], dtype=seq.dtype)
-                        padded_seq = torch.cat([seq, pad], dim=0)
-                    else:
-                        pad = torch.full((pad_len,), pad_token_ids[key], dtype=seq.dtype)
-                        padded_seq = torch.cat([seq, pad], dim=0)
-                else:
-                    padded_seq = seq
-                batch_dict[key].append(padded_seq)
+                t = sample[key]
+                max_L = max(max_L, t.shape[-2] if t.dim() == 3 else t.shape[-1])
+
+        def pad_last_dim(x: torch.Tensor, L_target: int, fill):
+            """Паддинг по оси L: для
+            - (L,)     -> (L_target,)
+            - (N, L)   -> (N, L_target)
+            - (N, L, C)-> (N, L_target, C)
+            """
+            if x.dim() == 1:
+                pad = (0, L_target - x.shape[0])
+            elif x.dim() == 2:
+                pad = (0, L_target - x.shape[1], 0, 0)
+            elif x.dim() == 3:
+                # порядок для F.pad: (W_l, W_r, H_l, H_r, D_l, D_r)
+                # здесь C=W, L=H, N=D
+                pad = (0, 0, 0, L_target - x.shape[1], 0, 0)
+            else:
+                raise ValueError(f"Unexpected tensor dim {x.dim()} for shape {tuple(x.shape)}")
+            return F.pad(x, pad, value=fill) if (L_target - (x.shape[-2] if x.dim()==3 else x.shape[-1])) > 0 else x
+
+        batch_out = {k: [] for k in pad_keys + no_pad_keys + special_keys}
+
+        # 2) паддим по ключам
+        for sample in batch:
+            for key in pad_keys:
+                t = sample[key]
+                fill = pad_token_ids[key]
+                if key in ('labels_mask',):
+                    # ensure dtype: bool
+                    t = t.bool()
+                    # F.pad не поддерживает bool — паддим как float и приводим тип
+                    t = pad_last_dim(t.float(), max_L, float(fill)).bool()
+                elif key in ('attention_mask', 'token_type_ids',):
+                    t = pad_last_dim(t.long(), max_L, int(fill))
+                elif key in ('input_ids',):
+                    t = pad_last_dim(t.long(), max_L, int(fill))
+                else:  # labels
+                    t = pad_last_dim(t.float(), max_L, float(fill))
+                batch_out[key].append(t)
 
             for key in no_pad_keys:
-                batch_dict[key].append(sample[key])
+                batch_out[key].append(sample[key])
 
             for key in special_keys:
-                batch_dict[key].append(sample[key])
+                batch_out[key].append(sample[key])
 
-        for key in pad_keys:
-            batch_dict[key] = torch.stack(batch_dict[key])
-        for key in no_pad_keys:
-            batch_dict[key] = torch.stack(batch_dict[key])
-        # special_keys оставляем списками (строки/списки)
+        # 3) stack для тензоров; списки оставляем
+        for key in pad_keys + no_pad_keys:
+            batch_out[key] = torch.stack(batch_out[key], dim=0)
 
-        return batch_dict
+        return batch_out
+
 
     # --- Data ---
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
@@ -434,10 +460,9 @@ def main():
             'labels': batch['labels'],
             'tpm': batch['tpm'],
             'gene_id': batch['gene_id'],
-            'dataset_mean': batch['dataset_mean'],
-            'dataset_deviation': batch['dataset_deviation'],
             'selected_keys': batch['selected_keys'],
-            'dataset_description': batch['dataset_description']
+            'dataset_description': batch['dataset_description'],
+            'dataset_flag': batch['dataset_flag']
         }
         return result
 
