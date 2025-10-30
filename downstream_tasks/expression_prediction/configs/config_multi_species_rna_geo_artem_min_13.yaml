@@ -1,0 +1,367 @@
+TASK_NAME: expression/qnorm/multispices_min_13
+
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+
+
+args_params:
+
+  _target_: builtins.dict
+  
+  # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
+
+  resume: #"20250811-155853/model_best.pth"
+
+  model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
+
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
+
+  backbone_trainable: True
+
+  model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression"
+
+  model_path: ${MODEL_PATH_ROOT}
+
+  clip_grad_norm: 1
+
+  input_seq_len: 504
+  
+  input_size: 512  
+  
+  num_mem_tokens: 5
+
+  mixed_length_ratio: 0.0
+  
+  max_n_segments: 1
+
+  bptt_depth: -1 
+
+  optimizer: "AdamW"
+
+  weight_decay: 1e-4
+
+  seed: 43
+
+  num_warmup_steps: 10000
+
+  log_interval: 100
+
+  valid_interval: 100
+
+  save_best: True
+
+  save_interval: 5000
+
+  optimize_metric: "score_predictions_Expression_dataset_v1_mm10_CPM dataset"
+
+  optimize_mode: "max"
+
+  data_n_workers: 7
+
+  lr: 3e-05
+
+  lr_scheduler: "constant_with_warmup"
+
+  reset_lr: True
+
+  reset_optimizer: True
+
+  reset_iteration: True
+
+  early_stopping_patience: 50000
+
+  iters: 350000
+
+  gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+ # save_predictions: True
+  
+
+selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
+
+
+model_kwargs:
+
+  _target_: builtins.dict
+  
+  hf: True
+
+  hf_model_name: "AIRI-Institute/gena-lm-bert-large-t2t"
+
+
+  loss_fct:
+
+    _target_: torch.nn.MSELoss
+
+    reduction: 'none'
+
+
+  activation:
+
+    _target_: torch.nn.Identity
+
+  config:
+
+    _target_: builtins.dict
+ 
+shared_dataset_params:
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
+  num_before: 250
+  gen_tokenizer: AIRI-Institute/gena-lm-bert-base-t2t
+  gen_max_seq_len: "${args_params.input_seq_len}"
+  loglevel:
+    _target_: logging.getLevelName
+    level: DEBUG
+  transform_targets_tpm:
+    _target_: downstream_tasks.expression_prediction.expression_dataset.logtransform
+    pseudocount: 1
+  seed: "${args_params.seed}"
+
+train_dataset_human:
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  tpm: csv
+
+train_dataset_mouse:
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv" 
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  tpm: CPM
+  
+valid_dataset_human:
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"  
+  tpm: csv
+
+valid_dataset_mouse:
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.forward.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.valid.reverse.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_CPM_file_mappings_qnorm.csv"
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"  
+  tpm: CPM
+
+train_dataset_multi_species_rna_geo_artem_GCF_000003025.6_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000003025.6/GCF_000003025.6.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_000003025.6_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000003025.6/GCF_000003025.6.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000003025.6/GCF_000003025.6.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_000247695.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000247695.1/GCF_000247695.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_000247695.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000247695.1/GCF_000247695.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000247695.1/GCF_000247695.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000317375.1/GCF_000317375.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000317375.1/GCF_000317375.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000317375.1/GCF_000317375.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_001704415.2_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_001704415.2/GCF_001704415.2.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_001704415.2_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_001704415.2/GCF_001704415.2.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_001704415.2/GCF_001704415.2.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_002007445.2_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_002007445.2/GCF_002007445.2.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_002007445.2_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002007445.2/GCF_002007445.2.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002007445.2/GCF_002007445.2.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_002263795.3/GCF_002263795.3.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002263795.3/GCF_002263795.3.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002263795.3/GCF_002263795.3.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_008728515.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_008728515.1/GCF_008728515.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_008728515.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_008728515.1/GCF_008728515.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_008728515.1/GCF_008728515.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_011100555.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_011100555.1/GCF_011100555.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_011100555.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100555.1/GCF_011100555.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100555.1/GCF_011100555.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_011100685.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_011100685.1/GCF_011100685.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_011100685.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100685.1/GCF_011100685.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100685.1/GCF_011100685.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_011762505.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_011762505.1/GCF_011762505.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_011762505.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011762505.1/GCF_011762505.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011762505.1/GCF_011762505.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_011764305.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_011764305.1/GCF_011764305.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_011764305.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011764305.1/GCF_011764305.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011764305.1/GCF_011764305.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_016772045.2_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_016772045.2/GCF_016772045.2.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_016772045.2_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016772045.2/GCF_016772045.2.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016772045.2/GCF_016772045.2.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_016881025.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_016881025.1/GCF_016881025.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_016881025.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016881025.1/GCF_016881025.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016881025.1/GCF_016881025.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_017639785.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_017639785.1/GCF_017639785.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_017639785.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_017639785.1/GCF_017639785.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_017639785.1/GCF_017639785.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_018350175.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_018350175.1/GCF_018350175.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_018350175.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_018350175.1/GCF_018350175.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_018350175.1/GCF_018350175.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_019923935.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_019923935.1/GCF_019923935.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_019923935.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_019923935.1/GCF_019923935.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_019923935.1/GCF_019923935.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_021234435.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_021234435.1/GCF_021234435.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_021234435.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_021234435.1/GCF_021234435.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_021234435.1/GCF_021234435.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_027887165.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_027887165.1/GCF_027887165.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_027887165.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_027887165.1/GCF_027887165.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_027887165.1/GCF_027887165.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_029378745.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_029378745.1/GCF_029378745.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_029378745.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_029378745.1/GCF_029378745.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_029378745.1/GCF_029378745.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_034190915.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_034190915.1/GCF_034190915.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_034190915.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_034190915.1/GCF_034190915.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_034190915.1/GCF_034190915.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_036323735.1/GCF_036323735.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_036323735.1/GCF_036323735.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_036323735.1/GCF_036323735.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_037993035.2_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_037993035.2/GCF_037993035.2.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_037993035.2_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_037993035.2/GCF_037993035.2.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_037993035.2/GCF_037993035.2.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_041296265.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_041296265.1/GCF_041296265.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_041296265.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_041296265.1/GCF_041296265.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_041296265.1/GCF_041296265.1.train.reverse.tsv"
+  tpm: tpm
+  
+
+train_dataset_multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw:
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_964237555.1/GCF_964237555.1.fa"
+  targets_path: /home/jovyan/shares/SR003.nfs2/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_min_13/multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw.csv
+  text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_qref_embeddings.pkl"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.reverse.tsv"
+  tpm: tpm
+  

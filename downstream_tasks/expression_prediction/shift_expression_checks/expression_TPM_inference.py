@@ -1,0 +1,338 @@
+# HOME_PATH="$HOME/DNALM/" python3 downstream_tasks/expression_prediction/shift_expression_checks/expression_TPM_inference.py --cells ENCFF035CWS --checkpoint shift10K
+# or loop over all conditions:
+# for strand in fwd rev; do for cpt in shift10K shift100K prot_coding_shift_100K prot_coding_shift_250tokup; do HOME_PATH="$HOME/DNALM/" python3 downstream_tasks/expression_prediction/shift_expression_checks/predict_expression.py --cells ENCFF035CWS --strand $strand --checkpoint $cpt; done; done
+import torch
+import pandas as pd
+import numpy as np
+from transformers import AutoTokenizer, AutoConfig
+from pysam import FastaFile
+import sys
+import os
+import argparse
+import pybedtools
+
+# Add the project root to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+
+from downstream_tasks.expression_prediction.expression_model import ExpressionCounts
+from src.gena_lm.modeling_rmt import RMTEncoderExpression
+import pickle
+import logging
+from tqdm import tqdm
+import json
+import yaml
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Predict gene expression from DNA sequences')
+    parser.add_argument('--strand', type=str, choices=['fwd', 'rev'], default='fwd',
+                      help='Strand direction to process (fwd or rev)')
+    parser.add_argument('--cells', type=str, default="all",
+                        help='Comma-separated list of cell types to process')
+    parser.add_argument('--checkpoint', type=str, default="shift10K",
+                        help='Checkpoint to use')
+    return parser.parse_args()
+
+def load_model(checkpoint_path, config_path):
+    # Load config
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Initialize model config
+    model_cfg = AutoConfig.from_pretrained(config['args_params']['model_cfg'])
+    
+    # Update model config with any additional parameters
+    if "model_kwargs" in config:
+        model_kwargs = config["model_kwargs"]
+        if "config" in model_kwargs:
+            for k, v in model_kwargs["config"].items():
+                model_cfg.__setattr__(k, v)
+    
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    state_dict = checkpoint['model_state_dict']
+    
+    # Initialize backbone model
+    backbone = ExpressionCounts(
+        config=model_cfg,
+        bert_cpt=config['model_kwargs']['bert_cpt']
+    )
+    
+    # Load backbone weights
+    # backbone_state_dict = {k[6:]: v for k, v in state_dict.items() if k.startswith('model.')}
+    # backbone.load_state_dict(backbone_state_dict)
+    
+    # Initialize RMT model
+    rmt_config = {
+        'num_mem_tokens': config['args_params']['num_mem_tokens'],
+        'max_n_segments': config['args_params']['max_n_segments'],
+        'input_size': config['args_params']['input_size'],
+        'bptt_depth': config['args_params']['bptt_depth'],
+        'sum_loss': True,
+        'tokenizer': AutoTokenizer.from_pretrained(config['args_params']['gen_tokenizer']),
+        'mixed_length_ratio': config['args_params']['mixed_length_ratio'],
+    }
+    
+    model = RMTEncoderExpression(backbone, **rmt_config)
+    
+    # Load RMT-specific weights
+    # rmt_state_dict = {k: v for k, v in state_dict.items() if not k.startswith('model.')}
+    # model.load_state_dict(rmt_state_dict)
+    logger.info(f"Loading RMT weights from {checkpoint_path}")
+    model.load_state_dict(state_dict, strict=True)
+    model.cuda()
+    model.eval()
+    return model
+
+def load_cell_types(text_data_path, targets_path):
+    # Load all cell type descriptions
+    with open(text_data_path, "rb") as f:
+        desc_data = pickle.load(f)
+    
+    # Load targets to get relevant cell types
+    targets_df = pd.read_csv(targets_path)
+    relevant_cell_types = set(targets_df['id'].values)
+    
+    # Filter descriptions to only include relevant cell types
+    filtered_desc_data = {k: v for k, v in desc_data.items() if k in relevant_cell_types}
+    
+    logger.info(f"Loaded {len(filtered_desc_data)} cell types out of {len(desc_data)} total")
+    return filtered_desc_data
+
+def tokenize_and_chunk_sequence(sequence, tokenizer, start_pos, chunk_size=1008, is_reverse=False):
+    # First tokenize the whole sequence with offset mapping
+    encoding = tokenizer(sequence, add_special_tokens=False, return_offsets_mapping=True)
+    tokens = encoding['input_ids']
+    offset_mapping = encoding['offset_mapping']
+    
+    chunks = []
+    for i in range(0, len(tokens), chunk_size):
+        chunk_tokens = tokens[i:i+chunk_size]
+        
+        # Get the genomic coordinates for this chunk
+        chunk_start = offset_mapping[i][0]
+        chunk_end = offset_mapping[min(i + chunk_size - 1, len(tokens) - 1)][1]
+        
+        # For reverse strand, flip the coordinates
+        if is_reverse:
+            _ = chunk_start
+            chunk_start = len(sequence) - chunk_end
+            chunk_end = len(sequence) - _
+
+        chunk_start += start_pos
+        chunk_end += start_pos
+
+        assert chunk_end > chunk_start, f"{chunk_end}>{chunk_start}"
+        
+        # Pad if necessary
+        if len(chunk_tokens) < chunk_size:
+            chunk_tokens = chunk_tokens + [tokenizer.pad_token_id] * (chunk_size - len(chunk_tokens))
+        
+        # Create attention mask
+        attention_mask = [1] * (len(chunk_tokens) - chunk_tokens.count(tokenizer.pad_token_id)) + \
+                        [0] * chunk_tokens.count(tokenizer.pad_token_id)
+        
+        chunks.append({
+            'input_ids': torch.tensor([chunk_tokens]),
+            'attention_mask': torch.tensor([attention_mask]),
+            'genomic_start': chunk_start,
+            'genomic_end': chunk_end
+        })
+    return chunks
+
+def save_predictions_as_bedgraph(all_predictions, all_coordinates, cell_types, output_dir, strand, cells, prefix):
+    """Save predictions as bedgraph files, one per cell type.
+    
+    Args:
+        all_predictions: List of prediction tensors, each of shape (batch_size, num_cell_types)
+        all_coordinates: List of dictionaries containing genomic coordinates for each chunk
+        cell_types: List of cell type names
+        output_dir: Directory to save bedgraph files
+        strand: Strand direction ('fwd' or 'rev')
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Create a file for each cell type
+    for cell_type_idx, cell_type in enumerate(cell_types):
+        if cells != "all" and cell_type not in cells.split(","):
+            continue
+        output_file = os.path.join(output_dir, f"{prefix}_{cell_type}_{strand}.bedgraph")
+        
+        with open(output_file, 'w') as f:
+            # Write track line
+            f.write(f'track type=bedGraph name="{cell_type} ({strand})" description="{cell_type} predictions on {strand} strand"\n')
+            
+            # Write predictions for each chunk
+            for pred_tensor, coords in zip(all_predictions, all_coordinates):
+                # Get predictions for this cell type
+                pred = pred_tensor[0, cell_type_idx].item()  # Shape is (batch_size, num_cell_types)
+                
+                # Write bedgraph line
+                f.write(f"{coords['chrom']}\t{coords['start']}\t{coords['end']}\t{pred:.6f}\n")
+
+def main():
+    # Parse command line arguments
+    args = parse_args()
+    
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Paths
+    checkpoints = {
+        "50afterTSS": "/mnt/nfs_dna/aspeedok/github/runs/expression/50_tokens_after_tss/model_best.pth",
+        "shift10K": "/mnt/nfs_dna/aspeedok/github/runs/expression/shift_10000//model_best.pth",
+        "shift100K": "/mnt/nfs_dna/aspeedok/github/runs/expression/shift_100000/model_best.pth",
+        "prot_coding_shift_10K": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_shift_10000/model_best.pth",
+        "prot_coding_shift_250tokup": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_250_tokens_upstream/model_best.pth",
+        "prot_coding_tes_shift_100K": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_tes_shift_100000/model_4000.pth",
+        "prot_coding_tes_shift_0": "/mnt/nfs_dna/aspeedok/github/runs/expression/protein_coding_tes_shift_0/model_2000.pth"
+    }
+    checkpoint_path = checkpoints[args.checkpoint]
+    config_path = os.path.normpath(os.path.join(script_dir, "../configs/run_config_Expression_dataset_v1.yaml"))
+    intervals_path = os.path.normpath(os.path.join(script_dir, "../intervals/borzoi_human_valid.bed"))
+    genome_path = os.path.normpath(os.path.join(script_dir, "../datasets/data/genomes/hg38/hg38.fa"))
+    text_data_path = os.path.normpath(os.path.join(script_dir, "../datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"))
+    output_dir = os.path.normpath(os.path.join(script_dir, 
+                                               "../../../runs/expression_predictions_wholeinterval_bedgraph/"))
+    
+    # Print paths for debugging
+    logger.info(f"Config path: {config_path}")
+    logger.info(f"Intervals path: {intervals_path}")
+    logger.info(f"Genome path: {genome_path}")
+    logger.info(f"Text data path: {text_data_path}")
+    logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Processing {args.strand} strand")
+    
+    # Load config to get targets path
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    targets_path = os.path.expandvars(config['train_dataset_human']['targets_path'])
+    
+    # Load cell types descriptions
+    logger.info("Loading cell types descriptions...")
+    desc_data = load_cell_types(text_data_path, targets_path)
+    if args.cells != "all":
+        assert all([c in desc_data.keys() for c in args.cells.split(",")])
+
+    # Load model and tokenizer
+    logger.info("Loading model...")
+    model = load_model(checkpoint_path, config_path)
+    tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base-t2t")
+        
+    # Load genome
+    logger.info("Loading genome...")
+    genome = FastaFile(genome_path)
+    
+    # Read intervals
+    logger.info("Reading intervals...")
+    # Create debug intervals dataframe with 2 rows
+    debug_intervals = pd.DataFrame({
+        'chrom': ['chr2', 'chr10'],
+        'start': [54466285, 73754384],
+        'end': [54473161, 73761518],
+        'name': ['test1', 'test2'],
+        'sequence': ["TACAACAGAATTTATTCCTTTGAGGTATGTATTTTCAAAGTGTAATTTGTGTAATTAAGTATGTTTATTCTTCGAGACCATCCTGGCTAACACGGTGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCCGGGCGTGGTAGCGGGCGCCTGTAGTCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATGGCGTGAACCCGGGAGGCGAAGCTTGCAGTGAGCCGAGATCGCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGTATGTTTATTCTTAGAAAGTTCATGAGCCTATTAACATTGGTTATCTTGGGTAATGGAATTGCAGAAGATTTCATCTCTGTATATTTTTTTCTCCATATTTTTTAAGTTTTAGGAAATAACAAATTCTTGTTCTTTATCAAAAATATCCTAACACTTCTGACCAAACCTCATTTTAGCTGGATACAAACTAATCAAATAATTTACCAGCTAAATATACTTTCTGCTGTTCAATTTTTTTCTACCAAACTTACGGAAAAGCAGTATTAATAATGAAGATATAAAGAACACTGAAATTTTTGAAAGATCTTTTCATTCCTTGTTTAAATGTTCATTTTTGTTACAGCCTTGGCAGTTCATTACTTATGCAGAGTGTGGGAAAAGCTCTAAGAACTGGCCGAGAGAGCGCCTGACAGAAACATTGTCCAGGAGGAATCAGCCACTAATGGCCACTGCCTTTGGCTCTCGGTGAAGTTTCGTTTCCCTACAGTACTCTTGGGTGGCTGTTTCAGGGATACATTTTGTTCTAGTGTGTTTGCCTCAAGGCCAAATATAAATGTTGAAGGGCTGTACATTTTTCTGGAATGTTCTTCACCAGCTGTAAAGTCTTGGGCTGGGATAGGGATAGGGGATTTTTTTGGGGGTGGGGGGGCTTTTTTCTCTTTATCTTATTTACTTGAATGGGAAGGAAAACTTAGATTCTTCCTTAAAACAATGTTATTTATTTTGATCTGTGATGTTTAAACATTTTCCACGGCATTTTGAAACCTGTAAACATAGGAGTACTTTGTTGTTGCTGTTGTTGGAGACAAAGTCTTGCTCTTATCCCCCAGGCTGGAGTGCGATGGCGCGATCTCGGCTCACTGCAACCTCCGCCTCCCAGGTTCAAGCGATTCTCCTGCCTCAGCCTCCCGAGTAGCTGGCGCCTGCCACCATGCCCAGCTAATTTTTGTATTTTTAGTAGAGACGGGTTTCACCATGTTGGCCAGACTGGTCTCGAACTCCTGACCTCAAGTGATCCACCCTCCTTGGCCTCCCAAAATTCTGGGATTACAGGCGTGAGCCACCGCGCCTGGCCAGGAGTGTTTTTATAGTGATTACAATAGTTTTAAAAATTAAAATAGTCTTTGTATTTTTACCACCTTAGAATCCCTGATTTTTTTTTTTAAATTTCTGCTAATACACATAGTATATGTGGTTTTTTGAATGGCTTATGAAGACTATATACCATCATAAAGGCATAAGTTAGTATAAAATCATCATAACAAAATACAAAAGTATTTTTAAGATATCTTTTTATTACTGAAATAATAGATGTTTTAGATCATATGGAAACTAAAGATGAATACAAAGAAGAAAATTAAAATCACTAGATACTATGTGACCCCGGAAACATACAGTTAATATTTTAGTGTTTCTCGGCCAGGTGCGGTGGCTCACGCCTCTAATGCCAGCACTTTGGGAGGCCGAGGCGGGCAGATCATGAGGTCAGGAGTTTGAGACGAGCCTGGCCAACATAGTGAAACTTTGTCTCTACTAAAAATGCAAAAATTGGCTGGGTGTGGTGGTGGGCTTCTCTAGTCCCAGCTACTTGGGAGGCTGAGGCAGGAGAATCACTTGAACCCAGGAGGTGGAGGTTGCAGTGAGCTGAGACCGCACCATTGCGCTCCAGCCTGGGTGACAGAGTGAGACTCAGTCTCAAAAAAAATAAAATAAAAAAATAAAAAATAAAAAAATAAAAAAATATGTGTGTATATATATTTATTTATTTATTTTAGTGTTTCTCTTTTAAGCCTTTTTTTTCTGTGCATGTTTCTTCATCTCACACATACATATTAAGGGCCAATCCTCCAATCTTAAACTGAAGATGTAGAGTTTTGACAGTCTCTATAATGACATGATGATGTTCAGCACTCTTGCAGCTTATGCATGTTGCATGGCAAAACATAAAATCTAATGACTGGTCTATAGTTAAAGCTGTAGCATGAACACTATCTGTTGCCCTGAGCTGTTTTAGGGGTGGGATGTTAAAGAAAAATGGAAAGGAAGAAAGAATTCAAAAATTTGTTTATTATAGCTGTTTCTCTTTTATGAATAATGTCTTTTTACAATGGAAAAATACCAGAAATTAAATTCTCATTAGATAATGTGCTTTCTGTTTTGTTCTGAAGGGAATTCCCATCACAGTTGCATTAATTCCCCTGAGAGACATCTCCATATGCTTCGGACAACATCTGATTTTACTTTTGTGTTCTGATTTCAGAGTCTTTGAAATACCTATCCCATAATGTGTCGCAGTGGAATGGATGTGGTTATTATAATCTTGGTTTTAAGTGTAATAAATTTTACTGGGCTGGGTTTGGTTGTAACTGATGAAAGCATATACTAGAGCTCAGCTTTCTTGGGGTCTTTGTATTAGCTGGATTCTTTACAATTCTATCTTGGGATTTAGGATCTGTTTCAAGAAGAAAAAGCGTTATTTCTATTTGATTATGCAAGCCAGTTCTTTAAGCCTTTAGGACATCAGATGGATGGAGGTGACTTGCTGGCCTTTGTTGCCTTTAACTCTAGTATTCGGCTTCTTTCTGAGGAAGGTGCCAAAACGGCTTCCGTATCTGCTGAAGGAAAAGAGGGAGTGGGAAGAGGGGAGAAATATTTCATTGGAAGATAAAAAAAGCTCTTTCCAGCAATTTCCTTTAGAAACTTGGGGGTTGCTGTTAGTCTCATTTGGGTAATGGGCCCCAAGGAAAAGTGACAAATGGCCTTCTTCTGGGGTTTAAACACTAAAGGTCAGTGTTGGCCCTTTTCACAGTTAAGAGGGAAAAATCTGAGCTGGGCTGGGTGGACTTTCTCCAACTAAGGGATTCTTCTGAAACTCCTAACCTGATGGGAATCATTTTGTTTGCAGGTGGCCAAAGCCCATCAAGGGAAATGCTTGATGGTTACTGTGCCTGAGCTGCCTGAAGCCTGGTGTAGGAGTCTCAACTTGATCTTGAGGCAGCTGCAAATGTTAGGTCTTGACACTTGGGATGGCAACAAGACCAGGCAGTGCCCAGAGTGGTCCCAGCGGCCTAGGTTAGAGGAGGGTAGGGGGCTGGAATGTGGCCTTAGCCAGTCCTCTGAGCAGATGAGAATACCTGTCACTATTTCAGGAGATGAGTTGTGGTCAGAGATATCAGTCAGGTGACTTCTCTGAGAGGGGCCTGGTCCTTCTCACAGCAAGATTGACAAGTCTGTGCTGCCAGTTGTCCCTAAATACCCAATTTATCTCCTGGGGTGGAGTTGGGGAAGTGCCTCTAGCCTGGAGCAAAGAGATCTGCCTGCCATTTCGGAAGGAAAGAAACCAGCACACATCCTGTCTTTCATTCTCTGTTTCAAAGGTAGGTTTTTGTCTGTTTGCTTGTTTTTAAATCAACACCCAGGGCTAAAGGAAATCCCGAGTTTCCCTGATAATCAGGATGATTTCTTATTTTGAAAGGCCTATTTTGCCTTCGAAGTGTGTGTTTCTGACATAGGTTTCATCCTAGTTCTAGAAATCTTGCTTAATTCATAAAAGGTAAAAGTTTAATTAGAGAGAAGGCTGATGTATCGTCTTGTTTCAAAGGGAGACTATTCTTGTCTGTCATTTGAATTTTTTATATATATTTTTTCCGGCTGTGAAGAAATATTTTATTGGTACATGTGTACATGCATTTTTTATTCTTAATTATAGTATGTATTTTCACTGGACTACACTCTTGTTAAAGGAAACTTTGTTCACGTGAAATAAACCTATCTTTAGTGAGTCATACTTGAGAACTGCTTCTCAGTCTCCTCAACTTTTAAAGTCAGTGGTATTTCATGTAAAGAGTGTATCGGTAGCTGGCCTATCTCTGGAATGTTGTGCAGCTGTGCAGAGCGTGAGTCTCAAATGTGCTAATTAAATATGTTTTTTAGCAAGAATGGAATGTAGCAGCATTTGAATGGCTTCAAAAAACATTCCATTTTGTTTCTGAAGAGGGCTTTTTTCGTTTTTGCCAAATATTAAAAATTAGAGAGTACACTGACTTTTAGAGGATGTATTGCTATGTTAAATTGTTCTGTTCACCAGAACAGGGTGGCATGTGCCTGTAATCCTAGCTACTTGAGAGGCTGACGTGGGAGGATCTCTTGAGCCCAGGGCTTCAAGACTAGCCTGGGCAGAGTAGAAAGAACCTGTCTCAAACCCCACACTGTTCTTTTCGCAGAGTTAATGGGGCTCATTAAATACTGAGATTATCCTTTAGAACAATCTTGTCCAACCTACAGCCTTTGAATGTGGCCCAGCACAAATTTGTAAACTTTCTTAAAACATTATGAGATATTTTTTGTGATATTTATAGCTCATTAGCTATCATTAGTGTTTTACTTTATGTATAGCCCAAGACACTTCTTCTTCCAGTGTGGCCCAGGGAAGCCAAAAGATTAGACACCCCTGCTTTAGAATGTACTCAATTAATAATCTTCAAAATGTAGGGATTAGGTGGGGTGGCTCATGCCTGTAATCCCAGCACTTTTGGAGGCCAAGGTGGGAAAATTGCTTGAGCCTAGGAGTTTGAGACCAGCTTGGGCGACATGGTGAGACCTGGTCTCTACGAAAACAAACAAAAAGAACAGAATGTAGGCAGTGGTGGCATGAGTAAGGTTCTAAGGTTTACCATCTTTAGTTGATCTTGCTCATTTCCCTTGGTATCAGTTCTCCTTCCTTACTTGGTGAGTGCTTAACCTTTCTTTGGGCAGTAAGGCATGACATTTCTCCCCAGGTTGAGCAGTTTTCTGATACATATTTTTTGGCTGAGTGTGACTTGTATCTTTTTGGACTAAGCTCCATTCACTCAGATGGTGGTCTGATTTTTTTTTTTTTTTCAGTCAGGCATTGTGCAAAGTGACCTGATGGGAATAAATGGCAGGTTGGTTGTGTAATGCAGCAACATCTTACTTGGTTGTCTTTAGAGATAAGTGGGACGTGATTCCAGCAAGGCTGTGCATCAAATGTTGGAATGTGTTGGAGAACTGCCAAGAGGTTGGGAGCAAGCTGTGTGACAAGCACTAATGCAGCCTTGGCCTGCCTTAAAATAGCTGCAGGTTAACAAATATCTTGAAACTTGGCATTTCTTTTGAGCAAAATTGCTCCTCTGAATGTGTTACCAAGAGGTGCTTTCCTCTTTTTTATCGATTTTTTTTTTTTTTTTTTTGCTGTTCCAACTGTCTTAAAACATCTTATGAGCATATGAAGAAGATATAATTCTCTGTAACATCTTATGTTGAATGATTTTACTGGACTAATTATTAGCACATTATCTGAAACTTCACTTGTAGTTCTTCTGCTCTGCTCACCCAACTCACTGAAAAATATATAGTCTTTGTAGTTTGAATAAAAACTGGGGCCCTGAAGATGTTTTTTTTTTTTTTTTTTTTTTTGAGACTGAGTCTCGCTCTGTCGCCCAGGCCAGAGTGCAGTGGCGCGATCTTGGCTCACTGCAAGCTCCGCCTCCTGGGTTCACACCATTCTCCTGCCTCAGCCTCCTGAGTAGCTGGGACTACAGGCACCCACCACCACGCCCAGCTAATTTTTTGTATTTTTAGTAGAGACAGGGTTTCACCATGTTAGCCAGGATGGTCTCGATCTCTTGACCTCATAATCCGCCCGCCTGGACCTACCAAAGTGCTGGGATTACAGGCATGAGCCACTGCGCCCAGCCTGAAGATTTTTTTTAAAAGTCCTATATTTTATATGTTTGATAGGCTTTTGGAAAGGAATTATTGATGTTTGAACACTAACACATTAGAGAGGCAGAGTCAGAGGCATTGGTTACTTTGCTGTGGAATCTTGTCTTAGCTGATTCACTTTTAGACTTCTTAGTAAGCTCATTGGTAGTTTGTCTGCAGTACTTAGTTCTTGTTTGTAATTAATTCACTGTCTAACTGTAGTCTCTCAATTTTTTTCAATAGAAAGGCTTGTTTTTTAAGTCAGAGTGGTAAAAACAGGGGGGGTTGGGAGTGGTCTTTGAAATGGGTCCTGTACAGACTTGAGCCTGATGGTGATGTGATCAAGGTTGCAGGGGGTGTGGGTACCTGGGTGGGGCTGGGGCTGCCTGTGGGACTAATCTAAACAGCCAGTTAGTTTGGGTGCTCTGAATATGACATTTTTAAAAATGCAGTATTTGGGTTAATGATTGGAAGTAAACTAAGAATTTCCAGGATTTATATGTTAAATAGCAGATGAAAACAGTGAGTTACATGTTAAATAGTAGATGGAAACAGTGAGTTAACTTTATTTTGAGAGGCTTAAATACAAACCAAGTTTCTATACTAAAGGATTTCCTAAAAGATGATATTAACAGATATGTTAATTATCCCATAACTTAAAGTCCTTTAGACGTTTAGATTGAGACTAATTGTGATAATTTCATAGCTCTGTAGCGTATCCTGAAAATGGCTTTGTTTCTTTTGTTTCACTGTCTTCATATGTGTAAGTCTTGAATTTTGCTTTGTCACTTTCCGTATTTTACATGTATTTTAGAGGTCCTCTCCTTG",
+                     "ATCCTGGGCGACAGAGTGAGACTTCGTCTCAGGAAAAAAAAAGTATATGGGAGGTTATATGCAAATATGATGCCGTATAACCCACATCCAATTCTATTGATTCCACCTTCAAGATGTATCCCAAATCTCACTACAGTCATTCCTCAGTATCCATGGGGGAATGGTTCCAGGACCTCCCCTGACCAACAGATACCAAAATCCACAAAGGCTCAAGTCCCTCATATAAACTCTATTCAAGTAGAGATGTTAGGTAGGCAGGTGCATATACAAATCTGCAGCTCAAGACTGATGCTAGGACTGGAGATAAAAATTTGGGAGTCCTCAGTCTATAGATATTTAAAGCCGTGGGACTAGATGAAATCATTTAAAAAGTGAGTATTGAGATTAAAGAATGGAATTGAGGACTGAGACTTGGAGCTTAGCAACATTTAAAAGTAAAGAGGAGCCGCCATTAAAAGACAATGAGGGGCCAGGTGCAGTGCCTCACTCCTGTAATCCCAGCACTTTGGGAGGCTGAGGCAGGCAGATTGCTTGAGCTCAGGAGTTCGAGACAAGCCTGGGCAACATGGTGAAACCCTGTCTCTACCAAAATACTAAAATTAGCCGGGTGTGGTGGCACATGCCTGTGGTCCCAGCTTCTTGGGAGGCTGAGGTGGGAGGATGGCTTGAAACCAAGAGGCGGAGGTTGCAGTGAGCCGAAATCGCACCGCTGCACTCCAACCTGAATGACAGAGTAAGACCCCATCTCAAACAAACAAAAAAAAAACAAAAGACAATGAGAAAGAGCAGTAGTGAGGTGGGAGATAAGCCGGGAGAGTGTGGTGTCCTGAAGTCAGGTGAAGAGAGTATTTCAAGAAGGTGAGAGAGTAATCAGTTGTGTCAGATGCTGCCAAATTGTAAGATGAAGATGGAGAATTGACCATTGAATTTGGCAAGGTTGGCGTCATTGGTAAAGGCAGTTTCAGTGTAGAGATAAAGAAAACTACCCAGTTGGAGTGAGTCAGAGTTTCAGGCCAGGCGCGGTGGCTCATGCCTGTAATTCCAGCACTTTGGGAGGCCGAGGCGGGTGGATTACAAGGTCAGGAGATCGAGACCATCCTGGCTAACACGGTGAAACCCCGTCTCTACTAAAAATACAAAAAATTAGCTGGGCGCGGTGGCAGGCTCCTATAGTCACAGCTACTTGGGGGGCTGAGGCAGGAGAATGGCGTGAACCCAGGAGGCAGAGCTTGCAGTGAGCCGAGATCTTGCCACTGCACTCCAGCCTGGGCGACAGACAGCGAGACTCCGTCTCAGGAAAAAAAAAAAGTTTCAACCGGGTGGTAGATTGACATAATCTGAAAACCCTCTGCTACCAAAGTCTAGAAAGGAGAGAGAAAATAGAAACAAAAAAAATTTTTAAGTGCAAAGTTAAGCTTGAAAGAAAATGTGAAATTCTTAAGTTTTAGAGACCAAGTGAGGACTGAAAATCTTTTTTTTTTTTTAAATACAGAGTCTTGCTCTGTCGCCCAGGCTGGAGTGCAGTGGCACGATCTCTGCTCACTGCAACCTCTACCTCCCAGGTTCAAGCGATTCCCCTGCCTCAGCCTCCCAAGTAGCTGGGACTACAGATGTGGGCCACCATGCCCGGCTAATTTTTGTATTTTTAGTAGAGATGAGGTTTCACCGTGTTGGCCAGGCTGGTCTCAAACTCCTCGCCTCAGGTGAACCGCCCACCTTGGCCTCCCAAAGTGGTGGGATTACAGGCATGGGCCACTGTGCCTGGCCATCAAGTGAGGACTGAAAATCAGAGTGGTAAATTGACTCTGGAGCTGCCTGTAGATTGGGTGGATTCATCATCTTGAGAAGCCAGGGCCTTAAATTTAAGCAGGTACTGGGGAAGGCAGATGAGTCCTTGGGCTTTCCTGAGAGTAGTTTTGGAACTGAGACATTGTTTATAAAGTCTGGACCTGGGCTGCACCTTCATTGAACAAGCTGACTAGGGGAAAAAAGTCTGCACGCTGGAAAGGGGAGATAAGGAGTGCTGTTTCTCTCAGGCTGGCTGTGGATGGGTGAAAAAAAAAGTTCTTGGGACTGCAAATGGACATGACATCTTTTTGGAATGATGAAAATGTTTTAAAATTTGATTCTGGTGATGGTTGCATAACTAAATTTACTAAAAATCATTGAATTGTTCACTTGAAGTGAATTTAATGGTATGGAAATTACATCTCAGTAATATTTTTTTTTTTTTGAGACAGAGTTTTGGTCTTATTGCCCAGGTTGGAGTGCAATAGCACGATCTCAGCTCACTGCAGCCTCTGCCTCCTGGGTTCAAGTGATTCTCCTGCCTCAGCCTCCCAAGTAGCTGGGATTCCAGGCATGACCACCATGCCAGGCTAATTTTTTGTATTTTTAGTAGAGACAGGGTTTCACCATGTTGGCCAGGCTGGTCTTGAACTGACCTCAAGTGATTCACCTGTGTTGGCCTCCCAAAGTTCTGGGATTACAGGTGTGAGTCACTGTTCCTGGCCAATTTTTTTTTTTTTTTTTTTTTTTTTTTTTGAGATGAAGTCTCGCTCTGTCACCCAGGCTGGAGTGAAGTGGTGTGACCTTGGCTCACTGCAACCTCCACCTCCCAGGTTCAAGTGAATCTCCTGTCTGAACCTCTTGAGTAGCTGGGATTACAGGTGTGCACTACCACGCCTGGGCTAATTTTTGTATTTTTTTAGTAGAGATGGAGTTTCACCATGTTGGTCAGGCTGGTCTTGAACTCCTGACCTCAAATGATCCATCTGTCTCGGCCTCCCAAAGTACTGGGATTACAGGCATGAGCCACTGCACCTGGCCTAATTTTTTTTTTTTTTAAATTAGAGGCCAGGTGCAGTGGCTCATGCCTGTAGTAATCTCAACACCTTGGGAGGCTGAGACAGGAGGATCACTTGAGGCCAGAAGTTTTAGACCAGCCTGGGCAACATAGGGAGATCCTGTCGCTATAAAAAAAAAAAAATAGCTGAGCATTGTTGGTGTGCCTGGGAAGCAGAGGTGGAGGCAGGAGGATTGCTAGAGCCCTGGAGGTTGAGGCTACAGTGAGCCATGATGGCTTCGCTGCACTGTGGCCTGGGTGCCAGAGTGAGACCCTGTCTCAAAAACTAAAAAAAAAAAAAAATCAATCTAGGGTGACACTGTCATTATTGGAGTACCTTCTGGAAACAAATGTAGAACAACCACACCTCAGTCCGGGCTGGAAGGGATTATCGGAGAAAGGCACTTTGATTAGAGTTGGGCCAGGCACAGTGCTCATGTTTGTAATCCCAGCACTTTGTGAAGCCGGGGTAGGAGTTCAAGACTATCCTGGGCAGCATAGCAAGACCCTGTCTCTACAAAAAATAAAAAAAATTAGCTAGGTGTGGTGGTGTGTGCCTGTGGTCTCAGATACTTGGGAGGGGAGGCTTAGGGGGAGGATTGCTTGAGCCCAGGAGGTCAAGGCTGCAGTGAGCCACAGATAGTGAGTGCCATTGTACTCCAGCCTGGGTGACAGAGCGAGACCCTGTCTCAAAAAAAAAAAAAAAAAAAAAAAAAAAACGTAAGGCTGGGCACGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGTTGAGGCGGGCGAATCACGAGGTCAGGAGTTCCGAGACCAGCCCGGCCAACATAGTGAAACCCCGTCTCTACTAAAAATACAAAAATTAGCCAGGCATGATGGTGGGCACCTGTAGTCCCAGCTACTCGGGAGGCTAAGGCAGGAGAATTGCTTGAACCCAGGAGGTGGAGGTTGTGATGGGCCAAGATCGCACCACTGCACTCCAGCCTGGGCGACAGAGTGAGACTCTGTCTCAAAAGAAAAGAAAAGAAAAAAAAAAGTAGAGACAGAGTATAGACCTATTCTTTTGTAATGTTTAGCTAAAAGGGGAGCAAAAGTTTGAGGGGGCTGTGAGGTAATTTGGTTGGATTTTTAAAAAGTTTTTTGAGATATAATTCATATACTGTGCAATTCGTCTGTTTAAAGTGTTTTTGTATATTTAGTGGTTTTTAATATATTGACAGATATGTGCTGTCACAATTTAGTATATTGACAGATATCACTACAGTCAGTTTTAGAACATTTTCATCATCTGAAGAAGAAATACTGCATTCTTTAACTACCCCTGTTTAGCTATTCCCCCATTCCCCTATTCTTCCAACCTTAAGCAACTCCTGATCTACTTTCTGTCTCTAAAGATTTCCCTATTCTGGACTTTTCATTAGAATAGAATCATATACTATGTGATATTTTATAACTGACTTCTTTAATTTAGCATAATATTTTCAAAGTTCAACTATGTTGTAGTGTATATTAGTACTCCATTCCTTTTTGTGGTTAAGTGGTTTTTCATTGTGTAGCTACATGCCACATTTTGTTTATCCATTCTTCTGCTGATAGACATTTGGGATGTTTCCACTATAGTTGGTTTTTGTGTGTGTGTGTGTGTGTGTGAGATGTTTGTATGTTTTTGTGCTGATGGGAATAATCAGAGAGGGAGACACTGAATGGAAAGTATATTGGAAAGACACTGTGGTAGACTGAGGCGGGCAGATTCGTTGAGCTCAGGAGTTTGAGACCAGCCTAGGCAACATGGCGAGACTCCGTATCTATAAAAAATGCGAAAACTAGCCACGCATGGTGGCGTGTGACTTTCGTTTCAGCTACTTGAGAGGCTGAGGTGGGAAGATCAGCTGAGCCTGGAAAGTTGAGGCTGCAATGAGCTGTGATCACACCACTGCACTTCAGCCTGGGTGGCAGAGTGAGACCCTGTCTCAAAAAAAAAAAAAAGCTGGACAATCAATCTGCATTTGTTTGATTTCATATTTATTAAGGTTCATGCATGCTTATGCGTGCCTTCCCTTTCAGTGCTTTCAGGGCTTCAGATTACAAAACTGAAGAGGTTTGTCAAAGAATTGAAGCAGAGGAAGCAGTAATTTAGTTAGCAGAGTAAATAGTACTTGACCTGAAGGTGCTTGGTTTATGTTTGTGGAGTGAGCTTAATGGAAAACAAGATTTGCCATGAATAATCAGGAATATAATTTACCCACAAATATACAAAAGTATGAAGCCATAAAAGAACTCAGGGTGTGAGAGTAAGATGTCACAAAACAATGTAGCTTCCTGTATGATGTGACACTTCTGTAGACTTCAAAGGGTGTCCTGGCCCCACTAGTCACCTCTGCTTGCTTTCTTTTCACAGGCTGCCTGGGTCTCAGCCATTTGGGTCCCCATTGGCCCCTGTGGGCAACCAGCCACCTGTGCTTCAGCCCTATGGCCCTCCCCCGACAAGTGCACAGGTGGCTACGCAGCTGTCTGGAATGCAGATCAGCGGTGCTGTGGCCCCAGCCCCTCCTTCTTCAGGGCTGGGCTTTGGTGAGTGGCTGTGAACACAGGAATGTTACTGTCCCCTGTTCAGAGGCATCAGACTCTGGGGTTATACCTGAATCTCTTTTATTTCCCTTGTATTTCCTGTGCCTCTGAGCCTCAGAAGATGGGACAGTCATATTTGCCCCTCTTGTGTGGAAAGGGAAGTGATATACCGAACAAGGAGGCAGAATGACTGGGCTTTTGACTCTACCTTTATTCTACTTCTCAGGCCCACCAACATCGCTGGCTTCAGCCTCAGGAAGTTTCCCTAACTCTGGTCTGTATGGCTCCTATCCTCAGGGCCAGGCTCCTCCCCTTAGCCAGGCCCAAGGTCATCCTGGGATCCAGACTCCCCAGCGATCTGCCCCATCACAGGCCTCCAGCTTCACACCCCCAGCTTCAGGGGGTCCTCGGCTGCCTTCGATGACTGGTCCACTCCTGCCTGGACAGAGTTTTGGAGGGCCCTCAGTGAGCCAGCCCAACCATGTGTCTTCACCTCCTCAAGCTCTGCCCCCTGGCACCCAGATGACTGGGCCCCTGGGACCACTGCCACCTATGCACTCCCCGCAGCAGCCAGGCTATCAGCCCCAACAAAATGGTGAGTCTTTCCCAAGGTCTGTCTTAGAAGCTAGAGGCTTCAGCTACTCAGGTGGTTTTTGATGTTTTTTATTTGTTTGTTTTTAGTATTACTTGCTAAGTGGTGAATTAGATGGGTAGCTTCAGGGTATTATTCCTAGGATATGGGGTTTGTAAGACATTATTTTTTCTTGTCGTTCTGATAACATGGTATTTTTCTGAATGTCTTTGCCAGGCATTAGTGTGCCTCATAATTCTATGTTTTTAGGAGTCTAGTCATTTTCCTGAGGCCTTAAGAAGAGATAGGGATGGGATTTTGAGTTCATCAACCTTGTGTCCTTGTCTCAGGTTCCTTCGGACCAGCCCGGGGCCCTCAGTCTAATTATGGAGGCCCCTACCCAGCAGCACCCACCTTTGGCAGTCAGCCTGGGCCTCCTCAGCCACTGCCTCCTAAGCGCCTGGACCCTGATGCCATCCCAAGCCCTGTAAGTAGAAACTTTCATGGTCCTGAGGAAGGGTTTGTGTCTGCCAGATAGGCAGGTCAATCTAGATGAAATGTTTGCCTAGCATTTTCTGATAATTTTCCCTTTTTGTTCATCTTCTTGGAGAACTTACATATAATTTGATTCTGAACTGGAACTTGAGGTTCTAGGAGTCTTTTGGGGGGCTGTTTTACTCTATAGCTGGGCAGAGAAGGAAGGGAAACCAAGAGTGAGCAGCAGCACCAGTAGATGTCTGAGGGCTGCACTCTGTCACTACTGTACATACATAGTATAGTAGCCTTTGTCCTTCTGTGGAGCAGTGACTGGGTCTTGTCCCCTTAGATCTAGAAGGATGGCATTCTTCCTAATGGGTAGAGCAGGTGGGAATTCTCTGATGTTAGATGTTAAGAGAAGGAAAGCCTCACTGGTTTCTCTGCTCTTACTTGGACAGTTTTAGGAGGAAGTCCCCAGTACTTTTGTTTGGTAGGCTTCTGCTGTGTGGATGGGGAAGAGTGAACGACAGTTTATGAGGGCAGTGTGTATGTAAAGTCCCACTGGAGAGCTGCTTTTTTCAGGAAGAGGGTGAATTGCACCCTTGGAGCCATCAGAATCCTCAGGCCCTCCTTATCAGACTCAGAATAGAGACTAGGACTGTACTGCCAAGTAGGGGCC"]
+    })
+    
+    # Use debug intervals instead of reading from file
+    # intervals = debug_intervals
+    intervals = pd.read_csv(intervals_path, sep='\t', header=None, 
+                          names=['chrom', 'start', 'end'])
+    # Filter intervals and convert to BedTool
+    # intervals = intervals.query("chrom == 'chr2' and end<=80_000_000").sort_values(by=["chrom","start"])
+    intervals = intervals.query("chrom == 'chr2'").sort_values(by=["chrom","start"])
+    bed = pybedtools.BedTool.from_dataframe(intervals)
+    # Merge overlapping intervals
+    merged = bed.merge()
+    # Convert back to dataframe
+    intervals = merged.to_dataframe(names=['chrom', 'start', 'end'])
+    print (intervals)
+    
+    all_predictions = []
+    all_coordinates = []
+
+    # Process each interval    
+    for _, row in tqdm(intervals.iterrows(), total=len(intervals)):
+        # Get sequence
+        sequence = genome.fetch(row['chrom'], row['start'], row['end']).upper()
+        if args.strand == 'rev':
+            sequence = sequence[::-1].translate(str.maketrans('ACGTN', 'TGCAN'))
+        if "sequence" in row.keys():
+            assert sequence == row["sequence"]
+        # Process sequence in chunks
+        chunks = tokenize_and_chunk_sequence(sequence, tokenizer, start_pos=row['start'], is_reverse=(args.strand == 'rev'))
+                
+        for chunk in tqdm(chunks, desc="chunks"):
+            # Prepare inputs
+            input_ids = chunk['input_ids'].cuda()
+            attention_mask = chunk['attention_mask'].cuda()
+            
+            # Get cell type descriptions
+            desc_vectors = torch.tensor([list(desc_data.values())], dtype=torch.float).cuda()
+            
+            # Create dummy labels and masks
+            batch_size = input_ids.size(0)
+            seq_len = input_ids.size(1)
+            num_cell_types = len(desc_data)
+            
+            # Create dummy labels tensor
+            dummy_labels = torch.ones((batch_size, seq_len, num_cell_types)).cuda()
+            dummy_labels_mask = torch.zeros((batch_size, seq_len, num_cell_types), dtype=torch.bool).cuda()
+            
+            # Create dummy TPM values
+            dummy_tpm = torch.zeros((batch_size, num_cell_types)).cuda()
+            
+            # Make prediction
+            with torch.no_grad():
+                outputs = model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    desc_vectors=desc_vectors,
+                    labels=dummy_labels,
+                    labels_mask=dummy_labels_mask,
+                    tpm=dummy_tpm
+                )
+            
+            # Get predictions from logits
+            # outputs contains TokenClassifierOutput with logits of shape (B*N, seq_len, 1) for each seqgment.
+            logits = outputs.logits[-1] # last segment
+            N = len(desc_data)
+            B = input_ids.size(0)
+            assert logits.shape[0] == N
+            assert logits.shape[2] == B
+
+            # Take CLS token predictions (first token) and reshape
+            # From (N, seq_len, B) -> (N, B) by taking first token
+            cls_predictions = logits[:, 0, :] # Shape: (N, B)
+            
+            # Transpose to get (B, N) shape and move to CPU for storage
+            predictions = cls_predictions.transpose(0, 1).cpu()
+            all_predictions.append(predictions)
+            all_coordinates.append({
+                'chrom': row['chrom'],
+                'start': chunk['genomic_start'],
+                'end': chunk['genomic_end']
+            })
+        
+        # break # TODO: remove
+    
+    # Save results as bedgraph files
+    logger.info("Saving predictions as bedgraph files...")
+    save_predictions_as_bedgraph(
+        all_predictions=all_predictions,
+        all_coordinates=all_coordinates,
+        cell_types=list(desc_data.keys()),
+        output_dir=output_dir,
+        strand=args.strand,
+        cells=args.cells,
+        prefix=args.checkpoint
+    )
+    
+    logger.info("Done!")
+
+if __name__ == "__main__":
+    main() 

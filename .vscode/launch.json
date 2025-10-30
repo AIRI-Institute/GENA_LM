@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "Debug Expression (1 GPU)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/downstream_tasks/expression_prediction/run_expression_finetuning_v1.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "python",
+            "env": {
+                "CONDA_DEFAULT_ENV": "horovod",
+                "CONDA_PREFIX": "${env:HOME}/miniconda3/envs/horovod",
+                "CUDA_HOME": "${env:HOME}/.local/cuda/",
+                "PATH": "${env:HOME}/miniconda3/envs/horovod/bin:${env:HOME}/.local/cuda/bin:${env:PATH}",
+                "LD_LIBRARY_PATH": "${env:HOME}/.local/cuda/lib64/:${env:LD_LIBRARY_PATH}",
+                "CUDA_VISIBLE_DEVICES": "0",
+                "GENALM_HOME": "/mnt/10tb/home/vsfishman/DNALM"
+            },
+            "args": [
+                "--experiment_config", "downstream_tasks/expression_prediction/configs/megafull_qnorm_upsample_ctspecific2_DNArun.yaml",
+                "--batch_size", "2",
+                "--gradient_accumulation_steps", "1"
+            ],
+            "justMyCode": false,
+            "stopOnEntry": false
+        }
+    ]
+}

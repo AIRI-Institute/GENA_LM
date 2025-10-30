@@ -63,9 +63,12 @@ ENV/
 env.bak/
 venv.bak/
 
+# data files
 *.tar.gz
 *.zip
 data/genomes/*
+data/pretrain/*
+notebooks/data/*
 *.pyc
 .DS_Store/*
 .ipynb_checkpoints/*
@@ -73,3 +76,20 @@ data/genomes/*
 downstream_tasks/promoter_prediction/*.ipynb
 runs/*
 .vscode/*
+*.h5
+*.temp
+*.bed
+*.bedGraph
+*.bedgraph
+*.log
+*.fna
+*.fai
+*.fna.gz
+
+# expression task
+downstream_tasks/expression_prediction/intervals/*
+downstream_tasks/expression_prediction/runs/*
+downstream_tasks/expression_prediction/test.*
+downstream_tasks/expression_prediction/shift_expression_checks/*.csv
+downstream_tasks/expression_prediction/*minja*
+downstream_tasks/expression_prediction/configs/*minja*
