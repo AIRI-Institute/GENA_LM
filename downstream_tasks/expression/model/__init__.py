@@ -4,7 +4,7 @@ from .losses import ExpressionCountsLoss, CellTypeLoss
 
 __all__ = [
     "ExpressionCountsModel", 
-    "ExpressionCountsModelOutput"
+    "ExpressionCountsModelOutput",
     "RMTEncoderExpression",
     "ExpressionCountsLoss",
     "CellTypeLoss"

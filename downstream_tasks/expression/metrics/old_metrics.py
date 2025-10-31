@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import torch
 
-from copy import copy
 
 import accelerate
 from logging import getLogger

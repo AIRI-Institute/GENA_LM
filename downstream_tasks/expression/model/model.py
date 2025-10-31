@@ -1,16 +1,14 @@
 import torch
 import torch.nn as nn
 
-import importlib
 
 from dataclasses import dataclass
 
 from typing import Optional
 
 from transformers import AutoModel
-from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertConfig, BertModel
+from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertModel
 from transformers.modeling_outputs import TokenClassifierOutput
-from transformers.utils import cached_file
 
 import numpy
 torch.serialization.add_safe_globals([
@@ -230,7 +228,7 @@ class ExpressionCountsModel(BertPreTrainedModel):
         dataset_deviation = None,
     ):
 
-        return_dict = return_dict if not (return_dict is None) else self.config.use_return_dict
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # Прогоняем через GENA
         bert_outputs = self.bert(

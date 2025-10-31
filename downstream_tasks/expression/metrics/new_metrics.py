@@ -19,15 +19,6 @@ def join_or_pass(values):
         result = np.concatenate(values)
     return result
 
-#class ComputeLoss:
-#    def __call__(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-
-class Metrics:
-    def __call__(self, prediction_obj):
-        preds = prediction_obj.predictions
-        preds = [join_or_pass(p) for p in preds]
-        output = ExpressionCountsModelOutput(*preds)
-
 
 class LogTrainMetricsCallback(TrainerCallback):
     def on_step_end(self, args, state, control, **kwargs):

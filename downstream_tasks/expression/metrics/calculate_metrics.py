@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import logging
 
 def calculate_target_genes_metrics(df_true, df_pred, target_cell_types, logger=None):

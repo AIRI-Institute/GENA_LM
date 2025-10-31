@@ -29,12 +29,12 @@ class TrainerWrapper(Trainer):
         self.custom_callbacks = custom_callbacks
         self.state.trainer_instance = None
 
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        loss, outputs = super().compute_loss(model=model, inputs=inputs, return_outputs=True, **kwargs)
+    def compute_loss(self, model, inputs, 
+                     return_outputs=False, num_items_in_batch=None):
+        loss, outputs = super().compute_loss(model=model, inputs=inputs, return_outputs=True, 
+                                num_items_in_batch = num_items_in_batch)
         if not loss.requires_grad:
             if 0 < len(self.custom_callbacks):
-                cpu_inputs = handle_input_output(inputs)
-                cpu_outputs = handle_input_output(outputs)
                 for callback in self.custom_callbacks:
                     callback.update(inputs, outputs)
             self.state.trainer_instance = self

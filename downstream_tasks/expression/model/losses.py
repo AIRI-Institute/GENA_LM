@@ -32,11 +32,9 @@ class CellTypeLoss(nn.Module):
         if self.normalize_by_mean:
             cls_targets_deviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
             cls_preds_deviation = ((cls_preds - cls_preds_mean) / cls_preds_mean)
-            debug_test_cls_targets_deviation = cls_targets_deviation
         else:
             cls_targets_deviation = (cls_targets - cls_targets_mean)
             cls_preds_deviation = (cls_preds - cls_preds_mean)
-            debug_test_cls_targets_deviation = ((cls_targets - cls_targets_mean) / cls_targets_mean)
 
         # loss
         cls_loss_mean = (self.loss_fct_mean(cls_preds_mean, cls_targets_mean) * cls_mask).sum() / cls_mask.sum()
@@ -76,7 +74,6 @@ class ExpressionCountsLoss(nn.Module):
     
         if labels is not None:
             B, seq_len, N = labels.shape
-            device: torch.device = logits.device
             assert labels_mask.shape == (B, seq_len, N)
 
             # labels, labels_mask: (B, seq_len, N)

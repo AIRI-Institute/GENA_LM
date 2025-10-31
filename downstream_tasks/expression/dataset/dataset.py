@@ -1,4 +1,3 @@
-import datetime
 import torch
 from torch.utils.data import Dataset, ConcatDataset
 from typing import Optional
@@ -12,16 +11,12 @@ import hashlib
 
 import logging
 from pysam import FastaFile
-import gc
 import pickle
 import h5py
 import tqdm
-import tempfile
 import sys
 import json
 from transformers import AutoTokenizer
-from multiprocessing import Pool
-import pickle
 
 def convert_fm_relative_path_to_absolute_path(path, file_mappings_path):
 	"given a relative path of file and a file_mappings_path, return the absolute path"
@@ -660,7 +655,7 @@ class ExpressionDataset(Dataset):
                     
                 # self.logger.debug(f"N of _cell_type_specific_samples: {len(_cell_type_specific_samples)}")
                 if len(_cell_type_specific_samples) < self.n_keys: # add random non-cell-type-specific samples
-                    _not_cell_type_specific_samples = [key for key in self.all_keys if not key in _cell_type_specific_samples]
+                    _not_cell_type_specific_samples = [key for key in self.all_keys if key not in _cell_type_specific_samples]
                     assert len(_not_cell_type_specific_samples) + len(_cell_type_specific_samples) == len(self.all_keys)
                     selected_keys = np.random.choice(_not_cell_type_specific_samples,
                                                 self.n_keys - len(_cell_type_specific_samples),

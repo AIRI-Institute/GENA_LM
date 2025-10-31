@@ -1,8 +1,8 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 import math
+import random
 
 from gena_lm.modeling_rmt import RMTEncoderForSequenceClassification
 
@@ -158,8 +158,8 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
                 if 'hidden_state' in key:
                     out[key] = None
 
-        for i, l in enumerate(losses):
-            out[f'loss_{i}'] = l.mean()
+        for i, loss_tensor in enumerate(losses):
+            out[f'loss_{i}'] = loss_tensor.mean()
 
         if out_loss is not None:
             out['loss'] = torch.stack(losses).mean()
@@ -186,8 +186,6 @@ class RMTEncoderExpression(RMTEncoderForSequenceClassification):
         if len(logits_masks) > 0:
             out['rmt_logits_masks'] = logits_masks
             out['rmt_logits_masks_segm'] = logits_masks
-
-        mem_token_ids = self.mem_token_ids
 
         return out
 
