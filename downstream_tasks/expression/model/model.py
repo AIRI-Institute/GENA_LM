@@ -77,22 +77,9 @@ class ExpressionCountsModel(BertPreTrainedModel):
 
         # 1) GENA
         if hf:
-            # config = BertConfig.from_pretrained(hf_model_name)
-            # self.bert = BertModel(config, add_pooling_layer=False)
             raw_bert = AutoModel.from_pretrained(hf_model_name, trust_remote_code=True)
-            #            model = AutoModel.from_pretrained(hf_model_name, trust_remote_code=True)
-            # module_name = model.__class__.__module__
-            # cls = getattr(importlib.import_module(module_name), 'BertModel')
-            #            self.bert = cls.from_pretrained(pretrained_cpt, add_pooling_layer=False)
-            # state_dict = raw_bert.state_dict()
-
-            # updated_state_dict = {
-            #    k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            # }
-            # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
             missing_k, unexpected_k = [], []
             self.bert = raw_bert.bert
-            print(self)
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
 
