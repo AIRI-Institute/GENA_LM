@@ -4,6 +4,7 @@ from transformers.modeling_outputs import TokenClassifierOutput
 
 from transformers import TrainerCallback
 
+
 @dataclass
 class ExpressionCountsModelOutput(TokenClassifierOutput):
     labels_reshaped: np.ndarray | None = None
@@ -12,6 +13,7 @@ class ExpressionCountsModelOutput(TokenClassifierOutput):
     other_loss: np.ndarray | None = None
     mean_loss: np.ndarray | None = None
     deviation_loss: np.ndarray | None = None
+
 
 def join_or_pass(values):
     result = values
@@ -30,7 +32,6 @@ class LogTrainMetricsCallback(TrainerCallback):
                         result = callback.compute()
                         callback.reset()
                         trainer.log(result)
-         # remove trainer instance from state to avoid looping
+        # remove trainer instance from state to avoid looping
         state.trainer_instance = None
         return control
-        

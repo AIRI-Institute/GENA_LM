@@ -3,9 +3,9 @@ from .rmt import RMTEncoderExpression
 from .losses import ExpressionCountsLoss, CellTypeLoss
 
 __all__ = [
-    "ExpressionCountsModel", 
+    "ExpressionCountsModel",
     "ExpressionCountsModelOutput",
     "RMTEncoderExpression",
     "ExpressionCountsLoss",
-    "CellTypeLoss"
+    "CellTypeLoss",
 ]
