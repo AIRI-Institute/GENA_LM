@@ -1,10 +1,13 @@
 import torch
 import torch.nn as nn
 
+import importlib
+
 from dataclasses import dataclass
 
 from typing import Optional
 
+from transformers import AutoModel
 from transformers.models.bert.modeling_bert import BertPreTrainedModel, BertConfig, BertModel
 from transformers.modeling_outputs import TokenClassifierOutput
 from transformers.utils import cached_file
@@ -62,23 +65,29 @@ class ExpressionCountsModel(BertPreTrainedModel):
         hf: bool = True,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
     ):
+        print(config)
         super().__init__(config)
         self.config = config
         self.hidden_size_desc = hidden_size_desc 
 
         # 1) GENA
         if hf:
-            hf_config = BertConfig.from_pretrained(hf_model_name)
-            self.bert = BertModel(hf_config, add_pooling_layer=False)
-            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
+            #config = BertConfig.from_pretrained(hf_model_name)
+            #self.bert = BertModel(config, add_pooling_layer=False)
+            raw_bert = AutoModel.from_pretrained(hf_model_name, trust_remote_code = True)
+#            model = AutoModel.from_pretrained(hf_model_name, trust_remote_code=True)
+#	    module_name = model.__class__.__module__
+#	    cls = getattr(importlib.import_module(module_name), 'BertModel')
+#            self.bert = cls.from_pretrained(pretrained_cpt, add_pooling_layer=False)
+            #state_dict = raw_bert.state_dict()
 
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            }
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            config = hf_config
-                                            
+            #updated_state_dict = {
+            #    k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+            #}
+            #missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            missing_k, unexpected_k = [], []
+            self.bert = raw_bert.bert
+            print(self)
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
 
@@ -299,6 +308,4 @@ class ExpressionCountsModel(BertPreTrainedModel):
             labels_mask_reshaped=losses.get("labels_mask_reshaped"),
         )
 
-        print(output)
-        assert False
         return output

@@ -79,7 +79,7 @@ losses:
 base_model:
   _target_: model.ExpressionCountsModel
   config:
-    _target_: transformers.AutoConfig.from_pretrained
+    _target_: "transformers.AutoConfig.from_pretrained"
     pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t"
   hf: True
   hf_model_name: "AIRI-Institute/gena-lm-bert-base-t2t"
