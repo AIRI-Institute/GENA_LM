@@ -1,0 +1,109 @@
+# Configuration for train_with_accelerate.py
+# https://github.com/facebookresearch/hydra/issues/1286 - some notes on how to use hydra configs
+
+HOME_PATH: ${oc.env:GENALM_HOME}
+output_dir: ${HOME_PATH}/runs/annotation/modernGENA_512/
+batch_size: 60
+total_batch_size: 960
+resume_from_checkpoint: true
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+model:
+  _target_: "annotation_model.AnnotationModel"
+  output_dir: ${output_dir}
+  config: null  # Path to the BERT configuration file; null will load from huggingface
+  modernbert_cpt: "/mnt/nfs_dna/minja/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/"  # Path to the ModernBERT checkpoint
+  classifier:
+    _target_: "annotation_model.Linear_Classifier_with_dropout"
+    num_labels: 4  # TSS and polyA for + and - strands
+    num_layers: 1  # Number of layers
+    classifier_dropout: 0.0  # Dropout rate
+  activation:
+    _target_: "torch.nn.Identity"
+  loss_fct:
+    _target_: "annotation_model.WeightedBCEWithLogitsLoss"
+    # set both weight to 1 to get standard BCEWithLogitsLoss
+    w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
+    w_intergenic: 0.1  # Weight for intergenic regions (only affects polyA)
+
+train_dataset:
+  _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
+  model_input_length_token: 512
+  av_token_len: 9.0
+  path_to_gff_db: ${HOME_PATH}/data/annotation/gencode.v48.annotation.gtf.db
+  path_to_fasta: ${HOME_PATH}/data/annotation/hg38.fa
+  tokenizer:
+    _target_: "transformers.AutoTokenizer.from_pretrained"
+    pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t"
+  exclude_chromosomes: null
+  include_chromosomes: "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr22,chrX,chrY"
+  primary_transcript_types: ["protein_coding"]
+  primary_tags: ["GENCODE_Primary", "MANE_Select"]
+
+valid_dataset:
+  _target_: ${train_dataset._target_}
+  model_input_length_token: ${train_dataset.model_input_length_token}
+  av_token_len: ${train_dataset.av_token_len}
+  path_to_gff_db: ${train_dataset.path_to_gff_db}
+  path_to_fasta: ${train_dataset.path_to_fasta}
+  tokenizer:
+    _target_: ${train_dataset.tokenizer._target_}
+    pretrained_model_name_or_path: ${train_dataset.tokenizer.pretrained_model_name_or_path}
+  exclude_chromosomes: null
+  include_chromosomes: "chr21"
+  primary_transcript_types: ${train_dataset.primary_transcript_types}
+  primary_tags: ${train_dataset.primary_tags}
+  max_samples_number: 500
+
+TrainingArguments:
+  _target_: transformers.TrainingArguments
+  output_dir: ${output_dir}
+  per_device_train_batch_size: ${batch_size}
+  per_device_eval_batch_size: ${batch_size}
+  dataloader_num_workers: 4
+  gradient_accumulation_steps:
+    _target_: train_with_accelerate.gradient_accumulation_steps
+    batch_size: ${batch_size}
+    total_batch_size: ${total_batch_size}
+  dataloader_pin_memory: false
+  remove_unused_columns: false
+  load_best_model_at_end: true
+  save_strategy: "steps"
+  save_total_limit: 2
+  eval_strategy: "steps"
+  save_steps: 250
+  eval_steps: 250
+  metric_for_best_model: "eval_loss"
+  lr_scheduler_type: "constant"
+  num_train_epochs: 10
+  logging_steps: 50
+  report_to: "tensorboard"
+
+trainer:
+  _target_: custom_trainer.CustomTrainer
+  model: ${model}
+  data_collator:
+    _target_: hydra.utils.get_object
+    path: simple_annotation_dataset.collate_fn
+  train_dataset: ${train_dataset}
+  eval_dataset: ${valid_dataset}
+  args: ${TrainingArguments}
+  log_train_metrics: 50
+  train_metrics:
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss"
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss_TSS"
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss_polya"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_-"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_-"
