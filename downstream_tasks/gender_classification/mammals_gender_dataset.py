@@ -16,11 +16,17 @@ logger = logging.getLogger('mammals_gender_dataset')
 
 class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
     def __init__(self, data_path, split_name='train', n_chunks=128, chunk_size=512, chrY_name='Y', chrX_name='X',
-                 chrY_ratio=None, chrX_ratio=None, force_sampling_from_y=False, max_n_samples=None, seed=None):
+                 chrY_ratio=None, chrX_ratio=None, force_sampling_from_y=False, max_n_samples=None, seed=None, force_species=None):
         
-        self.data_path = Path(os.path.join(data_path, 'merged_links_' + split_name + '.h5'))
+        # self.data_path = Path(os.path.join(data_path, 'merged_links_' + split_name + '.h5'))
+        self.data_path = Path(os.path.join(data_path, split_name + '.h5'))
         self.metadata_df = pd.read_csv(Path(os.path.join(data_path, split_name + '_merged_metadata.csv')))
         
+        with open(Path(os.path.join(data_path, 'split2organism_name.json')), 'r') as f:
+            split2organism_name = json.load(f)
+        self.split2organism_name = split2organism_name
+
+
         self.n_chunks = n_chunks
         self.chunk_size = chunk_size
         self.max_n_samples = max_n_samples
@@ -31,13 +37,14 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
 
         self.chrX_name = chrX_name
         self.chrX_ratio = chrX_ratio
+        self.force_species = force_species
 
-        with open(f'{data_path}/split2organism_name.json', 'r') as f:
-            split2organism_name = json.load(f)
-        
-        self.species = split2organism_name[split_name]
+        self.species = self.split2organism_name[split_name]
         self.set_seed(seed)
 
+        if self.force_species is not None and self.force_species not in self.species:
+            raise ValueError(f"Species '{self.force_species}' not found in {split_name} split. "
+                           f"Available species: {self.species}")
 
     def set_seed(self, seed):
         self.seed = seed
@@ -47,7 +54,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
     def __iter__(self):
         # read the data once per worker (not to share h5py file object between workers)
         self.data = h5py.File(self.data_path, 'r')
-
+        
         n_iters = 0
         while True:
             if self.max_n_samples is not None:
@@ -56,7 +63,11 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             n_iters += 1
             
             # randomly select a species
-            sampled_species = np.random.choice(self.species)
+            if not self.force_species:
+                sampled_species = np.random.choice(self.species)
+            else:
+                sampled_species = self.force_species
+            
             sampled_id = np.random.choice(self.metadata_df[self.metadata_df['organism_name'] == sampled_species]['assembly_accession/sample_id'].values)
             
             label = self.metadata_df[self.metadata_df['assembly_accession/sample_id'] == sampled_id]['sex'].values[0]
@@ -76,6 +87,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             sampled_chrs, chunks, full_sample_has_y_chr, has_y_chr_sampled, has_x_chr_sampled = self.get_chunks_from_sample(sampled_id, label, diploid)
 
             yield {
+                'sample_ids': sampled_id,
                 'labels': label,
                 'species': sampled_species,
                 'sampled_chromosomes': sampled_chrs,
@@ -111,6 +123,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         logger.debug(f'Sex chromosomes: {sex_chromosomes}')
 
         autosomes = [chr for chr in chr_names if chr not in sex_chromosomes]
+        # print(autosomes)
         logger.debug(f'Autosomes: {autosomes}')
 
         if not diploid:
@@ -174,7 +187,7 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
         idx_to_chr, probs = zip(*chr_probs.items())
     
         # about 1% chance to sample from whole genome one chunk from chrY
-        if self.force_sampling_from_y and label == 0:
+        if self.force_sampling_from_y and any([self.chrY_name in chr for chr in sex_chromosomes]):
             while True:
                 sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
                 if any([self.chrY_name in chr for chr in sampled_chrs]):
@@ -183,17 +196,18 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(self.n_chunks)]
 
         chunks = []
-        chunk_dtype = sample_data[list(sample_data.keys())[0]].dtype
-        chunks = np.empty((self.n_chunks, self.chunk_size), dtype=chunk_dtype)
-
         for i, chr in enumerate(sampled_chrs):
-            start = np.random.randint(0, sample_data[chr].shape[0] - self.chunk_size)
-            # chunk = sample_data[chr][start:start + self.chunk_size].tobytes().decode('ascii')
-            sample_data[chr].read_direct(chunks[i], source_sel=np.s_[start:start + self.chunk_size])
-            # chunks.append(chunk)
-        chunks = [row.tobytes().decode('ascii') for row in chunks]
-
-
+            if sample_data[chr].shape[0] > self.chunk_size:
+                start = np.random.randint(0, sample_data[chr].shape[0] - self.chunk_size)
+                chunk = sample_data[chr][start:start + self.chunk_size].tobytes().decode('ascii')
+                sampled_chrs[i] = (chr, start, start + self.chunk_size)
+            else:
+                chunk = sample_data[chr][:].tobytes().decode('ascii')
+                sampled_chrs[i] = (chr, 0, sample_data[chr].shape[0])
+            # if "Y" in chr:
+            #     print(chunk)
+            chunks.append(chunk)
+            # assert len(chunk) == chunk_size
 
         full_sample_has_y_chr = any([self.chrY_name in chr for chr in chr_lengths])
         has_y_chr_sampled = any([self.chrY_name in chr for chr in sampled_chrs])

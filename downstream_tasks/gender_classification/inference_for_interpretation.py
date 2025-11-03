@@ -4,12 +4,12 @@ import os
 import pickle
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 from transformers import AutoTokenizer, AutoModel
 from safetensors.torch import load_model
 from model import GenderChunkedClassifier
-from inference_utils import infer
+from eval_utils.inference_utils import infer
 
 tokenizer = AutoTokenizer.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t')
 model = AutoModel.from_pretrained('AIRI-Institute/gena-lm-bert-base-t2t', trust_remote_code=True)
@@ -28,9 +28,9 @@ load_model(gender_model,
 n_chunks = 16
 chunk_size = 3072
 seed = 142
-bs = 5
+bs = 2
 split_name='test'
-N = 200_000
+N = 300_000
 
 chrX_ratio = None
 chrY_ratio = None

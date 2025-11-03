@@ -74,6 +74,7 @@ class GenderChunkedClassifier(torch.nn.Module):
         attention_scores = torch.matmul(  # Shape: (bs, num_query_vectors, n_chunks)
             queries, keys.transpose(-2, -1)) / torch.sqrt(torch.tensor(keys.size(-1), dtype=torch.float32))
         attention_probs = torch.softmax(attention_scores, dim=-1)
+        # print(attention_scores.shape)
         # apply attention dropout
         attention_probs = self.attention_dropout(attention_probs)
 

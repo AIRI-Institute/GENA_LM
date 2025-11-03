@@ -43,10 +43,10 @@ class SpeciesSampler:
             self.labels[self.label_column] = self.labels[self.label_column].map(labels_map)
 
             self.labels = self.labels[self.labels[self.label_column].apply(lambda x: x in self.force_label)]
+            self.sample_ids = list(self.labels.index)
 
             self.data = h5py.File(self.data_path, 'r')
             self.size = len(self.data)
-
             self.set_seed(seed)
 
     def set_seed(self, seed):
@@ -55,25 +55,13 @@ class SpeciesSampler:
 
     def filter_chr_names(self, names):
             # choose only one from [chrY, chrY_with_SNPs] as chrY
-            chrY_names = [k for k in names if 'chrY' in k]
-            non_chrY_names = [k for k in names if 'chrY' not in k]
-
-            if self.chrY_name in chrY_names:
-                chrY_names = [self.chrY_name]
-
-            elif len(chrY_names) > 0:
-                chrY_names = [chrY_names[0]]
-                
-            else:
-                chrY_names = []
+            chrY_names = [k for k in names if self.chrY_name in k]
+            non_chrY_names = [k for k in names if ('chrY' not in k) and (self.chrY_name not in k)]
 
             return chrY_names + non_chrY_names
     
     def get_species_chunk(self, chunk_size, n_chunks):
-            
             # choosing random sample
-            # self.sample_ids = list(self.data.keys())
-            self.sample_ids = list(self.labels.index)
             sample_id = np.random.choice(self.sample_ids)
 
             logger.debug(f"Sample id: {sample_id}")
@@ -96,7 +84,6 @@ class SpeciesSampler:
                 logger.debug(f"Diploid chromosomes set")
                 chr_lengths = {k: sample_data[k].shape[0] for k in chr_names}
                 total_bp = sum(chr_lengths.values())
-
             # if haploid chromosome set
             else:
                 logger.debug(f"Haploid chromosomes set")
@@ -109,7 +96,6 @@ class SpeciesSampler:
                 else:
                     # if only one X chromosomes are presented in case of a female sample - we double it
                     sex_chromosome_lengths = {k: sample_data[k].shape[0] * 2 for k in sex_chromosomes}
-                    
                 sex_chromosome_bp = sum(sex_chromosome_lengths.values())
                 total_bp = autosome_bp + sex_chromosome_bp
                 chr_lengths = {**sex_chromosome_lengths, **autosome_lengths}
@@ -125,26 +111,31 @@ class SpeciesSampler:
             # upsample/subsample chrY if self.chrY_ratio is set
             if any([self.chrY_name in chr for chr in sex_chromosomes]) and self.chrY_ratio is not None:
 
-                chrY_name = [chr for chr in sex_chromosomes if self.chrY_name in chr][0]
-                old_val = chr_probs[chrY_name]
-                chr_probs[chrY_name] = self.chrY_ratio
-                
+                chrY_names = [chr for chr in sex_chromosomes if self.chrY_name in chr]
+
+                chrY_len_sum = sum([chr_lengths[k] for k in chrY_names])
+                old_Y_prob = sum([chr_probs[k] for k in chrY_names])
+
+                for k in chrY_names:
+                    chr_probs[k] = self.chrY_ratio * chr_lengths[k] / chrY_len_sum
+            
                 for k in chr_probs:
-                    if self.chrY_name not in k:
-                        chr_probs[k] *= (1 - self.chrY_ratio) / (1 - old_val)
+                    if k not in chrY_names:
+                        chr_probs[k] *= (1 - self.chrY_ratio) / (1 - old_Y_prob)
 
             # upsample/subsample chrX if self.chrX_ratio is set
             if self.chrX_ratio is not None:
-                chrXs = [chr for chr in sex_chromosomes if self.chrX_name in chr]
-                old_vals = sum([chr_probs[sex_chr] for sex_chr in chrXs])
-                
-                for chr in chrXs:
-                    chr_probs[chr] = self.chrX_ratio / len(chrXs)
+                chrX_names = [chr for chr in sex_chromosomes if self.chrX_name in chr]
+
+                chrX_len_sum = sum([chr_lengths[k] for k in chrX_names])
+                old_X_prob = sum([chr_probs[k] for k in chrX_names])
+
+                for k in chrX_names:
+                    chr_probs[k] = self.chrX_ratio * chr_lengths[k] / chrX_len_sum
                     
                 for k in chr_probs:
-                    if self.chrX_name not in k:
-                        chr_probs[k] *= (1 - self.chrX_ratio) / (1 - old_vals)
-
+                    if k not in chrX_names:
+                        chr_probs[k] *= (1 - self.chrX_ratio) / (1 - old_X_prob)
             
             logger.debug(f"Chromosomes probabilities: {chr_probs}")
             logger.debug(f"Chromosomes probabilities sum: {sum(chr_probs.values())}")
@@ -157,24 +148,30 @@ class SpeciesSampler:
                     sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(n_chunks)]
                     if any([self.chrY_name in chr for chr in sampled_chrs]):
                         break
+                
+                # sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(n_chunks)]
+                # if not any([self.chrY_name in chr for chr in sampled_chrs]):
+                #     random_index = np.random.randint(0, len(sampled_chrs))
+                #     sampled_chrs[random_index] = self.chrY_name
             else:
                 sampled_chrs = [np.random.choice(idx_to_chr, p=probs) for _ in range(n_chunks)]
 
             chunks = []
             for i, chr in enumerate(sampled_chrs):
-                start = np.random.randint(0, sample_data[chr].shape[0] - chunk_size)
-                chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
-                sampled_chrs[i] = (chr, start, start + chunk_size)
-                # assert len(chunk) == chunk_size
+                if sample_data[chr].shape[0] > chunk_size:
+                    start = np.random.randint(0, sample_data[chr].shape[0] - chunk_size)
+                    chunk = sample_data[chr][start:start + chunk_size].tobytes().decode('ascii')
+                    sampled_chrs[i] = (chr, start, start + chunk_size)
+                else:
+                    chunk = sample_data[chr][:].tobytes().decode('ascii')
+                    sampled_chrs[i] = (chr, 0, sample_data[chr].shape[0])
                 chunks.append(chunk)
+                # assert len(chunk) == chunk_size
 
             labels = self.labels.loc[sample_id][self.label_column]
-
             full_sample_has_y_chr = any([self.chrY_name in chr for chr in chr_lengths])
-
-            has_y_chr_sampled = any([self.chrY_name in chr for chr in sampled_chrs])
-
-            has_x_chr_sampled = any([self.chrX_name in chr for chr in sampled_chrs])
+            has_y_chr_sampled = any([self.chrY_name in chr[0] for chr in sampled_chrs])
+            has_x_chr_sampled = any([self.chrX_name in chr[0] for chr in sampled_chrs])
 
             logger.debug(f"Label: {labels}")
             logger.debug(f"Sample has Y chromosome: {full_sample_has_y_chr}")
@@ -201,28 +198,28 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             "seed": seed
         }
 
-        self.species2metadata = {"homo_sapiens": 
+        self.species2metadata = {
+                                "homo_sapiens": 
                                     {
-                                        "data_path": "/disk/10tb/home/chepurova/chepurova/human_data",
+                                        "data_path": "/disk/10tb/home/chepurova/human_data_contigs_separated",
                                         "chromosome_number": 46,
                                         "chrY_name": "chrY_with_SNPs",
                                         "chrX_name": 'chrX',
                                         "sample_column": "sample",
                                         "label_column": "sex"
                                     },
-                                # "mus_musculus":
-                                #     {
-                                #         "data_path": "/disk/10tb/home/chepurova/chepurova/mouse_data",
-                                #         "chromosome_number": 40,
-                                #         "chrY_name": "chrY",
-                                #         "chrX_name": 'chrX',
-                                #         "sample_column": "strain_name",
-                                #         "label_column": "gender"
-                                #     }
+                                "mus_musculus":
+                                    {
+                                        "data_path": "/disk/10tb/home/chepurova/mouse_data_contigs_separated_2",
+                                        "chromosome_number": 40,
+                                        "chrY_name": "chrY",
+                                        "chrX_name": 'chrX',
+                                        "sample_column": "strain_name",
+                                        "label_column": "gender"
+                                    }
                                 }
 
         self.set_seed(seed)
-
 
     def set_seed(self, seed):
         self.seed = seed
@@ -230,23 +227,17 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
 
     def __iter__(self):
         # read the data once per worker (not to share h5py file object between workers)
-
         self.species2sampler = {}
         species2size = {}
         
         for species in self.species2metadata:
             self.species2sampler[species] = SpeciesSampler(**self.species2metadata[species], **self.common_params)
-
             species2size[species] = self.species2sampler[species].size
-        
                         
-        total_samples = sum(species2size.values())
+        # total_samples = sum(species2size.values())
         # self.species2prob = {species: species2size[species] / total_samples for species in species2size}
-        self.species2prob = {species: 1 / len(species2size) for species in species2size}
+        self.species2prob = {species: 1 / len(species2size.keys()) for species in species2size}
         logger.debug(f"Species probabilities: {self.species2prob}")
-
-        logger.debug(f"Species probabilities: {self.species2prob}")
-
         species, probs = zip(*self.species2prob.items())
 
         n_iters = 0
@@ -256,16 +247,12 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
                     break
             n_iters += 1
             
-            # randomly select a species and its sample_id
-
+            # randomly select a species
             sampled_species = np.random.choice(species, p=probs)
-
             logger.debug(f"SAMPLED SPECIES: {sampled_species}")
 
-
-            labels, sample_id, sampled_chrs, chunks, \
-                full_sample_has_y_chr, has_y_chr_sampled, has_x_chr_sampled = self.species2sampler[sampled_species].get_species_chunk(chunk_size=self.chunk_size, n_chunks=self.n_chunks)
-
+            labels, sample_id, sampled_chrs, chunks, full_sample_has_y_chr, has_y_chr_sampled, has_x_chr_sampled = \
+                    self.species2sampler[sampled_species].get_species_chunk(chunk_size=self.chunk_size, n_chunks=self.n_chunks)
 
             # assert (labels == 0 and full_sample_has_y_chr) or (labels == 1 and not full_sample_has_y_chr), 'Inconsistent chromosome set!'
 

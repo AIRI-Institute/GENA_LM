@@ -14,7 +14,7 @@ import transformers
 from mammals_gender_dataset import MultiSpeciesGenderDataChunkedDataset, collate_fn, worker_init_fn
 from model import GenderChunkedClassifier
 from safetensors.torch import load_model
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer, EarlyStoppingCallback, HfArgumentParser, Trainer, TrainingArguments
 from transformers.integrations.integration_utils import TensorBoardCallback, rewrite_logs
@@ -37,7 +37,7 @@ def compute_metrics(p):
     p, r, f1, _ = precision_recall_fscore_support(labels, predictions, average='binary')
 
     return {
-        'accuracy': accuracy_score(labels, predictions),
+        'accuracy': accuracy_score(y_true=labels, y_pred=predictions),
         'precision': p,
         'recall': r,
         'f1': f1,
@@ -117,14 +117,14 @@ class ExperimentArgs:
     exp_path: str = field()
     per_device_batch_size: int = field()
     data_path: str = field(
-        default='/mnt/nfs_dna/chepurova/merged_data/',
+        default='/mnt/10tb/home/chepurova/dnalm/downstream_tasks/gender_classification/mammals_gender_data',
     )
     n_chunks: Optional[int] = field(default=8)
     chunk_size: Optional[int] = field(default=3072)
     force_sampling_from_y: Optional[bool] = field(default=False)
     chrY_name: Optional[str] = field(default='chrY')
     chrY_ratio: Optional[float] = field(default=None)
-    n_valid_samples: Optional[int] = field(default=4096)
+    n_valid_samples: Optional[int] = field(default=100)
     gradient_accumulation_steps: Optional[int] = field(default=1)
     total_batch_size: Optional[int] = field(default=None)
     metric_for_best_model: Optional[str] = field(default='roc_auc')
@@ -184,7 +184,7 @@ if __name__ == '__main__':
     max_n_samples_per_gpu = args.n_valid_samples // accel.num_processes
     valid_dataset = MultiSpeciesGenderDataChunkedDataset(data_path=args.data_path, split_name='valid',
                                              n_chunks=args.n_chunks, chunk_size=args.chunk_size,
-                                             force_sampling_from_y=True, 
+                                             force_sampling_from_y=True, chrY_ratio=args.chrY_ratio,
                                              max_n_samples=max_n_samples_per_gpu, seed=args.seed+1)
 
     def preprocess_collate_fn(samples):
@@ -258,7 +258,7 @@ if __name__ == '__main__':
         report_to='none',  # log to tensorboard with TensorBoardCallbackWithTokens
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
-        save_total_limit=1,
+        save_total_limit=None,  # Keep all checkpoints (set to None or remove this line)
         load_best_model_at_end=True,
     )
 
