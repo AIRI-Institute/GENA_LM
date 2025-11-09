@@ -5,6 +5,7 @@ HOME_PATH: ${oc.env:GENALM_HOME}
 output_dir: ${HOME_PATH}/runs/annotation/modernGENAlarge_ep36_rc_shift_lr_1e-6/
 batch_size: 24
 total_batch_size: 960
+resume_from_checkpoint: true
 
 logging:
   level: INFO
