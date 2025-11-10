@@ -196,12 +196,12 @@ class ExpressionDataset(Dataset):
 
         # Добавляем список валидных индексов
         self.valid_indices = []
-        self._compute_valid_indices()
-        # if self.bw and not self.tpm:  # Вычисляем валидные индексы только если bw=False
-        #     self._compute_valid_indices()
-        # else:
-        #     # Если bw=True, все индексы валидны
-        #     self.valid_indices = list(range(len(self.genes)))           
+        # self._compute_valid_indices()
+        if self.bw and not self.tpm:  # Вычисляем валидные индексы только если bw=False
+            self.valid_indices = list(range(len(self.genes)))   
+        else:
+            self._compute_valid_indices()
+            # Если bw=True, все индексы валидны        
 
         # assert len(self.valid_indices) > 10, "Less than 10 valid indices found. Are you sure you have enough data?"
 
@@ -347,7 +347,7 @@ class ExpressionDataset(Dataset):
         
         try:
             with h5py.File(temp_path, "w") as h5f:
-                pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing sequences {self.genome}")
+                pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing sequences")
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
                     _, tokens_df = self.tokenize_genome(idx)
@@ -780,7 +780,10 @@ class ExpressionDataset(Dataset):
             features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.int32)
         else:   
             features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
-        features["selected_keys"] = selected_keys
+        if self.bw and not self.tpm: 
+            features["selected_keys"] = []
+        else:
+            features["selected_keys"] = selected_keys
         return features
 
     def __del__(self):

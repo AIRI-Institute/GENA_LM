@@ -1,4 +1,5 @@
-TASK_NAME: expression/test_cells
+TASK_NAME: expression/qnorm/qnorm_v1_mouse_large_test
+
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -8,17 +9,17 @@ args_params:
 
   _target_: builtins.dict
   
-  init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/multispices_min_13/20250929-014808/model_best/pytorch_model.bin"
+  # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
 
   resume: #"20250811-155853/model_best.pth"
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
-  backbone_cls: "downstream_tasks.expression_prediction.expression_model_cells:ExpressionCounts"
+  backbone_cls: "downstream_tasks.expression_prediction.expression_model:ExpressionCounts"
 
   backbone_trainable: True
 
-  model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression_cells"
+  model_cls: "src.gena_lm.modeling_rmt:RMTEncoderExpression"
 
   model_path: ${MODEL_PATH_ROOT}
 
@@ -74,7 +75,7 @@ args_params:
 
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
 
-  save_predictions: True
+ # save_predictions: True
   
 
 selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ct_specific_benchmark/selected_targets.csv"
@@ -117,7 +118,7 @@ model_kwargs:
 
 # shared dataset parameters
 shared_dataset_params:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_cells.ExpressionDatasetMode2
+  _target_: downstream_tasks.expression_prediction.expression_dataset.ExpressionDataset
   num_before: 250
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
   gen_max_seq_len: ${args_params.input_seq_len}
@@ -163,5 +164,3 @@ valid_dataset_mouse:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
   
   tpm: CPM
-
-  n_keys: 14

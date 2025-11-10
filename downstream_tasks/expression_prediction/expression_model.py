@@ -324,19 +324,19 @@ class ExpressionCounts(BertPreTrainedModel):
 
                 # Считаем лосс для CLS  
                 cls_loss = None
+                mean_loss = None
+                diviation_loss = None
                 if cls_mask.sum() > 0:
-                    if self.cell_type_specific_loss_fn is not None:
-                        cls_loss, mean_loss, diviation_loss = self.cell_type_specific_loss_fn(
-                            cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
-                            cls_preds = logits[:, 0:1, :].reshape(B,N),
-                            cls_mask = cls_mask.reshape(B,N),
-                            dataset_mean = dataset_mean,
-                            dataset_deviation = dataset_deviation
-                        )
-                    else:
-                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
-                        mean_loss = None
-                        diviation_loss = None
+                    # if self.cell_type_specific_loss_fn is not None:
+                    #     cls_loss, mean_loss, diviation_loss = self.cell_type_specific_loss_fn(
+                    #         cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
+                    #         cls_preds = logits[:, 0:1, :].reshape(B,N),
+                    #         cls_mask = cls_mask.reshape(B,N),
+                    #         dataset_mean = dataset_mean,
+                    #         dataset_deviation = dataset_deviation
+                    #     )
+                    # else:
+                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
 
                 # Считаем лосс для остальных токенов
                 other_loss = None
