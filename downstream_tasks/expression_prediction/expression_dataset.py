@@ -342,12 +342,17 @@ class ExpressionDataset(Dataset):
         self.files_opened = False
 
     def precompute_tokenization(self):
-        self.logger.info(f"Precomputing tokenization to {self.h5_cache_path}")
+        self.logger.info(f"Tokenization {self.h5_cache_path}")
         temp_path = f"{self.h5_cache_path}.{os.getpid()}.temp"
         
         try:
             with h5py.File(temp_path, "w") as h5f:
+<<<<<<< HEAD
                 pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing sequences")
+=======
+                genome_name = os.path.basename(str(self.genome)) 
+                pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing {genome_name}")
+>>>>>>> 2dfd0cd3d4f07a5a5bc1d2633181cea1c47aef42
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
                     _, tokens_df = self.tokenize_genome(idx)
