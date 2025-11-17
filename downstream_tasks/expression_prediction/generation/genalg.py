@@ -46,7 +46,7 @@ def score_seq(model, tokenizer, seq, device, selected_keys, text_data_path):
         masks = torch.stack(rmt_labels_masks_segm[-1])
         p_segm = preds[:, 0, :].squeeze(-1)
         mask = masks[:, 0, :].squeeze(-1)
-        p = torch.nn.functional.softplus(p_segm[mask])
+        # p = torch.nn.functional.softplus(p_segm[mask])
         dt = {}
         for i, name in enumerate(selected_keys):
             dt[name]=p[i].item()

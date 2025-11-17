@@ -1014,6 +1014,11 @@ class ExpressionDatasetMode2(ExpressionDataset):
 
         valid_tpm_count = int(np.count_nonzero(~np.isnan(tpm_arr)))
 
+        if len(gene_ids_out) < self.n_keys:
+            pad_n = self.n_keys - len(gene_ids_out)
+            gene_ids_out += [f"pad_gene_{i}" for i in range(pad_n)]
+
+
         features = {
             "input_ids": batch_input_ids.long(),
             "attention_mask": batch_attention.long(),

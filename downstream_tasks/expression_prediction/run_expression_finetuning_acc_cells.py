@@ -1,3 +1,4 @@
+#закомментирована часть с ключами
 # stdlib
 import json
 import logging
@@ -245,36 +246,36 @@ def main():
     train_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('train_dataset')]
     shared_dataset_params = experiment_config.get('shared_dataset_params', None)
 
-    # Rank 0-only init для вычисления min_train_chunk_size
-    if accelerator.is_main_process:
-        tmp_configs = [config.copy() for config in train_datasets_configs]
-        if shared_dataset_params is not None:
-            for i, config in enumerate(tmp_configs):
-                alogger.info(f"Merging default parameters with train_dataset_{i}")
-                tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
-        for config in tmp_configs:
-            OmegaConf.update(config, "loglevel", logging.ERROR)
-        train_datasets_tmp = [instantiate(config) for config in tmp_configs]
-        min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets_tmp])
-        alogger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
-    else:
-        min_train_chunk_size = -1
+    # # Rank 0-only init для вычисления min_train_chunk_size
+    # if accelerator.is_main_process:
+    #     tmp_configs = [config.copy() for config in train_datasets_configs]
+    #     if shared_dataset_params is not None:
+    #         for i, config in enumerate(tmp_configs):
+    #             alogger.info(f"Merging default parameters with train_dataset_{i}")
+    #             tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
+    #     for config in tmp_configs:
+    #         OmegaConf.update(config, "loglevel", logging.ERROR)
+    #     train_datasets_tmp = [instantiate(config) for config in tmp_configs]
+    #     min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets_tmp])
+    #     alogger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
+    # else:
+    #     min_train_chunk_size = -1
 
-    # Рассылаем min_train_chunk_size
-    obj = [min_train_chunk_size]
-    broadcast_object_list(obj)
-    min_train_chunk_size = obj[0]
-    assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible broadcast issue"
+    # # Рассылаем min_train_chunk_size
+    # obj = [min_train_chunk_size]
+    # broadcast_object_list(obj)
+    # min_train_chunk_size = obj[0]
+    # assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible broadcast issue"
 
     # Re-init конфиги на всех рангах с учётом shared params и n_keys
     if shared_dataset_params is not None:
         for i, config in enumerate(train_datasets_configs):
             train_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
 
-    for config in train_datasets_configs:
-        if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
-            raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
-        OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
+    # for config in train_datasets_configs:
+        # if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
+        #     raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
+        # OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
 
     train_datasets = [instantiate(config) for config in train_datasets_configs]
     if len(train_datasets) == 0:
@@ -313,30 +314,30 @@ def main():
                     tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
             for config in tmp_configs:
                 OmegaConf.update(config, "loglevel", logging.ERROR)
-            valid_datasets_tmp = [instantiate(config) for config in tmp_configs]
-            min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets_tmp])
-            if min_valid_chunk_size != min_train_chunk_size:
-                alogger.warning(
-                    f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), "
-                    f"Min number of keys in validation datasets is not the same as in train datasets. "
-                    f"This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-"
-                )
-        else:
-            min_valid_chunk_size = -1
+        #     valid_datasets_tmp = [instantiate(config) for config in tmp_configs]
+        #     min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets_tmp])
+        #     if min_valid_chunk_size != min_train_chunk_size:
+        #         alogger.warning(
+        #             f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), "
+        #             f"Min number of keys in validation datasets is not the same as in train datasets. "
+        #             f"This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-"
+        #         )
+        # else:
+        #     min_valid_chunk_size = -1
 
-        obj = [min_valid_chunk_size]
-        broadcast_object_list(obj)
-        min_valid_chunk_size = obj[0]
-        assert min_valid_chunk_size > 0, f"min_valid_chunk_size {min_valid_chunk_size} >= 0: possible broadcast issue"
+        # obj = [min_valid_chunk_size]
+        # broadcast_object_list(obj)
+        # min_valid_chunk_size = obj[0]
+        # assert min_valid_chunk_size > 0, f"min_valid_chunk_size {min_valid_chunk_size} >= 0: possible broadcast issue"
 
         if shared_dataset_params is not None:
             for i, config in enumerate(valid_datasets_configs):
                 valid_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
 
-        for config in valid_datasets_configs:
-            if "n_keys" in config and config["n_keys"] != min_valid_chunk_size:
-                raise ValueError(f"n_keys in config is different from min_valid_chunk_size: {config['n_keys']} != {min_valid_chunk_size}")
-            OmegaConf.update(config, "n_keys", min_valid_chunk_size, force_add=True)
+        # for config in valid_datasets_configs:
+        #     if "n_keys" in config and config["n_keys"] != min_valid_chunk_size:
+        #         raise ValueError(f"n_keys in config is different from min_valid_chunk_size: {config['n_keys']} != {min_valid_chunk_size}")
+        #     OmegaConf.update(config, "n_keys", min_valid_chunk_size, force_add=True)
 
         valid_datasets = [instantiate(config) for config in valid_datasets_configs]
         if len(valid_datasets) == 1:
