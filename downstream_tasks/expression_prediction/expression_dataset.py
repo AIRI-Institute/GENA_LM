@@ -347,6 +347,7 @@ class ExpressionDataset(Dataset):
         
         try:
             with h5py.File(temp_path, "w") as h5f:
+                genome_name = os.path.basename(str(self.genome)) 
                 pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing sequences {self.genome}")
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
