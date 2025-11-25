@@ -9,6 +9,7 @@ from pathlib import Path
 
 # third-party
 import torch
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import transformers
@@ -40,10 +41,8 @@ from downstream_tasks.expression_prediction.datasets.src.correlation_selected_ce
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
-# accelerate logger (оборачивает python logging)
 logger = logging.getLogger(__name__)
 
-# Настраиваем видимые GPU, если переменная не установлена
 if os.environ.get('CUDA_VISIBLE_DEVICES', None) is None:
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(torch.cuda.device_count())])
 
@@ -88,7 +87,6 @@ def main():
     args = parser.parse_args()
     logging.getLogger().setLevel(args.log_level)
 
-    # --- Инициализация Accelerate ---
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -102,7 +100,6 @@ def main():
 
     prepare_run(args, alogger, logger_fmt, accelerator=accelerator)
 
-    # --- Глобальный timestamp синхронизируем между всеми процессами ---
     if accelerator.is_main_process:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
     else:
@@ -125,7 +122,6 @@ def main():
                 alogger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k, v)
 
-    # Предупреждение о resume: оставляем логику прежней
     if args.resume is not None:
         alogger.warning(
             f"Resuming from cpt {args.resume}. This will overwrite reset_lr, reset_optimizer, reset_iteration and init_cpt options"
@@ -136,7 +132,6 @@ def main():
         args.__setattr__("init_checkpoint", args.model_path + "/" + args.resume)
         args.__setattr__("model_path", args.model_path + "/resume_" + args.resume + "/")
 
-    # Проверка и подготовка каталога эксперимента — только на главном процессе
     if accelerator.is_main_process:
         if args.model_path is None:
             raise ValueError("Model path should not be None")
@@ -158,10 +153,8 @@ def main():
 
     accelerator.wait_for_everyone()
 
-    # --- Tokenizer ---
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer)
 
-    # --- Collate function (как в твоём коде) ---
     def collate_fn(batch):
         pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
         no_pad_keys = ['desc_vectors', 'tpm', 'dataset_mean', 'dataset_deviation']
@@ -203,22 +196,18 @@ def main():
             batch_dict[key] = torch.stack(batch_dict[key])
         for key in no_pad_keys:
             batch_dict[key] = torch.stack(batch_dict[key])
-        # special_keys оставляем списками (строки/списки)
 
         return batch_dict
 
-    # --- Data ---
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
     kwargs = {'pin_memory': True, 'num_workers': args.data_n_workers, 'collate_fn': collate_fn}
 
     if accelerator.is_main_process:
         alogger.info(f'preparing training data')
 
-    # Собираем train dataset конфиги
     train_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('train_dataset')]
     shared_dataset_params = experiment_config.get('shared_dataset_params', None)
 
-    # Rank 0-only init для вычисления min_train_chunk_size
     if accelerator.is_main_process:
         tmp_configs = [config.copy() for config in train_datasets_configs]
         if shared_dataset_params is not None:
@@ -233,13 +222,11 @@ def main():
     else:
         min_train_chunk_size = -1
 
-    # Рассылаем min_train_chunk_size
     obj = [min_train_chunk_size]
     broadcast_object_list(obj)
     min_train_chunk_size = obj[0]
     assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible broadcast issue"
 
-    # Re-init конфиги на всех рангах с учётом shared params и n_keys
     if shared_dataset_params is not None:
         for i, config in enumerate(train_datasets_configs):
             train_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
@@ -262,7 +249,6 @@ def main():
             alogger.info(f'dataset {i}: {dataset.describe()}')
         alogger.info(f'total len(train_dataset): {len(train_dataset)}')
 
-    # Самплеры и лоадеры
     train_sampler = DistributedSampler(
         train_dataset,
         rank=accelerator.process_index,
@@ -274,7 +260,6 @@ def main():
     train_dataloader = DataLoader(train_dataset, batch_size=per_worker_batch_size,
                                   sampler=train_sampler, worker_init_fn=worker_init_fn, **kwargs)
 
-    # --- Validation datasets (если заданы) ---
     valid_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('valid_dataset')]
     if len(valid_datasets_configs) > 0:
         if accelerator.is_main_process:
@@ -337,7 +322,6 @@ def main():
         if accelerator.is_main_process:
             alogger.info('No validation data is used.')
 
-    # --- Model ---
     model_cfg = AutoConfig.from_pretrained(args.model_cfg)
 
     if "model_kwargs" in experiment_config:
@@ -357,7 +341,6 @@ def main():
     model = model_cls(**model_kwargs)
     model_activation_fn = model.activation
 
-    # --- RMT wrapper (как было) ---
     if args.num_mem_tokens is not None:
         rmt_config = {
             'num_mem_tokens': args.num_mem_tokens,
@@ -373,22 +356,21 @@ def main():
             alogger.info(f'Wrapping in: {rmt_cls}')
         model = rmt_cls(model, **rmt_config)
 
-            #загрузка чекпоинта horovod
-        if hasattr(args, "init_checkpoint_pth") and args.init_checkpoint_pth is not None and os.path.isfile(args.init_checkpoint_pth):
-            if accelerator.is_main_process:
-                alogger.info(f"Loading checkpoint from {args.init_checkpoint_pth}")
-            checkpoint = torch.load(args.init_checkpoint_pth, map_location="cpu")
+        # if hasattr(args, "init_checkpoint_pth") and args.init_checkpoint_pth is not None and os.path.isfile(args.init_checkpoint_pth):
+        #     if accelerator.is_main_process:
+        #         alogger.info(f"Loading checkpoint from {args.init_checkpoint_pth}")
+        #     checkpoint = torch.load(args.init_checkpoint_pth, map_location="cpu")
     
-            if isinstance(checkpoint, dict):
-                if "model_state_dict" in checkpoint:
-                    state_dict = checkpoint["model_state_dict"]
-                else:
-                    state_dict = checkpoint
+        #     if isinstance(checkpoint, dict):
+        #         if "model_state_dict" in checkpoint:
+        #             state_dict = checkpoint["model_state_dict"]
+        #         else:
+        #             state_dict = checkpoint
     
-            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+        #     missing, unexpected = model.load_state_dict(state_dict, strict=False)
 
-            if accelerator.is_main_process:
-                alogger.info(f"Checkpoint loaded. Missing keys: {missing}, Unexpected keys: {unexpected}")
+        #     if accelerator.is_main_process:
+        #         alogger.info(f"Checkpoint loaded. Missing keys: {missing}, Unexpected keys: {unexpected}")
 
         if args.input_seq_len / model.segment_size > rmt_config['max_n_segments']:
             raise RuntimeError(
@@ -403,7 +385,6 @@ def main():
                     alogger.info(f'{name} is frozen')
                 param.requires_grad = False
 
-    # --- Optimizer ---
     optimizer_cls = get_optimizer(args.optimizer)
     if optimizer_cls is None:
         raise RuntimeError(f'{args.optimizer} was not found in optimizers, torch.optim, transformers.optimization')
@@ -422,7 +403,6 @@ def main():
     else:
         optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    # --- Batch transform / metrics (без изменений по логике) ---
     def batch_transform_fn(batch):
         result = {
             'input_ids': batch['input_ids'],
@@ -633,10 +613,8 @@ def main():
 
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
-    # --- Подготовка под Accelerate (модель/оптимизатор)
     model, optimizer = accelerator.prepare(model, optimizer)
 
-    # --- Trainer ---
     trainer = Trainer(
         args, accelerator, model, optimizer, train_dataloader,
         valid_dataloader=valid_dataloader,
@@ -646,12 +624,10 @@ def main():
         metrics_fn=metrics_fn
     )
 
-    # --- Training ---
     accelerator.wait_for_everyone()
     trainer.train()
     accelerator.wait_for_everyone()
 
-    # --- Post-training / validation / save ---
     if args.save_best:
         best_model_path = str(Path(args.model_path) / 'model_best.pth')
         if accelerator.is_main_process:

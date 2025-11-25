@@ -6,16 +6,23 @@ Follow steps in [datasets-->README.md](https://github.com/minjaf/ExpressionPredi
 
 ## Conda environment
 ```
-cd ..
+# Go to the project root (if you are now inside GENA_LM/downstream_tasks/expression_prediction)
+cd ../../..
+
+# Create and activate a new conda environment
+conda create -n expression python=3.11
+conda activate expression
+
+# Install dependencies for the expression prediction task
+pip install -r GENA_LM/downstream_tasks/expression_prediction/requirements.txt
+
+# Install t5-experiments
 mkdir -p soft
-cd GENA_LM/downstream_tasks/expression_prediction/
-cp -v environment.yml ../../../soft/
-cd ../../../soft
+cd soft
 git clone --branch feat/trainer_with_accelerate https://github.com/yurakuratov/t5-experiments.git
-conda env create -f environment.yml
 cd t5-experiments
+sed -i 's/requirements-lm-tools.txt/requirements-lm-tools-accel.txt/' setup.py
 python -m pip install -e .
-conda activate aspeedok_acc 
 ```
 
 ## Configuration

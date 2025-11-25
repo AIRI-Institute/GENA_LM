@@ -196,12 +196,12 @@ class ExpressionDataset(Dataset):
 
         # Добавляем список валидных индексов
         self.valid_indices = []
-        self._compute_valid_indices()
-        # if self.bw and not self.tpm:  # Вычисляем валидные индексы только если bw=False
-        #     self._compute_valid_indices()
-        # else:
-        #     # Если bw=True, все индексы валидны
-        #     self.valid_indices = list(range(len(self.genes)))           
+        # self._compute_valid_indices()
+        if self.bw and not self.tpm:  # Вычисляем валидные индексы только если bw=False
+            self.valid_indices = list(range(len(self.genes)))   
+        else:
+            self._compute_valid_indices()
+            # Если bw=True, все индексы валидны        
 
         # assert len(self.valid_indices) > 10, "Less than 10 valid indices found. Are you sure you have enough data?"
 
@@ -342,13 +342,17 @@ class ExpressionDataset(Dataset):
         self.files_opened = False
 
     def precompute_tokenization(self):
-        self.logger.info(f"Precomputing tokenization to {self.h5_cache_path}")
+        self.logger.info(f"Tokenization {self.h5_cache_path}")
         temp_path = f"{self.h5_cache_path}.{os.getpid()}.temp"
         
         try:
             with h5py.File(temp_path, "w") as h5f:
                 genome_name = os.path.basename(str(self.genome)) 
+<<<<<<< HEAD
                 pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing sequences {self.genome}")
+=======
+                pbar = tqdm.tqdm(total=len(self.genes), desc=f"Tokenizing {genome_name}")
+>>>>>>> origin/backup-expression-pre-modernbert
                 for idx in range(len(self.genes)):
                     gene_id = self.genes.iloc[idx]['gene_id']
                     _, tokens_df = self.tokenize_genome(idx)
@@ -637,7 +641,6 @@ class ExpressionDataset(Dataset):
             self.open_files()
 
         gene_id = self.genes.iloc[original_idx]['gene_id']
-        # self.logger.debug(f"idx: {idx}, gene_id: {gene_id}")
         gene_group = self.h5_cache[gene_id]
 
         # Get selected keys for current chunk
@@ -696,7 +699,6 @@ class ExpressionDataset(Dataset):
         if self.bw:
             # Load from cache 
             if self.signals_cache is not None:
-                gene_id = self.genes.iloc[original_idx]['gene_id']
                 signals_group = self.signals_cache[gene_id]
                 bigwig_signals = np.array(signals_group['signals'])
             else:
@@ -783,7 +785,10 @@ class ExpressionDataset(Dataset):
             features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.int32)
         else:   
             features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
-        features["selected_keys"] = selected_keys
+        if self.bw and not self.tpm: 
+            features["selected_keys"] = []
+        else:
+            features["selected_keys"] = selected_keys
         return features
 
     def __del__(self):
