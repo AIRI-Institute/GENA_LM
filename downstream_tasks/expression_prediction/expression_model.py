@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
+import importlib
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
-from transformers import AutoModel, BertConfig
+from transformers import AutoModel, BertConfig, AutoConfig
+
 from transformers.utils import cached_file
 
 @dataclass
@@ -94,16 +96,28 @@ class ExpressionCounts(BertPreTrainedModel):
 
         # 1) GENA
         if hf:
-            hf_config = BertConfig.from_pretrained(hf_model_name)
-            self.bert = BertModel(hf_config, add_pooling_layer=False)
-            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            }
+            # hf_config = BertConfig.from_pretrained(hf_model_name)
+            # self.bert = BertModel(hf_config, add_pooling_layer=False)
+            # weights_path = cached_file(hf_model_name, "pytorch_model.bin")
+            # state_dict = torch.load(weights_path, map_location="cpu")
+            # updated_state_dict = {
+            #     k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+            # }
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            config = hf_config
+            # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            # config = hf_config
+
+            # for moderngena (minja)
+            config = AutoConfig.from_pretrained(hf_model_name, trust_remote_code=True)
+            self.bert = AutoModel.from_pretrained(
+                hf_model_name,
+                config=config,
+                trust_remote_code=True,
+                attn_implementation="sdpa",   # для ModernBERT — важно!
+            )
+            # Опционально — проверка загруженных весов
+            missing_k, unexpected_k = self.bert.load_state_dict(self.bert.state_dict(), strict=False)
+            missing_k, unexpected_k = self.bert.load_state_dict(self.bert.state_dict(), strict=False)
                                             
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
