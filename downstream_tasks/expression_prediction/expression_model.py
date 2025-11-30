@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
+import importlib
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
-from transformers import AutoModel, BertConfig
+from transformers import AutoModel, BertConfig, AutoConfig
+
 from transformers.utils import cached_file
 
 @dataclass
@@ -94,16 +96,28 @@ class ExpressionCounts(BertPreTrainedModel):
 
         # 1) GENA
         if hf:
-            hf_config = BertConfig.from_pretrained(hf_model_name)
-            self.bert = BertModel(hf_config, add_pooling_layer=False)
-            weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
-            }
+            # hf_config = BertConfig.from_pretrained(hf_model_name)
+            # self.bert = BertModel(hf_config, add_pooling_layer=False)
+            # weights_path = cached_file(hf_model_name, "pytorch_model.bin")
+            # state_dict = torch.load(weights_path, map_location="cpu")
+            # updated_state_dict = {
+            #     k.replace("bert.", ""): v for k, v in state_dict.items() if k.startswith("bert.")
+            # }
 
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            config = hf_config
+            # missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            # config = hf_config
+
+            # for moderngena (minja)
+            config = AutoConfig.from_pretrained(hf_model_name, trust_remote_code=True)
+            self.bert = AutoModel.from_pretrained(
+                hf_model_name,
+                config=config,
+                trust_remote_code=True,
+                attn_implementation="sdpa",   # для ModernBERT — важно!
+            )
+            # Опционально — проверка загруженных весов
+            missing_k, unexpected_k = self.bert.load_state_dict(self.bert.state_dict(), strict=False)
+            missing_k, unexpected_k = self.bert.load_state_dict(self.bert.state_dict(), strict=False)
                                             
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
@@ -324,19 +338,19 @@ class ExpressionCounts(BertPreTrainedModel):
 
                 # Считаем лосс для CLS  
                 cls_loss = None
+                mean_loss = None
+                diviation_loss = None
                 if cls_mask.sum() > 0:
-                    if self.cell_type_specific_loss_fn is not None:
-                        cls_loss, mean_loss, diviation_loss = self.cell_type_specific_loss_fn(
-                            cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
-                            cls_preds = logits[:, 0:1, :].reshape(B,N),
-                            cls_mask = cls_mask.reshape(B,N),
-                            dataset_mean = dataset_mean,
-                            dataset_deviation = dataset_deviation
-                        )
-                    else:
-                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
-                        mean_loss = None
-                        diviation_loss = None
+                    # if self.cell_type_specific_loss_fn is not None:
+                    #     cls_loss, mean_loss, diviation_loss = self.cell_type_specific_loss_fn(
+                    #         cls_targets = labels_reshaped[:, 0:1, :].reshape(B,N),
+                    #         cls_preds = logits[:, 0:1, :].reshape(B,N),
+                    #         cls_mask = cls_mask.reshape(B,N),
+                    #         dataset_mean = dataset_mean,
+                    #         dataset_deviation = dataset_deviation
+                    #     )
+                    # else:
+                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / cls_mask.sum()
 
                 # Считаем лосс для остальных токенов
                 other_loss = None
