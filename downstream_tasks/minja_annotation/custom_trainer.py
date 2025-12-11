@@ -47,6 +47,15 @@ class NamedBinaryAveragePrecision(BinaryAveragePrecision):
                     break
                 class_index += 1
             if updated: break
+        if predicts.shape[-1] == 6:
+            for lidx, strand in enumerate(['+', '-']):
+                cls_name = f"intragenic_regions_{strand}"
+                if self.cls_name == cls_name:
+                    X = predicts[:, :, 4 + lidx]
+                    Y = targets[cls_name] > 0.5
+                    super().update(X, Y)
+                    updated = True
+                    break
         if not updated:
             raise ValueError(f"Class name {self.cls_name} not found in targets: \n{targets.keys()}")
             

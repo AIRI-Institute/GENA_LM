@@ -1,6 +1,6 @@
 HOME_PATH: ${oc.env:GENALM_HOME}
-model_cpt: ${oc.env:GENALM_HOME}/runs/annotation/modernGENA_rc_shift_early_pretrain/checkpoint-21250/model.safetensors
-output_dir: ${oc.env:GENALM_HOME}/runs/annotation/modernGENA_rc_shift_early_pretrain/checkpoint-21250/
+model_cpt: ${oc.env:GENALM_HOME}/runs/annotation/modernGENA_rc_shift_large_latest_pretrain/checkpoint-30000/model.safetensors
+output_dir: ${oc.env:GENALM_HOME}/runs/annotation/modernGENA_rc_shift_large_latest_pretrain/checkpoint-30000/
 chromosome: "NC_060944.1"
 
 batch_size: 32
@@ -13,7 +13,7 @@ model:
   _target_: "annotation_model.AnnotationModel"
   output_dir: null
   config: null  # Path to the BERT configuration file; null will load from huggingface
-  modernbert_cpt: "/home/jovyan/shmelev/annotation_minja_edition/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep1-ba4500/"  # Path to the ModernBERT checkpoint
+  modernbert_cpt: "/home/jovyan/shmelev/annotation_minja_edition/GENA_LM/data/moderngena-large-pretrain-promoters_multi_ep17/"  # Path to the ModernBERT checkpoint
   classifier:
     _target_: "annotation_model.Linear_Classifier_with_dropout"
     num_labels: 4  # TSS and polyA for + and - strands

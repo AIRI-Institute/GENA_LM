@@ -97,25 +97,42 @@ class bigWigExporter:
 												  )
 
 	def process_batch(self, outputs, metadata: List[Dict]):
-		for s,m in zip(outputs["predicts"], metadata):
+		for s, m in zip(outputs["predicts"], metadata):
 			s_strand = m['strand']
 			s_om = np.array(m['offset_mapping'])
 			s_chrom = m['chrom']
 			if s_chrom not in self.chrom_data.keys():
 				self.chrom_data[s_chrom] = {}
 			s_start = min(1, int(self.context_fraction * len(s)))
-			s_end = max(len(s)-1, int((1-self.context_fraction) * len(s)))
+			s_end = max(len(s) - 1, int((1 - self.context_fraction) * len(s)))
+
+			# --- NEW: infer number of classes and select class names (4-class or 6-class model) ---
+			num_classes = s.shape[-1]  # NEW
+			if num_classes == 4:  # NEW
+				# old model: tss_+, tss_-, polya_+, polya_-  (2 logical classes x 2 strands)  # NEW
+				class_names = ["tss", "polya"]  # NEW
+			elif num_classes == 6:  # NEW
+				# new model: tss_+, tss_-, polya_+, polya_-, intragenic_+, intragenic_-  # NEW
+				class_names = ["tss", "polya", "intragenic"]  # NEW
+			else:  # NEW
+				raise ValueError(  # NEW
+					f"Unsupported number of output classes: {num_classes}. "  # NEW
+					"Expected 4 (tss, polya) or 6 (tss, polya, intragenic)."  # NEW
+				)  # NEW
 
 			# let's create a dictionary of values for each label
 			class_number = 0
 			values = {}
-			for class_name in ["tss", "polya"]:
+			# CHANGED: loop over dynamic class_names instead of hard-coded ["tss", "polya"]
+			for class_name in class_names:  # CHANGED
 				for strand in ["+", "-"]:
-					label = f"{class_name}_{strand}"+self.strand2prefix[s_strand]
-					if label not in self.chrom_data[s_chrom]: # initialize the array with nan
-						self.chrom_data[s_chrom][label] = np.empty(shape=(self.chrom_lengths[self.chroms.index(s_chrom)],))
+					label = f"{class_name}_{strand}" + self.strand2prefix[s_strand]
+					if label not in self.chrom_data[s_chrom]:  # initialize the array with nan
+						self.chrom_data[s_chrom][label] = np.empty(
+							shape=(self.chrom_lengths[self.chroms.index(s_chrom)],)
+						)
 						self.chrom_data[s_chrom][label][:] = np.nan
-					
+
 					# outputs have shape of num_tokens x num_labels
 					values[label] = self.sigmoid(s[s_start:s_end, class_number]).cpu().numpy()
 					class_number += 1
@@ -123,20 +140,24 @@ class bigWigExporter:
 			# let's process the sample, filling the chromosome data with values
 			current_sample_coverage_start = None
 			current_sample_coverage_end = None
-			
+
 			for token_index, s_om_i in enumerate(s_om[s_start:s_end]):
-				start,end = s_om_i
+				start, end = s_om_i
 				if start == end:
 					continue
-				
-				if s_strand == "-":
-					genome_start = m['end']-end
-					genome_end = m['end']-start
-				else:
-					genome_start = m['start']+start
-					genome_end = m['start']+end
 
-				assert genome_end > genome_start, f"genome_end is {genome_end} and genome_start is {genome_start}, s_chrom is {s_chrom}, s_strand is {s_strand}, start is {start}, end is {end}, om_i is {s_om_i}"
+				if s_strand == "-":
+					genome_start = m['end'] - end
+					genome_end = m['end'] - start
+				else:
+					genome_start = m['start'] + start
+					genome_end = m['start'] + end
+
+				assert genome_end > genome_start, (
+					f"genome_end is {genome_end} and genome_start is {genome_start}, "
+					f"s_chrom is {s_chrom}, s_strand is {s_strand}, start is {start}, "
+					f"end is {end}, om_i is {s_om_i}"
+				)
 
 				if current_sample_coverage_end is None:
 					current_sample_coverage_end = genome_end
@@ -145,8 +166,9 @@ class bigWigExporter:
 					current_sample_coverage_end = max(current_sample_coverage_end, genome_end)
 					current_sample_coverage_start = min(current_sample_coverage_start, genome_start)
 
-				# we use tss_+ to check here, but it doesn't matter which one we use, because all 4 labeles are filled simultaneously
-				test_label = "tss_+"+self.strand2prefix[s_strand]
+				# we use tss_+ to check here, but it doesn't matter which one we use,
+				# because all label arrays are filled simultaneously
+				test_label = "tss_+" + self.strand2prefix[s_strand]
 
 				if np.isnan(self.chrom_data[s_chrom][test_label][genome_start:genome_end]).any():
 					for label, v in values.items():
@@ -154,17 +176,25 @@ class bigWigExporter:
 				else:
 					for label, v in values.items():
 						self.chrom_data[s_chrom][label][genome_start:genome_end] = (
-							np.mean(self.chrom_data[s_chrom][label][genome_start:genome_end]) + v[token_index]) / 2
+							np.mean(self.chrom_data[s_chrom][label][genome_start:genome_end])
+							+ v[token_index]
+						) / 2
 
 			# once we have processed the sample, let's ensure that it overlaps with the previous sample
 			if (self.last_chrom is not None) and (self.last_chrom == s_chrom) and (self.last_strand == s_strand):
 				# it's not first sample of the chromosome
 				# let's ensure that samples overlap with the previous sample
-				assert current_sample_coverage_start <= self.last_end, f"current_sample_coverage_start is {current_sample_coverage_start} and last_end is {self.last_end}, s_chrom is {s_chrom}, s_strand is {s_strand}, start is {start}, end is {end}, om_i is {s_om_i}"
-			
+				assert current_sample_coverage_start <= self.last_end, (
+					f"current_sample_coverage_start is {current_sample_coverage_start} "
+					f"and last_end is {self.last_end}, s_chrom is {s_chrom}, "
+					f"s_strand is {s_strand}, start is {start}, end is {end}, "
+					f"om_i is {s_om_i}"
+				)
+
 			self.last_chrom = s_chrom
 			self.last_strand = s_strand
 			self.last_end = current_sample_coverage_end
+
 
 	def write_data_and_close(self):
 		self.write_data()

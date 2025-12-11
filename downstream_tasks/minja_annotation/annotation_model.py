@@ -5,6 +5,7 @@ import importlib
 from dataclasses import dataclass
 from typing import Optional, Any, Dict
 from transformers.modeling_outputs import TokenClassifierOutput
+from torch.nn import BCEWithLogitsLoss
 import os, logging
 import types
 from collections import Counter
@@ -15,6 +16,7 @@ class AnnotationModelOutput(TokenClassifierOutput):
 	loss: Optional[torch.FloatTensor] = None
 	loss_TSS: Optional[torch.FloatTensor] = None
 	loss_polya: Optional[torch.FloatTensor] = None
+	loss_intragenic: Optional[torch.FloatTensor] = None
 	logits: Optional[torch.FloatTensor] = None
 	predicts: Optional[torch.FloatTensor] = None
 
@@ -39,11 +41,14 @@ class Linear_Classifier_with_dropout(nn.Module):
 		return x
 
 class WeightedBCEWithLogitsLoss(nn.Module):
-	def __init__(self, w_nonprimary_exists, w_intergenic):
+	def __init__(self, w_nonprimary_exists, w_intergenic, predict_intragenic=False, w_intragenic=1.0):
 		super().__init__()
 		self.w_nonprimary_exists = w_nonprimary_exists
 		self.w_intergenic = w_intergenic
+		self.predict_intragenic = predict_intragenic
+		self.w_intragenic = w_intragenic
 		self.LogSig = nn.LogSigmoid()
+		self.bceloss = BCEWithLogitsLoss(reduction='none')
 	
 	def forward(self, predicts, targets):
 		# So basically loss = y*log(s(x)) + (1-y)*log(1-s(x))
@@ -95,6 +100,21 @@ class WeightedBCEWithLogitsLoss(nn.Module):
 				# 	print ("--------------------------")
 				# 	raise ValueError("losses[{class_name}] is 0")
 				class_index += 1
+
+		if self.predict_intragenic:
+			assert predicts.shape[-1] == 6
+			total_intragenic_loss = torch.tensor(0.0, device=predicts.device)
+			for lidx, strand in enumerate(['+', '-']):
+				X = predicts[:, :, 4 + lidx]
+				Y = targets[f"intragenic_regions_{strand}"]
+				MASK = Y != -100
+				_ = self.bceloss(X, Y)
+				total_intragenic_loss += (_*MASK).sum()/MASK.sum()
+			losses["intragenic"] = self.w_intragenic * total_intragenic_loss / 2
+			losses["total"] = (losses["tss"] + losses["polya"] + losses["intragenic"]) / 3
+			return losses
+
+		losses["intragenic"] = torch.nan
 
 		losses["total"] = (losses["tss"] + losses["polya"])/2
 		return losses
@@ -176,6 +196,7 @@ class AnnotationModel(torch.nn.Module):
 			loss=loss['total'],
 			loss_TSS=loss['tss'],
 			loss_polya=loss['polya'],
+			loss_intragenic=loss['intragenic'],
 			logits=logits,
 			predicts=predicts,
 		)

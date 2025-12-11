@@ -45,6 +45,7 @@ class GenomicAnnotationDataset(Dataset):
 		logger: logging.Logger = None,
 		seed: int = 42,
 		epoch_base_seed: int | None = None,
+		all_genes_from_tss_to_polya = False,
 	):
 		"""
 		Initialize the GenomicAnnotationDataset.
@@ -71,6 +72,7 @@ class GenomicAnnotationDataset(Dataset):
 			seed: Seed for the random number generator
 			epoch_base_seed: Seed for the random number generator, will be modified each epoch. If set to None, will be set to the seed
 		"""
+		self.all_genes_from_tss_to_polya = all_genes_from_tss_to_polya
 		self.model_input_length_token = model_input_length_token
 		self.av_token_len = av_token_len
 		self.path_to_gff_db = path_to_gff_db
@@ -577,9 +579,12 @@ class GenomicAnnotationDataset(Dataset):
 			targets["intragenic_regions_+"] = targets["intragenic_regions_-"].clone()
 			targets["intragenic_regions_-"] = _
 
-		# add parametr to config
-		# zero this thing targets["intragenic_regions_-"]
-		# zero all combinations wuth ["primary", "uncertain"] and ["tss", "polya"] with - sign
+		if self.all_genes_from_tss_to_polya:
+			targets["intragenic_regions_-"].zero_()
+
+			for transcript_type in ["primary", "uncertain"]:
+				for signal_type in ["tss", "polya"]:
+					targets[f"{transcript_type}_{signal_type}_-"].zero_()
 
 		# map basepair resolution targets to token resolution targets
 		targets_token = {}
