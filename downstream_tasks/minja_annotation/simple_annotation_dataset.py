@@ -11,6 +11,8 @@ from transformers import AutoTokenizer
 import logging
 import random
 import subprocess
+from omegaconf import ListConfig
+from torch.utils.data import ConcatDataset, Subset
 
 class GenomicAnnotationDataset(Dataset):
 	"""
@@ -46,6 +48,9 @@ class GenomicAnnotationDataset(Dataset):
 		seed: int = 42,
 		epoch_base_seed: int | None = None,
 		all_genes_from_tss_to_polya = False,
+		primary_transcripts_csv: str | None = None,                 # NEW
+		look_up_for_transcript_type_in_parent_gene: bool = False,   # NEW
+
 	):
 		"""
 		Initialize the GenomicAnnotationDataset.
@@ -100,6 +105,8 @@ class GenomicAnnotationDataset(Dataset):
 		random.seed(self.seed)
 		self.current_epoch = 0 # DEBUG
 
+
+
 		if epoch_base_seed is None:
 			self.epoch_base_seed = self.seed
 		else:
@@ -113,7 +120,11 @@ class GenomicAnnotationDataset(Dataset):
 		if exclude_chromosomes is not None and isinstance(exclude_chromosomes, str):
 			exclude_chromosomes = exclude_chromosomes.split(",")
 		if include_chromosomes is not None and isinstance(include_chromosomes, str):
-			include_chromosomes = include_chromosomes.split(",")
+			if include_chromosomes.strip().lower() == "all":
+				include_chromosomes = None
+			else:
+				include_chromosomes = include_chromosomes.split(",")
+
 
 		self.exclude_chromosomes = exclude_chromosomes
 		self.include_chromosomes = include_chromosomes
@@ -127,10 +138,53 @@ class GenomicAnnotationDataset(Dataset):
 
 		if primary_transcript_types is not None and isinstance(primary_transcript_types, str):
 			primary_transcript_types = primary_transcript_types.split(",")
-		if primary_tags is not None and isinstance(primary_tags, str):
-			primary_tags = primary_tags.split(",")
+
+		# primary_tags must be either None (null in YAML) or a non-empty list
+		if primary_tags is not None:
+			if isinstance(primary_tags, ListConfig):
+				primary_tags = list(primary_tags)  # convert Hydra list -> python list
+			assert isinstance(primary_tags, list), f"primary_tags must be a list or None, got {type(primary_tags)}"
+			assert len(primary_tags) > 0, "primary_tags must be a non-empty list or None"
+
 		self.transcript_type_filter = primary_transcript_types
 		self.tags_filter = primary_tags
+
+
+
+		# ---------------- NEW: CSV mode wiring (pandas version) ----------------
+		self.primary_transcripts_csv = primary_transcripts_csv
+		self.look_up_for_transcript_type_in_parent_gene = look_up_for_transcript_type_in_parent_gene
+
+		self.csv_transcript_ids: set[str] | None = None
+		self.primary_transcript_ids_final: set[str] | None = None
+		self.csv_featuretypes: set[str] | None = None
+
+		# Must provide either tag-based selection or CSV selection
+		assert (self.primary_transcripts_csv is not None) or (self.tags_filter is not None), \
+			"Provide either `primary_transcripts_csv` or `primary_tags` (at least one)."
+
+		if self.primary_transcripts_csv is not None:
+			assert os.path.exists(self.primary_transcripts_csv), f"CSV not found: {self.primary_transcripts_csv}"
+
+			import pandas as pd
+			df_ids = pd.read_csv(self.primary_transcripts_csv)
+
+			# strict: must have exactly one column named transcript_ID
+			assert list(df_ids.columns) == ["transcript_ID"], \
+				f"CSV must have exactly one column named 'transcript_ID'. Got: {list(df_ids.columns)}"
+
+			ids = df_ids["transcript_ID"].dropna().astype(str).str.strip()
+			ids = ids[ids != ""].tolist()
+
+			assert len(ids) > 0, f"No transcript IDs found in {self.primary_transcripts_csv}"
+			self.csv_transcript_ids = set(ids)
+
+			# STRICT: in CSV mode transcript types must come from parent gene
+			assert self.look_up_for_transcript_type_in_parent_gene is True, \
+				"CSV mode requires look_up_for_transcript_type_in_parent_gene: true"
+		# ----------------------------------------------------------------------
+
+
 								
 		# Compute chunk parameters
 		self.chunk_length = int(model_input_length_token * av_token_len)
@@ -141,6 +195,138 @@ class GenomicAnnotationDataset(Dataset):
 		self._compute_chunks()
 		self.fasta.close() # will be reopened in worker_init_fn, close it here to avoid file handler forking issue
 		self.logger.info(f"Initialized dataset with {self.total_chunks} chunks")
+
+	def _get_transcript_types_from_transcript(self, feature: gffutils.Feature) -> list[str]:
+		ttypes = feature.attributes.get("transcript_type", None)
+		assert ttypes is not None, (
+			"look_up_for_transcript_type_in_parent_gene=False but transcript has no 'transcript_type'."
+		)
+		return [str(x) for x in ttypes] if isinstance(ttypes, list) else [str(ttypes)]
+
+	def _get_transcript_types_from_parent_gene(self, feature: gffutils.Feature) -> list[str]:
+		# transcript feature must have Parent=<gene-id>
+		parent = feature.attributes.get("Parent", None)
+		assert parent is not None, (
+			f"Transcript {feature.id} has no Parent attribute; cannot find parent gene"
+		)
+
+		# Parent can be list or scalar
+		if isinstance(parent, list):
+			assert len(parent) == 1, f"Transcript {feature.id} has multiple Parents: {parent}"
+			parent_id = str(parent[0])
+		else:
+			parent_id = str(parent)
+
+		# fetch the parent gene feature
+		gene = self.gff_db[parent_id]
+		assert gene.featuretype == "gene", (
+			f"Parent {parent_id} of transcript {feature.id} is not a 'gene' featuretype (got {gene.featuretype})"
+		)
+
+		# gene_biotype is the type label we use
+		gbt = gene.attributes.get("gene_biotype", None)
+		assert gbt is not None, (
+			f"Gene {parent_id} missing gene_biotype; gene attrs={list(gene.attributes.keys())}"
+		)
+
+		if isinstance(gbt, list):
+			assert len(gbt) == 1, f"Expected single gene_biotype value, got {gbt}"
+			return [str(gbt[0])]
+		return [str(gbt)]
+
+
+	def _get_transcript_types(self, feature: gffutils.Feature) -> list[str]:
+		if self.look_up_for_transcript_type_in_parent_gene:
+			return self._get_transcript_types_from_parent_gene(feature)
+		return self._get_transcript_types_from_transcript(feature)
+	
+
+	def _is_primary_transcript(self, feature: gffutils.Feature) -> bool:
+		# Type constraint (shared)
+		if self.transcript_type_filter is None:
+			type_ok = True
+		else:
+			ttypes = self._get_transcript_types(feature)
+			type_ok = any(tt in ttypes for tt in self.transcript_type_filter)
+
+		# CSV mode: primary = in CSV AND type_ok
+		if self.csv_transcript_ids is not None:
+			return (feature.id in self.csv_transcript_ids) and type_ok
+
+		# Human mode: primary = tag_ok AND type_ok
+		assert self.tags_filter is not None, "Internal error: tags_filter is None in non-CSV mode"
+		tags = feature.attributes.get("tag", [])
+		if tags is None:
+			tags = []
+		if not isinstance(tags, list):
+			tags = [tags]
+		tag_ok = any(tag in tags for tag in self.tags_filter)
+		return tag_ok and type_ok
+
+	
+
+
+	def _init_csv_primary_and_counts(self):
+		assert self.csv_transcript_ids is not None
+
+		# 1) Assert every CSV transcript exists in DB, and collect featuretypes present in CSV
+		missing = []
+		feats_by_id = {}
+		featuretypes = set()
+
+		for tid in sorted(self.csv_transcript_ids):
+			try:
+				feat = self.gff_db[tid]  # strict: CSV IDs must match DB feature IDs
+			except Exception:
+				missing.append(tid)
+				continue
+			feats_by_id[tid] = feat
+			featuretypes.add(feat.featuretype)
+
+		assert len(missing) == 0, f"{len(missing)} CSV transcript IDs not found in DB. First 10: {missing[:10]}"
+		assert len(featuretypes) > 0, "CSV transcripts exist but featuretypes set is empty (unexpected)"
+
+		self.csv_featuretypes = featuretypes
+
+		# 2) Compute final PRIMARY IDs (CSV ∩ type_filter)
+		primary_ids = []
+		for tid, feat in feats_by_id.items():
+			if self._is_primary_transcript(feat):
+				primary_ids.append(tid)
+
+		assert len(primary_ids) > 0, (
+			"No PRIMARY transcripts remain after applying primary_transcript_types. "
+			"Fix primary_transcript_types vs gene_biotype values."
+		)
+		self.primary_transcript_ids_final = set(primary_ids)
+
+		# 3) Count total transcript scope (restricted to chromosomes included in this dataset)
+		assert hasattr(self, "chrom_info") and isinstance(self.chrom_info, dict), "chrom_info must be initialized before counting"
+		total_scope = 0
+		for ft in self.csv_featuretypes:
+			for feat in self.gff_db.features_of_type(ft):
+				# count only transcripts on chromosomes actually used by this dataset instance
+				if feat.seqid in self.chrom_info:
+					total_scope += 1
+
+		primary_scope = 0
+		for tid in self.primary_transcript_ids_final:
+			feat = self.gff_db[tid]
+			if feat.seqid in self.chrom_info:
+				primary_scope += 1
+
+		assert total_scope >= primary_scope, "Scope count smaller than primary count (unexpected)"
+		uncertain_scope = total_scope - primary_scope
+
+		# 4) Print once per process (avoid spam from dataloader workers)
+		worker_info = torch.utils.data.get_worker_info()
+		if worker_info is None or worker_info.id == 0:
+			from pathlib import Path
+			species_name = Path(self.path_to_gff_db).parent.name
+			print(f"[{species_name}] PRIMARY={primary_scope}  UNCERTAIN={uncertain_scope}  TOTAL_SCOPE={total_scope}")
+
+
+
 		
 	def open_files(self):
 		"""Open FASTA and GFF database."""
@@ -149,6 +335,8 @@ class GenomicAnnotationDataset(Dataset):
 		try:
 			self._init_fasta()
 			self._init_gff_db()
+			if self.csv_transcript_ids is not None and self.primary_transcript_ids_final is None:
+				self._init_csv_primary_and_counts()
 			self.files_opened = True
 		except Exception as e:
 			self.logger.error(f"Failed to open files: {e}")
@@ -503,7 +691,15 @@ class GenomicAnnotationDataset(Dataset):
 					
 		try:
 			# Query GFF database for features in this region
-			features = list(self.gff_db.region(region=(chrom, start, end), featuretype="transcript"))
+			if self.csv_transcript_ids is not None:
+				assert self.csv_featuretypes is not None
+				assert self.primary_transcript_ids_final is not None
+				features = []
+				for ft in self.csv_featuretypes:
+					features.extend(list(self.gff_db.region(region=(chrom, start, end), featuretype=ft)))
+			else:
+				features = list(self.gff_db.region(region=(chrom, start, end), featuretype="transcript"))
+
 			
 			for feature in features:
 				feature_start = feature.start
@@ -515,7 +711,8 @@ class GenomicAnnotationDataset(Dataset):
 				TSS_probability = torch.exp(-torch.abs(torch.arange(start, end, dtype=torch.float32) - TSS)/self.TSS_prob_width)
 				polyA_probability = torch.exp(-torch.abs(torch.arange(start, end, dtype=torch.float32) - polyA)/self.polyA_prob_width)
 
-				if "protein_coding" in feature.attributes.get("transcript_type", ["unknown"]):
+				ttypes = self._get_transcript_types(feature)
+				if "protein_coding" in ttypes:
 					CDSs = list(self.gff_db.children(id=feature, featuretype="CDS", order_by="start", completely_within=True))
 					assert len(CDSs) > 0, f"len(CDSs) is {len(CDSs)} for {chrom}:{start}-{end} (transcript_id: {feature.attributes['transcript_id']})"
 					CDS_start = CDSs[0].start
@@ -542,7 +739,7 @@ class GenomicAnnotationDataset(Dataset):
 					# we should not stop BEFORE the stop codon for sure
 					polyA_probability[relative_CDS_start:relative_CDS_end] = 0
 
-				transcript_type = "primary" if self._is_main_transcript(feature) else "uncertain"
+				transcript_type = "primary" if self._is_primary_transcript(feature) else "uncertain"
 
 				# we use max of the current probability and pre-existing probability (which is computed based on other transcripts)
 				targets[f"{transcript_type}_tss_{feature.strand}"] = torch.maximum(
@@ -750,11 +947,32 @@ def toIGV(sample: Dict, tokenizer: AutoTokenizer, IGV_files_prefix: str, file_mo
 				bed_file.write(f"{chrom}\t{start+token_start}\t{start+token_end}\t{value}\t{strand}\n")
 
 def worker_init_fn(worker_id):
-	"""Initialize worker with proper file handling for multi-GPU training."""
-	worker_info = torch.utils.data.get_worker_info()
-	if worker_info is not None:
-		dataset = worker_info.dataset
-		dataset.open_files()
+    """Initialize worker with proper file handling for multi-GPU training."""
+    worker_info = torch.utils.data.get_worker_info()
+    if worker_info is None:
+        return
+
+    ds = worker_info.dataset
+
+    def _open(ds0):
+        if hasattr(ds0, "open_files"):
+            ds0.open_files()
+            return
+
+        if isinstance(ds0, ConcatDataset):
+            for child in ds0.datasets:
+                _open(child)
+            return
+
+        if isinstance(ds0, Subset):
+            _open(ds0.dataset)
+            return
+
+        raise AttributeError(
+            f"Dataset of type {type(ds0)} has no open_files() and is not ConcatDataset/Subset"
+        )
+
+    _open(ds)
 
 def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
 		"""

@@ -1,0 +1,1101 @@
+# Configuration for train_with_accelerate.py
+# https://github.com/facebookresearch/hydra/issues/1286 - some notes on how to use hydra configs
+# CUDA_VISIBLE_DEVICES=2 MODERNBERT_HOME="/home/jovyan/DNALM/ModernBERT" GENALM_HOME=$(realpath ../../) python train_with_accelerate.py --config configs/modernGENA_rc_shift_lncRNA.yaml
+
+HOME_PATH: ${oc.env:GENALM_HOME}
+output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift_middle_pretrain_shawerma/
+batch_size: 48
+total_batch_size: 960
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+model:
+  _target_: "annotation_model.AnnotationModel"
+  output_dir: ${output_dir}
+  config: null  # Path to the BERT configuration file; null will load from huggingface
+  modernbert_cpt: "/mnt/nfs_dna/minja/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/"  # Path to the ModernBERT checkpoint
+  classifier:
+    _target_: "annotation_model.Linear_Classifier_with_dropout"
+    num_labels: 4  # TSS and polyA for + and - strands
+    num_layers: 1  # Number of layers
+    classifier_dropout: 0.0  # Dropout rate
+  activation:
+    _target_: "torch.nn.Identity"
+  loss_fct:
+    _target_: "annotation_model.WeightedBCEWithLogitsLoss"
+    # set both weight to 1 to get standard BCEWithLogitsLoss
+    w_nonprimary_exists: 1.0  # Weight for non-primary annotation exists
+    w_intergenic: 1.0  # Weight for intergenic regions (only affects polyA) (use 1 in case of stranded dataset)
+
+# --- Datasets only ---
+
+genomes_dir: /disk/10tb/home/shmelev/GENA_LM/data/annotation/38_more_genomes
+primary_csv_dir: /disk/10tb/home/shmelev/GENA_LM/data/annotation/main_transcripts_shaurma/main_transcripts_shaurma
+
+
+human:
+  _target_: simple_annotation_dataset.GenomicAnnotationDataset
+  model_input_length_token: 1024
+  av_token_len: 9.0
+  path_to_gff_db: ${HOME_PATH}/data/annotation/gencode.v48.annotation.gtf.db
+  path_to_fasta: ${HOME_PATH}/data/annotation/hg38.fa
+  tokenizer:
+    _target_: transformers.AutoTokenizer.from_pretrained
+    pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t"
+  exclude_chromosomes: null
+  include_chromosomes: "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr22,chrX,chrY"
+  primary_transcript_types: ["protein_coding", "lncRNA"]
+  primary_tags: ["GENCODE_Primary", "MANE_Select"]
+  primary_transcripts_csv: null
+  look_up_for_transcript_type_in_parent_gene: false
+  chunk_overlap: 0.5
+  strand: "random"
+
+species:
+  GCF_900095145_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_900095145.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_900095145.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_900095145.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000243295_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000243295.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000243295.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000243295.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000003025_6:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000003025.6/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000003025.6/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000003025.6_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+  
+  GCF_000181275_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000181275.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000181275.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000181275.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000235385_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000235385.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000235385.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000235385.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_036323735_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_036323735.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_036323735.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_036323735.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_003327715_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_003327715.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_003327715.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_003327715.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000956105_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000956105.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000956105.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000956105.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_016772045_2:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_016772045.2/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_016772045.2/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_016772045.2_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000181295_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000181295.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000181295.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000181295.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_009806435_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_009806435.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_009806435.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_009806435.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000321225_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000321225.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000321225.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000321225.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000260255_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000260255.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000260255.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000260255.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000292845_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000292845.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000292845.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000292845.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_002201575_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_002201575.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_002201575.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_002201575.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000001635_26:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000001635.26/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000001635.26/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000001635.26_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000317375_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000317375.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000317375.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000317375.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000165445_2:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000165445.2/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000165445.2/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000165445.2_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_001458135_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_001458135.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_001458135.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_001458135.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000001905_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000001905.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000001905.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000001905.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000280705_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000280705.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000280705.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000280705.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000236235_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000236235.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000236235.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000236235.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000247695_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000247695.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000247695.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000247695.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_018350175_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_018350175.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_018350175.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_018350175.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000002305_2:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000002305.2/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000002305.2/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000002305.2_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000308155_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000308155.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000308155.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000308155.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_002288905_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_002288905.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_002288905.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_002288905.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000151885_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000151885.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000151885.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000151885.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_002940915_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_002940915.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_002940915.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_002940915.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000260355_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000260355.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000260355.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000260355.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000276665_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000276665.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000276665.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000276665.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000283155_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000283155.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000283155.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000283155.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_001604975_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_001604975.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_001604975.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_001604975.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000151735_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000151735.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000151735.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000151735.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000767855_1:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000767855.1/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000767855.1/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000767855.1_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_002263795_3:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_002263795.3/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_002263795.3/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_002263795.3_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000952055_2:
+    _target_: simple_annotation_dataset.GenomicAnnotationDataset
+    model_input_length_token: ${human.model_input_length_token}
+    av_token_len: ${human.av_token_len}
+    path_to_gff_db: ${genomes_dir}/GCF_000952055.2/annotation.gff.db
+    path_to_fasta: ${genomes_dir}/GCF_000952055.2/genome.fna
+    tokenizer: ${human.tokenizer}
+
+    include_chromosomes: "all"
+    exclude_chromosomes: null
+
+    # CSV drives primary selection for this species
+    primary_transcripts_csv: ${primary_csv_dir}/GCF_000952055.2_main_transcript.csv
+    primary_tags: null
+
+    # required in CSV mode
+    look_up_for_transcript_type_in_parent_gene: true
+
+    # optional filter (gene_biotype in CSV mode)
+    primary_transcript_types: ["protein_coding", "lncRNA"]
+
+    chunk_overlap: ${human.chunk_overlap}
+    strand: ${human.strand}
+
+  GCF_000002285_3:
+      _target_: simple_annotation_dataset.GenomicAnnotationDataset
+      model_input_length_token: ${human.model_input_length_token}
+      av_token_len: ${human.av_token_len}
+      path_to_gff_db: ${genomes_dir}/GCF_000002285.3/annotation.gff.db
+      path_to_fasta: ${genomes_dir}/GCF_000002285.3/genome.fna
+      tokenizer: ${human.tokenizer}
+
+      include_chromosomes: "all"
+      exclude_chromosomes: null
+
+      # CSV drives primary selection for this species
+      primary_transcripts_csv: ${primary_csv_dir}/GCF_000002285.3_main_transcript.csv
+      primary_tags: null
+
+      # required in CSV mode
+      look_up_for_transcript_type_in_parent_gene: true
+
+      # optional filter (gene_biotype in CSV mode)
+      primary_transcript_types: ["protein_coding", "lncRNA"]
+
+      chunk_overlap: ${human.chunk_overlap}
+      strand: ${human.strand}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+train_dataset_multispecies:
+  _target_: torch.utils.data.ConcatDataset
+  datasets:
+    - ${human}
+    - ${species.GCF_900095145_1}
+    - ${species.GCF_000243295_1}
+    - ${species.GCF_000003025_6}
+    - ${species.GCF_000181275_1}
+    - ${species.GCF_000235385_1}
+    - ${species.GCF_036323735_1}
+    - ${species.GCF_003327715_1}
+    - ${species.GCF_000956105_1}
+    - ${species.GCF_016772045_2}
+    - ${species.GCF_000181295_1}
+    - ${species.GCF_009806435_1}
+    - ${species.GCF_000321225_1}
+    - ${species.GCF_000260255_1}
+    - ${species.GCF_000292845_1}
+    - ${species.GCF_002201575_1}
+    - ${species.GCF_000001635_26}
+    - ${species.GCF_000317375_1}
+    - ${species.GCF_000165445_2}
+    - ${species.GCF_001458135_1}
+    - ${species.GCF_000001905_1}
+    - ${species.GCF_000280705_1}
+    - ${species.GCF_000236235_1}
+    - ${species.GCF_000247695_1}
+    - ${species.GCF_018350175_1}
+    - ${species.GCF_000002305_2}
+    - ${species.GCF_000308155_1}
+    - ${species.GCF_002288905_1}
+    - ${species.GCF_000151885_1}
+    - ${species.GCF_002940915_1}
+    - ${species.GCF_000260355_1}
+    - ${species.GCF_000276665_1}
+    - ${species.GCF_000283155_1}
+    - ${species.GCF_001604975_1}
+    - ${species.GCF_000151735_1}
+    - ${species.GCF_000767855_1}
+    - ${species.GCF_002263795_3}
+    - ${species.GCF_000952055_2}
+    - ${species.GCF_000002285_3}
+
+# keep validation human-only (dataset definition only)
+valid_dataset:
+  _target_: ${human._target_}
+  model_input_length_token: ${human.model_input_length_token}
+  av_token_len: ${human.av_token_len}
+  path_to_gff_db: ${human.path_to_gff_db}
+  path_to_fasta: ${human.path_to_fasta}
+  tokenizer: ${human.tokenizer}
+  exclude_chromosomes: null
+  include_chromosomes: "chr21"
+  primary_transcript_types: ${human.primary_transcript_types}
+  primary_tags: ${human.primary_tags}
+  primary_transcripts_csv: null
+  look_up_for_transcript_type_in_parent_gene: ${human.look_up_for_transcript_type_in_parent_gene}
+  max_samples_number: 500
+  chunk_overlap: ${human.chunk_overlap}
+  strand: ${human.strand}
+
+
+TrainingArguments:
+  _target_: transformers.TrainingArguments
+  output_dir: ${output_dir}
+  per_device_train_batch_size: ${batch_size}
+  per_device_eval_batch_size: ${batch_size}
+  dataloader_num_workers: 4
+  gradient_accumulation_steps:
+    _target_: train_with_accelerate.gradient_accumulation_steps
+    batch_size: ${batch_size}
+    total_batch_size: ${total_batch_size}
+  dataloader_pin_memory: false
+  remove_unused_columns: false
+  load_best_model_at_end: true
+  save_strategy: "steps"
+  save_total_limit: 2
+  eval_strategy: "steps"
+  save_steps: 250
+  eval_steps: 250
+  metric_for_best_model: "eval_loss"
+  lr_scheduler_type: "constant"
+  num_train_epochs: 10
+  logging_steps: 50
+  report_to: "tensorboard"
+
+trainer:
+  _target_: custom_trainer.CustomTrainer
+  model: ${model}
+  data_collator:
+    _target_: hydra.utils.get_object
+    path: simple_annotation_dataset.collate_fn
+  train_dataset: ${train_dataset_multispecies}
+  eval_dataset: ${valid_dataset}
+  args: ${TrainingArguments}
+  log_train_metrics: 50
+  train_metrics:
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss"
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss_TSS"
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss_polya"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_tss_-"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_+"
+    - _target_: custom_trainer.NamedBinaryAveragePrecision
+      cls_name: "primary_polya_-"

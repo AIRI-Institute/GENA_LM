@@ -3,7 +3,7 @@
 # CUDA_VISIBLE_DEVICES=2 MODERNBERT_HOME="/home/jovyan/DNALM/ModernBERT" GENALM_HOME=$(realpath ../../) python train_with_accelerate.py --config configs/modernGENA_rc_shift_lncRNA.yaml
 
 HOME_PATH: ${oc.env:GENALM_HOME}
-output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift_middle_pretrain_6_classes_with_intragenic_1000x_low_loss/
+output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift_middle_pretrain_all_layers_loss/
 batch_size: 48
 total_batch_size: 960
 
@@ -12,13 +12,13 @@ logging:
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 model:
-  _target_: "annotation_model.AnnotationModel"
+  _target_: "annotation_model.AnnotationModelAllLayerLoss"
   output_dir: ${output_dir}
   config: null  # Path to the BERT configuration file; null will load from huggingface
-  modernbert_cpt: "/mnt/nfs_dna/minja/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/"  # Path to the ModernBERT checkpoint
+  modernbert_cpt: "/disk/10tb/home/shmelev/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/hf/"  # HF VERSION ONLY!!! Path to the ModernBERT checkpoint
   classifier:
     _target_: "annotation_model.Linear_Classifier_with_dropout"
-    num_labels: 6  # TSS and polyA for + and - strands
+    num_labels: 4  # TSS and polyA for + and - strands
     num_layers: 1  # Number of layers
     classifier_dropout: 0.0  # Dropout rate
   activation:
@@ -28,8 +28,6 @@ model:
     # set both weight to 1 to get standard BCEWithLogitsLoss
     w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
     w_intergenic: 0.1  # Weight for intergenic regions (only affects polyA) (use 1 in case of stranded dataset)
-    predict_intragenic: true
-    w_intragenic: 0.001
 
 train_dataset:
   _target_: "simple_annotation_dataset.GenomicAnnotationDataset"
@@ -103,8 +101,6 @@ trainer:
       cls_name: "loss_TSS"
     - _target_: custom_trainer.NamedMean
       cls_name: "loss_polya"
-    - _target_: custom_trainer.NamedMean
-      cls_name: "loss_intragenic"
     - _target_: custom_trainer.NamedBinaryAveragePrecision
       cls_name: "primary_tss_+"
     - _target_: custom_trainer.NamedBinaryAveragePrecision
@@ -113,7 +109,3 @@ trainer:
       cls_name: "primary_polya_+"
     - _target_: custom_trainer.NamedBinaryAveragePrecision
       cls_name: "primary_polya_-"
-    - _target_: custom_trainer.NamedBinaryAveragePrecision
-      cls_name: "intragenic_regions_+"
-    - _target_: custom_trainer.NamedBinaryAveragePrecision
-      cls_name: "intragenic_regions_-"
