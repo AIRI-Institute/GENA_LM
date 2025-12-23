@@ -43,11 +43,9 @@ class ExpressionDataset(Dataset):
         hash_prefix = None,
         n_keys: Optional[int] = None,
         token_len_for_fetch: int = 8,
-        fraction_of_cell_type_specific_tpm_samples: float = 0,
-        cell_type_specific_samples_path: str = None,
-        norm_bw = False
-        text_tokenizer: str = "Qwen/Qwen3-Embedding-0.6B",
-        text_max_seq_len: int = 2048
+        norm_bw = False,
+        text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
+        text_max_seq_len: int = 512
     ):
         """
         Args:
@@ -62,7 +60,6 @@ class ExpressionDataset(Dataset):
                                 ]
                          }
             self.all_keys : list of all metadata_ids (a.k.a keys)
-            self.n_cell_chunks : number of chunks to split the tracks into. For cell-type-specific upsampling, self.n_cell_chunks = 1
         """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
@@ -126,27 +123,6 @@ class ExpressionDataset(Dataset):
             end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
             self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
 
-        if fraction_of_cell_type_specific_tpm_samples == 0:
-            cell_type_specific_samples_path = None
-        else:
-            assert cell_type_specific_samples_path is not None, "cell_type_specific_samples_path must be provided if fraction_of_cell_type_specific_tpm_samples is not 0"
-            
-        if cell_type_specific_samples_path is not None:
-            self.N_cell_type_specific_samples = max(1, int(self.n_keys * fraction_of_cell_type_specific_tpm_samples))            
-            self.cell_type_specific_samples = pd.read_csv(cell_type_specific_samples_path)
-            self.cell_type_specific_samples.query("cell_id in @self.all_keys", inplace=True)
-            self.cell_type_specific_samples.query("gene_id in @self.genes['gene_id'].values", inplace=True)
-            self.logger.debug(f"Found {len(self.cell_type_specific_samples)} cell-type-specific samples")
-            if len(self.cell_type_specific_samples) == 0: # this may happen, for example, if cell type specific samples are for another species
-                self.logger.warning(f"No cell-type-specific samples found for {self.targets_path} in {cell_type_specific_samples_path}")
-                self.cell_type_specific_samples = None
-                self.cell_type_specific_samples_path = None
-                self.N_cell_type_specific_samples = 0
-            else:
-                self.cell_type_specific_samples = self.cell_type_specific_samples.groupby("gene_id")["cell_id"].apply(list).to_dict() # gene_id -> list of cell_ids
-                self.n_cell_chunks = 1
-        else:
-            self.N_cell_type_specific_samples = 0
 
         self.files_opened = False
 
@@ -162,11 +138,16 @@ class ExpressionDataset(Dataset):
             self.precompute_tokenization()
 
         # Read description
+        #Qwen
         self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer, padding_side='left')
+        #e5
+        # self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer)
         self.text_max_seq_len = text_max_seq_len
         self.text_data = {}  # id -> description
         self.text_data_keys = set()
-        self.desc_h5_cache_path = os.path.abspath(targets_path) + ".desc.h5"
+        tokenizer_tag = text_tokenizer.replace("/", "_")
+        self.desc_h5_cache_path = f"{os.path.abspath(targets_path)}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
+
         if os.path.exists(self.desc_h5_cache_path):
             self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
         else:
@@ -261,6 +242,7 @@ class ExpressionDataset(Dataset):
                     max_length=self.text_max_seq_len,
                     return_tensors="pt"
                 )
+
                 grp = h5f.create_group(str(description_id))
                 grp.create_dataset("input_ids", data=encoding["input_ids"][0])
                 grp.create_dataset("attention_mask", data=encoding["attention_mask"][0])
@@ -377,14 +359,6 @@ class ExpressionDataset(Dataset):
                     }
                     for k in df['id']
                 }
-
-                # сохраняем кэш в h5
-                # cov_norm_path = self.get_signals_hash_path() + ".coverage_norm.h5"
-                # with h5py.File(cov_norm_path, "w") as f:
-                #     for k, strands in self.coverage_norm.items():
-                #         g = f.create_group(k)
-                #         g.attrs["+"] = strands["+"]
-                #         g.attrs["-"] = strands["-"]
         else:
             self.paths = {k:[{"+": None, "-": None}] for ind,k in enumerate(df["id"])}
 
@@ -701,37 +675,8 @@ class ExpressionDataset(Dataset):
         gene_id = self.genes.iloc[original_idx]['gene_id']
         gene_group = self.h5_cache[gene_id]
 
-        # Get selected keys for current chunk
-        if self.N_cell_type_specific_samples > 0:
-            if gene_id in self.cell_type_specific_samples:
-                _cell_type_specific_samples = self.cell_type_specific_samples[gene_id]
-                if len(_cell_type_specific_samples) > self.N_cell_type_specific_samples:
-                    # subsample cell-type-specific samples
-                    _cell_type_specific_samples = np.random.choice(_cell_type_specific_samples,
-                                                self.N_cell_type_specific_samples,
-                                                replace=False)
-                    
-                # self.logger.debug(f"N of _cell_type_specific_samples: {len(_cell_type_specific_samples)}")
-                if len(_cell_type_specific_samples) < self.n_keys: # add random non-cell-type-specific samples
-                    _not_cell_type_specific_samples = [key for key in self.all_keys if not key in _cell_type_specific_samples]
-                    assert len(_not_cell_type_specific_samples) + len(_cell_type_specific_samples) == len(self.all_keys)
-                    selected_keys = np.random.choice(_not_cell_type_specific_samples,
-                                                self.n_keys - len(_cell_type_specific_samples),
-                                                replace=False)
-                    selected_keys = np.concatenate([_cell_type_specific_samples, selected_keys])
-                elif len(_cell_type_specific_samples) > self.n_keys: # choose n_keys cell-type-specific samples
-                    raise ValueError(f"N of cell-type-specific samples for {gene_id} is greater than n_keys: {len(_cell_type_specific_samples)} > {self.n_keys}")                    
-                else:
-                    selected_keys = _cell_type_specific_samples
-            else:   # simply choice cell chunk randomly from available chunks
-                # self.logger.debug(f"No cell-type-specific samples for {gene_id}")
-                chunk_idx = np.random.choice(len(self.selected_keys_chunks))
-                selected_keys = self.selected_keys_chunks[chunk_idx]
-        else:
-            chunk_idx = idx % self.n_cell_chunks
-            selected_keys = self.selected_keys_chunks[chunk_idx]
-
-        # self.logger.debug(f"selected_keys: {selected_keys}")
+        chunk_idx = idx % self.n_cell_chunks
+        selected_keys = self.selected_keys_chunks[chunk_idx]
         
         input_ids = np.array(gene_group['input_ids'])
         starts = np.array(gene_group['starts'])
@@ -798,8 +743,6 @@ class ExpressionDataset(Dataset):
 
         # Получаем TPM значения
         tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
-        features["dataset_mean"] = torch.tensor(np.nan, dtype=torch.float32)
-        features["dataset_deviation"] = torch.full_like(torch.from_numpy(tpm_values), np.nan, dtype=torch.float32)
         if self.tpm:
             for i, key in enumerate(selected_keys):
                 if gene_id in self.tpm_lookup[key].index:
@@ -807,42 +750,33 @@ class ExpressionDataset(Dataset):
             
             if self.transform_targets_tpm is not None:
                 tpm_values = self.transform_targets_tpm(tpm_values)
-            if not np.all(np.isnan(tpm_values)):
-                dataset_mean = np.nanmean(tpm_values)
-                features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
-                features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean).float()
             if np.all(np.isnan(tpm_values)):
                 raise ValueError(f"All TPM values are NaN for {gene_id}")
         features["tpm"] = torch.from_numpy(tpm_values)
 
-        # for debug purposes
-        # dataset_mean = np.nanmean(tpm_values)
-        # features["dataset_mean"] = torch.tensor(dataset_mean, dtype=torch.float32)
-        # features["dataset_deviation"] = torch.from_numpy((tpm_values - dataset_mean) / dataset_mean)
 
         # desc_vectors
         desc_input_ids = []
         desc_attention_mask = []
         for key in selected_keys:
             grp = self.desc_h5_cache[str(key)]
-            desc_input_ids.append(torch.tensor(grp["input_ids"][()], dtype=torch.long))
-            desc_attention_mask.append(torch.tensor(grp["attention_mask"][()], dtype=torch.long))
-        # padding desc_vectors
+            ids = torch.tensor(grp["input_ids"][()], dtype=torch.long)       # (L_i,)
+            mask = torch.tensor(grp["attention_mask"][()], dtype=torch.long) # (L_i,)
+            desc_input_ids.append(ids)
+            desc_attention_mask.append(mask)
+
         n_missing = self.n_keys - len(desc_input_ids)
-        if n_missing > 0:
-            pad_shape = (self.text_max_seq_len,)
-            for _ in range(n_missing):
-                desc_input_ids.append(torch.zeros(pad_shape, dtype=torch.long))
-                desc_attention_mask.append(torch.zeros(pad_shape, dtype=torch.long))
-        features["desc_input_ids"] = torch.stack(desc_input_ids)
-        features["desc_attention_mask"] = torch.stack(desc_attention_mask)
+        for _ in range(n_missing):
+            desc_input_ids.append(torch.tensor([20], dtype=torch.long))   # (1,)
+            desc_attention_mask.append(torch.tensor([1], dtype=torch.long))
+
+        features["desc_input_ids"] = desc_input_ids          # List[Tensor(L_i,)]
+        features["desc_attention_mask"] = desc_attention_mask
+
 
         valid_tpm_count = np.count_nonzero(~np.isnan(tpm_values))
         features["dataset_description"] = [self.dataset_description] * valid_tpm_count
-        if type(desc_vectors_list[0]) == int:
-            features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.int32)
-        else:   
-            features["desc_vectors"] = torch.tensor(desc_vectors, dtype=torch.float)
+        
         if self.bw and not self.tpm: 
             features["selected_keys"] = []
         else:
@@ -856,11 +790,12 @@ class ExpressionDataset(Dataset):
             self.h5_cache.close()
         if hasattr(self, 'signals_cache'):
             self.signals_cache.close()
+        if hasattr(self, 'desc_h5_cache'):
+            self.desc_h5_cache.close()
 
     # return main info about dataset for logging
     def describe(self):
         result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
-        result += f", N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
         if hasattr(self, 'dataset_description'):
             result += f", dataset_description={self.dataset_description}"
         result += ")"

@@ -9,7 +9,6 @@ from pathlib import Path
 
 # third-party
 import torch
-import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import transformers
@@ -18,8 +17,6 @@ from transformers import AutoConfig, AutoTokenizer, HfArgumentParser
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
-
-import random
 
 # accelerate
 import accelerate
@@ -36,41 +33,17 @@ from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuratio
 import lm_experiments_tools.optimizers as optimizers
 from lm_experiments_tools import get_optimizer
 
-from downstream_tasks.expression_prediction.expression_dataset_description import ExpressionDataset, worker_init_fn
+from downstream_tasks.expression_prediction.expression_dataset import worker_init_fn
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
 
-# # --- hotfix: old accelerate missing clear_device_cache (needed by peft) ---
-# try:
-#     import accelerate.utils.memory as _mem
-#     if not hasattr(_mem, "clear_device_cache"):
-#         def clear_device_cache():
-#             import gc
-#             import torch
-#             gc.collect()
-#             if torch.cuda.is_available():
-#                 torch.cuda.empty_cache()
-#         _mem.clear_device_cache = clear_device_cache
-# except Exception:
-#     pass
-# # --- end hotfix ---
-
-
-
-def set_global_seed(seed: int):
-    if seed is None:
-        return
-    print(f"Setting global seed to {seed}")
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
+# accelerate logger (оборачивает python logging)
 logger = logging.getLogger(__name__)
 
+# Настраиваем видимые GPU, если переменная не установлена
 if os.environ.get('CUDA_VISIBLE_DEVICES', None) is None:
     os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(torch.cuda.device_count())])
 
@@ -115,18 +88,12 @@ def main():
     args = parser.parse_args()
     logging.getLogger().setLevel(args.log_level)
 
-
+    # --- Инициализация Accelerate ---
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         kwargs_handlers=[ddp_kwargs]
     )
-
-    if not accelerator.is_main_process:
-        logging.getLogger().setLevel(logging.ERROR)
-        for h in logging.getLogger().handlers:
-            h.setLevel(logging.ERROR)
-    
     alogger = get_logger(__name__) 
    # alogger = get_logger('')  # accelerate logger (привязан к процессу)
     alogger.info(f'num processes: {accelerator.num_processes}')
@@ -135,6 +102,7 @@ def main():
 
     prepare_run(args, alogger, logger_fmt, accelerator=accelerator)
 
+    # --- Глобальный timestamp синхронизируем между всеми процессами ---
     if accelerator.is_main_process:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
     else:
@@ -157,8 +125,7 @@ def main():
                 alogger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k, v)
 
-    set_global_seed(args.seed)
-
+    # Предупреждение о resume: оставляем логику прежней
     if args.resume is not None:
         alogger.warning(
             f"Resuming from cpt {args.resume}. This will overwrite reset_lr, reset_optimizer, reset_iteration and init_cpt options"
@@ -169,6 +136,7 @@ def main():
         args.__setattr__("init_checkpoint", args.model_path + "/" + args.resume)
         args.__setattr__("model_path", args.model_path + "/resume_" + args.resume + "/")
 
+    # Проверка и подготовка каталога эксперимента — только на главном процессе
     if accelerator.is_main_process:
         if args.model_path is None:
             raise ValueError("Model path should not be None")
@@ -190,55 +158,60 @@ def main():
 
     accelerator.wait_for_everyone()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer)
-    text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer, trust_remote_code=True)
+    text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True)
 
-    def _pad_1d(x: torch.Tensor, length: int, pad_value: int, pad_left: bool = False):
-        # x: (L,)
+    def _pad_1d(x: torch.Tensor, length: int, pad_value: int, pad_left: bool = False) -> torch.Tensor:
         pad_len = length - x.size(0)
         if pad_len <= 0:
             return x
-
         pad = x.new_full((pad_len,), pad_value)
         return torch.cat([pad, x], dim=0) if pad_left else torch.cat([x, pad], dim=0)
 
 
-
-    def _pad_2d(seq: torch.Tensor, max_len: int, pad_id: int, dim: int = 0) -> torch.Tensor:
-        # (L, D) or (N, L)
-        pad_len = max_len - seq.size(dim)
+    def _pad_2d(x: torch.Tensor, max_len: int, pad_value, dim: int = 0) -> torch.Tensor:
+        pad_len = max_len - x.size(dim)
         if pad_len <= 0:
-            return seq
-        pad_shape = list(seq.shape)
+            return x
+        pad_shape = list(x.shape)
         pad_shape[dim] = pad_len
-        pad = seq.new_full(tuple(pad_shape), pad_id)
-        return torch.cat([seq, pad], dim=dim)
+        pad = x.new_full(tuple(pad_shape), pad_value)
+        return torch.cat([x, pad], dim=dim)
 
+
+    def _pad_3d(x: torch.Tensor, max_len: int, pad_value, dim: int = 1) -> torch.Tensor:
+        pad_len = max_len - x.size(dim)
+        if pad_len <= 0:
+            return x
+        pad_shape = list(x.shape)
+        pad_shape[dim] = pad_len
+        pad = x.new_full(tuple(pad_shape), pad_value)
+        return torch.cat([x, pad], dim=dim)
 
     def collate_fn(batch):
         pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
-        no_pad_keys = ['tpm']
+        no_pad_keys = ['tpm', 'dataset_flag']
         special_keys = ['gene_id', 'selected_keys', 'dataset_description', 'name', 'chrom', 'reverse', 'start', 'end']
 
         pad_token_ids = {
             'input_ids': tokenizer.pad_token_id,
-            'token_type_ids': 0,
             'attention_mask': 0,
-            'labels': 0,
+            'token_type_ids': 0,
+            'labels': 0.0,
             'labels_mask': 0,
             'desc_input_ids': text_tokenizer.pad_token_id,
             'desc_attention_mask': 0,
         }
 
-        max_seq_len = max(sample['input_ids'].size(0) for sample in batch)  # L_max
+        max_seq_len = max(sample['input_ids'].size(1) for sample in batch)
 
         n_keys = len(batch[0]['desc_input_ids'])
-        for sample in batch:
-            assert len(sample['desc_input_ids']) == n_keys
         max_text_seq_len = 0
         for sample in batch:
             for ids in sample['desc_input_ids']:
                 max_text_seq_len = max(max_text_seq_len, ids.size(0))
+        if max_text_seq_len == 0:
+            max_text_seq_len = 1
 
         batch_dict = {key: [] for key in pad_keys + no_pad_keys + special_keys}
 
@@ -257,29 +230,33 @@ def main():
                 sample_ids.append(ids)
                 sample_masks.append(mask)
 
-            # (n_keys, L_text_max)
-            desc_ids_batch.append(torch.stack(sample_ids, dim=0))
-            desc_mask_batch.append(torch.stack(sample_masks, dim=0))
+            desc_ids_batch.append(torch.stack(sample_ids, dim=0))   # (n_keys, L_text_max)
+            desc_mask_batch.append(torch.stack(sample_masks, dim=0))# (n_keys, L_text_max)
 
         for sample in batch:
             for key in pad_keys:
-                seq = sample[key]
-                if key in ['labels', 'labels_mask']:  # (L, n_keys)
-                    padded_seq = _pad_2d(seq, max_seq_len, pad_token_ids[key], dim=0)  # -> (L_max, n_keys)
-                else:  # (L,)
-                    padded_seq = _pad_1d(seq, max_seq_len, pad_token_ids[key])         # -> (L_max,)
-                batch_dict[key].append(padded_seq)
+                x = sample[key]
+                if key in ['input_ids', 'attention_mask', 'token_type_ids']:  # (n_keys, L)
+                    x = _pad_2d(x, max_seq_len, pad_token_ids[key], dim=1)    # pad по L -> dim=1
+                if key in ['labels', 'labels_mask']:                                                       
+                    x = _pad_3d(x, max_seq_len, pad_token_ids[key], dim=1)
+                batch_dict[key].append(x)
 
             for key in no_pad_keys:
-                batch_dict[key].append(sample[key])   # (n_keys,)
+                if key in sample:
+                    batch_dict[key].append(sample[key])
 
             for key in special_keys:
-                batch_dict[key].append(sample[key])
+                if key in sample:
+                    batch_dict[key].append(sample[key])
 
+        # stack
         for key in pad_keys:
-            batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # -> (B, ...)
+            batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # (B, n_keys, Lmax) или (B, n_keys, Lmax, 1)
+
         for key in no_pad_keys:
-            batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # -> (B, n_keys)
+            if len(batch_dict[key]) > 0:
+                batch_dict[key] = torch.stack(batch_dict[key], dim=0)
 
         batch_dict['desc_input_ids'] = torch.stack(desc_ids_batch, dim=0)        # (B, n_keys, L_text_max)
         batch_dict['desc_attention_mask'] = torch.stack(desc_mask_batch, dim=0)  # (B, n_keys, L_text_max)
@@ -287,15 +264,18 @@ def main():
         return batch_dict
 
 
+    # --- Data ---
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
     kwargs = {'pin_memory': True, 'num_workers': args.data_n_workers, 'collate_fn': collate_fn}
 
     if accelerator.is_main_process:
         alogger.info(f'preparing training data')
 
+    # Собираем train dataset конфиги
     train_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('train_dataset')]
     shared_dataset_params = experiment_config.get('shared_dataset_params', None)
 
+    # Rank 0-only init для вычисления min_train_chunk_size
     if accelerator.is_main_process:
         tmp_configs = [config.copy() for config in train_datasets_configs]
         if shared_dataset_params is not None:
@@ -310,11 +290,13 @@ def main():
     else:
         min_train_chunk_size = -1
 
+    # Рассылаем min_train_chunk_size
     obj = [min_train_chunk_size]
     broadcast_object_list(obj)
     min_train_chunk_size = obj[0]
     assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible broadcast issue"
 
+    # Re-init конфиги на всех рангах с учётом shared params и n_keys
     if shared_dataset_params is not None:
         for i, config in enumerate(train_datasets_configs):
             train_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
@@ -337,6 +319,7 @@ def main():
             alogger.info(f'dataset {i}: {dataset.describe()}')
         alogger.info(f'total len(train_dataset): {len(train_dataset)}')
 
+    # Самплеры и лоадеры
     train_sampler = DistributedSampler(
         train_dataset,
         rank=accelerator.process_index,
@@ -348,6 +331,7 @@ def main():
     train_dataloader = DataLoader(train_dataset, batch_size=per_worker_batch_size,
                                   sampler=train_sampler, worker_init_fn=worker_init_fn, **kwargs)
 
+    # --- Validation datasets (если заданы) ---
     valid_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('valid_dataset')]
     if len(valid_datasets_configs) > 0:
         if accelerator.is_main_process:
@@ -410,69 +394,27 @@ def main():
         if accelerator.is_main_process:
             alogger.info('No validation data is used.')
 
-    model_cfg = AutoConfig.from_pretrained(args.model_cfg)
+    # --- Model ---
+    # model_cfg = AutoConfig.from_pretrained(args.model_cfg, trust_remote_code = True)
 
     if "model_kwargs" in experiment_config:
         model_kwargs = instantiate(experiment_config["model_kwargs"])
     else:
         model_kwargs = {}
 
-    if "config" in model_kwargs:
-        for k, v in model_kwargs["config"].items():
-            model_cfg.__setattr__(k, v)
+    # if "config" in model_kwargs:
+    #     for k, v in model_kwargs["config"].items():
+    #         model_cfg.__setattr__(k, v)
 
-    model_kwargs["config"] = model_cfg
+    # model_kwargs["config"] = model_cfg
 
-    model_cls = get_cls_by_name(args.backbone_cls)
+    model_cls = get_cls_by_name(args.model_cls)
     if accelerator.is_main_process:
-        alogger.info(f'Using backbone model class: {model_cls}')
+        alogger.info(f'Using model class: {model_cls}')
     model = model_cls(**model_kwargs)
     model_activation_fn = model.activation
 
-    if args.num_mem_tokens is not None:
-        rmt_config = {
-            'num_mem_tokens': args.num_mem_tokens,
-            'max_n_segments': args.max_n_segments,
-            'input_size': args.input_size,
-            'bptt_depth': args.bptt_depth,
-            'sum_loss': True,
-            'tokenizer': tokenizer,
-            'mixed_length_ratio': args.mixed_length_ratio,
-        }
-        rmt_cls = get_cls_by_name(args.model_cls)
-        if accelerator.is_main_process:
-            alogger.info(f'Wrapping in: {rmt_cls}')
-        model = rmt_cls(model, **rmt_config)
-
-        # if hasattr(args, "init_checkpoint_pth") and args.init_checkpoint_pth is not None and os.path.isfile(args.init_checkpoint_pth):
-        #     if accelerator.is_main_process:
-        #         alogger.info(f"Loading checkpoint from {args.init_checkpoint_pth}")
-        #     checkpoint = torch.load(args.init_checkpoint_pth, map_location="cpu")
-    
-        #     if isinstance(checkpoint, dict):
-        #         if "model_state_dict" in checkpoint:
-        #             state_dict = checkpoint["model_state_dict"]
-        #         else:
-        #             state_dict = checkpoint
-    
-        #     missing, unexpected = model.load_state_dict(state_dict, strict=False)
-
-        #     if accelerator.is_main_process:
-        #         alogger.info(f"Checkpoint loaded. Missing keys: {missing}, Unexpected keys: {unexpected}")
-
-        if args.input_seq_len / model.segment_size > rmt_config['max_n_segments']:
-            raise RuntimeError(
-                f"Input sequence does not fully fit into selected number of segments: "
-                f"{args.input_seq_len} / {model.segment_size} > {rmt_config['max_n_segments']}"
-            )
-
-    if not args.backbone_trainable:
-        for name, param in model.named_parameters():
-            if 'classifier' not in name:
-                if accelerator.is_main_process:
-                    alogger.info(f'{name} is frozen')
-                param.requires_grad = False
-
+    # --- Optimizer ---
     optimizer_cls = get_optimizer(args.optimizer)
     if optimizer_cls is None:
         raise RuntimeError(f'{args.optimizer} was not found in optimizers, torch.optim, transformers.optimization')
@@ -480,98 +422,67 @@ def main():
     if accelerator.is_main_process:
         alogger.info(f'Using optimizer class: {optimizer_cls}')
 
-
-    # if optimizer_cls in [transformers.optimization.Adafactor, optimizers.Adafactor]:
-    #     optimizer = optimizer_cls(
-    #         model.parameters(), lr=args.lr,
-    #         scale_parameter=args.scale_parameter,
-    #         relative_step=args.relative_step,
-    #         warmup_init=args.warmup_init,
-    #         weight_decay=args.weight_decay
-    #     )
-    # else:
-    #     optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        
-    trainable_params = [p for p in model.parameters() if p.requires_grad]
-    alogger.info(f"Trainable tensors: {len(trainable_params)}")
-
     if optimizer_cls in [transformers.optimization.Adafactor, optimizers.Adafactor]:
         optimizer = optimizer_cls(
-            trainable_params, lr=args.lr,
+            model.parameters(), lr=args.lr,
             scale_parameter=args.scale_parameter,
             relative_step=args.relative_step,
             warmup_init=args.warmup_init,
             weight_decay=args.weight_decay
         )
     else:
-        optimizer = optimizer_cls(trainable_params, lr=args.lr, weight_decay=args.weight_decay)
+        optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+    # --- Batch transform / metrics (без изменений по логике) ---
 
 
     def batch_transform_fn(batch):
         result = {
             'input_ids': batch['input_ids'],
-            'token_type_ids': batch['token_type_ids'],
             'attention_mask': batch['attention_mask'],
             'labels_mask': batch['labels_mask'],
-            'desc_input_ids': batch['desc_input_ids'],
-            'desc_attention_mask': batch['desc_attention_mask'],
+            'dataset_flag': batch['dataset_flag'],
             'labels': batch['labels'],
-            'tpm': batch['tpm'],
             'gene_id': batch['gene_id'],
             'selected_keys': batch['selected_keys'],
-            'dataset_description': batch['dataset_description']
+            'dataset_description': batch['dataset_description'],
+            'desc_input_ids': batch['desc_input_ids'], 
+            'desc_attention_mask': batch['desc_attention_mask']
         }
         return result
+    
 
     def keep_for_metrics_fn(batch, output):
-        predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
-        labels_segm = [[el.detach().cpu() for el in s] for s in output['labels_reshaped']]
-        rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
+        logits = output["logits"].detach().cpu()
+        labels = output["labels_reshaped"].detach().cpu()
+        masks  = output["labels_mask_reshaped"].detach().cpu()
 
-        y_rmt, p_rmt = [], []
+        y_true = labels[:, 0, 0]      
+        y_pred = logits[:, 0, 0]     
+        mask   = masks[:, 0, 0] > 0   
 
-        labels = torch.stack(labels_segm[-1])
-        preds = torch.stack(predictions_segm[-1])
-        masks = torch.stack(rmt_labels_masks_segm[-1])
+        y_true = y_true[mask]
+        y_pred = y_pred[mask]
 
-        y_segm = labels[:, 0, :].squeeze(-1)
-        p_segm = preds[:, 0, :].squeeze(-1)
-        mask = masks[:, 0, :].squeeze(-1)
-
-        y_segm = y_segm[mask]
-        p_segm = p_segm[mask]
-
-        assert y_segm.shape == p_segm.shape
-        y_rmt += [y_segm]
-        p_rmt += [p_segm]
-
-        if not y_rmt or not p_rmt:
-            return {}
-
-        y_rmt = torch.cat(y_rmt)
-        p_rmt = torch.cat(p_rmt)
-        assert y_rmt.shape == p_rmt.shape
-
-        flat_gene_id = list(chain.from_iterable(batch['gene_id']))
-        masked_gene_id = list(compress(flat_gene_id, mask))
-        flat_keys_id = list(chain.from_iterable(batch['selected_keys']))
-        dataset_description = list(chain.from_iterable(batch['dataset_description']))
-
-        preds = p_rmt.cpu().unsqueeze(1)
-        target = y_rmt.cpu().unsqueeze(1)
+        preds = y_pred.unsqueeze(1)   
+        target = y_true.unsqueeze(1) 
         reduce_dims = (0, 1)
+
         data = {}
 
-        loss_components = ['cls_loss', 'other_loss', 'mean_loss', 'diviation_loss']
+        loss_components = ['cls_loss', 'other_loss']
         for loss_component in loss_components:
             if f'loss_{loss_component}' in output and output[f'loss_{loss_component}'] is not None:
                 data[f'loss_{loss_component}'] = output[f'loss_{loss_component}'].detach().cpu()
 
-        data['tpm_true'] = y_rmt.tolist()
-        data['tpm_preds'] = p_rmt.tolist()
-        data['gene_id'] = masked_gene_id
-        data['keys_id'] = flat_keys_id
-        data['dataset_description'] = dataset_description
+        dataset_description = list(chain.from_iterable(batch['dataset_description']))
+        mask_idx = mask.nonzero(as_tuple=True)[0].tolist()
+        data['tpm_true'] = y_true.tolist()
+        data['tpm_preds'] = y_pred.tolist()
+        data['gene_id'] =  list(chain.from_iterable(batch['gene_id']))
+        data['keys_id'] = list(chain.from_iterable(batch['selected_keys']))
+        data['dataset_description'] = [dataset_description[i] for i in mask_idx]
+
         return data
 
     def make_metrics_fn(model_path, save_predictions=False):
@@ -621,9 +532,16 @@ def main():
                     df_true.to_csv(os.path.join(model_path, f"{dataset_desc}_true.csv"))
                     df_pred.to_csv(os.path.join(model_path, f"{dataset_desc}_pred.csv"))
 
-                not_nan_values = df_true.notna().values & df_pred.notna().values
-                df_true.values[~not_nan_values] = np.nan
-                df_pred.values[~not_nan_values] = np.nan
+                if df_true.empty or df_pred.empty:
+                    continue
+                # 2) Гарантируем числовые типы (иначе object-столбцы ломают маску)
+                df_true = df_true.apply(pd.to_numeric, errors="coerce")
+                df_pred = df_pred.apply(pd.to_numeric, errors="coerce")
+                # 3) Строим булеву маску прямо в pandas
+                mask = df_true.notna() & df_pred.notna()
+                # 4) Обнуляем несовпадающие ячейки
+                df_true = df_true.where(mask)
+                df_pred = df_pred.where(mask)
 
                 if not df_true.empty and not df_pred.empty:
                     gene_correlations = []
@@ -633,7 +551,7 @@ def main():
                         gene_true = gene_true[pd.notna(gene_true)]
                         gene_pred = gene_pred[pd.notna(gene_pred)]
 
-                        # if len(gene_pred) > 5 and np.std(gene_pred) == 0:
+                        # if len(gene_pred) > 1 and np.std(gene_pred) == 0:
                         #     alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
                         #     raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
 
@@ -687,8 +605,10 @@ def main():
 
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
+    # --- Подготовка под Accelerate (модель/оптимизатор)
     model, optimizer = accelerator.prepare(model, optimizer)
 
+    # --- Trainer ---
     trainer = Trainer(
         args, accelerator, model, optimizer, train_dataloader,
         valid_dataloader=valid_dataloader,
@@ -698,10 +618,12 @@ def main():
         metrics_fn=metrics_fn
     )
 
+    # --- Training ---
     accelerator.wait_for_everyone()
     trainer.train()
     accelerator.wait_for_everyone()
 
+    # --- Post-training / validation / save ---
     if args.save_best:
         best_model_path = str(Path(args.model_path) / 'model_best.pth')
         if accelerator.is_main_process:

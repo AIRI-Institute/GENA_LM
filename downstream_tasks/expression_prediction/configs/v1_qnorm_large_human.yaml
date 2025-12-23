@@ -1,4 +1,4 @@
-TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_human_bw_norm
+TASK_NAME: expression/qnorm/qnorm_v1_large_1seg_human
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -125,8 +125,6 @@ shared_dataset_params:
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
   tpm: csv
-  bw: bw
-  norm_bw: True
   text_data_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_combined_file_mappings_embeddings.pkl"
   loglevel: 
     "_target_": "logging.getLevelName"
