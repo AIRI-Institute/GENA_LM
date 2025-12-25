@@ -21,6 +21,9 @@ import json
 from transformers import AutoTokenizer
 from multiprocessing import Pool
 from downstream_tasks.expression_prediction.datasets.src.utils import convert_fm_relative_path_to_absolute_path
+from pathlib import Path
+
+
 
 class ExpressionDataset(Dataset):
     def __init__(
@@ -77,7 +80,7 @@ class ExpressionDataset(Dataset):
         self.transform_targets_tpm = transform_targets_tpm
 
         assert forward_intervals_path is not None or reverse_intervals_path is not None, "Either forward_intervals_path or reverse_intervals_path must be provided"
-        self.intervals_hash = str(forward_intervals_path) + str(reverse_intervals_path)
+        self.intervals_hash = self._name_and_size(forward_intervals_path) + "|" + self._name_and_size(reverse_intervals_path)
         if hash_prefix is None:
             self.hash_prefix = os.path.dirname(forward_intervals_path) if forward_intervals_path is not None else os.path.dirname(reverse_intervals_path)
             self.hash_prefix = os.path.join(self.hash_prefix, "dataset_hash")
@@ -165,8 +168,12 @@ class ExpressionDataset(Dataset):
                     self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
                 pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
 
-        self.valid_indices: List[int] = []
-        self._compute_valid_indices()
+        self.valid_indices = []
+        if self.bw and not self.tpm: 
+            self.valid_indices = list(range(len(self.genes)))   
+        else:
+            self._compute_valid_indices()
+        
         self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer, padding_side='left')
         self.text_max_seq_len = text_max_seq_len
         self.text_data = {}  
@@ -181,8 +188,17 @@ class ExpressionDataset(Dataset):
             self.precompute_descriptions()
             self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
 
+    def _name_and_size(self, p: str) -> str:
+        if p is None:
+            return "None|0"
+        name = Path(p).name
+        try:
+            size = os.path.getsize(p)  # bytes
+        except OSError:
+            size = 0
+        return f"{name}|{size}"
+
     def _compute_valid_indices(self):
-        """Если TPM отключён — валидны все гены. Иначе — только те, где есть TPM хотя бы в одном ключе."""
         self.logger.debug("Computing valid indices...")
         if not self.tpm:
             self.valid_indices = list(range(len(self.genes)))
@@ -212,7 +228,7 @@ class ExpressionDataset(Dataset):
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
         
-        input_str = str(self.genome)
+        input_str = self._name_and_size(self.genome)
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
         
@@ -235,8 +251,8 @@ class ExpressionDataset(Dataset):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
         m.update(str(self.intervals_hash).encode("utf-8"))
-        m.update(str(self.targets_path).encode("utf-8"))
-        m.update(str(self.genome).encode("utf-8"))
+        m.update(self._name_and_size(self.targets_path).encode("utf-8"))
+        m.update(self._name_and_size(self.genome).encode("utf-8"))
         m.update(str(self.num_before).encode("utf-8"))
         m.update(str(self.gen_max_seq_len).encode("utf-8"))
         if self.norm_bw:
@@ -628,7 +644,7 @@ class ExpressionDataset(Dataset):
         input_ids = gene_group["input_ids"][:L]
         starts    = gene_group["starts"][:L]
         ends      = gene_group["ends"][:L]
-        chrom  = gene_group["chrom"][()].decode("utf-8")
+        chrom  = gene_group.attrs['chrom']
         strand    = gene_group.attrs['strand']
         assert strand == self.genes.iloc[original_idx]['strand']
         assert chrom == self.genes.iloc[original_idx]['chromosome']
@@ -838,7 +854,10 @@ class ExpressionDatasetMode2(ExpressionDataset):
             text_tokenizer = text_tokenizer,
             text_max_seq_len = text_max_seq_len
         )
-        self.n_keys = n_keys if n_keys is not None else 8
+        if n_keys is None:
+            df_targets = pd.read_csv(targets_path)
+            n_keys = len(df_targets)
+        self.n_keys = n_keys
         self.num_gene_chunks = (len(self.valid_indices) + self.n_keys - 1) // self.n_keys
         self.all_keys = list(self.paths.keys())
         pad_id = getattr(self.gen_tokenizer, "pad_token_id", None)

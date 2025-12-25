@@ -4,8 +4,10 @@ from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
-from transformers import AutoModel, BertConfig
+from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
+from transformers.utils import logging as hf_logging
+hf_logging.set_verbosity_info()
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -30,6 +32,7 @@ class ExpressionCounts(nn.Module):
     def __init__(
         self,
         config,
+        hf_model_name_decoder,
         loss_fct=nn.MSELoss(reduction="none"),
         activation = nn.Identity(),
         num_encoder_layers = 3,
@@ -39,21 +42,27 @@ class ExpressionCounts(nn.Module):
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         hf: bool = False,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
-        desc_model_name: str = "intfloat/multilingual-e5-large-instruct"
+        desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
     ):
         super().__init__()
+
+        updated_state_dict = None
 
         # 1) DNA model (GENA) 
         if hf:
             if "modernbert" in hf_model_name.lower():
                 print(f"Using ModernBERT from {hf_model_name}")
-                self.bert = AutoModel.from_pretrained(
-                    hf_model_name,
-                    trust_remote_code=True
-                )
+                self.bert, info = ModernBertModel.from_pretrained(
+                hf_model_name,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True,
+            )
                 config = self.bert.config
-                weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-                updated_state_dict = torch.load(weights_path, map_location="cpu")
+                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+                print("mismatched:", info.get("mismatched_keys", [])[:5])
             else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
@@ -93,14 +102,32 @@ class ExpressionCounts(nn.Module):
         else:
             self.desc_proj = nn.Identity()
 
-        # 4) Encoder
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.hidden_size,
-            nhead=nhead,
-            dim_feedforward=hidden_ff,
-            batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
+        # self.fuse_gate = nn.Sequential(
+        #                     nn.Linear(2 * self.gen_hidden_size, self.gen_hidden_size),
+        #                     nn.Sigmoid())
+
+        # 4) Decoder
+        # encoder_layer = nn.TransformerEncoderLayer(
+        #     d_model=config.hidden_size,
+        #     nhead=nhead,
+        #     dim_feedforward=hidden_ff,
+        #     dtype=torch.bfloat16,  
+        #     device="cuda",  
+        #     batch_first=True
+        # )
+        # self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
+
+        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        self.decoder, info2 = ModernBertModel.from_pretrained(
+                hf_model_name_decoder,
+                trust_remote_code=True,
+                torch_dtype=torch.bfloat16,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True,
+            )
+        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        print("mismatched:", info2.get("mismatched_keys", [])[:5])
 
         # 5) Classifier
         self.classifier = nn.Linear(config.hidden_size, 1)
@@ -109,6 +136,19 @@ class ExpressionCounts(nn.Module):
         self.activation = activation
         self.loss_fct = loss_fct
         self.weight = weight
+
+        dtype = next(self.bert.parameters()).dtype
+        device = next(self.bert.parameters()).device
+
+        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        # self.fuse_gate = nn.Sequential(
+        #     nn.Linear(2 * self.gen_hidden_size, self.gen_hidden_size, device=device, dtype=dtype),
+        #     nn.Sigmoid()
+        # )
+        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+
+        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
 
     def forward(
         self,
@@ -137,8 +177,8 @@ class ExpressionCounts(nn.Module):
         if attention_mask is not None and attention_mask.dim() == 3: # (B, N, L) -> (B*N, L)
             attention_mask = attention_mask.reshape(B * N, attention_mask.shape[-1])
 
-        if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
-            token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
+        # if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
+        #     token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
 
         if labels is not None and labels.dim() == 4:                 # (B, N, L, 1) -> (B*N, L, 1)
             labels = labels.reshape(B * N, labels.shape[-2], labels.shape[-1])
@@ -227,12 +267,23 @@ class ExpressionCounts(nn.Module):
         desc_output = desc_pooled[map_desc]                        
 
         sequence_output = sequence_output.contiguous()
-        sequence_output[:, 0, :] = sequence_output[:, 0, :] + desc_output
+        sequence_output = sequence_output + desc_output[:, None, :]
+        # desc_tok = desc_output[:, None, :].expand_as(sequence_output)  # (B*N, L, H)
+        # gate = self.fuse_gate(torch.cat([sequence_output, desc_tok], dim=-1))  # (B*N, L, H) в [0..1]
+        # sequence_output = sequence_output + gate * desc_tok
 
 
-        # 4) Encoder
-        encoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
-        logits = self.activation(self.classifier(encoder_output))       # (B*N, L, 1)
+        # 4) Decoder
+        # decoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
+        dec_out = self.decoder(
+            inputs_embeds=sequence_output,        # (B*N, L, H)
+            attention_mask=attention_mask,        # (B*N, L)
+            return_dict=True,
+        )
+
+        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+
 
         # 5) Loss
         loss = None
@@ -266,8 +317,7 @@ class ExpressionCounts(nn.Module):
         if not return_dict:
             return (loss, logits)
 
-        last_hidden = encoder_output # (B*N, L, H)
-        hidden_states_out = (last_hidden,)
+        hidden_states_out = (decoder_output,)
 
         return ExpressionModelOutput(
             loss=loss,
@@ -277,7 +327,5 @@ class ExpressionCounts(nn.Module):
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,
-            mean_loss=mean_loss,
-            diviation_loss=diviation_loss,
             other_loss=other_loss
         )

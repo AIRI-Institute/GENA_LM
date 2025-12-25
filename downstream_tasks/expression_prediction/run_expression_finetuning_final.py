@@ -20,6 +20,7 @@ from omegaconf import OmegaConf
 
 # accelerate
 import accelerate
+import random
 from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 from accelerate.utils import broadcast_object_list
@@ -34,26 +35,32 @@ import lm_experiments_tools.optimizers as optimizers
 from lm_experiments_tools import get_optimizer
 
 from downstream_tasks.expression_prediction.expression_dataset import worker_init_fn
-from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions
+from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions, mean_and_residuals_correlation
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
+def set_global_seed(seed: int):
+    if seed is None:
+        return
+    print(f"Setting global seed to {seed}")
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
-# accelerate logger (оборачивает python logging)
 logger = logging.getLogger(__name__)
 
-# Настраиваем видимые GPU, если переменная не установлена
-if os.environ.get('CUDA_VISIBLE_DEVICES', None) is None:
-    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(torch.cuda.device_count())])
-
+if os.environ.get("CUDA_VISIBLE_DEVICES") is None:
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(torch.cuda.device_count()))
 logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 logger.info(f"CUDA DEVICE COUNT: {torch.cuda.device_count()}")
 
 parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config')
-parser.add_argument('--save_predictions', type=bool, default=False, help='save predictions to file')
 parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
+parser.add_argument('--save_predictions', action='store_true', help='save predictions to file')
+
 
 
 def merge_default_params_with_dataset_config(dataset_config, default_params, logger):
@@ -83,15 +90,161 @@ def merge_default_params_with_dataset_config(dataset_config, default_params, log
     _merge_nested_dicts(merged_config, default_params_dict)
     return merged_config
 
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
+from omegaconf import OmegaConf
+from hydra.utils import instantiate
+from torch.utils.data import Dataset, DataLoader, DistributedSampler, ConcatDataset
+from accelerate.utils import broadcast_object_list
+
+
+def _collect_dataset_configs(experiment_config, prefix: str) -> List[Any]:
+    """Берёт все ключи вида train_dataset*, valid_dataset*."""
+    return [v for k, v in experiment_config.items() if str(k).startswith(prefix)]
+
+
+def _target_class_name(cfg: Any) -> str:
+    """Hydra _target_ -> последний сегмент имени класса."""
+    try:
+        t = cfg.get("_target_", "")
+    except Exception:
+        t = ""
+    t = str(t)
+    return t.split(".")[-1] if t else ""
+
+
+def _is_expression_dataset_cfg(cfg: Any) -> bool:
+    """True только для ExpressionDataset (Mode2 не подходит)."""
+    return _target_class_name(cfg) == "ExpressionDataset"
+
+
+def infer_global_n_keys_from_expression_datasets(
+    train_dataset_cfgs: List[Any],
+    shared_dataset_params: Optional[Any],
+    merge_fn,
+    accelerator,
+    alogger,
+) -> int:
+    """
+    Считает n_keys только по train-конфигам ExpressionDataset.
+    Делает это дешево: читает targets_path CSV и берёт число уникальных id.
+    """
+    if len(train_dataset_cfgs) == 0:
+        raise ValueError("No train_dataset configs found")
+
+    expr_cfgs = [cfg for cfg in train_dataset_cfgs if _is_expression_dataset_cfg(cfg)]
+    if len(expr_cfgs) == 0:
+        raise ValueError(
+            "Cannot infer n_keys: среди train_dataset* нет ExpressionDataset. "
+            "Добавь хотя бы один ExpressionDataset в train."
+        )
+
+    if accelerator.is_main_process:
+        tmp_cfgs = [cfg.copy() for cfg in expr_cfgs]
+        if shared_dataset_params is not None:
+            for i, cfg in enumerate(tmp_cfgs):
+                tmp_cfgs[i] = merge_fn(cfg, shared_dataset_params, alogger)
+
+        counts = []
+        for cfg in tmp_cfgs:
+            cfg_resolved = OmegaConf.to_container(cfg, resolve=True)
+            targets_path = cfg_resolved.get("targets_path", None)
+            if targets_path is None:
+                raise ValueError("targets_path not found in dataset config (ExpressionDataset)")
+
+            df = pd.read_csv(targets_path)
+            if "id" not in df.columns:
+                raise ValueError(f"'id' column not found in targets_path={targets_path}")
+
+            counts.append(int(df["id"].nunique()))
+
+        n_keys = min(counts)
+        alogger.info(f"[n_keys] inferred from ExpressionDataset only: min({counts}) = {n_keys}")
+    else:
+        n_keys = -1
+
+    obj = [n_keys]
+    broadcast_object_list(obj)
+    n_keys = int(obj[0])
+    if n_keys <= 0:
+        raise RuntimeError(f"Broadcast n_keys failed: {n_keys}")
+    return n_keys
+
+
+def apply_n_keys_to_all_dataset_cfgs(
+    dataset_cfgs: List[Any],
+    shared_dataset_params: Optional[Any],
+    merge_fn,
+    n_keys: int,
+    alogger,
+) -> List[Any]:
+    """
+    Мёрджит shared params (если есть), затем принудительно выставляет n_keys всем датасетам.
+    Возвращает новый список cfg.
+    """
+    out = [cfg.copy() for cfg in dataset_cfgs]
+    if shared_dataset_params is not None:
+        for i, cfg in enumerate(out):
+            out[i] = merge_fn(cfg, shared_dataset_params, alogger)
+
+    for cfg in out:
+        OmegaConf.update(cfg, "n_keys", int(n_keys), force_add=True)
+
+    return out
+
+
+def build_dataset_from_cfgs(dataset_cfgs: List[Any]) -> Tuple[Dataset, List[Dataset]]:
+    """Instantiate -> Dataset or ConcatDataset."""
+    datasets = [instantiate(cfg) for cfg in dataset_cfgs]
+    if len(datasets) == 0:
+        raise ValueError("No datasets after instantiate()")
+    if len(datasets) == 1:
+        return datasets[0], datasets
+    return ConcatDataset(datasets), datasets
+
+
+def build_loader(
+    dataset: Dataset,
+    accelerator,
+    batch_size: int,
+    seed: int,
+    shuffle: bool,
+    drop_last: bool,
+    num_workers: int,
+    collate_fn,
+    worker_init_fn,
+    pin_memory: bool = True,
+) -> Tuple[DataLoader, DistributedSampler]:
+    sampler = DistributedSampler(
+        dataset,
+        rank=accelerator.process_index,
+        num_replicas=accelerator.num_processes,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        seed=seed,
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=sampler,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        collate_fn=collate_fn,
+        worker_init_fn=worker_init_fn,
+    )
+    return loader, sampler
 
 def main():
     args = parser.parse_args()
     logging.getLogger().setLevel(args.log_level)
 
-    # --- Инициализация Accelerate ---
+    #  Accelerate
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
+        mixed_precision="bf16",
         kwargs_handlers=[ddp_kwargs]
     )
     alogger = get_logger(__name__) 
@@ -102,7 +255,6 @@ def main():
 
     prepare_run(args, alogger, logger_fmt, accelerator=accelerator)
 
-    # --- Глобальный timestamp синхронизируем между всеми процессами ---
     if accelerator.is_main_process:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
     else:
@@ -125,7 +277,8 @@ def main():
                 alogger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k, v)
 
-    # Предупреждение о resume: оставляем логику прежней
+    set_global_seed(args.seed)
+
     if args.resume is not None:
         alogger.warning(
             f"Resuming from cpt {args.resume}. This will overwrite reset_lr, reset_optimizer, reset_iteration and init_cpt options"
@@ -136,7 +289,6 @@ def main():
         args.__setattr__("init_checkpoint", args.model_path + "/" + args.resume)
         args.__setattr__("model_path", args.model_path + "/resume_" + args.resume + "/")
 
-    # Проверка и подготовка каталога эксперимента — только на главном процессе
     if accelerator.is_main_process:
         if args.model_path is None:
             raise ValueError("Model path should not be None")
@@ -158,6 +310,7 @@ def main():
 
     accelerator.wait_for_everyone()
 
+    # Padding
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer, trust_remote_code=True)
     text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True)
 
@@ -264,149 +417,104 @@ def main():
         return batch_dict
 
 
-    # --- Data ---
+    # Data
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
-    kwargs = {'pin_memory': True, 'num_workers': args.data_n_workers, 'collate_fn': collate_fn}
+    kwargs_workers = args.data_n_workers
 
+    train_cfgs = _collect_dataset_configs(experiment_config, "train_dataset")
+    valid_cfgs = _collect_dataset_configs(experiment_config, "valid_dataset")
+    shared_dataset_params = experiment_config.get("shared_dataset_params", None)
+
+    if len(train_cfgs) == 0:
+        raise ValueError("No training datasets found (no train_dataset* in config)")
+
+    # 1) считаем n_keys только по ExpressionDataset из train
+    n_keys_global_train = infer_global_n_keys_from_expression_datasets(
+        train_dataset_cfgs=train_cfgs,
+        shared_dataset_params=shared_dataset_params,
+        merge_fn=merge_default_params_with_dataset_config,
+        accelerator=accelerator,
+        alogger=alogger,
+    )
+
+    n_keys_global_valid = infer_global_n_keys_from_expression_datasets(
+        train_dataset_cfgs=valid_cfgs,
+        shared_dataset_params=shared_dataset_params,
+        merge_fn=merge_default_params_with_dataset_config,
+        accelerator=accelerator,
+        alogger=alogger,
+    )
+
+    # 2) выставляем n_keys 
+    train_cfgs = apply_n_keys_to_all_dataset_cfgs(
+        dataset_cfgs=train_cfgs,
+        shared_dataset_params=shared_dataset_params,
+        merge_fn=merge_default_params_with_dataset_config,
+        n_keys=n_keys_global_train,
+        alogger=alogger,
+    )
+
+    valid_cfgs = apply_n_keys_to_all_dataset_cfgs(
+        dataset_cfgs=valid_cfgs,
+        shared_dataset_params=shared_dataset_params,
+        merge_fn=merge_default_params_with_dataset_config,
+        n_keys=n_keys_global_valid ,
+        alogger=alogger,
+    )
+
+    # 3) instantiate train
+    train_dataset, train_datasets_list = build_dataset_from_cfgs(train_cfgs)
     if accelerator.is_main_process:
-        alogger.info(f'preparing training data')
+        for i, ds in enumerate(train_datasets_list):
+            alogger.info(f"train dataset {i}: {ds.describe() if hasattr(ds,'describe') else type(ds)}")
+        alogger.info(f"total len(train_dataset)={len(train_dataset)} | n_keys_global={n_keys_global_train}")
 
-    # Собираем train dataset конфиги
-    train_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('train_dataset')]
-    shared_dataset_params = experiment_config.get('shared_dataset_params', None)
-
-    # Rank 0-only init для вычисления min_train_chunk_size
-    if accelerator.is_main_process:
-        tmp_configs = [config.copy() for config in train_datasets_configs]
-        if shared_dataset_params is not None:
-            for i, config in enumerate(tmp_configs):
-                alogger.info(f"Merging default parameters with train_dataset_{i}")
-                tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
-        for config in tmp_configs:
-            OmegaConf.update(config, "loglevel", logging.ERROR)
-        train_datasets_tmp = [instantiate(config) for config in tmp_configs]
-        min_train_chunk_size = min([dataset.get_num_keys() for dataset in train_datasets_tmp])
-        alogger.info(f"Chunk size (a.k.a. n_cells) for all datasets will be set to: {min_train_chunk_size}")
-    else:
-        min_train_chunk_size = -1
-
-    # Рассылаем min_train_chunk_size
-    obj = [min_train_chunk_size]
-    broadcast_object_list(obj)
-    min_train_chunk_size = obj[0]
-    assert min_train_chunk_size > 0, f"min_train_chunk_size {min_train_chunk_size} >= 0: possible broadcast issue"
-
-    # Re-init конфиги на всех рангах с учётом shared params и n_keys
-    if shared_dataset_params is not None:
-        for i, config in enumerate(train_datasets_configs):
-            train_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
-
-    for config in train_datasets_configs:
-        if "n_keys" in config and config["n_keys"] != min_train_chunk_size:
-            raise ValueError(f"n_keys in config is different from min_train_chunk_size: {config['n_keys']} != {min_train_chunk_size}")
-        OmegaConf.update(config, "n_keys", min_train_chunk_size, force_add=True)
-
-    train_datasets = [instantiate(config) for config in train_datasets_configs]
-    if len(train_datasets) == 0:
-        raise ValueError("No training datasets found")
-    elif len(train_datasets) == 1:
-        train_dataset = train_datasets[0]
-    else:
-        train_dataset = ConcatDataset(train_datasets)
-
-    if accelerator.is_main_process:
-        for i, dataset in enumerate(train_datasets):
-            alogger.info(f'dataset {i}: {dataset.describe()}')
-        alogger.info(f'total len(train_dataset): {len(train_dataset)}')
-
-    # Самплеры и лоадеры
-    train_sampler = DistributedSampler(
-        train_dataset,
-        rank=accelerator.process_index,
-        num_replicas=accelerator.num_processes,
+    train_dataloader, train_sampler = build_loader(
+        dataset=train_dataset,
+        accelerator=accelerator,
+        batch_size=per_worker_batch_size,
+        seed=args.seed,
         shuffle=True,
         drop_last=False,
-        seed=args.seed
+        num_workers=kwargs_workers,
+        collate_fn=collate_fn,
+        worker_init_fn=worker_init_fn,   
     )
-    train_dataloader = DataLoader(train_dataset, batch_size=per_worker_batch_size,
-                                  sampler=train_sampler, worker_init_fn=worker_init_fn, **kwargs)
 
-    # --- Validation datasets (если заданы) ---
-    valid_datasets_configs = [v for k, v in experiment_config.items() if k.startswith('valid_dataset')]
-    if len(valid_datasets_configs) > 0:
+    if len(valid_cfgs) > 0:
+        valid_dataset, valid_datasets_list = build_dataset_from_cfgs(valid_cfgs)
         if accelerator.is_main_process:
-            alogger.info(f'preparing validation data')
-            tmp_configs = [config.copy() for config in valid_datasets_configs]
-            if shared_dataset_params is not None:
-                for i, config in enumerate(tmp_configs):
-                    alogger.info(f"Merging default parameters with valid_dataset_{i}")
-                    tmp_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
-            for config in tmp_configs:
-                OmegaConf.update(config, "loglevel", logging.ERROR)
-            valid_datasets_tmp = [instantiate(config) for config in tmp_configs]
-            min_valid_chunk_size = min([dataset.get_num_keys() for dataset in valid_datasets_tmp])
-            if min_valid_chunk_size != min_train_chunk_size:
-                alogger.warning(
-                    f"\n -!!!!- min_valid_chunk_size != min_train_chunk_size ({min_valid_chunk_size} != {min_train_chunk_size}), "
-                    f"Min number of keys in validation datasets is not the same as in train datasets. "
-                    f"This probably means that the validation contain not the same cells as in train and could lead to incorrect results\n -!!!!-"
-                )
-        else:
-            min_valid_chunk_size = -1
+            for i, ds in enumerate(valid_datasets_list):
+                alogger.info(f"valid dataset {i}: {ds.describe() if hasattr(ds,'describe') else type(ds)}")
+            alogger.info(f"total len(valid_dataset)={len(valid_dataset)} | n_keys_global={n_keys_global_valid}")
 
-        obj = [min_valid_chunk_size]
-        broadcast_object_list(obj)
-        min_valid_chunk_size = obj[0]
-        assert min_valid_chunk_size > 0, f"min_valid_chunk_size {min_valid_chunk_size} >= 0: possible broadcast issue"
-
-        if shared_dataset_params is not None:
-            for i, config in enumerate(valid_datasets_configs):
-                valid_datasets_configs[i] = merge_default_params_with_dataset_config(config, shared_dataset_params, alogger)
-
-        for config in valid_datasets_configs:
-            if "n_keys" in config and config["n_keys"] != min_valid_chunk_size:
-                raise ValueError(f"n_keys in config is different from min_valid_chunk_size: {config['n_keys']} != {min_valid_chunk_size}")
-            OmegaConf.update(config, "n_keys", min_valid_chunk_size, force_add=True)
-
-        valid_datasets = [instantiate(config) for config in valid_datasets_configs]
-        if len(valid_datasets) == 1:
-            valid_dataset = valid_datasets[0]
-        else:
-            valid_dataset = ConcatDataset(valid_datasets)
-
-        for i, dataset in enumerate(valid_datasets):
-            alogger.info(f'dataset {i}: {dataset.describe()}')
-        alogger.info(f'total len(valid_dataset): {len(valid_dataset)}')
-
-        valid_sampler = DistributedSampler(
-            valid_dataset,
-            rank=accelerator.process_index,
-            num_replicas=accelerator.num_processes,
-            shuffle=False
+        valid_dataloader, valid_sampler = build_loader(
+            dataset=valid_dataset,
+            accelerator=accelerator,
+            batch_size=per_worker_batch_size,
+            seed=args.seed,
+            shuffle=False,
+            drop_last=False,
+            num_workers=kwargs_workers,
+            collate_fn=collate_fn,
+            worker_init_fn=worker_init_fn,
         )
-        valid_dataloader = DataLoader(valid_dataset, batch_size=per_worker_batch_size,
-                                      sampler=valid_sampler, worker_init_fn=worker_init_fn, **kwargs)
 
         if args.valid_interval is None:
             args.valid_interval = args.log_interval
     else:
         valid_dataloader = None
+        valid_sampler = None
         if accelerator.is_main_process:
-            alogger.info('No validation data is used.')
+            alogger.info("No validation data is used.")
 
-    # --- Model ---
-    # model_cfg = AutoConfig.from_pretrained(args.model_cfg, trust_remote_code = True)
+
+    # Model 
 
     if "model_kwargs" in experiment_config:
         model_kwargs = instantiate(experiment_config["model_kwargs"])
     else:
         model_kwargs = {}
-
-    # if "config" in model_kwargs:
-    #     for k, v in model_kwargs["config"].items():
-    #         model_cfg.__setattr__(k, v)
-
-    # model_kwargs["config"] = model_cfg
 
     model_cls = get_cls_by_name(args.model_cls)
     if accelerator.is_main_process:
@@ -414,7 +522,7 @@ def main():
     model = model_cls(**model_kwargs)
     model_activation_fn = model.activation
 
-    # --- Optimizer ---
+    # Optimizer 
     optimizer_cls = get_optimizer(args.optimizer)
     if optimizer_cls is None:
         raise RuntimeError(f'{args.optimizer} was not found in optimizers, torch.optim, transformers.optimization')
@@ -433,9 +541,7 @@ def main():
     else:
         optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    # --- Batch transform / metrics (без изменений по логике) ---
-
-
+    # Batch transform
     def batch_transform_fn(batch):
         result = {
             'input_ids': batch['input_ids'],
@@ -451,7 +557,7 @@ def main():
         }
         return result
     
-
+    # Metrics
     def keep_for_metrics_fn(batch, output):
         logits = output["logits"].detach().cpu()
         labels = output["labels_reshaped"].detach().cpu()
@@ -534,22 +640,15 @@ def main():
 
                 if df_true.empty or df_pred.empty:
                     continue
-                # 2) Гарантируем числовые типы (иначе object-столбцы ломают маску)
-                df_true = df_true.apply(pd.to_numeric, errors="coerce")
-                df_pred = df_pred.apply(pd.to_numeric, errors="coerce")
-                # 3) Строим булеву маску прямо в pandas
-                mask = df_true.notna() & df_pred.notna()
-                # 4) Обнуляем несовпадающие ячейки
-                df_true = df_true.where(mask)
-                df_pred = df_pred.where(mask)
 
                 if not df_true.empty and not df_pred.empty:
                     gene_correlations = []
                     for gene in df_true.index:
                         gene_true = df_true.loc[gene]
                         gene_pred = df_pred.loc[gene]
-                        gene_true = gene_true[pd.notna(gene_true)]
-                        gene_pred = gene_pred[pd.notna(gene_pred)]
+                        mask = pd.notna(gene_true) & pd.notna(gene_pred)
+                        gene_true = gene_true[mask]
+                        gene_pred = gene_pred[mask]
 
                         # if len(gene_pred) > 1 and np.std(gene_pred) == 0:
                         #     alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
@@ -586,18 +685,32 @@ def main():
                     if cell_correlations:
                         metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(cell_correlations))
 
-                    # клетоспецифичность
-                    df_true = df_true.reset_index()
-                    df_pred = df_pred.reset_index()
-                    score = score_predictions(
-                        df_true,
-                        df_pred,
-                        experiment_config.selected_targets_path,
-                        need_log=False,
-                        logger=alogger
-                    )
-                    if score and score.get('deviation_r', None):
-                        metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
+                    ALLOWED = {
+                    "Expression_dataset_v1_GRCh38_csv dataset",
+                    "Expression_dataset_v1_mm10_CPM dataset",
+                    }
+
+                    if dataset_desc in ALLOWED:
+                        # клетоспецифичность
+                        df_true = df_true.reset_index()
+                        df_pred = df_pred.reset_index()
+                        score = score_predictions(
+                            df_true,
+                            df_pred,
+                            experiment_config.selected_targets_path,
+                            need_log=False,
+                            logger=alogger
+                        )
+                        if score and score.get('deviation_r', None):
+                            metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
+                        score2 = mean_and_residuals_correlation(df_true,
+                            df_pred)
+                        if isinstance(score2, dict):
+                            for k, v in score2.items():
+                                if isinstance(v, (np.floating, np.integer)):
+                                    v = v.item()
+                                metrics[f"mean_residual_{k}_{dataset_desc}"] = v
+                    
 
             return metrics
 
@@ -605,10 +718,9 @@ def main():
 
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
-    # --- Подготовка под Accelerate (модель/оптимизатор)
     model, optimizer = accelerator.prepare(model, optimizer)
 
-    # --- Trainer ---
+    # Trainer
     trainer = Trainer(
         args, accelerator, model, optimizer, train_dataloader,
         valid_dataloader=valid_dataloader,
@@ -618,12 +730,12 @@ def main():
         metrics_fn=metrics_fn
     )
 
-    # --- Training ---
+    # Training
     accelerator.wait_for_everyone()
     trainer.train()
     accelerator.wait_for_everyone()
 
-    # --- Post-training / validation / save ---
+    # Post-training / validation / save
     if args.save_best:
         best_model_path = str(Path(args.model_path) / 'model_best.pth')
         if accelerator.is_main_process:
