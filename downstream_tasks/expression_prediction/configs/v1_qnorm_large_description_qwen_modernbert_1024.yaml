@@ -72,8 +72,8 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
   _target_: builtins.dict 
   hf: True
-  hf_model_name: "/home/jovyan/shares/SR003.nfs2/aspeedok/model/modernbert_large"
-  hf_model_name_decoder: "/home/jovyan/shares/SR003.nfs2/aspeedok/model/decoder6l"
+  hf_model_name: "${HOME_PATH}/models/modernbert_large"
+  hf_model_name_decoder: "${HOME_PATH}/models/decoder6l"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   
   loss_fct:
@@ -97,7 +97,7 @@ shared_dataset_params:
     "level": "DEBUG"
   seed: ${args_params.seed}
   text_tokenizer: ${args_params.text_tokenizer}
-  text_max_seq_len: 512
+  text_max_seq_len: 510
 
 train_dataset_mouse:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
-hf_logging.set_verbosity_info()
+# hf_logging.set_verbosity_info()
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -52,17 +52,16 @@ class ExpressionCounts(nn.Module):
         if hf:
             if "modernbert" in hf_model_name.lower():
                 print(f"Using ModernBERT from {hf_model_name}")
-                self.bert, info = ModernBertModel.from_pretrained(
+                self.bert  = ModernBertModel.from_pretrained(
                 hf_model_name,
                 trust_remote_code=True,
                 torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True,
+                attn_implementation="flash_attention_2"
             )
                 config = self.bert.config
-                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
-                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
-                print("mismatched:", info.get("mismatched_keys", [])[:5])
+                # print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+                # print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+                # print("mismatched:", info.get("mismatched_keys", [])[:5])
             else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
@@ -107,27 +106,26 @@ class ExpressionCounts(nn.Module):
         #                     nn.Sigmoid())
 
         # 4) Decoder
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=config.hidden_size,
-        #     nhead=nhead,
-        #     dim_feedforward=hidden_ff,
-        #     dtype=torch.bfloat16,  
-        #     device="cuda",  
-        #     batch_first=True
-        # )
-        # self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=config.hidden_size,
+            nhead=nhead,
+            dim_feedforward=hidden_ff,
+            dtype=torch.bfloat16,  
+            device="cuda",  
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
 
-        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        self.decoder, info2 = ModernBertModel.from_pretrained(
-                hf_model_name_decoder,
-                trust_remote_code=True,
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True,
-            )
-        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-        print("mismatched:", info2.get("mismatched_keys", [])[:5])
+        # print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        # self.decoder = ModernBertModel.from_pretrained(
+        #         hf_model_name_decoder,
+        #         trust_remote_code=True,
+        #         torch_dtype=torch.bfloat16,
+        #         attn_implementation="flash_attention_2"
+        #     )
+        # print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        # print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        # print("mismatched:", info2.get("mismatched_keys", [])[:5])
 
         # 5) Classifier
         self.classifier = nn.Linear(config.hidden_size, 1)
@@ -145,10 +143,13 @@ class ExpressionCounts(nn.Module):
         #     nn.Linear(2 * self.gen_hidden_size, self.gen_hidden_size, device=device, dtype=dtype),
         #     nn.Sigmoid()
         # )
-        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+        
+        # self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
 
-        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
-            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        # if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+        #     self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+
+        self.classifier = nn.Linear(config.hidden_size, 1, device=device, dtype=dtype)
 
     def forward(
         self,
@@ -264,24 +265,28 @@ class ExpressionCounts(nn.Module):
         desc_pooled = desc_out.last_hidden_state[:, -1]
         desc_pooled = self.desc_proj(desc_pooled)                    
         desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        desc_output = desc_pooled[map_desc]                        
+        desc_output = desc_pooled[map_desc] 
+
 
         sequence_output = sequence_output.contiguous()
-        sequence_output = sequence_output + desc_output[:, None, :]
+        sequence_output[:, 0, :] = sequence_output[:, 0, :] + desc_output
+
+        # sequence_output = sequence_output.contiguous()
+        # sequence_output = sequence_output + desc_output[:, None, :]
         # desc_tok = desc_output[:, None, :].expand_as(sequence_output)  # (B*N, L, H)
         # gate = self.fuse_gate(torch.cat([sequence_output, desc_tok], dim=-1))  # (B*N, L, H) в [0..1]
         # sequence_output = sequence_output + gate * desc_tok
 
 
         # 4) Decoder
-        # decoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
-        dec_out = self.decoder(
-            inputs_embeds=sequence_output,        # (B*N, L, H)
-            attention_mask=attention_mask,        # (B*N, L)
-            return_dict=True,
-        )
+        decoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
+        # dec_out = self.decoder(
+        #     inputs_embeds=sequence_output,        # (B*N, L, H)
+        #     attention_mask=attention_mask,        # (B*N, L)
+        #     return_dict=True,
+        # )
 
-        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        # decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
         logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
 
 

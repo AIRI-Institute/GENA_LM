@@ -104,6 +104,30 @@ def _collect_dataset_configs(experiment_config, prefix: str) -> List[Any]:
     """Берёт все ключи вида train_dataset*, valid_dataset*."""
     return [v for k, v in experiment_config.items() if str(k).startswith(prefix)]
 
+def get_shared_n_keys(shared_dataset_params) -> Optional[int]:
+    """Вернёт n_keys из shared_dataset_params, если он задан и > 0, иначе None."""
+    if shared_dataset_params is None:
+        return None
+
+    # shared_dataset_params может быть OmegaConf или dict-подобным
+    try:
+        v = OmegaConf.select(shared_dataset_params, "n_keys")
+    except Exception:
+        v = None
+
+    if v is None and isinstance(shared_dataset_params, dict):
+        v = shared_dataset_params.get("n_keys", None)
+
+    if v is None:
+        return None
+
+    try:
+        v = int(v)
+    except Exception:
+        return None
+
+    return v if v > 0 else None
+
 
 def _target_class_name(cfg: Any) -> str:
     """Hydra _target_ -> последний сегмент имени класса."""
@@ -428,22 +452,37 @@ def main():
     if len(train_cfgs) == 0:
         raise ValueError("No training datasets found (no train_dataset* in config)")
 
-    # 1) считаем n_keys только по ExpressionDataset из train
-    n_keys_global_train = infer_global_n_keys_from_expression_datasets(
-        train_dataset_cfgs=train_cfgs,
-        shared_dataset_params=shared_dataset_params,
-        merge_fn=merge_default_params_with_dataset_config,
-        accelerator=accelerator,
-        alogger=alogger,
-    )
+    shared_n_keys = get_shared_n_keys(shared_dataset_params)
+    
+    if shared_n_keys is not None:
+        # берём n_keys из shared_dataset_params, ничего не считаем
+        if accelerator.is_main_process:
+            alogger.info(f"[n_keys] using shared_dataset_params.n_keys = {shared_n_keys}")
+    
+        obj = [shared_n_keys]
+        broadcast_object_list(obj)
+        shared_n_keys = int(obj[0])
+    
+        n_keys_global_train = shared_n_keys
+        n_keys_global_valid = shared_n_keys
+    else:
+        # 1) считаем n_keys только по ExpressionDataset из train/valid
+        n_keys_global_train = infer_global_n_keys_from_expression_datasets(
+            train_dataset_cfgs=train_cfgs,
+            shared_dataset_params=shared_dataset_params,
+            merge_fn=merge_default_params_with_dataset_config,
+            accelerator=accelerator,
+            alogger=alogger,
+        )
+    
+        n_keys_global_valid = infer_global_n_keys_from_expression_datasets(
+            train_dataset_cfgs=valid_cfgs,
+            shared_dataset_params=shared_dataset_params,
+            merge_fn=merge_default_params_with_dataset_config,
+            accelerator=accelerator,
+            alogger=alogger,
+        )
 
-    n_keys_global_valid = infer_global_n_keys_from_expression_datasets(
-        train_dataset_cfgs=valid_cfgs,
-        shared_dataset_params=shared_dataset_params,
-        merge_fn=merge_default_params_with_dataset_config,
-        accelerator=accelerator,
-        alogger=alogger,
-    )
 
     # 2) выставляем n_keys 
     train_cfgs = apply_n_keys_to_all_dataset_cfgs(
@@ -507,6 +546,11 @@ def main():
         valid_sampler = None
         if accelerator.is_main_process:
             alogger.info("No validation data is used.")
+
+    if accelerator.is_main_process:
+        alogger.info(
+        f"GLOBAL: len(train_dataset)={len(train_dataset)} | n_keys_global={n_keys_global_train} "
+    )
 
 
     # Model 
@@ -704,7 +748,7 @@ def main():
                         if score and score.get('deviation_r', None):
                             metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
                         score2 = mean_and_residuals_correlation(df_true,
-                            df_pred)
+                            df_pred, need_log = False)
                         if isinstance(score2, dict):
                             for k, v in score2.items():
                                 if isinstance(v, (np.floating, np.integer)):

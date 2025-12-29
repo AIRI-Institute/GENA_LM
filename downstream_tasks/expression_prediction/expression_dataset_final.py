@@ -35,17 +35,15 @@ class ExpressionDataset(Dataset):
         reverse_intervals_path: str = None,
         loglevel: int = logging.WARNING,
         seed: int = 42,
-        num_before: int = 100,
-        gen_max_seq_len: int = 1008,
+        num_before: int = 512,
+        gen_max_seq_len: int = 1024,
         transform_targets_bw=None,
         transform_targets_tpm=None,
         bw : str = "",
         tpm : str = "",
         hash_prefix = None,
         n_keys: Optional[int] = None,
-        token_len_for_fetch: int = 8,
-        fraction_of_cell_type_specific_tpm_samples: float = 0,
-        cell_type_specific_samples_path: str = None,
+        token_len_for_fetch: int = 10,
         norm_bw = False,
         text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
         text_max_seq_len: int = 1000
@@ -106,28 +104,6 @@ class ExpressionDataset(Dataset):
             start_idx = i * n_keys
             end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
             self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
-
-        if fraction_of_cell_type_specific_tpm_samples == 0:
-            cell_type_specific_samples_path = None
-        else:
-            assert cell_type_specific_samples_path is not None, "cell_type_specific_samples_path must be provided if fraction_of_cell_type_specific_tpm_samples is not 0"
-            
-        if cell_type_specific_samples_path is not None:
-            self.N_cell_type_specific_samples = max(1, int(self.n_keys * fraction_of_cell_type_specific_tpm_samples))            
-            self.cell_type_specific_samples = pd.read_csv(cell_type_specific_samples_path)
-            self.cell_type_specific_samples.query("cell_id in @self.all_keys", inplace=True)
-            self.cell_type_specific_samples.query("gene_id in @self.genes['gene_id'].values", inplace=True)
-            self.logger.debug(f"Found {len(self.cell_type_specific_samples)} cell-type-specific samples")
-            if len(self.cell_type_specific_samples) == 0:  # может быть др. вид/список
-                self.logger.warning(f"No cell-type-specific samples found for {self.targets_path} in {cell_type_specific_samples_path}")
-                self.cell_type_specific_samples = None
-                self.cell_type_specific_samples_path = None
-                self.N_cell_type_specific_samples = 0
-            else:
-                self.cell_type_specific_samples = self.cell_type_specific_samples.groupby("gene_id")["cell_id"].apply(list).to_dict() # gene_id -> list of cell_ids
-                self.n_cell_chunks = 1
-        else:
-            self.N_cell_type_specific_samples = 0
 
         self.files_opened = False
         self._bw_key_to_col: Dict[str, int] = {}
@@ -236,7 +212,7 @@ class ExpressionDataset(Dataset):
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
         
-        if self.token_len_for_fetch != 8: # 8 was default in first version of the dataset; TODO: remove at some point
+        if self.token_len_for_fetch != 10: # 8 was default in first version of the dataset; TODO: remove at some point
             input_str = str(self.token_len_for_fetch)
             m.update(input_str.encode("utf-8"))
             input_strings.append(input_str)
@@ -693,6 +669,8 @@ class ExpressionDataset(Dataset):
         tpm_mask = ~np.isnan(tpm_values)                                   # (n_keys,)
         tpm_filled = np.where(tpm_mask, tpm_values, 0.0).astype(np.float32)
 
+        filtered_keys = [k for k, m in zip(selected_keys, tpm_mask) if m]
+
         labels[:, 0, 0] = torch.from_numpy(tpm_filled)
         labels_mask[:, 0, 0] = torch.from_numpy(tpm_mask).bool()
 
@@ -724,7 +702,7 @@ class ExpressionDataset(Dataset):
         if self.bw and not self.tpm: 
             features_selected_keys = []
         else:
-            features_selected_keys = selected_keys
+            features_selected_keys = filtered_keys
 
         features = {
             "input_ids": batch_input_ids,          
@@ -732,8 +710,8 @@ class ExpressionDataset(Dataset):
             "token_type_ids": batch_token_types,  
             "labels": labels,                    
             "labels_mask": labels_mask,                    
-            "selected_keys": features_selected_keys,      
-            "gene_id": [gene_id] * len(features_selected_keys),       
+            "selected_keys": filtered_keys,      
+            "gene_id": [gene_id] * len(filtered_keys),       
             "name": self.genes.iloc[original_idx]['gene_name'],
             "chrom": chrom,
             "reverse": reverse,
@@ -776,7 +754,6 @@ class ExpressionDataset(Dataset):
 
     def describe(self):
         result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
-        result += f", N_cell_type_specific_samples={self.N_cell_type_specific_samples}"
         if hasattr(self, 'dataset_description'):
             result += f", dataset_description={self.dataset_description}"
         result += ")"
@@ -823,9 +800,7 @@ class ExpressionDatasetMode2(ExpressionDataset):
         tpm: str = "",
         hash_prefix=None,
         n_keys: Optional[int] = None,
-        token_len_for_fetch: int = 8,
-        fraction_of_cell_type_specific_tpm_samples: float = 0,
-        cell_type_specific_samples_path: str = None,
+        token_len_for_fetch: int = 10,
         norm_bw=False,
         text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
         text_max_seq_len: int = 1000
@@ -848,8 +823,6 @@ class ExpressionDatasetMode2(ExpressionDataset):
             hash_prefix=hash_prefix,
             n_keys=n_keys, 
             token_len_for_fetch=token_len_for_fetch,
-            fraction_of_cell_type_specific_tpm_samples=fraction_of_cell_type_specific_tpm_samples,
-            cell_type_specific_samples_path=cell_type_specific_samples_path,
             norm_bw=norm_bw,
             text_tokenizer = text_tokenizer,
             text_max_seq_len = text_max_seq_len

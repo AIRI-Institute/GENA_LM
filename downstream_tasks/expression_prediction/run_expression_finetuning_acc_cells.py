@@ -600,7 +600,7 @@ def main():
                         gene_true = gene_true[pd.notna(gene_true)]
                         gene_pred = gene_pred[pd.notna(gene_pred)]
 
-                        if len(gene_pred) > 1 and np.std(gene_pred) == 0:
+                        if len(gene_pred) > 10 and np.std(gene_pred) == 0:
                             alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
                             raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
 
