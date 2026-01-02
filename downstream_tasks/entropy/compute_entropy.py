@@ -15,9 +15,10 @@ import configparser
 from pathlib import Path
 import sys
 
-def build_modergena_model(model_name, modernbert_distr_path):
+def build_modergena_model(checkpoint_filepath, modernbert_distr_path):
 	from omegaconf import DictConfig, OmegaConf
 	from omegaconf import OmegaConf as om
+	print (modernbert_distr_path)
 	sys.path.append(modernbert_distr_path)
 	from ModernBERT.src import flex_bert as flex_bert_module
 	from ModernBERT.src import hf_bert as hf_bert_module
@@ -55,16 +56,20 @@ def build_modergena_model(model_name, modernbert_distr_path):
 			)
 		else:
 			raise ValueError(f"Not sure how to build model with name={cfg.name}")
-	
-	cfg_path = os.path.join(model_name, "cfg.yaml")
+
+	cpt_dir = os.path.dirname(checkpoint_filepath)
+	cfg_path = os.path.join(cpt_dir, "cfg.yaml")
 	yaml_cfg = om.load(cfg_path)
 	model = build_model(yaml_cfg.model)
-	# checkpoint_filepath = os.path.join(model_name,"latest-rank0.pt")
-	checkpoint_filepath = os.path.join(model_name,"ep11-ba68300-rank0.pt")
 	print (f"Loading checkpoint from {checkpoint_filepath}")
 	checkpoint_filepath = Path(checkpoint_filepath)
 	assert checkpoint_filepath.exists(), f"Checkpoint {checkpoint_filepath} does not exist"
-	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu")
+
+	# added weights_only=False to suppress this error: 
+	# In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`. 
+	# Re-running `torch.load` with `weights_only` set to `False` will likely succeed, but it can result in arbitrary code 
+	# execution. Do it only if you got the file from a trusted source.
+	state = torch.load(_ensure_valid_checkpoint(checkpoint_filepath), map_location="cpu", weights_only=False) 
 	state_dict = state.get("state", {})
 	model_state = state_dict.get("model", {})
 	assert len(model_state) > 0, "Model state is empty, please check the checkpoint and checkpoint path"
@@ -73,16 +78,25 @@ def build_modergena_model(model_name, modernbert_distr_path):
 
 def parse_args():
 	parser = argparse.ArgumentParser()
+	valid_model_families = ['GENA', 'NTv2', 
+						'ModernGENA']
+
+	parser.add_argument("--name", type=str, 
+						help="label of the experiment", default=None)
+	parser.add_argument("--model_family", type=str, 
+						choices=valid_model_families,
+						default=None, help="Family of models to use for analysis")
+	parser.add_argument("--cpt_path", type=str, 
+						help="path to the checkpoint", default=None)
+	parser.add_argument("--input_len_tokens", type=int, 
+						help="maximum input length in number of tokens", default=None)
+	parser.add_argument("--tokenizer_path", type=str, 
+						help="path to the tokenizer", default=None)
 	parser.add_argument("--genome_path", type=str, 
 						help="Path to the gapless genome. Note that it should have specific structure. To prepare genome use [#TODO: add script to prepare genome]")
 	parser.add_argument("--out_dir", type=str, default="data/")
 	parser.add_argument("--chrm", type=str, help="Chromosome to process (e.g., 'chr1')")
 	parser.add_argument("--batch_size", type=int, default=16)
-	parser.add_argument("--model", type=str, 
-						choices=['gena-lm', 'nucleotide-transformer-v2-100m', 
-						'ModernGENA_t2t_test', 'ModernGENA_prom_multi', 
-						'ModernGENA_prom_multi_ep11'], 
-						default='gena-lm', help="Model to use for analysis")
 	parser.add_argument("--limit_bp", type=int, help="Limit processing to this number of base pairs", default=None)
 	parser.add_argument("--modernbert_distr_path", type=str, help="Path to ModernBERT distribution", 
 						default=os.path.expanduser("~/DNALM/")
@@ -95,7 +109,9 @@ def parse_args():
 	
 	# Track which arguments were actually provided on command line (before parsing)
 	cmdline_args_provided = set()
-	arg_names = ['genome_path', 'out_dir', 'chrm', 'batch_size', 'model', 'limit_bp', 'modernbert_distr_path']
+	arg_names = ['name', 'cpt_path', 'tokenizer_path', 'genome_path', 'out_dir', 'chrm', 'batch_size', 
+				 'limit_bp', 'modernbert_distr_path', 	'seq_chunk_len', 'masking_fraction', 'config', 
+				 'input_len_tokens', 'model_family']
 	
 	i = 1  # Skip script name
 	while i < len(sys.argv):
@@ -136,13 +152,19 @@ def parse_args():
 		
 		# Map config file keys to argument names
 		config_to_arg_map = {
+			'name': 'name',
+			'model_family': 'model_family',
+			'cpt_path': 'cpt_path',
+			'input_len_tokens': 'input_len_tokens',
+			'tokenizer_path': 'tokenizer_path',
 			'genome_path': 'genome_path',
 			'out_dir': 'out_dir',
 			'chrm': 'chrm',
 			'batch_size': 'batch_size',
-			'model': 'model',
 			'limit_bp': 'limit_bp',
-			'modernbert_distr_path': 'modernbert_distr_path'
+			'modernbert_distr_path': 'modernbert_distr_path',
+			'seq_chunk_len': 'seq_chunk_len',
+			'masking_fraction': 'masking_fraction',
 		}
 		
 		for config_key, arg_name in config_to_arg_map.items():
@@ -156,6 +178,16 @@ def parse_args():
 		
 		# Merge: use command-line values if provided, otherwise use config values
 		# For values not in config, keep command-line/default values
+		if 'name' in section and 'name' not in cmdline_args_provided:
+			args.name = section.get('name')
+		if 'model_family' in section and 'model_family' not in cmdline_args_provided:
+			args.model_family = section.get('model_family')
+		if 'cpt_path' in section and 'cpt_path' not in cmdline_args_provided:
+			args.cpt_path = section.get('cpt_path')
+		if 'input_len_tokens' in section and 'input_len_tokens' not in cmdline_args_provided:
+			args.input_len_tokens = section.getint('input_len_tokens')
+		if 'tokenizer_path' in section and 'tokenizer_path' not in cmdline_args_provided:
+			args.tokenizer_path = section.get('tokenizer_path')
 		if 'genome_path' in section and 'genome_path' not in cmdline_args_provided:
 			args.genome_path = section.get('genome_path')
 		if 'out_dir' in section and 'out_dir' not in cmdline_args_provided:
@@ -173,33 +205,26 @@ def parse_args():
 			args.modernbert_distr_path = section.get('modernbert_distr_path', os.path.expanduser("~/DNALM/"))
 		
 		# Validate required arguments
-		if not args.genome_path:
-			raise ValueError("genome_path must be specified (either in config file or command-line)")
-		if not args.chrm:
-			raise ValueError("chrm must be specified (either in config file or command-line)")
+		requered_args = ['name', 'model_family', 'cpt_path', 'input_len_tokens', 'tokenizer_path', 'genome_path']
+		for arg in requered_args:
+			if not getattr(args, arg):
+				raise ValueError(f"{arg} must be specified (either in config file or command-line)")
 		
-		# Validate model choice
-		valid_models = ['gena-lm', 'nucleotide-transformer-v2-100m', 
-						'ModernGENA_t2t_test', 'ModernGENA_prom_multi', 
-						'ModernGENA_prom_multi_ep11']
-		if args.model not in valid_models:
-			raise ValueError(f"Invalid model: {args.model}. Must be one of: {', '.join(valid_models)}")
-	
 	return args
 
 # Load model and tokenizer
-def load_model_and_tokenizer(model_name, model_type, modernbert_distr_path=None):
-	if model_type == 'gena-lm':
-		tokenizer = AutoTokenizer.from_pretrained(model_name)
-		model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
-	elif model_type.find('nucleotide-transformer') != -1:  # nucleotide-transformer
-		tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-		model = AutoModelForMaskedLM.from_pretrained(model_name, trust_remote_code=True)
-	elif model_type.startswith('ModernGENA'):
-		tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base-t2t")
-		model = build_modergena_model(model_name, modernbert_distr_path)
+def load_model_and_tokenizer(cpt_path, tokenizer_path, model_family, modernbert_distr_path=None):
+	if model_family == 'GENA':
+		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+		model = AutoModel.from_pretrained(cpt_path, trust_remote_code=True)
+	elif model_family == 'NTv2':
+		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
+		model = AutoModelForMaskedLM.from_pretrained(cpt_path, trust_remote_code=True)
+	elif model_family == 'ModernGENA':
+		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+		model = build_modergena_model(cpt_path, modernbert_distr_path)
 	else:
-		raise ValueError(f"Model type {model_type} not supported")
+		raise ValueError(f"Invalid model family: {model_family}")
 	
 	if torch.cuda.is_available():
 		model = model.cuda()
@@ -214,7 +239,7 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 	
 	# Get model predictions
 	with torch.no_grad():
-		if args.model.startswith("ModernGENA"):
+		if args.model_family == "ModernGENA":
 			outputs = model(inputs)
 			logits = outputs.logits.reshape(inputs['input_ids'].shape[0],
 											inputs['input_ids'].shape[1],
@@ -269,8 +294,8 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 
 def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, ground_truths, positions, chrom, start, chunk_offsets, file_handlers):
 	inputs = {
-		'input_ids': torch.tensor(batch_input_ids),
-		'attention_mask': torch.tensor(batch_attention_mask),
+		'input_ids': torch.tensor(np.array(batch_input_ids)),
+		'attention_mask': torch.tensor(np.array(batch_attention_mask)),
 	}
 		# 'token_type_ids': torch.tensor([[0] * len(batch_input_ids[0])] * len(batch_input_ids)),
 
@@ -303,18 +328,23 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	# Open output BEDGRAPH file
 	metrics = {"is_correct": "bedgraph", "entropy": "bedgraph", "highest_prob": "bedgraph", "highest_prob_token": "bed"}
 	run_prefix = output_path_prefix + "_" + target_chrom + "_"
+	if limit_bp is not None:
+		run_prefix += f"{limit_bp}_"
 	file_handlers = {metric: open(run_prefix + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
 	unaccessible_regions_file = open(run_prefix + "unaccessible_regions.bed", 'w')
 	with open(run_prefix + "run_params.txt", "w") as fout:
 		fout.write(f"date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 		fout.write(f"config: {args.config}\n")
+		fout.write(f"model_family: {args.model_family}\n")
+		fout.write(f"cpt_path: {args.cpt_path}\n")
+		fout.write(f"tokenizer_path: {args.tokenizer_path}\n")
+		fout.write(f"input_len_tokens: {args.input_len_tokens}\n")
 		fout.write(f"genome_path: {fasta_path}\n")
 		fout.write(f"target_chrom: {target_chrom}\n")
 		fout.write(f"seq_chunk_len: {seq_chunk_len}\n")
 		fout.write(f"batch_size: {batch_size}\n")
 		fout.write(f"limit_bp: {limit_bp}\n")
 		fout.write(f"max_model_len_tokens: {max_model_len_tokens}\n")
-		fout.write(f"model: {args.model}\n")
 		fout.write(f"modernbert_distr_path: {args.modernbert_distr_path}\n")
 		fout.write(f"seq_chunk_len: {seq_chunk_len}\n")
 		fout.write(f"masking_fraction: {masking_fraction}\n")
@@ -484,19 +514,22 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 # Main execution
 def main(args):
-	models = {
-		"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
-		"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048],
-		"ModernGENA_t2t_test": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_t2t_testrun/", 1024],
-		"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024],
-		"ModernGENA_prom_multi_ep11": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_prom_ep11-ba65900/", 1024]
-	}
+	# models = {
+	# 	"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
+	# 	"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048],
+	# 	"ModernGENA_t2t_test": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_t2t_testrun/", 1024],
+	# 	"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024],
+	# 	"ModernGENA_prom_multi_ep11": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_prom_ep11-ba65900/", 1024]
+	# }
 
 	# Load model and tokenizer
-	model, tokenizer = load_model_and_tokenizer(models[args.model][0], args.model, args.modernbert_distr_path)
+	model, tokenizer = load_model_and_tokenizer(cpt_path=args.cpt_path, 
+												tokenizer_path=args.tokenizer_path, 
+												model_family=args.model_family, 
+												modernbert_distr_path=args.modernbert_distr_path)
 	
 	# Process genome and save results
-	output_path = os.path.join(args.out_dir, args.model + "_")
+	output_path = os.path.join(args.out_dir, args.name + "_")
 	process_genome(
 		fasta_path=args.genome_path,
 		model=model,
@@ -506,7 +539,7 @@ def main(args):
 		seq_chunk_len=args.seq_chunk_len,
 		batch_size=args.batch_size,
 		limit_bp=args.limit_bp,
-		max_model_len_tokens=models[args.model][1],
+		max_model_len_tokens=args.input_len_tokens,
 		masking_fraction=args.masking_fraction,
 	)
 	print(f"Results saved to {output_path}")

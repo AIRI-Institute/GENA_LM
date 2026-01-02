@@ -99,3 +99,8 @@ downstream_tasks/expression_prediction/configs/*minja*
 
 # entropy task
 downstream_tasks/entropy/data/*
+
+# annotation task
+downstream_tasks/annotation/data/*
+data/annotation/*
+downstream_tasks/minja_annotation/*
