@@ -1,6 +1,6 @@
 # NT
 ```
-conda create --name NT python=3.9
+conda create --name NT python=3.10 -y
 conda activate NT
 cd ~/DNALM
 # git clone https://github.com/instadeepai/nucleotide-transformer

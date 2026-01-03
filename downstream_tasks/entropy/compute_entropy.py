@@ -1,3 +1,7 @@
+# example of running:
+# conda activate NT # (or bert24 for ModernGENA/GENA)
+# CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-base-ep30-ba90700.ini --limit_bp 3000000
+
 import os
 import numpy as np
 import pysam
@@ -327,12 +331,15 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	
 	# Open output BEDGRAPH file
 	metrics = {"is_correct": "bedgraph", "entropy": "bedgraph", "highest_prob": "bedgraph", "highest_prob_token": "bed"}
-	run_prefix = output_path_prefix + "_" + target_chrom + "_"
+	if target_chrom is not None:
+		output_path_prefix = output_path_prefix + "_" + target_chrom + "_"
+	else:
+		output_path_prefix = output_path_prefix + "_"
 	if limit_bp is not None:
-		run_prefix += f"{limit_bp}_"
-	file_handlers = {metric: open(run_prefix + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
-	unaccessible_regions_file = open(run_prefix + "unaccessible_regions.bed", 'w')
-	with open(run_prefix + "run_params.txt", "w") as fout:
+		output_path_prefix += f"{limit_bp}_"
+	file_handlers = {metric: open(output_path_prefix + metric + "." + ftype, 'w') for metric, ftype in metrics.items()}
+	unaccessible_regions_file = open(output_path_prefix + "unaccessible_regions.bed", 'w')
+	with open(output_path_prefix + "run_params.txt", "w") as fout:
 		fout.write(f"date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 		fout.write(f"config: {args.config}\n")
 		fout.write(f"model_family: {args.model_family}\n")
@@ -529,7 +536,7 @@ def main(args):
 												modernbert_distr_path=args.modernbert_distr_path)
 	
 	# Process genome and save results
-	output_path = os.path.join(args.out_dir, args.name + "_")
+	output_path = os.path.join(args.out_dir, args.name)
 	process_genome(
 		fasta_path=args.genome_path,
 		model=model,
