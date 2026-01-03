@@ -26,7 +26,7 @@ print("Number of nested repeats in each class: \n", value_counts)
 # simple repeats
 simple_repeats = pd.read_csv("data/annotations/simpleRepeat.txt", sep="\t", header=None)
 simple_repeats_subset = simple_repeats.iloc[:, [1, 2, 3]]
-simple_repeats[4] = "simpleRepeat"
+simple_repeats_subset[4] = "simpleRepeat"
 simple_repeats_subset.to_csv("data/annotations/simpleRepeats.bed", index=False, header=False, sep="\t")
 # print ("Number of simple repeats: ", len(simple_repeats_subset)
 

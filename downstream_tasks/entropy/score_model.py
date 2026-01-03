@@ -13,7 +13,7 @@ All calculations are limited to accessible regions.
 import argparse
 import numpy as np
 import pandas as pd
-import pybedtools
+import tqdm
 from pybedtools import BedTool
 import random
 import sys
@@ -110,28 +110,13 @@ def get_feature_class(feature, name_column):
         raise ValueError(f"Name column {name_column} does not exist in feature {feature}")
 
 
-def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bedtool, feature_name_column=3):
+def compute_coverage_stats(features_accessible, predictions_accessible):
     """
     Compute statistics for features overlapping with predictions within accessible regions.
     
     Returns:
         dataframe with columns: feature_name, predictions_sum, total_bp, pct_1, pct_0
-    """
-    # Intersect features with accessible regions first
-    accessible_regions_bedtool = accessible_regions_bedtool.merge()
-    print (accessible_regions_bedtool)
-    print (features)
-    features_accessible = features.intersect(accessible_regions_bedtool)
-    
-    if len(features_accessible) == 0:
-        raise ValueError(f"No features found in accessible regions")
-    
-    # Also limit predictions to accessible regions
-    predictions_accessible = predictions_bedtool.intersect(accessible_regions_bedtool)
-    
-    if len(predictions_accessible) == 0:
-        raise ValueError(f"No predictions found in accessible regions")
-        
+    """        
     # Intersect accessible features with accessible predictions
     # Use -wa -wb to get both feature and prediction intervals
     intersections = features_accessible.intersect(predictions_accessible, wb=True)
@@ -170,15 +155,12 @@ def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bed
     intersections_df['weighted_pred'] = intersections_df[pred_value_col] * intersections_df['overlap_length']
     
     # Aggregate by feature name
-    print (intersections_df)
     agg_result = intersections_df.groupby(feat_name_col).agg(
         predictions_sum=('weighted_pred', 'sum'),
         total_bp=('overlap_length', 'sum')
     ).reset_index().rename(columns={feat_name_col: 'feature_name'})
     
     # Calculate percentages
-    print ("----------")
-    print (agg_result)
     agg_result["pct_1"] = agg_result["predictions_sum"] / agg_result["total_bp"]
     agg_result["pct_0"] = 1 - agg_result["pct_1"]
     
@@ -222,23 +204,23 @@ def process_annotations_and_predictions(
     
     # Load accessible regions
     print(f"Loading accessible regions from {accessible_regions_file}...")
-    accessible_regions = BedTool(accessible_regions_file).merge().sort() # merge to avoid overlapping regions
+    accessible_regions_bedtool = BedTool(accessible_regions_file).sort().merge() # merge to avoid overlapping regions
     
     results = []
 
     # concatenate all annotation files into one bedtool
-    annotations = BedTool(annotation_bed_files[0]).sort()
+    annotations_bedtool = BedTool(annotation_bed_files[0]).sort()
     if len(annotation_bed_files) > 1:
-        annotations = annotations.cat(*annotation_bed_files[1:], postmerge=False)
+        annotations_bedtool = annotations_bedtool.cat(*annotation_bed_files[1:], postmerge=False)
 
     # merge features of the same type to avoid overlapping
-    feature_col_name = annotations.to_dataframe().columns.values[feature_name_column]
-    annotations = annotations.sort().to_dataframe().groupby(feature_col_name).apply(
+    feature_col_name = annotations_bedtool.to_dataframe().columns.values[feature_name_column]
+    annotations = annotations_bedtool.sort().to_dataframe().groupby(feature_col_name, group_keys=True).apply(
         lambda x: BedTool.from_dataframe(x).merge().to_dataframe()
 	).reset_index().drop(columns=['level_1'])
 
     bed_format_columns = ["chrom", "start", "end", feature_col_name] # ensure that we have 4 columns
-    annotations = BedTool.from_dataframe(annotations.loc[:,bed_format_columns])
+    annotations_bedtool = BedTool.from_dataframe(annotations.loc[:,bed_format_columns])
     
     # Process each prediction file
     for pred_file in prediction_bedgraph_files:
@@ -259,25 +241,37 @@ def process_annotations_and_predictions(
             next_start = x.iloc[1:,1]
             current_end = x.iloc[:-1,2]
             assert (next_start.values >= current_end.values).all(), f"prediction files contain overlapping intervals"
-        predictions_df.groupby(0).apply(check_records_non_overlaping)
-        predictions = BedTool.from_dataframe(predictions_df).sort()
+        predictions_df.groupby(0, group_keys=True).apply(check_records_non_overlaping)
+        predictions_bedtool = BedTool.from_dataframe(predictions_df).sort()
         
         model_name = Path(pred_file).name.split('_')[0]
         
+        # Intersect features with accessible regions first
+        features_accessible = annotations_bedtool.intersect(accessible_regions_bedtool)
+        
+        if len(features_accessible) == 0:
+            raise ValueError(f"No features found in accessible regions")
+        
+        # Also limit predictions to accessible regions
+        predictions_accessible = predictions_bedtool.intersect(accessible_regions_bedtool)
+        
+        if len(predictions_accessible) == 0:
+            raise ValueError(f"No predictions found in accessible regions")
+
         # Compute observed statistics
         # Use merged_feature_name_column (always 3 after merging) instead of original feature_name_column
         print(f"    Computing observed statistics...")
-        stats_observed = compute_coverage_stats(annotations, predictions, accessible_regions, feature_name_column=3)
+        stats_observed = compute_coverage_stats(features_accessible, predictions_accessible)
         stats_observed['model_name'] = model_name
         
         # Compute baseline with shuffled predictions
         print(f"    Computing baseline statistics with {n_shuffles} shuffles...")
         baseline_pct_1_list = []
         
-        for shuffle_idx in range(n_shuffles):
+        for shuffle_idx in tqdm.tqdm(range(n_shuffles), desc="Shuffling predictions"):
             shuffle_seed = seed + shuffle_idx if seed is not None else None
-            shuffled_predictions = create_shuffled_predictions(predictions, prediction_value_column=3, seed=shuffle_seed)
-            stats_shuffled = compute_coverage_stats(annotations, shuffled_predictions, accessible_regions)
+            shuffled_predictions = create_shuffled_predictions(predictions_accessible, prediction_value_column=3, seed=shuffle_seed)
+            stats_shuffled = compute_coverage_stats(features_accessible, shuffled_predictions)
             
             # Store baseline pct_1 for each feature
             for _, row in stats_shuffled.iterrows():
@@ -294,8 +288,9 @@ def process_annotations_and_predictions(
         
         # Merge observed stats with baseline
         stats_observed = stats_observed.merge(baseline_summary, on='feature_name', how='left')
-        stats_observed['baseline_pct_1_mean'] = stats_observed['baseline_pct_1_mean'].fillna(0)
-        stats_observed['baseline_pct_1_std'] = stats_observed['baseline_pct_1_std'].fillna(0)
+        
+        assert not stats_observed['baseline_pct_1_mean'].isna().any(), "NaN found in baseline_pct_1_mean"
+        assert not stats_observed['baseline_pct_1_std'].isna().any(), "NaN found in baseline_pct_1_std"
         
         # Calculate observed/baseline ratio
         stats_observed['observed_baseline_ratio'] = stats_observed['pct_1'] / (

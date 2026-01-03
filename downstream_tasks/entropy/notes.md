@@ -3,20 +3,33 @@
 1. Run model inferemce:
 
 ```bash
+
 conda activate NT # (or bert24 for ModernGENA/GENA)
 CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-base-ep30-ba90700.ini --limit_bp 3000000
+
 ```
 
 2. Create accessible regions file (intersection of all predictions)
 
 ```bash
+
 python create_accessible_intervals.py data/modgena-base-ep30-ba90700_chr21_is_correct.bedgraph data/gena-lm_chr21_is_correct.bedgraph data/accessible_regions.bed
+
+```
+
+3. Create annotatons
+
+```bash
+
+fetch_annotations.sh
+
 ```
 
 3. Compute stats
 
 ```bash
-python score_model.py --annotation_beds data/test_features.bed --prediction_bedgraphs data/test_predictions.bed --accessible_regions data/accrssible_inervals.bed --output data/test_output.csv --n_shuffles 4
+
+python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs data/gena-lm_chr21_is_correct.bedgraph data/modgena-base-ep30-ba90700_chr21_is_correct.bedgraph --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 4
 ``` 
 
 ## Gathering data from all machines on aws
