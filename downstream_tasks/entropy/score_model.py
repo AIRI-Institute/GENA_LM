@@ -116,7 +116,7 @@ def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bed
     Compute statistics for features overlapping with predictions within accessible regions.
     
     Returns:
-        dict with keys: 'total_bp', 'pred_1_bp', 'pred_0_bp', 'pct_1', 'pct_0'
+        dataframe with columns 
     """
     # Intersect features with accessible regions first
     features_accessible = features.intersect(accessible_regions_bedtool.merge())
@@ -132,54 +132,28 @@ def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bed
         
     # Intersect accessible features with accessible predictions
     # Use -wa -wb to get both feature and prediction intervals
-    intersections = features_accessible.intersect(predictions_accessible, wa=True, wb=True)
-    
-    total_bp = 0
-    pred_1_bp = 0
-    pred_0_bp = 0
-    
-    for intersection in intersections:
-        # Feature coordinates (from -wa)
-        feat_chrom = intersection.fields[0]
-        feat_start = int(intersection.fields[1])
-        feat_end = int(intersection.fields[2])
-        
-        # Prediction coordinates and value (from -wb)
-        # bedGraph format: chrom, start, end, value
-        pred_chrom = intersection.fields[3]
-        pred_start = int(intersection.fields[4])
-        pred_end = int(intersection.fields[5])
-        pred_value = float(intersection.fields[6])
-        
-        # Only process if chromosomes match
-        if feat_chrom != pred_chrom:
-            continue
-        
-        # Calculate overlap between feature and prediction interval
-        overlap_start = max(feat_start, pred_start)
-        overlap_end = min(feat_end, pred_end)
-        overlap_bp = max(0, overlap_end - overlap_start)
-        
-        if overlap_bp > 0:
-            total_bp += overlap_bp
-            # Check if prediction value is 1 or 0 (allowing for floating point comparison)
-            if abs(pred_value - 1.0) < 0.001:
-                pred_1_bp += overlap_bp
-            elif abs(pred_value - 0.0) < 0.001:
-                pred_0_bp += overlap_bp
-            # If value is neither 0 nor 1, we still count it in total_bp but not in pred_1_bp or pred_0_bp
-    
-    pct_1 = (pred_1_bp / total_bp * 100.0) if total_bp > 0 else 0.0
-    pct_0 = (pred_0_bp / total_bp * 100.0) if total_bp > 0 else 0.0
-    
-    return {
-        'total_bp': total_bp,
-        'pred_1_bp': pred_1_bp,
-        'pred_0_bp': pred_0_bp,
-        'pct_1': pct_1,
-        'pct_0': pct_0
-    }
+    intersections = features_accessible.intersect(predictions_accessible, wb=True)
 
+    # validate that we have exactly 8 columns in the intersection
+    # chrom	start	end	name	- feature attributes
+    # score	strand	thickStart	thickEnd - prediction attributes: chrom	start	end	predicted_value
+
+    if len(intersections.fields) != 8:
+        raise ValueError(f"Intersection has {len(intersections.fields)} columns, expected 8")
+    
+    agg_result = intersections.groupby('name').agg(
+                        predictions_sum=('thickEnd', 'sum'),
+                        total_bp=('end', lambda x: (x - intersections.loc[x.index, 'start']).sum())
+        ).reset_index().rename(columns={'name': 'feature_name'})
+    
+    agg_result["pct_1"] = agg_result["predictions_sum"] / agg_result["feature_span_sum"]
+    agg_result["pct_0"] = 1 - agg_result["pct_1"]
+
+    # the resulting dataframe should have the following columns:
+    # feature_name, predictions_sum, total_bp,
+    # pct_1, pct_0 
+
+    return agg_result
 
 def create_shuffled_predictions(predictions_bedtool, prediction_value_column=3, seed=None):
     """
@@ -229,77 +203,29 @@ def process_annotations_and_predictions(
     annotations = annotations.sort().to_dataframe().groupby(feature_name_column).apply(
         lambda x: BedTool.from_dataframe(x).merge().to_dataframe()
 	).reset_index().drop(columns=['level_1'])
-    annotations = BedTool.from_dataframe(annotations)
+
+    bed_format_columns = [0, 1, 2, feature_name_column] # ensure that we have 4 columns
+    annotations = BedTool.from_dataframe(annotations.iloc[:,bed_format_columns])
     
     # Process each prediction file
     for pred_file in prediction_bedgraph_files:
         print(f"  Processing prediction file: {pred_file}")
         
         # Load predictions
-        predictions = BedTool(pred_file)
-        model_name = Path(pred_file).stem
+        predictions_df = pd.read_csv(pred_file, sep='\t', header=None)
+        bed_format_columns = [0, 1, 2, 3] # ensure that we have 4 columns
+        predictions_df = predictions_df.iloc[:,bed_format_columns]
+        predictions = BedTool.from_dataframe(predictions_df).sort()
         
-        # Group features by class
-        feature_classes = defaultdict(list)
-        for feature in annotations:
-            feature_class = get_feature_class(feature, feature_name_column)
-            feature_classes[feature_class].append(feature)
+        model_name = Path(pred_file).name.split('_')[0]
         
-        # Process each feature class
-        for feature_class, features_list in feature_classes.items():
-            print(f"    Processing feature class: {feature_class} ({len(features_list)} features)")
-            
-            # Create BedTool for this feature class
-            # Preserve all BED fields
-            bed_lines = []
-            for f in features_list:
-                line = f"{f.chrom}\t{f.start}\t{f.end}"
-                # Add remaining fields if they exist
-                if len(f.fields) > 3:
-                    line += "\t" + "\t".join(f.fields[3:])
-                bed_lines.append(line)
-            features_bedtool = BedTool("\n".join(bed_lines), from_string=True)
-            
-            # Compute observed statistics
-            stats = compute_coverage_stats(features_bedtool, predictions, accessible_regions)
-            
-            # Compute baseline with shuffled predictions
-            baseline_pct_1_list = []
-            for shuffle_idx in range(n_shuffles):
-                shuffled_preds = create_shuffled_predictions(predictions, seed=seed + shuffle_idx)
-                baseline_stats = compute_coverage_stats(features_bedtool, shuffled_preds, accessible_regions)
-                baseline_pct_1_list.append(baseline_stats['pct_1'])
-            
-            baseline_pct_1_mean = np.mean(baseline_pct_1_list) if baseline_pct_1_list else 0.0
-            baseline_pct_1_std = np.std(baseline_pct_1_list) if baseline_pct_1_list else 0.0
-            
-            # Compute observed-vs-baseline ratio
-            # Handle division by zero: if baseline is 0 and observed is 0, ratio is 1.0 (no enrichment)
-            # If baseline is 0 but observed > 0, set ratio to a large value (or NaN)
-            if baseline_pct_1_mean > 0:
-                observed_baseline_ratio = stats['pct_1'] / baseline_pct_1_mean
-            elif stats['pct_1'] == 0:
-                observed_baseline_ratio = 1.0  # Both are 0, no enrichment
-            else:
-                observed_baseline_ratio = np.nan  # Observed > 0 but baseline = 0 (infinite enrichment)
-            
-            # Store results
-            results.append({
-                'annotation_file': Path(ann_file).name,
-                'model_name': model_name,
-                'feature_class': feature_class,
-                'total_bp': stats['total_bp'],
-                'pred_1_bp': stats['pred_1_bp'],
-                'pred_0_bp': stats['pred_0_bp'],
-                'pct_1': stats['pct_1'],
-                'pct_0': stats['pct_0'],
-                'baseline_pct_1_mean': baseline_pct_1_mean,
-                'baseline_pct_1_std': baseline_pct_1_std,
-                'observed_baseline_ratio': observed_baseline_ratio,
-                'n_shuffles': n_shuffles
-            })
+        # Compute observed statistics
+        stats = compute_coverage_stats(annotations, predictions, accessible_regions)
+        
+        # Compute baseline with shuffled predictions
+        ....
 
-    return pd.DataFrame(results)
+        # TODO: finish this function
 
 
 def main():
