@@ -16,7 +16,6 @@ import pandas as pd
 import pybedtools
 from pybedtools import BedTool
 import random
-from collections import defaultdict
 import sys
 from pathlib import Path
 
@@ -111,47 +110,80 @@ def get_feature_class(feature, name_column):
         raise ValueError(f"Name column {name_column} does not exist in feature {feature}")
 
 
-def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bedtool):
+def compute_coverage_stats(features, predictions_bedtool, accessible_regions_bedtool, feature_name_column=3):
     """
     Compute statistics for features overlapping with predictions within accessible regions.
     
     Returns:
-        dataframe with columns 
+        dataframe with columns: feature_name, predictions_sum, total_bp, pct_1, pct_0
     """
     # Intersect features with accessible regions first
-    features_accessible = features.intersect(accessible_regions_bedtool.merge())
+    accessible_regions_bedtool = accessible_regions_bedtool.merge()
+    print (accessible_regions_bedtool)
+    print (features)
+    features_accessible = features.intersect(accessible_regions_bedtool)
     
     if len(features_accessible) == 0:
-        raise ValueError(f"No features found in accessible regions for {features.filename}")
+        raise ValueError(f"No features found in accessible regions")
     
     # Also limit predictions to accessible regions
-    predictions_accessible = predictions_bedtool.intersect(accessible_regions_bedtool.merge())
+    predictions_accessible = predictions_bedtool.intersect(accessible_regions_bedtool)
     
     if len(predictions_accessible) == 0:
-        raise ValueError(f"No predictions found in accessible regions for {predictions_bedtool.filename}")
+        raise ValueError(f"No predictions found in accessible regions")
         
     # Intersect accessible features with accessible predictions
     # Use -wa -wb to get both feature and prediction intervals
     intersections = features_accessible.intersect(predictions_accessible, wb=True)
 
-    # validate that we have exactly 8 columns in the intersection
-    # chrom	start	end	name	- feature attributes
-    # score	strand	thickStart	thickEnd - prediction attributes: chrom	start	end	predicted_value
+    # Convert to DataFrame for easier manipulation
+    # Intersection with -wa -wb gives: feature columns (4 cols) + prediction columns (4 cols) = 8 cols total
+    # Format: feat_chrom, feat_start, feat_end, feat_name, pred_chrom, pred_start, pred_end, pred_value
+    intersections_df = intersections.to_dataframe()
+    
+    if len(intersections_df) == 0:
+        raise ValueError(f"Empty overlap")
+    
+    # agg_result = intersections.groupby('name').agg(
+    #                     predictions_sum=('thickEnd', 'sum'),
+    #                     total_bp=('end', lambda x: (x - intersections.loc[x.index, 'start']).sum())
+    #     ).reset_index().rename(columns={'name': 'feature_name'})
 
-    if len(intersections.fields) != 8:
-        raise ValueError(f"Intersection has {len(intersections.fields)} columns, expected 8")
+    # Verify we have at least 8 columns (4 from features + 4 from predictions)
+    if intersections_df.shape[1] != 8:
+        raise ValueError(f"Intersection has {intersections_df.shape[1]} columns, expected 8")
     
-    agg_result = intersections.groupby('name').agg(
-                        predictions_sum=('thickEnd', 'sum'),
-                        total_bp=('end', lambda x: (x - intersections.loc[x.index, 'start']).sum())
-        ).reset_index().rename(columns={'name': 'feature_name'})
+    # Rename columns for clarity (assuming standard BED format: chrom, start, end, name/score)
+    # Features: columns 0-3, Predictions: columns 4-7
+    intersections_df.columns = list(range(intersections_df.shape[1]))
+    feat_start_col = 1
+    feat_end_col = 2
+    feat_name_col = 3  # After merging, name is always in column 3
+    pred_start_col = 5
+    pred_end_col = 6
+    pred_value_col = 7
     
-    agg_result["pct_1"] = agg_result["predictions_sum"] / agg_result["feature_span_sum"]
+    # Calculate overlap length for each intersection
+    intersections_df['overlap_length'] = (intersections_df[feat_end_col] - intersections_df[feat_start_col])
+    
+    # Calculate weighted sum of predictions (pred_value * overlap_length)
+    intersections_df['weighted_pred'] = intersections_df[pred_value_col] * intersections_df['overlap_length']
+    
+    # Aggregate by feature name
+    print (intersections_df)
+    agg_result = intersections_df.groupby(feat_name_col).agg(
+        predictions_sum=('weighted_pred', 'sum'),
+        total_bp=('overlap_length', 'sum')
+    ).reset_index().rename(columns={feat_name_col: 'feature_name'})
+    
+    # Calculate percentages
+    print ("----------")
+    print (agg_result)
+    agg_result["pct_1"] = agg_result["predictions_sum"] / agg_result["total_bp"]
     agg_result["pct_0"] = 1 - agg_result["pct_1"]
-
-    # the resulting dataframe should have the following columns:
-    # feature_name, predictions_sum, total_bp,
-    # pct_1, pct_0 
+    
+    # Assert there are no NaN values
+    assert np.sum(pd.isna(agg_result).values)==0
 
     return agg_result
 
@@ -194,38 +226,97 @@ def process_annotations_and_predictions(
     
     results = []
 
-    # concatente all annotation files into one bedtool
+    # concatenate all annotation files into one bedtool
     annotations = BedTool(annotation_bed_files[0]).sort()
     if len(annotation_bed_files) > 1:
         annotations = annotations.cat(*annotation_bed_files[1:], postmerge=False)
 
     # merge features of the same type to avoid overlapping
-    annotations = annotations.sort().to_dataframe().groupby(feature_name_column).apply(
+    feature_col_name = annotations.to_dataframe().columns.values[feature_name_column]
+    annotations = annotations.sort().to_dataframe().groupby(feature_col_name).apply(
         lambda x: BedTool.from_dataframe(x).merge().to_dataframe()
 	).reset_index().drop(columns=['level_1'])
 
-    bed_format_columns = [0, 1, 2, feature_name_column] # ensure that we have 4 columns
-    annotations = BedTool.from_dataframe(annotations.iloc[:,bed_format_columns])
+    bed_format_columns = ["chrom", "start", "end", feature_col_name] # ensure that we have 4 columns
+    annotations = BedTool.from_dataframe(annotations.loc[:,bed_format_columns])
     
     # Process each prediction file
     for pred_file in prediction_bedgraph_files:
         print(f"  Processing prediction file: {pred_file}")
         
         # Load predictions
-        predictions_df = pd.read_csv(pred_file, sep='\t', header=None)
+        predictions_df = pd.read_csv(pred_file, sep='\t', header=None, 
+                                    dtype={0: str, 1: np.uint64, 2: np.uint64, 3: np.float64}
+                                    )
+        assert pd.isna(predictions_df[3]).sum() == 0
         bed_format_columns = [0, 1, 2, 3] # ensure that we have 4 columns
-        predictions_df = predictions_df.iloc[:,bed_format_columns]
+        
+        # ensure that predictions are non-overlaping
+        predictions_df = predictions_df.iloc[:,bed_format_columns].sort_values(by=[0,1,2,3]).reset_index(drop=True)
+        def check_records_non_overlaping(x):
+            if len(x) <= 1:
+                return True
+            next_start = x.iloc[1:,1]
+            current_end = x.iloc[:-1,2]
+            assert (next_start.values >= current_end.values).all(), f"prediction files contain overlapping intervals"
+        predictions_df.groupby(0).apply(check_records_non_overlaping)
         predictions = BedTool.from_dataframe(predictions_df).sort()
         
         model_name = Path(pred_file).name.split('_')[0]
         
         # Compute observed statistics
-        stats = compute_coverage_stats(annotations, predictions, accessible_regions)
+        # Use merged_feature_name_column (always 3 after merging) instead of original feature_name_column
+        print(f"    Computing observed statistics...")
+        stats_observed = compute_coverage_stats(annotations, predictions, accessible_regions, feature_name_column=3)
+        stats_observed['model_name'] = model_name
         
         # Compute baseline with shuffled predictions
-        ....
-
-        # TODO: finish this function
+        print(f"    Computing baseline statistics with {n_shuffles} shuffles...")
+        baseline_pct_1_list = []
+        
+        for shuffle_idx in range(n_shuffles):
+            shuffle_seed = seed + shuffle_idx if seed is not None else None
+            shuffled_predictions = create_shuffled_predictions(predictions, prediction_value_column=3, seed=shuffle_seed)
+            stats_shuffled = compute_coverage_stats(annotations, shuffled_predictions, accessible_regions)
+            
+            # Store baseline pct_1 for each feature
+            for _, row in stats_shuffled.iterrows():
+                baseline_pct_1_list.append({
+                    'feature_name': row['feature_name'],
+                    'shuffle_idx': shuffle_idx,
+                    'baseline_pct_1': row['pct_1']
+                })
+        
+        # Calculate mean and std baseline pct_1 for each feature
+        baseline_df = pd.DataFrame(baseline_pct_1_list)
+        baseline_summary = baseline_df.groupby('feature_name')['baseline_pct_1'].agg(['mean', 'std']).reset_index()
+        baseline_summary = baseline_summary.rename(columns={'mean': 'baseline_pct_1_mean', 'std': 'baseline_pct_1_std'})
+        
+        # Merge observed stats with baseline
+        stats_observed = stats_observed.merge(baseline_summary, on='feature_name', how='left')
+        stats_observed['baseline_pct_1_mean'] = stats_observed['baseline_pct_1_mean'].fillna(0)
+        stats_observed['baseline_pct_1_std'] = stats_observed['baseline_pct_1_std'].fillna(0)
+        
+        # Calculate observed/baseline ratio
+        stats_observed['observed_baseline_ratio'] = stats_observed['pct_1'] / (
+            stats_observed['baseline_pct_1_mean']
+        )
+        
+        # Select and rename columns for final output
+        stats_observed = stats_observed[['feature_name', 'model_name', 'pct_1', 'pct_0', 
+                                         'baseline_pct_1_mean', 'baseline_pct_1_std', 'observed_baseline_ratio', 
+                                         'predictions_sum', 'total_bp']]
+        stats_observed = stats_observed.rename(columns={'feature_name': 'feature_class'})
+        
+        results.append(stats_observed)
+    
+    # Combine all results
+    if results:
+        results_df = pd.concat(results, ignore_index=True)
+    else:
+        raise ValueError("Empty dataframe")
+    
+    return results_df
 
 
 def main():
@@ -268,4 +359,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
