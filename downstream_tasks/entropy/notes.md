@@ -7,6 +7,9 @@
 conda activate NT # (or bert24 for ModernGENA/GENA)
 CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-base-ep30-ba90700.ini --limit_bp 3000000
 
+# run all moderngena cpts:
+for cpt in data/mgena_cpts/base/*.pt; do n=$(basename $cpt | cut -d "-" -f1-2); echo $n; CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-generic.ini --name modgena-base-$n cpt_path $cpt; done
+
 ```
 
 2. Create accessible regions file (intersection of all predictions)

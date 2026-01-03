@@ -8,6 +8,7 @@ python3 -m pip install --upgrade git+https://github.com/huggingface/transformers
 python3 -m pip install pysam tqdm matplotlib seaborn
 python3 -m pip install numpy scipy pandas
 python3 -m pip install torch
+pip install -U "transformers==4.57.3"
 ```
 
 Run:
