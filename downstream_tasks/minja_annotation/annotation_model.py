@@ -203,6 +203,150 @@ class AnnotationModel(torch.nn.Module):
 
 
 
+class AnnotationModelMiddleLoss(torch.nn.Module):
+	def __init__(
+		self,
+		output_dir = None, # currently unused, for compatibility with older models
+		config = None,
+		pretrained_cpt = None,
+		modernbert_cpt = None,
+		activation = None,
+		classifier = None,
+		loss_fct = None,
+		logger = None,
+	):
+		super().__init__()
+
+		if logger is None:
+			self.logger = logging.getLogger(__name__)
+		else:
+			self.logger = logger
+
+		assert (pretrained_cpt is not None) != (modernbert_cpt is not None), "Either pretrained_cpt or modernbert_cpt must be provided, not both"
+
+		if modernbert_cpt is not None:
+			self.logger.info(f"Loading ModernBERT model from {modernbert_cpt}")
+			self.bert = ModernBertModel.from_pretrained(
+                modernbert_cpt,
+                trust_remote_code=True,
+            )
+			# from modernbert_utils import load_flexbert_model
+			# self.logger.info(f"Loading ModernBERT model from {modernbert_cpt}")
+			# self.bert = load_flexbert_model(modernbert_cpt, logger=self.logger)
+			self.is_modernbert_model = True
+		else:
+			self.is_modernbert_model = False
+
+		if pretrained_cpt is not None:
+			if os.path.exists(pretrained_cpt):
+				raise NotImplementedError("TODO: check this draft of the code below before using it")
+				# assert config is not None
+				# self.bert = BertModel(config, add_pooling_layer=False)
+				# checkpoint = torch.load(pretrained_cpt, map_location="cpu")
+				# state_dict = checkpoint["model_state_dict"]
+				# self.logger.info(f"Loading checkpoint from local model {pretrained_cpt}")
+				# missing_k, unexpected_k = self.bert.load_state_dict(state_dict, strict=False)
+				# if len(missing_k) != 0:
+				# 	self.logger.warning(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
+				# if len(unexpected_k) != 0:
+				# 	self.logger.warning(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
+			else:  # hf checkpoint
+				model = AutoModel.from_pretrained(pretrained_cpt, trust_remote_code=True)
+				module_name = model.__class__.__module__
+				cls = getattr(importlib.import_module(module_name), 'BertModel')
+				self.bert = cls.from_pretrained(pretrained_cpt, add_pooling_layer=False)
+		# else:
+		# 	self.logger.warning(f"Randomly initialized backbone.")
+		# 	self.bert = BertModel(config, add_pooling_layer=False)
+
+		n_layers = len(self.bert.layers)  # ModernBERT encoder layers
+		# Choose the "middle" encoder layer index in [0 .. n_layers-1].
+		# For even n_layers, this picks the upper-middle (e.g., 12 -> 6).
+		self.middle_layer_idx = n_layers // 2
+
+		HeadCls = classifier.__class__
+		head_kwargs = dict(
+			num_labels=classifier.num_labels,
+			num_layers=classifier.num_layers,
+			classifier_dropout=classifier.classifier_dropout,
+		)
+
+		# Only keep two heads: one for the middle layer and one for the last layer.
+		self.middle_classifier = HeadCls(**head_kwargs)
+		self.last_classifier = HeadCls(**head_kwargs)
+
+		self.middle_classifier.set_params(self.bert.config)
+		self.last_classifier.set_params(self.bert.config)
+
+		self.activation = activation
+		self.loss_fct = loss_fct
+
+	def forward(self, input_ids, attention_mask, targets, return_loss=True):
+		if self.is_modernbert_model:
+			# print('AAAAAAAAAAAAAAAA')
+			outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask, output_hidden_states=True)
+			ahs = outputs.hidden_states
+			lhs = outputs.last_hidden_state
+			# print('outputs shape', len(ahs), ahs[-1].shape, lhs.shape)
+			# assert torch.all(lhs == ahs[-1])
+
+			# Apply per-layer classifiers:
+			# - for i < last: classifier[i] on ahs[i+1] (start from hidden_states[1])
+			# - for last: classifier[-1] on lhs (explicitly last_hidden_state)
+			#
+			# NOTE: We now compute logits only for:
+			#   (1) the middle layer (encoder idx = self.middle_layer_idx) using ahs[self.middle_layer_idx + 1]
+			#   (2) the last layer using lhs
+			layer_logits = []
+
+			h_mid = ahs[self.middle_layer_idx + 1]
+			assert len(h_mid.size()) == 3 # Batch_size x Seq_len x Hidden_size
+			assert h_mid.size()[0] == input_ids.size()[0] # batch size dimension
+			assert h_mid.size()[1] == input_ids.size()[1] # sequence length dimension
+			logits_mid = self.middle_classifier(h_mid)
+			layer_logits.append(logits_mid)
+
+			h_last = lhs
+			assert len(h_last.size()) == 3 # Batch_size x Seq_len x Hidden_size
+			assert h_last.size()[0] == input_ids.size()[0] # batch size dimension
+			assert h_last.size()[1] == input_ids.size()[1] # sequence length dimension
+			logits_last = self.last_classifier(h_last)
+			layer_logits.append(logits_last)
+
+			if targets is not None and return_loss:
+				# Loss per classifier output, then mean across layers (for each key)
+				pr_mid = self.activation(logits_mid)
+				pr_last = self.activation(logits_last)
+
+				loss_mid = self.loss_fct(pr_mid, targets)
+				loss_last = self.loss_fct(pr_last, targets)
+
+				# Average losses between middle + last layer (for each key)
+				loss = {k: 0.5 * (loss_mid[k] + loss_last[k]) for k in loss_mid.keys()}
+			else:
+				loss = {'total': None, 'tss': None, 'polya': None, 'intragenic': None}
+		else:
+			raise NotImplementedError('Loss for all layers is not currently implemented, except in ModernGENA')
+			outputs = self.bert(input_ids, attention_mask)
+			outputs = outputs.last_hidden_state
+			logits = self.classifier(outputs)
+			predicts = self.activation(logits)
+			if targets is not None:
+				loss = self.loss_fct(predicts, targets)
+
+		# logits = self.classifier(outputs)
+		# predicts = self.activation(logits)
+		# if targets is not None:
+		# 	loss = self.loss_fct(predicts, targets)
+
+		return AnnotationModelOutput(
+			loss=loss['total'],
+			loss_TSS=loss['tss'],
+			loss_polya=loss['polya'],
+			loss_intragenic=loss['intragenic'],
+			logits=layer_logits[-1],
+			predicts=self.activation(layer_logits[-1]),
+		)
 
 
 
