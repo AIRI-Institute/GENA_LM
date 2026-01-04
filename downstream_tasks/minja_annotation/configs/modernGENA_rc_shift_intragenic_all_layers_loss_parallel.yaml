@@ -1,7 +1,7 @@
 HOME_PATH: ${oc.env:GENALM_HOME}
 output_dir: ${HOME_PATH}/runs/annotation/modernGENA_rc_shift_middle_pretrain_middle_layer_loss_parallel/
 batch_size: 48
-total_batch_size: 960
+total_batch_size: 48
 
 logging:
   level: INFO
@@ -11,7 +11,7 @@ model:
   _target_: "annotation_model.AnnotationModelMiddleLoss"
   output_dir: ${output_dir}
   config: null
-  modernbert_cpt: "/disk/10tb/home/shmelev/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/hf/"
+  modernbert_cpt: "/home/jovyan/shmelev/annotation_minja_edition/GENA_LM/data/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/hf/"
   classifier:
     _target_: "annotation_model.Linear_Classifier_with_dropout"
     num_labels: 4
@@ -61,11 +61,7 @@ TrainingArguments:
   per_device_train_batch_size: ${batch_size}
   per_device_eval_batch_size: ${batch_size}
   dataloader_num_workers: 16
-  gradient_accumulation_steps:
-    _target_: train_with_accelerate_parallel.gradient_accumulation_steps
-    batch_size: ${batch_size}
-    total_batch_size: ${total_batch_size}
-    num_processes: ${oc.env:WORLD_SIZE,1}
+  gradient_accumulation_steps: 1
   dataloader_pin_memory: false
   remove_unused_columns: false
   load_best_model_at_end: true
