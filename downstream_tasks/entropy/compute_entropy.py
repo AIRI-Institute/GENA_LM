@@ -82,7 +82,7 @@ def build_modergena_model(checkpoint_filepath, modernbert_distr_path):
 
 def parse_args():
 	parser = argparse.ArgumentParser()
-	valid_model_families = ['GENA', 'NTv2', 
+	valid_model_families = ['GENA', 'NTv2', 'NTv3',
 						'ModernGENA']
 
 	parser.add_argument("--name", type=str, 
@@ -94,6 +94,7 @@ def parse_args():
 						help="path to the checkpoint", default=None)
 	parser.add_argument("--input_len_tokens", type=int, 
 						help="maximum input length in number of tokens", default=None)
+	parser.add_argument("--do_not_add_cls", help="Do not add CLS token to the input", action='store_true')
 	parser.add_argument("--tokenizer_path", type=str, 
 						help="path to the tokenizer", default=None)
 	parser.add_argument("--genome_path", type=str, 
@@ -108,14 +109,14 @@ def parse_args():
 	parser.add_argument("--seq_chunk_len",type=int, default=50_000, help="Chunk size used to split original fasta record for tokenization")
 	parser.add_argument("--masking_fraction",type=float,
 						help="Fraction of tokens to mask. If >=1, corresponds to number of tokens to mask. If <1, corresponds to fraction of tokens to mask.",
-						default=0.3)
+						default=0.12)
 	parser.add_argument("--config", type=str, help="Path to configuration file", default=None)
 	
 	# Track which arguments were actually provided on command line (before parsing)
 	cmdline_args_provided = set()
 	arg_names = ['name', 'cpt_path', 'tokenizer_path', 'genome_path', 'out_dir', 'chrm', 'batch_size', 
-				 'limit_bp', 'modernbert_distr_path', 	'seq_chunk_len', 'masking_fraction', 'config', 
-				 'input_len_tokens', 'model_family']
+				 'limit_bp', 'modernbert_distr_path', 'seq_chunk_len', 'masking_fraction', 'config', 
+				 'input_len_tokens', 'model_family', 'do_not_add_cls']
 	
 	i = 1  # Skip script name
 	while i < len(sys.argv):
@@ -207,12 +208,18 @@ def parse_args():
 			args.limit_bp = None if limit_bp_str.lower() == 'none' else section.getint('limit_bp')
 		if 'modernbert_distr_path' in section and 'modernbert_distr_path' not in cmdline_args_provided:
 			args.modernbert_distr_path = section.get('modernbert_distr_path', os.path.expanduser("~/DNALM/"))
-		
+		if 'do_not_add_cls' in section and 'do_not_add_cls' not in cmdline_args_provided:
+			args.do_not_add_cls = section.get('do_not_add_cls')
+		if 'seq_chunk_len' in section and 'seq_chunk_len' not in cmdline_args_provided:
+			args.seq_chunk_len = section.getint('seq_chunk_len', 50_000)
+
 		# Validate required arguments
 		requered_args = ['name', 'model_family', 'cpt_path', 'input_len_tokens', 'tokenizer_path', 'genome_path']
 		for arg in requered_args:
 			if not getattr(args, arg):
 				raise ValueError(f"{arg} must be specified (either in config file or command-line)")
+		print (f"args.do_not_add_cls: {args.do_not_add_cls}")
+		print (f"args.seq_chunk_len: {args.seq_chunk_len}")
 		
 	return args
 
@@ -221,7 +228,7 @@ def load_model_and_tokenizer(cpt_path, tokenizer_path, model_family, modernbert_
 	if model_family == 'GENA':
 		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 		model = AutoModel.from_pretrained(cpt_path, trust_remote_code=True)
-	elif model_family == 'NTv2':
+	elif model_family == 'NTv2' or model_family == 'NTv3':
 		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
 		model = AutoModelForMaskedLM.from_pretrained(cpt_path, trust_remote_code=True)
 	elif model_family == 'ModernGENA':
@@ -299,17 +306,24 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, ground_truths, positions, chrom, start, chunk_offsets, file_handlers):
 	inputs = {
 		'input_ids': torch.tensor(np.array(batch_input_ids)),
-		'attention_mask': torch.tensor(np.array(batch_attention_mask)),
 	}
+
+	# NTv3 does not use attention mask, so it might be None
+	_ = [am is None for am in batch_attention_mask]
+	assert all(_) or not any(all(_) for _ in batch_attention_mask), "attenation mask should be either None for all sequences or not None for all sequences"
+	if not all(_):
+		inputs['attention_mask'] = torch.tensor(np.array(batch_attention_mask))
+	else:
+		assert args.model_family == 'NTv3', "Attention mask is not provided for non-NTv3 models"
+
 		# 'token_type_ids': torch.tensor([[0] * len(batch_input_ids[0])] * len(batch_input_ids)),
 
 	token_metrics_batch = calculate_token_metrics(model, tokenizer, inputs, ground_truths)
 	# Write results for each position
 
-	# we use pos - 1 because we added CLS token, while offset mapping was computed without it
 	positions = np.concatenate(positions)
-	token_starts = [start + chunk_offsets[pos - 1][0] for pos in positions]
-	token_ends = [start + chunk_offsets[pos - 1][1] for pos in positions]
+	token_starts = [start + chunk_offsets[pos][0] for pos in positions]
+	token_ends = [start + chunk_offsets[pos][1] for pos in positions]
 	
 	for metric, _ in file_handlers.items():
 		assert len(token_metrics_batch[metric]) == len(positions), f"Number of metrics is not equal to number of positions: {len(token_metrics_batch[metric])} != {len(positions)}"
@@ -318,7 +332,7 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 			file_handlers[metric].write(f"{chrom}\t{start}\t{end}\t{metric_value}\n")
 
 # Process genome and save metrics to BED/GRAPH
-def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, max_model_len_tokens, masking_fraction,
+def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chrom, max_model_len_tokens, masking_fraction, add_cls: bool,
 					seq_chunk_len = 50_000, batch_size=16, limit_bp=None):
 
 	# create output directory if it doesn't exist
@@ -348,7 +362,6 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 		fout.write(f"input_len_tokens: {args.input_len_tokens}\n")
 		fout.write(f"genome_path: {fasta_path}\n")
 		fout.write(f"target_chrom: {target_chrom}\n")
-		fout.write(f"seq_chunk_len: {seq_chunk_len}\n")
 		fout.write(f"batch_size: {batch_size}\n")
 		fout.write(f"limit_bp: {limit_bp}\n")
 		fout.write(f"max_model_len_tokens: {max_model_len_tokens}\n")
@@ -379,6 +392,10 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	pbar = tqdm(total=total_length, desc=f"Processing {target_chrom}", unit='bp')
 	processed_bp = 0
 
+	# if args.model_family == 'NTv3':
+	# 	print (f"valid_chroms: {valid_chroms}")
+	# 	print (f"add_cls: {add_cls}")
+
 	for chrom_name, orig_start, orig_end in valid_chroms: # iterate over gapless fragments in fasta file
 		start = 0
 		chrom_len = fasta.get_reference_length(chrom_name)
@@ -396,6 +413,10 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			tokenized = tokenizer(sequence, add_special_tokens=False)
 			tokens = tokenized['input_ids']
 
+			# if args.model_family == 'NTv3':
+			# 	print (f"len of tokens: {len(tokens)}")
+			# 	print (f"len of sequence: {len(sequence)}")
+
 			# Generate offset mapping manually based on token lengths; not all tokenizers support offset mapping
 			offset_mapping = []
 			current_pos = 0
@@ -408,14 +429,20 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			assert offset_mapping[-1][1] == end_position-start, f"Offset mapping mismatch: {offset_mapping[-1][1]} != {end_position-start}"
 
 			add_sep = tokenizer.sep_token_id is not None
-			N_meaningful_tokens = max_model_len_tokens - 1 - add_sep  # -2 for CLS and SEP
+			N_meaningful_tokens = max_model_len_tokens - add_cls - add_sep  # -2 for CLS and SEP
+			# if args.model_family == 'NTv3':
+			# 	print (f"N_meaningful_tokens: {N_meaningful_tokens}")
 			
 			if len(tokens) < N_meaningful_tokens:
 				unaccessible_regions_file.write(f"{target_chrom}\t{start + orig_start}\t{end_position + orig_start}\n")
 				start += end_position-start
 				continue
 
-			attention_mask = tokenized['attention_mask']
+			if "attention_mask" in tokenized:
+				attention_mask = tokenized['attention_mask']
+			else:
+				assert args.model_family == 'NTv3', "Attention mask is not provided for non-NTv3 models"
+				attention_mask = None
 			
 			# Check for gap tokens and raise error if found
 			gap_token_id = tokenizer.convert_tokens_to_ids(['-'])[0]
@@ -433,7 +460,10 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				chunk_tokens = tokens[chunk_start:chunk_start + N_meaningful_tokens]
 				chunk_offsets = offset_mapping[chunk_start:chunk_start + N_meaningful_tokens]
 				last_chunk_end_bp = chunk_offsets[-1][1]
-				chunk_attention = attention_mask[chunk_start:chunk_start + N_meaningful_tokens]
+				if attention_mask is not None:
+					chunk_attention = attention_mask[chunk_start:chunk_start + N_meaningful_tokens]
+				else:
+					chunk_attention = None
 
 				# mask certain fraction of tokens
 				if masking_fraction >= 1:
@@ -462,14 +492,19 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				concatenated_splits = np.concatenate(splits)
 				assert np.unique(concatenated_splits).shape[0] == len(chunk_input_ids), "All tokens should participate in at least one split"
 
-				# Add CLS and SEP tokens
-				chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens
-				chunk_attention_mask = [1] + chunk_attention
-				splits = [split + 1 for split in splits] # add 1 to each masked-token-position-split to account for CLS token
+				# Add CLS and SEP tokens if needed
+				if add_cls:
+					chunk_offsets = [(chunk_offsets[0][0],chunk_offsets[0][0])] + chunk_offsets # add offset for CLS token
+					chunk_input_ids = [tokenizer.cls_token_id] + chunk_tokens
+					if chunk_attention is not None:
+						chunk_attention = [1] + chunk_attention
+					splits = [split + 1 for split in splits] # add 1 to each masked-token-position-split to account for CLS token
 
 				if add_sep:
 					chunk_input_ids.append(tokenizer.sep_token_id)
-					chunk_attention_mask.append(1)
+					if chunk_attention is not None:
+						chunk_attention.append(1)
+
 				assert len(chunk_input_ids) == max_model_len_tokens, \
 					f"Chunk input ids length is not equal to max model len tokens: {len(chunk_input_ids)} != {max_model_len_tokens}"
 				
@@ -496,7 +531,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 					ground_truths.append(masked_input_ids[split])
 					masked_input_ids[split] = tokenizer.mask_token_id
 					batch_input_ids.append(masked_input_ids)
-					batch_attention_mask.append(chunk_attention_mask)
+					batch_attention_mask.append(chunk_attention)
 					positions.append(split)
 
 				assert len(batch_input_ids) > 0, "No batch input ids"
@@ -521,14 +556,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 # Main execution
 def main(args):
-	# models = {
-	# 	"gena-lm": ["AIRI-Institute/gena-lm-bert-base-t2t", 512],
-	# 	"nucleotide-transformer-v2-100m": ["InstaDeepAI/nucleotide-transformer-v2-100m-multi-species", 2048],
-	# 	"ModernGENA_t2t_test": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_t2t_testrun/", 1024],
-	# 	"ModernGENA_prom_multi": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena-base-pretrain-promoters_multi/", 1024],
-	# 	"ModernGENA_prom_multi_ep11": ["/disk/10tb/home/fishman/DNALM/ModernBERT/runs/moderngena_prom_ep11-ba65900/", 1024]
-	# }
-
+	
 	# Load model and tokenizer
 	model, tokenizer = load_model_and_tokenizer(cpt_path=args.cpt_path, 
 												tokenizer_path=args.tokenizer_path, 
@@ -548,6 +576,7 @@ def main(args):
 		limit_bp=args.limit_bp,
 		max_model_len_tokens=args.input_len_tokens,
 		masking_fraction=args.masking_fraction,
+		add_cls=not args.do_not_add_cls,
 	)
 	print(f"Results saved to {output_path}")
 

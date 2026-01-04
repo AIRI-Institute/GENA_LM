@@ -57,6 +57,8 @@ I use chromosome 21, since most of models (_but not all_) have it in test split
 
 - NT v1 and v2: Namely, sequences from chromosomes 20 and 21 were used for the test and the remainder were used for training the different models
 
+- NT v3: used the same approach as for the Nucleotide Transformer model [21], following the standard BERT masking strategy [32]: for each sequence, 15% of tokens were selected for potential modification; of this subset, 80% were replaced with a [MASK] token, 10% were substituted with a random token from the vocabulary, and the final 10% remained unchanged. For each batch, the loss function was computed as the sum of the cross-entropy losses between the predicted probabilities over tokens and the ground-truth tokens at each selected position.
+
 - SegmentNT: Namely, chromosomes 20 and 21 are used for test, chromosome 22 is used for validation
 
 - GENA: we hold out human chromosomes 7 (CP068271.2) and 10 (CP068268.2) for testing; In alignment with the BERT pre-training methodology, 15% of the tokens were randomly selected for prediction. Among these, 80% were replaced with MASK tokens, 10% were swapped with random tokens and the remaining 10% were retained unchanged. 
