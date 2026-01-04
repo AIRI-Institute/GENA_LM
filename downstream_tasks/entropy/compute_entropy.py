@@ -310,7 +310,7 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 
 	# NTv3 does not use attention mask, so it might be None
 	_ = [am is None for am in batch_attention_mask]
-	assert all(_) or not any(all(_) for _ in batch_attention_mask), "attenation mask should be either None for all sequences or not None for all sequences"
+	assert all(_) or not any(_), "attenation mask should be either None for all sequences or not None for all sequences"
 	if not all(_):
 		inputs['attention_mask'] = torch.tensor(np.array(batch_attention_mask))
 	else:
