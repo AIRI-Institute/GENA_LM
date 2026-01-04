@@ -18,7 +18,7 @@ from pybedtools import BedTool
 import random
 import sys
 from pathlib import Path
-
+import os
 
 def parse_args():
     """Parse command-line arguments."""
@@ -332,6 +332,22 @@ def main():
     if not Path(args.accessible_regions).exists():
         print(f"Error: Accessible regions file not found: {args.accessible_regions}", file=sys.stderr)
         sys.exit(1)
+
+
+    # Create a persistent temp dir in your home
+    tmpdir = Path.home() / ".cache" / "pybedtools" / "tmp"
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    tmpdir.chmod(0o700)  # user-only; safe default
+
+    # Point both bedtools + pybedtools temp handling there
+    os.environ["TMPDIR"] = str(tmpdir)
+    os.environ["TMP"] = str(tmpdir)
+    os.environ["TEMP"] = str(tmpdir)
+
+    import pybedtools
+    pybedtools.helpers.set_tempdir(str(tmpdir))  # affects Python tempfile usage
+
+    print("Using pybedtools tmpdir:", pybedtools.get_tempdir())
     
     # Process data
     print("Starting processing...")
