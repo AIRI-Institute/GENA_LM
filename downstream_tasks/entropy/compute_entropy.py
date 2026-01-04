@@ -292,7 +292,8 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 	# print (f"correct.shape: {correct.shape}")
 
 	# calculate entropy for each prediction
-	entropies = np.array([entropy(p, base=2) for p in probs])
+	entropies = entropy(probs, base=2, axis=1)
+	# entropies = np.array([entropy(p, base=2) for p in probs])
 	# print (f"entropies.shape: {entropies.shape}")
 
 	# return metrics for each sequence
