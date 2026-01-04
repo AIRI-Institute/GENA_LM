@@ -7,8 +7,17 @@
 conda activate NT # (or bert24 for ModernGENA/GENA)
 CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-base-ep30-ba90700.ini --limit_bp 3000000
 
-# run all moderngena cpts:
+# run all moderngena cpts (see config files for large and xlarge scripts):
 for cpt in data/mgena_cpts/base/*.pt; do n=$(basename $cpt | cut -d "-" -f1-2); echo $n; CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-generic.ini --name modgena-base-$n cpt_path $cpt; done
+
+# run evo and caducues
+
+python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_evo2_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/evo2_chr21 --token_map evo2
+
+python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ps_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ps_chr21 --token_map caduceus
+
+python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ph_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ph_chr21 --token_map caduceus
+
 
 ```
 
@@ -49,6 +58,16 @@ Copy data FROM aws
 
 ```bash
 aws s3 ls s3://genalm/entropy/inference_results/ --profile airi --endpoint-url https://s3.cloud.ru
+```
+
+Copy decode (Caduces and Evo) predictions
+
+```
+mkdir -p data/decoder-models/
+cd data/decoder-models/
+aws s3 cp s3://genalm/annogena/evo2/minja_human_chr21_only_hg38_evo2_mlm_embeddings.h5 . --profile airi --endpoint-url https://s3.cloud.ru
+aws s3 cp s3://genalm/annogena/evo2/minja_human_chr21_only_hg38_caduceus_ph_mlm_embeddings.h5 . --profile airi --endpoint-url https://s3.cloud.ru
+aws s3 cp s3://genalm/annogena/evo2/minja_human_chr21_only_hg38_caduceus_ps_mlm_embeddings.h5 . --profile airi --endpoint-url https://s3.cloud.ru
 ```
 
 ## Train-test splits for different models
