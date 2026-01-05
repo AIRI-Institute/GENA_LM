@@ -151,6 +151,9 @@ def process_h5_file(h5_path, genome_path, token_map, output_prefix):
         fout.write(f"token_map: {token_map}\n")
         fout.write(f"output_prefix: {output_prefix}\n")
     
+    # Track processed positions to avoid duplicates
+    processed_positions = set()
+    
     # Open h5 file and process each key
     with h5py.File(h5_path, 'r') as h5_file:
         keys = list(h5_file.keys())
@@ -178,6 +181,17 @@ def process_h5_file(h5_path, genome_path, token_map, output_prefix):
                 if seq_length != n_positions:
                     raise ValueError(f"Sequence length ({seq_length}) != number of positions ({n_positions}) for {key}. Skipping.")
                 
+                # Note: how inference was done:
+                # we process chunks of 32KB shifting by 16KB, assuming that 16 KB is minimal reasonalbe context for the model
+                # also we make prediction for each base, we will now only use the predictions from position 16001 onwards
+                # Skip chunks with length <= 16KB
+                if seq_length <= 16000:
+                    continue
+                
+                # For chunks > 16KB, process only bases from position 16001 (index 16000) onwards
+                skip_bases = 16000
+                start_idx = skip_bases
+                
                 # Get ground truth sequence from genome
                 try:
                     ground_truth_seq = fasta.fetch(chrom, hg38_start, hg38_end).upper()
@@ -187,13 +201,29 @@ def process_h5_file(h5_path, genome_path, token_map, output_prefix):
                 if len(ground_truth_seq) != n_positions:
                     raise ValueError(f"Ground truth length ({len(ground_truth_seq)}) != number of positions ({n_positions}) for {key}. Skipping.")
                 
+                # Slice arrays to start from position 16001
+                logits = logits[start_idx:]
+                ground_truth_seq = ground_truth_seq[start_idx:]
                 ground_truth_bases = np.array(list(ground_truth_seq))
+                
+                # Update starting position for output coordinates
+                adjusted_start = hg38_start + start_idx
+                n_positions_to_process = len(ground_truth_bases)
+                
                 # Compute metrics
                 metrics = compute_metrics_from_logits(logits, token_map, ground_truth_bases)
-                # Write results (one line per position)
-                for i in range(n_positions):
-                    pos_start = hg38_start + i
+                # Write results (one line per position), skipping duplicates
+                for i in range(n_positions_to_process):
+                    pos_start = adjusted_start + i
                     pos_end = pos_start + 1
+                    
+                    # Skip if this position has already been processed
+                    position_key = (chrom, pos_start)
+                    if position_key in processed_positions:
+                        raise ValueError(f"Position {position_key} has already been processed. Skipping.")
+                    
+                    # Mark position as processed
+                    processed_positions.add(position_key)
                     
                     file_handlers["is_correct"].write(f"{chrom}\t{pos_start}\t{pos_end}\t{metrics['is_correct'][i]}\n")
                     file_handlers["entropy"].write(f"{chrom}\t{pos_start}\t{pos_end}\t{metrics['entropy'][i]}\n")
