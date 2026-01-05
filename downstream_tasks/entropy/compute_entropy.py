@@ -291,7 +291,7 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 	except KeyError as e:
 		assert args.model_family == 'CADUCEUS', "KeyError: token not found in tokenizer, which is only possible for CADUCEUS models"
 		highest_prob_tokens = []
-		for tok in highest_prob_token_ids:
+		for tok in highest_prob_token_ids.tolist():
 			try:
 				highest_prob_tokens.append(tokenizer.convert_ids_to_tokens(tok))
 			except KeyError as e:
