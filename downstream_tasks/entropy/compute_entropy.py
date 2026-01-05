@@ -10,7 +10,6 @@ import torch
 from torch import nn
 from transformers.utils.logging import warning_once
 from scipy.stats import entropy
-import requests
 from tqdm import tqdm
 import argparse
 import datetime
@@ -18,6 +17,11 @@ import configparser
 
 from pathlib import Path
 import sys
+
+overall_accuracy_stats = {
+	"N_correct": 0,
+	"Total_bp": 0
+}
 
 def build_modergena_model(checkpoint_filepath, modernbert_distr_path):
 	from omegaconf import DictConfig, OmegaConf
@@ -83,7 +87,7 @@ def build_modergena_model(checkpoint_filepath, modernbert_distr_path):
 def parse_args():
 	parser = argparse.ArgumentParser()
 	valid_model_families = ['GENA', 'NTv2', 'NTv3',
-						'ModernGENA']
+						'ModernGENA', 'CADUCEUS']
 
 	parser.add_argument("--name", type=str, 
 						help="label of the experiment", default=None)
@@ -228,7 +232,7 @@ def load_model_and_tokenizer(cpt_path, tokenizer_path, model_family, modernbert_
 	if model_family == 'GENA':
 		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 		model = AutoModel.from_pretrained(cpt_path, trust_remote_code=True)
-	elif model_family == 'NTv2' or model_family == 'NTv3':
+	elif model_family == 'NTv2' or model_family == 'NTv3' or model_family == 'CADUCEUS':
 		tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
 		model = AutoModelForMaskedLM.from_pretrained(cpt_path, trust_remote_code=True)
 	elif model_family == 'ModernGENA':
@@ -315,7 +319,7 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 	if not all(_):
 		inputs['attention_mask'] = torch.tensor(np.array(batch_attention_mask))
 	else:
-		assert args.model_family == 'NTv3', "Attention mask is not provided for non-NTv3 models"
+		assert args.model_family == 'NTv3' or args.model_family == 'CADUCEUS', "Attention mask is not provided for non-NTv3/CADUCEUS models"
 
 		# 'token_type_ids': torch.tensor([[0] * len(batch_input_ids[0])] * len(batch_input_ids)),
 
@@ -330,6 +334,9 @@ def process_batch(model, tokenizer, batch_input_ids, batch_attention_mask, groun
 		assert len(token_metrics_batch[metric]) == len(positions), f"Number of metrics is not equal to number of positions: {len(token_metrics_batch[metric])} != {len(positions)}"
 		pos_metrics = token_metrics_batch[metric]
 		for start, end, metric_value in zip(token_starts, token_ends, pos_metrics):
+			if metric == "is_correct":
+				overall_accuracy_stats["N_correct"] += metric_value*int(end - start)
+				overall_accuracy_stats["Total_bp"] += int(end - start)
 			file_handlers[metric].write(f"{chrom}\t{start}\t{end}\t{metric_value}\n")
 
 # Process genome and save metrics to BED/GRAPH
@@ -393,10 +400,6 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	pbar = tqdm(total=total_length, desc=f"Processing {target_chrom}", unit='bp')
 	processed_bp = 0
 
-	# if args.model_family == 'NTv3':
-	# 	print (f"valid_chroms: {valid_chroms}")
-	# 	print (f"add_cls: {add_cls}")
-
 	for chrom_name, orig_start, orig_end in valid_chroms: # iterate over gapless fragments in fasta file
 		start = 0
 		chrom_len = fasta.get_reference_length(chrom_name)
@@ -414,10 +417,6 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			tokenized = tokenizer(sequence, add_special_tokens=False)
 			tokens = tokenized['input_ids']
 
-			# if args.model_family == 'NTv3':
-			# 	print (f"len of tokens: {len(tokens)}")
-			# 	print (f"len of sequence: {len(sequence)}")
-
 			# Generate offset mapping manually based on token lengths; not all tokenizers support offset mapping
 			offset_mapping = []
 			current_pos = 0
@@ -431,8 +430,6 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 
 			add_sep = tokenizer.sep_token_id is not None
 			N_meaningful_tokens = max_model_len_tokens - add_cls - add_sep  # -2 for CLS and SEP
-			# if args.model_family == 'NTv3':
-			# 	print (f"N_meaningful_tokens: {N_meaningful_tokens}")
 			
 			if len(tokens) < N_meaningful_tokens:
 				unaccessible_regions_file.write(f"{target_chrom}\t{start + orig_start}\t{end_position + orig_start}\n")
@@ -442,7 +439,7 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 			if "attention_mask" in tokenized:
 				attention_mask = tokenized['attention_mask']
 			else:
-				assert args.model_family == 'NTv3', "Attention mask is not provided for non-NTv3 models"
+				assert args.model_family == 'NTv3' or args.model_family == 'CADUCEUS', "Attention mask is not provided for non-NTv3/CADUCEUS models"
 				attention_mask = None
 			
 			# Check for gap tokens and raise error if found
@@ -478,7 +475,8 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 				assert num_splits > 0, "Number of splits must be greater than 0"
 
 				# split array of tokens into splits of num_tokens_to_mask tokens using numpy array split
-				chunk_input_ids = np.array(chunk_tokens)
+				# chunk_input_ids = np.array(chunk_tokens)
+				chunk_input_ids = chunk_tokens
 				splits = np.array_split(chunk_input_ids, num_splits)
 
 				# evenly distribute tokens across splits
@@ -554,6 +552,9 @@ def process_genome(fasta_path, model, tokenizer, output_path_prefix, target_chro
 	for metric in file_handlers.keys():
 		file_handlers[metric].close()
 	fasta.close()
+
+	print (f"Total bp: {overall_accuracy_stats['Total_bp']}")
+	print (f"Overall accuracy: {overall_accuracy_stats['N_correct']/overall_accuracy_stats['Total_bp']:.3f}")
 
 # Main execution
 def main(args):

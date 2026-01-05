@@ -10,13 +10,13 @@ CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-base-
 # run all moderngena cpts (see config files for large and xlarge scripts):
 for cpt in data/mgena_cpts/base/*.pt; do n=$(basename $cpt | cut -d "-" -f1-2); echo $n; CUDA_VISIBLE_DEVICES=1; python compute_entropy.py --config configs/modgena-generic.ini --name modgena-base-$n cpt_path $cpt; done
 
-# run evo and caducues
+# run evo (for cadueceus predictions were aquiered not corretly)
 
 python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_evo2_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/evo2_chr21 --token_map evo2
 
-python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ps_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ps_chr21 --token_map caduceus
+# python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ps_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ps_chr21 --token_map caduceus
 
-python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ph_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ph_chr21 --token_map caduceus
+# python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr21_only_hg38_caduceus_ph_mlm_embeddings.h5 --genome_path ../expression_prediction/datasets/data/genomes/hg38/hg38.fa --output_prefix data/decoder-models/caduceus_ph_chr21 --token_map caduceus
 
 
 ```
@@ -84,3 +84,6 @@ I use chromosome 21, since most of models (_but not all_) have it in test split
 
 - ModernGENA: 10% of the data is randomly selected for validation for all species except human. For human, chromosomes 8, 20, and 21 are used for validation, as described in the annotation.
 
+- HyenaDNA: Uses Basenji split: curl https://storage.googleapis.com/basenji_barnyard2/sequences_human.bed > data/hg38/human-sequences.bed
+
+- CADUCEUS: same split as Hyena (Basenji): "Data downloading instructions are copied from HyenaDNA repo".  For bi-directional models, we use the masking recipe presented in Devlin et al. (2018). Namely, we 'mask' 15% of tokens. Of the 'masked' tokens, 80% are replaced with a special [MASK] token, 10% are replaced with a random token from the vocabulary, and 10% are left unchanged.
