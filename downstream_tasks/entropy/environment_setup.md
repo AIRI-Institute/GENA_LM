@@ -24,7 +24,8 @@ Follow https://github.com/minjaf/ModernBERT , then:
 
 ```
 conda activate bert24
-python3 -m pip install pysam, scipy
+python3 -m pip install pysam scipy pybedtools seaborn pybedtools
+conda install bioconda::bedtools -y
 ```
 
 # Caduceus
