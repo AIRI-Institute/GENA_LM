@@ -213,7 +213,7 @@ def parse_args():
 		if 'modernbert_distr_path' in section and 'modernbert_distr_path' not in cmdline_args_provided:
 			args.modernbert_distr_path = section.get('modernbert_distr_path', os.path.expanduser("~/DNALM/"))
 		if 'do_not_add_cls' in section and 'do_not_add_cls' not in cmdline_args_provided:
-			args.do_not_add_cls = section.get('do_not_add_cls')
+			args.do_not_add_cls = section.getboolean('do_not_add_cls')
 		if 'seq_chunk_len' in section and 'seq_chunk_len' not in cmdline_args_provided:
 			args.seq_chunk_len = section.getint('seq_chunk_len', 50_000)
 
@@ -286,9 +286,18 @@ def calculate_token_metrics(model, tokenizer, inputs, ground_truth):
 
 	# get highest probability tokens
 	highest_prob_token_ids = np.argmax(probs, axis=1)
-	highest_prob_tokens = tokenizer.convert_ids_to_tokens(highest_prob_token_ids)
-	# print (f"highest_prob_tokens.shape: {highest_prob_tokens.shape}")
-
+	try:
+		highest_prob_tokens = tokenizer.convert_ids_to_tokens(highest_prob_token_ids)
+	except KeyError as e:
+		assert args.model_family == 'CADUCEUS', "KeyError: token not found in tokenizer, which is only possible for CADUCEUS models"
+		highest_prob_tokens = []
+		for tok in highest_prob_token_ids:
+			try:
+				highest_prob_tokens.append(tokenizer.convert_ids_to_tokens(tok))
+			except KeyError as e:
+				print (f"token id {tok} not found in tokenizer")
+				highest_prob_tokens.append("P")
+	
 	# check if predictions are correct
 	ground_truth = np.concatenate(ground_truth)
 	assert ground_truth.shape[0] == highest_prob_token_ids.shape[0], "Ground truth and highest probability token ids have different number of sequences"
