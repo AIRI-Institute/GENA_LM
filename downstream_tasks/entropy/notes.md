@@ -16,6 +16,14 @@ python3 process_h5_predictions.py --h5_path data/decoder-models/minja_human_chr2
 
 ```
 
+1.1. Convert to 1-bp annotations:
+```
+cat data/experiments_list.txt | grep -v 1bp | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21|' | while read -r line; do echo "processing $line"; python is_correct2base-pair-resolution.py --prefix $line --genome ../expression_prediction/datasets/data/genomes/hg38/hg38.fa; done
+
+cat data/experiments_list.txt | grep 1bp | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct|' | while read -r line; do cat $line.bedgraph | gzip > ${line}_bp.bedgraph.gz; done
+
+```
+
 2. Create accessible regions file (intersection of all predictions)
 
 ```bash
@@ -42,7 +50,7 @@ fetch_annotations.sh
 
 # for all experiments from experiments_list.txt:
 
-python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 30
+python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 30
 
 # example for 2 files:
 python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs data/gena-lm_chr21_is_correct.bedgraph data/modgena-base-ep30-ba90700_chr21_is_correct.bedgraph --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 4
