@@ -38,14 +38,14 @@ from downstream_tasks.expression_prediction.expression_dataset import worker_ini
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions, mean_and_residuals_correlation
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
-def set_global_seed(seed: int):
-    if seed is None:
-        return
-    print(f"Setting global seed to {seed}")
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+# def set_global_seed(seed: int):
+#     if seed is None:
+#         return
+#     print(f"Setting global seed to {seed}")
+#     random.seed(seed)
+#     np.random.seed(seed)
+#     torch.manual_seed(seed)
+#     torch.cuda.manual_seed_all(seed)
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
@@ -301,7 +301,7 @@ def main():
                 alogger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k, v)
 
-    set_global_seed(args.seed)
+    # set_global_seed(args.seed)
 
     if args.resume is not None:
         alogger.warning(
@@ -619,11 +619,10 @@ def main():
         reduce_dims = (0, 1)
 
         data = {}
-
-        loss_components = ['cls_loss', 'other_loss']
-        for loss_component in loss_components:
-            if f'loss_{loss_component}' in output and output[f'loss_{loss_component}'] is not None:
-                data[f'loss_{loss_component}'] = output[f'loss_{loss_component}'].detach().cpu()
+        
+        for k in ["cls_loss", "other_loss"]:
+            if k in output and output[k] is not None:
+                data[k] = output[k].detach().cpu()
 
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
         mask_idx = mask.nonzero(as_tuple=True)[0].tolist()
@@ -638,12 +637,9 @@ def main():
     def make_metrics_fn(model_path, save_predictions=False):
         def metrics_fn(data):
             metrics = {}
-
-            loss_components = ['cls_loss', 'other_loss']
-            for loss_component in loss_components:
-                if f'loss_{loss_component}' in data and data[f'loss_{loss_component}'] is not None:
-                    metrics[f'loss_{loss_component}'] = torch.mean(data[f'loss_{loss_component}']).item()
-
+            for k in ["cls_loss", "other_loss"]:
+                if k in data and data[k] is not None:
+                    metrics[k] = torch.mean(data[k]).item()
             tpm_true = data['tpm_true']
             tpm_preds = data['tpm_preds']
             gene_id = data['gene_id']

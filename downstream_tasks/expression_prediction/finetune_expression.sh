@@ -14,12 +14,12 @@ export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:$LD_LIBRARY_PATH"
 
 #  --multi_gpu \
 
-TBS=64
-BS=8
+TBS=1000
+BS=5
 NP=8
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="v1_qnorm_large_description_qwen_modernbert_1024"
+config_name="final"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29516 \

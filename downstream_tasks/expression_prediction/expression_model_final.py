@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
-# hf_logging.set_verbosity_info()
+hf_logging.set_verbosity_info()
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -52,16 +52,16 @@ class ExpressionCounts(nn.Module):
         if hf:
             if "modernbert" in hf_model_name.lower():
                 print(f"Using ModernBERT from {hf_model_name}")
-                self.bert  = ModernBertModel.from_pretrained(
+                self.bert, info  = ModernBertModel.from_pretrained(
                 hf_model_name,
                 trust_remote_code=True,
-                torch_dtype=torch.bfloat16,
-                attn_implementation="flash_attention_2"
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
             )
                 config = self.bert.config
-                # print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
-                # print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
-                # print("mismatched:", info.get("mismatched_keys", [])[:5])
+                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+                print("mismatched:", info.get("mismatched_keys", [])[:5])
             else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
@@ -93,6 +93,68 @@ class ExpressionCounts(nn.Module):
         self.desc_model_name = desc_model_name
         self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
 
+        for p in self.desc_model.parameters():
+            p.requires_grad = False
+
+        backbone = getattr(self.desc_model, "model", None)
+        if backbone is None:
+            backbone = self.desc_model
+
+        layers = getattr(backbone, "layers", None)
+        if layers is None:
+            raise RuntimeError("Не нашёл слои у desc_model (ожидал .model.layers). Проверь архитектуру модели.")
+
+        #unfreeze last 4 blocks
+        k = 4
+        k = min(k, len(layers)) 
+
+        for block in layers[-k:]:
+            for p in block.parameters():
+                p.requires_grad = True
+
+        if hasattr(backbone, "norm") and backbone.norm is not None:
+            for p in backbone.norm.parameters():
+                p.requires_grad = True
+
+        for block in layers[:-k]:
+            block.eval()
+        for block in layers[-k:]:
+            block.train()
+
+        if hasattr(backbone, "norm") and backbone.norm is not None:
+            backbone.norm.train()
+
+        def _is_main_process():
+            return (not torch.distributed.is_available()
+                    or not torch.distributed.is_initialized()
+                    or torch.distributed.get_rank() == 0)
+
+        if _is_main_process():
+            unfrozen_blocks = []
+            for i, block in enumerate(layers):
+                if any(p.requires_grad for p in block.parameters()):
+                    unfrozen_blocks.append(i)
+
+            print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
+
+            if hasattr(backbone, "norm") and backbone.norm is not None:
+                norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
+                norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
+                print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
+            else:
+                print("[desc_model] backbone.norm: not found")
+
+            total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
+            total_params = sum(p.numel() for p in self.desc_model.parameters())
+            print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
+
+            names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
+            print(f"[desc_model] trainable tensors: {len(names)}")
+            for n in names[:30]:
+                print("  -", n)
+            if len(names) > 30:
+                print(f"  - ... (+{len(names)-30} more)")
+
         # 3) Проекция, если размерности не совпадают
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
@@ -101,34 +163,18 @@ class ExpressionCounts(nn.Module):
         else:
             self.desc_proj = nn.Identity()
 
-        # self.fuse_gate = nn.Sequential(
-        #                     nn.Linear(2 * self.gen_hidden_size, self.gen_hidden_size),
-        #                     nn.Sigmoid())
-
         # 4) Decoder
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=config.hidden_size,
-            nhead=nhead,
-            dim_feedforward=hidden_ff,
-            dtype=torch.bfloat16,  
-            device="cuda",  
-            batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
+        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        self.decoder, info2 = ModernBertModel.from_pretrained(
+                hf_model_name_decoder,
+                trust_remote_code=True,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
+            )
+        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        print("mismatched:", info2.get("mismatched_keys", [])[:5])
 
-        # print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        # self.decoder = ModernBertModel.from_pretrained(
-        #         hf_model_name_decoder,
-        #         trust_remote_code=True,
-        #         torch_dtype=torch.bfloat16,
-        #         attn_implementation="flash_attention_2"
-        #     )
-        # print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-        # print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-        # print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
-        # 5) Classifier
-        self.classifier = nn.Linear(config.hidden_size, 1)
 
         # 6) Loss
         self.activation = activation
@@ -139,17 +185,13 @@ class ExpressionCounts(nn.Module):
         device = next(self.bert.parameters()).device
 
         self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
-        # self.fuse_gate = nn.Sequential(
-        #     nn.Linear(2 * self.gen_hidden_size, self.gen_hidden_size, device=device, dtype=dtype),
-        #     nn.Sigmoid()
-        # )
-        
-        # self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
 
-        # if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
-        #     self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        # 5) Classifier
+        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
 
-        self.classifier = nn.Linear(config.hidden_size, 1, device=device, dtype=dtype)
+        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+
 
     def forward(
         self,
@@ -269,24 +311,20 @@ class ExpressionCounts(nn.Module):
 
 
         sequence_output = sequence_output.contiguous()
-        sequence_output[:, 0, :] = sequence_output[:, 0, :] + desc_output
-
-        # sequence_output = sequence_output.contiguous()
-        # sequence_output = sequence_output + desc_output[:, None, :]
-        # desc_tok = desc_output[:, None, :].expand_as(sequence_output)  # (B*N, L, H)
-        # gate = self.fuse_gate(torch.cat([sequence_output, desc_tok], dim=-1))  # (B*N, L, H) в [0..1]
-        # sequence_output = sequence_output + gate * desc_tok
+        if attention_mask is not None:
+            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+        else:
+            sequence_output = sequence_output + desc_output[:, None, :]
 
 
         # 4) Decoder
-        decoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
-        # dec_out = self.decoder(
-        #     inputs_embeds=sequence_output,        # (B*N, L, H)
-        #     attention_mask=attention_mask,        # (B*N, L)
-        #     return_dict=True,
-        # )
+        dec_out = self.decoder(
+            inputs_embeds=sequence_output,        # (B*N, L, H)
+            attention_mask=attention_mask,        # (B*N, L)
+            return_dict=True,
+        )
 
-        # decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
         logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
 
 

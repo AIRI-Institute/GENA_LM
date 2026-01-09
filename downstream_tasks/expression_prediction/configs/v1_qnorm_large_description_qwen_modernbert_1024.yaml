@@ -1,4 +1,4 @@
-TASK_NAME: expression/description/final_1024_all_tokens
+TASK_NAME: expression/description/modernbert_cls_length8_dp0.1
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -73,7 +73,7 @@ model_kwargs:
   _target_: builtins.dict 
   hf: True
   hf_model_name: "${HOME_PATH}/models/modernbert_large"
-  hf_model_name_decoder: "${HOME_PATH}/models/decoder6l"
+  hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   
   loss_fct:
@@ -107,6 +107,7 @@ train_dataset_mouse:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
   tpm: CPM
   num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform       
     pseudocount: 1
@@ -120,6 +121,7 @@ train_dataset_human:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"  
   tpm: csv
   num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:    
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -131,7 +133,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw:
   targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_description/multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw.csv
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000317375.1/GCF_000317375.1.fa"
   tpm: tpm
-  num_before: 512 
+  num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:    
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -144,6 +147,7 @@ train_dataset_multi_species_rna_geo_artem_GCF_037993035.2_tpm_bw:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_037993035.2/GCF_037993035.2.fa"
   tpm: tpm
   num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:    
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -155,7 +159,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw:
   targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_description/multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw.csv
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_002263795.3/GCF_002263795.3.fa"
   tpm: tpm
-  num_before: 512 
+  num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:    
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -167,7 +172,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw:
   targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem_description/multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw.csv
   tpm: tpm
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_036323735.1/GCF_036323735.1.fa"
-  num_before: 512 
+  num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm:    
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -208,6 +214,7 @@ valid_dataset_mouse:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa" 
   tpm: CPM
   num_before: 512
+  token_len_for_fetch: 8
   transform_targets_tpm: 
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
     pseudocount: 1
@@ -221,6 +228,7 @@ valid_dataset_human:
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
   tpm: csv
   num_before: 512 
+  token_len_for_fetch: 8
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1

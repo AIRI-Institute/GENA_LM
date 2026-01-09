@@ -1,4 +1,4 @@
-TASK_NAME: expression/final
+TASK_NAME: expression/model_expression
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -29,15 +29,15 @@ args_params:
 
   seed: 45
 
-  num_warmup_steps: 5000
+  num_warmup_steps: 1000
 
-  log_interval: 100
+  log_interval: 50
 
-  valid_interval: 100
+  valid_interval: 50
 
   save_best: True
 
-  save_interval: 5000
+  save_interval: 2500
 
   optimize_metric: "score_predictions_Expression_dataset_v1_mm10_CPM dataset"
 
@@ -71,7 +71,7 @@ model_kwargs:
   _target_: builtins.dict 
   hf: True
   hf_model_name: "${HOME_PATH}/models/modernbert_large"
-  hf_model_name_decoder: "${HOME_PATH}/models/decoder6l"
+  hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   
   loss_fct:
@@ -84,7 +84,7 @@ model_kwargs:
   config:
     _target_: builtins.dict
 
-  weight: 10
+  weight: 8
 
 # shared dataset parameters
 shared_dataset_params:
@@ -807,73 +807,73 @@ train_dataset_multi_species_rna_sra_artem_GCF_902686445.1_tpm_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1  
 
-# train_dataset_multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw:
-#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_903995435.1/GCF_903995435.1.fa"
-#   targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw.csv
+train_dataset_multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_903995435.1/GCF_903995435.1.fa"
+  targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw.csv
 
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_903995435.1/GCF_903995435.1.train.forward.tsv"
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_903995435.1/GCF_903995435.1.train.reverse.tsv"
-#   tpm: tpm
-  # num_before: 512 
-  # transform_targets_tpm:   
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-  #   pseudocount: 1
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_903995435.1/GCF_903995435.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_903995435.1/GCF_903995435.1.train.reverse.tsv"
+  tpm: tpm
+  num_before: 512 
+  transform_targets_tpm:   
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    pseudocount: 1
   
 
-# train_dataset_multi_species_rna_sra_artem_GCF_910594005.1_tpm_bw:
-#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_910594005.1/GCF_910594005.1.fa"
-#   targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_910594005.1_tpm_bw.csv
+train_dataset_multi_species_rna_sra_artem_GCF_910594005.1_tpm_bw:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_910594005.1/GCF_910594005.1.fa"
+  targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_910594005.1_tpm_bw.csv
 
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_910594005.1/GCF_910594005.1.train.forward.tsv"
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_910594005.1/GCF_910594005.1.train.reverse.tsv"
-#   tpm: tpm
-  # num_before: 512 
-  # transform_targets_tpm:   
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-  #   pseudocount: 1
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_910594005.1/GCF_910594005.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_910594005.1/GCF_910594005.1.train.reverse.tsv"
+  tpm: tpm
+  num_before: 512 
+  transform_targets_tpm:   
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    pseudocount: 1
   
 
-# train_dataset_multi_species_rna_sra_artem_GCF_949987515.2_tpm_bw:
-#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_949987515.2/GCF_949987515.2.fa"
-#   targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_949987515.2_tpm_bw.csv
+train_dataset_multi_species_rna_sra_artem_GCF_949987515.2_tpm_bw:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_949987515.2/GCF_949987515.2.fa"
+  targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_949987515.2_tpm_bw.csv
 
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987515.2/GCF_949987515.2.train.forward.tsv"
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987515.2/GCF_949987515.2.train.reverse.tsv"
-#   tpm: tpm
-  # num_before: 512 
-  # transform_targets_tpm:   
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-  #   pseudocount: 1
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987515.2/GCF_949987515.2.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987515.2/GCF_949987515.2.train.reverse.tsv"
+  tpm: tpm
+  num_before: 512 
+  transform_targets_tpm:   
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    pseudocount: 1
   
 
-# train_dataset_multi_species_rna_sra_artem_GCF_949987535.1_tpm_bw:
-#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_949987535.1/GCF_949987535.1.fa"
-#   targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_949987535.1_tpm_bw.csv
+train_dataset_multi_species_rna_sra_artem_GCF_949987535.1_tpm_bw:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_949987535.1/GCF_949987535.1.fa"
+  targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_949987535.1_tpm_bw.csv
 
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987535.1/GCF_949987535.1.train.forward.tsv"
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987535.1/GCF_949987535.1.train.reverse.tsv"
-#   tpm: tpm
-  # num_before: 512 
-  # transform_targets_tpm:   
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-  #   pseudocount: 1  
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987535.1/GCF_949987535.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_949987535.1/GCF_949987535.1.train.reverse.tsv"
+  tpm: tpm
+  num_before: 512 
+  transform_targets_tpm:   
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    pseudocount: 1  
 
-# train_dataset_multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw:
-#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_963930625.1/GCF_963930625.1.fa"
-#   targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw.csv
+train_dataset_multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_963930625.1/GCF_963930625.1.fa"
+  targets_path: /home/mburtsev/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_sra_artem/file_mappings_multi_species_rna_sra_artem/multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw.csv
 
-#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_963930625.1/GCF_963930625.1.train.forward.tsv"
-#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_963930625.1/GCF_963930625.1.train.reverse.tsv"
-#   tpm: tpm
-  # num_before: 512 
-  # transform_targets_tpm:   
-  #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-  #   pseudocount: 1
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_963930625.1/GCF_963930625.1.train.forward.tsv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_963930625.1/GCF_963930625.1.train.reverse.tsv"
+  tpm: tpm
+  num_before: 512 
+  transform_targets_tpm:   
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    pseudocount: 1
     
 #multi_species_geo
 train_dataset_multi_species_rna_geo_artem_GCF_000003025.6_tpm_bw:
