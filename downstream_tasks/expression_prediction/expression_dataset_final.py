@@ -13,7 +13,7 @@ import hashlib
 
 import logging
 from pysam import FastaFile
-import gc
+import re
 import h5py
 import tqdm
 import sys
@@ -556,12 +556,12 @@ class ExpressionDataset(Dataset):
                 raise ValueError(f"Metadata file not found for id '{description_id}': {full_metadata_path}")
             with open(full_metadata_path, "r", encoding="utf-8") as f:
                 meta = json.load(f)
-            desc = self.make_description_from_json(meta, description_id, full_metadata_path)
+            desc = ExpressionDataset.make_description_from_json(meta, description_id, full_metadata_path)
             self.text_data[description_id] = desc
         self.text_data_keys = set(self.text_data.keys())
 
-    def make_description_from_json(self, meta, description_id, meta_path):
-        import re
+    @staticmethod
+    def make_description_from_json(meta, description_id, meta_path):
         if not meta or not isinstance(meta, dict) or len(meta) == 0:
             raise ValueError(f"No description data in metadata for id '{description_id}', file: {meta_path}")
         line_texts = []
@@ -687,7 +687,7 @@ class ExpressionDataset(Dataset):
         desc_input_ids = []
         desc_attention_mask = []
         for key in selected_keys:
-            grp = self.desc_h5_cache[str(key)]
+            grp = self.desc_h5_cadesc_h5_cacheche[str(key)]
             ids = torch.tensor(grp["input_ids"][()], dtype=torch.long)      
             mask = torch.tensor(grp["attention_mask"][()], dtype=torch.long) 
             desc_input_ids.append(ids)

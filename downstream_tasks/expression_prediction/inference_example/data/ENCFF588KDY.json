@@ -1,0 +1,12 @@
+{
+    "assay_term_name": "polyA plus RNA-seq",
+    "description": "RNA-seq on human HepG2 (paired-ended)",
+    "biosample_summary": "Homo sapiens HepG2",
+    "life_stage_age": "child 15 years",
+    "perturbed": false,
+    "strand_specificity": "forward",
+    "genome_annotation": "V29",
+    "mapped_run_type": "single-ended",
+    "id": "ENCFF588KDY",
+    "genome": "GRCh38"
+}
