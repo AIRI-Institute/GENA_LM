@@ -1,0 +1,12 @@
+{
+    "assay_term_name": "polyA plus RNA-seq",
+    "description": "PolyA RNA-Seq from oligo-dT primed Total RNA on the K562 cell line",
+    "biosample_summary": "Homo sapiens K562",
+    "life_stage_age": "adult 53 years",
+    "perturbed": false,
+    "strand_specificity": "unstranded",
+    "genome_annotation": "V29",
+    "mapped_run_type": "paired-ended",
+    "id": "ENCFF578UUD",
+    "genome": "GRCh38"
+}
