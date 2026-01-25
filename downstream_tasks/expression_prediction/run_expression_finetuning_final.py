@@ -271,6 +271,7 @@ def main():
         mixed_precision="bf16",
         kwargs_handlers=[ddp_kwargs]
     )
+    #  mixed_precision="bf16",
     alogger = get_logger(__name__) 
    # alogger = get_logger('')  # accelerate logger (привязан к процессу)
     alogger.info(f'num processes: {accelerator.num_processes}')

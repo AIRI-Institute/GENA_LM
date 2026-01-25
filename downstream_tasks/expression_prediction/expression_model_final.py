@@ -148,10 +148,6 @@ class ExpressionCounts(nn.Module):
             total_params = sum(p.numel() for p in self.desc_model.parameters())
             print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
 
-            names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
-            print(f"[desc_model] trainable tensors: {len(names)}")
-            for n in names[:30]:
-                print("  -", n)
             if len(names) > 30:
                 print(f"  - ... (+{len(names)-30} more)")
 
@@ -174,7 +170,6 @@ class ExpressionCounts(nn.Module):
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
 
         # 6) Loss
         self.activation = activation
@@ -323,10 +318,9 @@ class ExpressionCounts(nn.Module):
             attention_mask=attention_mask,        # (B*N, L)
             return_dict=True,
         )
-
         decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
-        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
 
+        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
 
         # 5) Loss
         loss = None

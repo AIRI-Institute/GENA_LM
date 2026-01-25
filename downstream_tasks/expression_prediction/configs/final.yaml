@@ -1,4 +1,4 @@
-TASK_NAME: expression/model_expression
+TASK_NAME: expression/final
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
