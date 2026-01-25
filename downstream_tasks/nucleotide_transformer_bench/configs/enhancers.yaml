@@ -1,0 +1,50 @@
+# downstream_tasks/nucleotide_transformer_downstream_tasks/configs/H3K14ac.yaml
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+
+args_params:
+  _target_: builtins.dict
+
+
+  # Task
+  task_name: "enhancers"
+  cls_num: 2
+  n_folds: 10
+  stratified: True
+  seed: 42
+
+  hf_model_name: "${HOME_PATH}/models/moderngena_base"
+  attn_implementation: "sdpa"
+
+  tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+     # Data
+  input_seq_len: 1024
+  data_n_workers: 2
+
+  # Train
+  iters: 1000000
+  batch_size: 32
+  gradient_accumulation_steps: 1
+
+  lr: 3e-5
+  lr_scheduler: linear
+  num_warmup_steps: 1000
+
+  optimizer: AdamW
+  weight_decay: 1e-4
+
+  reset_lr: True
+  reset_optimizer: True
+  reset_iteration: True
+
+  optimize_metric: mcc
+  optimize_mode: max
+  save_best: True
+
+  early_stopping_patience: 50
+
+  log_interval: 10
+  valid_interval: 10
+
+  validate_only: False
