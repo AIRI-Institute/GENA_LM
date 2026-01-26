@@ -110,7 +110,7 @@ shared_dataset_params:
 train_dataset_random_borzoi_GCF_000001405.40:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000001405.40/GCF_000001405.40.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_000001405.40.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_000001405.40.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000001405.40/GCF_000001405.40.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000001405.40/GCF_000001405.40.train.reverse.tsv"
@@ -121,7 +121,7 @@ train_dataset_random_borzoi_GCF_000001405.40:
 train_dataset_random_borzoi_GCF_000001635.27:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000001635.27/GCF_000001635.27.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_000001635.27.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_000001635.27.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000001635.27/GCF_000001635.27.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000001635.27/GCF_000001635.27.train.reverse.tsv"
@@ -132,7 +132,7 @@ train_dataset_random_borzoi_GCF_000001635.27:
 train_dataset_random_borzoi_GCF_000003025.6:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000003025.6/GCF_000003025.6.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_000003025.6.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_000003025.6.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000003025.6/GCF_000003025.6.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_000003025.6/GCF_000003025.6.train.reverse.tsv"
@@ -143,7 +143,7 @@ train_dataset_random_borzoi_GCF_000003025.6:
 train_dataset_random_borzoi_GCF_002263795.3:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_002263795.3/GCF_002263795.3.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_002263795.3.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_002263795.3.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002263795.3/GCF_002263795.3.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_002263795.3/GCF_002263795.3.train.reverse.tsv"
@@ -154,18 +154,18 @@ train_dataset_random_borzoi_GCF_002263795.3:
 train_dataset_random_borzoi_GCF_011100685.1:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_011100685.1/GCF_011100685.1.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_011100685.1.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_011100685.1.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100685.1/GCF_011100685.1.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_011100685.1/GCF_011100685.1.train.reverse.tsv"
   tpm: tpm
-  desc_embedding_dim: 1024  # Dimension of your embeddings
+  desc_embedding_dim: 768  # Dimension of your embeddings
   use_cached_embeddings: True  # Enable HDF5 caching for faster access
 
 train_dataset_random_borzoi_GCF_016772045.2:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_016772045.2/GCF_016772045.2.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_016772045.2.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_016772045.2.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016772045.2/GCF_016772045.2.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_016772045.2/GCF_016772045.2.train.reverse.tsv"
@@ -176,7 +176,7 @@ train_dataset_random_borzoi_GCF_016772045.2:
 train_dataset_random_borzoi_GCF_036323735.1:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_036323735.1/GCF_036323735.1.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_036323735.1.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_036323735.1.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_036323735.1/GCF_036323735.1.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_036323735.1/GCF_036323735.1.train.reverse.tsv"
@@ -187,7 +187,7 @@ train_dataset_random_borzoi_GCF_036323735.1:
 train_dataset_random_borzoi_GCF_041296265.1:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_041296265.1/GCF_041296265.1.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_041296265.1.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_041296265.1.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_041296265.1/GCF_041296265.1.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_041296265.1/GCF_041296265.1.train.reverse.tsv"
@@ -198,7 +198,7 @@ train_dataset_random_borzoi_GCF_041296265.1:
 train_dataset_random_borzoi_GCF_049350105.2:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_049350105.2/GCF_049350105.2.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_049350105.2.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_049350105.2.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_049350105.2/GCF_049350105.2.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_049350105.2/GCF_049350105.2.train.reverse.tsv"
@@ -209,7 +209,7 @@ train_dataset_random_borzoi_GCF_049350105.2:
 train_dataset_random_borzoi_GCF_964237555.1:
   _target_: downstream_tasks.expression_prediction.expression_dataset_fr_embed.ExpressionDataset
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_964237555.1/GCF_964237555.1.fa"
-  targets_path: /beegfs/scratch/ws/ws1/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/intervals/random_borzoi/file_mappings/random_borzoi_GCF_964237555.1.csv
+  targets_path: /scratch/tsoies-Expression/GENA_LM/downstream_tasks/expression_prediction/datasets/data/random_borzoi_GCF_964237555.1.csv
   desc_embeddings_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/multi_species_rna_geo_artem.pkl"
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.forward.tsv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.reverse.tsv"
