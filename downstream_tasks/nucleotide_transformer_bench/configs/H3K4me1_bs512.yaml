@@ -1,0 +1,53 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+args_params:
+  _target_: builtins.dict
+
+  # Task
+  task_name: H3K4me1
+  cls_num: 2
+  n_folds: 10
+  stratified: True
+  seed: 42
+
+  hf_model_name: "${HOME_PATH}/models/moderngena_base"
+  attn_implementation: "sdpa"
+
+  tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+  # Data
+  input_seq_len: 1024
+  data_n_workers: 2
+
+  # Train
+  # ~27000/512 ≈ 53 updates per epoch (effective). 40 epochs ≈ 2120 updates.
+  iters: 2500
+
+  # effective batch = 512
+  batch_size: 256
+  gradient_accumulation_steps: 2
+
+  # With larger batch, slightly higher LR + cosine usually works better
+  lr: 2e-5
+  lr_scheduler: cosine
+  num_warmup_steps: 125   # ~5% от 2500
+
+  optimizer: AdamW
+  weight_decay: 0.01
+
+  reset_lr: True
+  reset_optimizer: True
+  reset_iteration: True
+
+  optimize_metric: mcc
+  optimize_mode: max
+  save_best: True
+
+  # validate примерно раз в эпоху (≈53 updates/epoch)
+  valid_interval: 25
+  log_interval: 25
+
+  # patience в "валидациях" => ~10 эпох без улучшений
+  early_stopping_patience: 20
+
+  validate_only: False

@@ -1,0 +1,39 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+args_params:
+  _target_: builtins.dict
+
+  # Task
+  task_name: H3K36me3
+  cls_num: 2
+  n_folds: 10
+  stratified: True
+  seed: 42
+
+  hf_model_name: "${HOME_PATH}/models/moderngena_base"
+  attn_implementation: "flash_attention_2"
+  tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
+
+  # Data
+  input_seq_len: 1024
+  data_n_workers: 1
+
+  # Train
+  iters: 20000
+  batch_size: 32
+  gradient_accumulation_steps: 1
+  lr: 1e-5
+  lr_scheduler: cosine
+  num_warmup_steps: 1000   
+  optimizer: AdamW
+  weight_decay: 0.0001
+  reset_lr: True
+  reset_optimizer: True
+  reset_iteration: True
+  optimize_metric: mcc
+  optimize_mode: max
+  save_best: True
+  valid_interval: 30
+  log_interval: 30
+  early_stopping_patience: 25
+  validate_only: False

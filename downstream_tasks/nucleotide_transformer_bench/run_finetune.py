@@ -109,7 +109,15 @@ if __name__ == "__main__":
         print(f"[auto] model_path = {args.model_path}")
 
     # Accelerate
-    accelerator = Accelerator()
+    accelerator = Accelerator(
+    gradient_accumulation_steps=args.gradient_accumulation_steps,
+    mixed_precision="bf16",  # или "fp16"
+    )
+
+    if accelerator.is_main_process:
+        print("accelerator.mixed_precision =", accelerator.mixed_precision)
+        print("accelerator.state.mixed_precision =", accelerator.state.mixed_precision)
+
     rank = accelerator.process_index
     world_size = accelerator.num_processes
 
