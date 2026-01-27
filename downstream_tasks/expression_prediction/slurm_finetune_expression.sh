@@ -25,7 +25,7 @@ config_name="config_random_borzoi"
 
 GENALM_HOME=$(realpath ..)
 
-srun -c 10 --mem 50G --time 30-0 -p gpu_A100 --gres gpu:1 accelerate launch \
+srun -c 10 --mem 200G --time 30-0 -p gpu_A100 --gres gpu:1 accelerate launch \
   --main_process_port 29516 \
   --num_processes "$NP" \
   --module downstream_tasks.expression_prediction.run_expression_finetuning_fr_embed \

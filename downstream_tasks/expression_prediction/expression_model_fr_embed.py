@@ -165,7 +165,7 @@ class ExpressionCounts(nn.Module):
         activation: nn.Module = nn.Identity(),
         nhead: int = 8,
         weight: float = 1.0,
-        hidden_size_desc: int = 1024,
+        hidden_size_desc: int = 768,
         bert_checkpoint: Optional[str] = None,
         use_hf_dna_model: bool = False,
         hf_dna_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
@@ -180,6 +180,7 @@ class ExpressionCounts(nn.Module):
         self.use_frozen_embeds = use_frozen_embeds
         self.weight = weight
         
+        self.config = config
         # ===== 1. DNA Sequence Encoder =====
         self.dna_encoder = self._init_dna_encoder(
             config=config,
@@ -288,9 +289,9 @@ class ExpressionCounts(nn.Module):
             
             config = hf_config
         else:
-            if config is None:
-                raise ValueError("Config must be provided when not using HF model")
-            
+            #if config is None:
+            #    raise ValueError("Config must be provided when not using HF model")
+            config = BertConfig.from_pretrained(hf_dna_model_name)
             model = BertModel(config, add_pooling_layer=False)
             
             if bert_checkpoint:
@@ -566,7 +567,7 @@ class ExpressionCounts(nn.Module):
                     loss = self.weight * other_loss
         
         # ===== 8. Return outputs =====
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = return_dict if return_dict is not None else True
         
         if not return_dict:
             return (loss, logits)
