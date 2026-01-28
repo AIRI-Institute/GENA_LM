@@ -2,583 +2,398 @@ import torch
 import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional
 from dataclasses import dataclass
-from transformers import AutoModel, BertConfig
-from transformers.utils import cached_file, logging as hf_logging
-from typing import Optional, Dict, List, Tuple, Any
-
-# Set logging verbosity
+from transformers import AutoModel, BertConfig, ModernBertModel
+from transformers.utils import cached_file
+from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
-
-logger = hf_logging.get_logger(__name__)
-
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
-    """Extended output class for expression counting model."""
     labels_reshaped: Optional[torch.FloatTensor] = None
     labels_mask_reshaped: Optional[torch.FloatTensor] = None
     cls_loss: Optional[torch.FloatTensor] = None
     other_loss: Optional[torch.FloatTensor] = None
-
-
-class DescriptionEncoder(nn.Module):
-    """Handles description encoding with optional freezing."""
     
-    def __init__(
-        self,
-        desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
-        unfreeze_last_blocks: int = 4,
-        target_hidden_size: Optional[int] = None,
-        attn_implementation: str = "flash_attention_2",
-        torch_dtype: torch.dtype = torch.bfloat16
-    ):
-        super().__init__()
-        
-        self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(
-            desc_model_name,
-            attn_implementation=attn_implementation,
-            torch_dtype=torch_dtype
-        )
-        
-        # Freeze all parameters initially
-        for param in self.desc_model.parameters():
-            param.requires_grad = False
-        
-        # Unfreeze specified blocks
-        self._unfreeze_blocks(unfreeze_last_blocks)
-        
-        # Projection if dimensions don't match
-        self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.target_hidden_size = target_hidden_size or self.desc_hidden_size
-        
-        if self.desc_hidden_size != self.target_hidden_size:
-            self.desc_proj = nn.Linear(self.desc_hidden_size, self.target_hidden_size)
-        else:
-            self.desc_proj = nn.Identity()
-        
-        self._log_trainable_params()
-    
-    def _unfreeze_blocks(self, unfreeze_last_blocks: int):
-        """Unfreeze the last N transformer blocks."""
-        backbone = getattr(self.desc_model, "model", self.desc_model)
-        layers = getattr(backbone, "layers", getattr(backbone, "encoder", None))
-        
-        if layers is None:
-            raise RuntimeError(
-                f"Could not find transformer layers in {self.desc_model_name}. "
-                f"Expected .model.layers or .encoder.layers"
-            )
-        
-        # Unfreeze last N blocks
-        k = min(unfreeze_last_blocks, len(layers))
-        
-        for block in layers[-k:]:
-            for param in block.parameters():
-                param.requires_grad = True
-        
-        # Unfreeze normalization layer if it exists
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            for param in backbone.norm.parameters():
-                param.requires_grad = True
-        
-        # Set training modes
-        for block in layers[:-k]:
-            block.eval()
-        for block in layers[-k:]:
-            block.train()
-        
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            backbone.norm.train()
-    
-    def _log_trainable_params(self):
-        """Log trainable parameters information."""
-        if torch.distributed.is_initialized() and torch.distributed.get_rank() != 0:
-            return
-        
-        # Find unfrozen blocks
-        backbone = getattr(self.desc_model, "model", self.desc_model)
-        layers = getattr(backbone, "layers", getattr(backbone, "encoder", None))
-        
-        unfrozen_blocks = []
-        if layers is not None:
-            for i, block in enumerate(layers):
-                if any(param.requires_grad for param in block.parameters()):
-                    unfrozen_blocks.append(i)
-        
-        logger.info(f"[DescriptionEncoder] Unfrozen transformer blocks: {unfrozen_blocks}")
-        
-        # Count parameters
-        total_params = sum(param.numel() for param in self.desc_model.parameters())
-        trainable_params = sum(param.numel() for param in self.desc_model.parameters() 
-                              if param.requires_grad)
-        
-        logger.info(f"[DescriptionEncoder] Trainable params: {trainable_params:,} / {total_params:,} "
-                   f"({trainable_params/total_params*100:.1f}%)")
-    
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        desc_vectors: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
-        """Forward pass for description encoder."""
-        if desc_vectors is not None:
-            # Use pre-computed embeddings (frozen embeddings mode)
-            return desc_vectors
-        
-        # Use transformer model
-        outputs = self.desc_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            return_dict=True
-        )
-        
-        # Use last token representation (often used for sentence embeddings)
-        last_hidden_state = outputs.last_hidden_state
-        pooled = last_hidden_state[:, -1, :]  # Shape: (batch_size, hidden_size)
-        
-        # Project if necessary
-        return self.desc_proj(pooled)
-
 
 class ExpressionCounts(nn.Module):
     """
-    Expression counting model with DNA sequence encoder and description encoder.
-    
-    Expected shapes:
+    Ожидаемые формы:
       - input_ids:      (B*N, L)
       - attention_mask: (B*N, L)
-      - desc_vectors:   (B, N, D) or None
-      - dataset_flag:   (B, N) where 1 -> INPUT duplicates, 0 -> DESC duplicates
+      - token_type_ids: (B*N, L) [опционально]
+      - desc_vectors:   (B, N, D)
+      - dataset_flag:   (B, N)   [в блоке из N элементов либо все 1 (дубли INPUTS), либо все 0 (дубли DESC)]
       - labels:         (B*N, L, 1)
       - labels_mask:    (B*N, L, 1)
     """
-    
+
     def __init__(
         self,
-        config: Optional[BertConfig] = None,
-        hf_model_name_decoder: str = "AIRI-Institute/gena-lm-bert-large-t2t",
-        loss_fct: nn.Module = nn.MSELoss(reduction="none"),
-        activation: nn.Module = nn.Identity(),
-        nhead: int = 8,
-        weight: float = 1.0,
-        hidden_size_desc: int = 768,
-        bert_checkpoint: Optional[str] = None,
-        use_hf_dna_model: bool = False,
-        hf_dna_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
-        use_frozen_embeds: bool = True,
+        config,
+        hf_model_name_decoder,
+        loss_fct=nn.MSELoss(reduction="none"),
+        activation = nn.Identity(),
+        num_encoder_layers = 3,
+        nhead = 8,
+        weight = 1,
+        hidden_ff = 1024,
+        bert_cpt = None,
+        hf: bool = False,
+        hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
         desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
-        unfreeze_last_blocks: int = 4,
-        attn_implementation: str = "flash_attention_2",
-        torch_dtype: torch.dtype = torch.bfloat16
+        use_frozen_embeds: bool = True,
+        hidden_size_desc: int = 768,
     ):
         super().__init__()
         
         self.use_frozen_embeds = use_frozen_embeds
-        self.weight = weight
-        
-        self.config = config
-        # ===== 1. DNA Sequence Encoder =====
-        self.dna_encoder = self._init_dna_encoder(
-            config=config,
-            use_hf_dna_model=use_hf_dna_model,
-            hf_dna_model_name=hf_dna_model_name,
-            bert_checkpoint=bert_checkpoint,
-            attn_implementation=attn_implementation,
-            torch_dtype=torch_dtype
-        )
-        
-        # ===== 2. Description Encoder =====
-        if not use_frozen_embeds:
-            self.desc_encoder = DescriptionEncoder(
-                desc_model_name=desc_model_name,
-                unfreeze_last_blocks=unfreeze_last_blocks,
-                target_hidden_size=self.dna_encoder.config.hidden_size,
-                attn_implementation=attn_implementation,
-                torch_dtype=torch_dtype
+
+        updated_state_dict = None
+
+        # 1) DNA model (GENA) 
+        if hf:
+            if "modernbert" in hf_model_name.lower():
+                print(f"Using ModernBERT from {hf_model_name}")
+                self.bert, info  = ModernBertModel.from_pretrained(
+                hf_model_name,
+                trust_remote_code=True,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
             )
-            self.desc_hidden_size = self.desc_encoder.desc_hidden_size
-        else:
-            # Simple MLP for frozen embeddings
-            self.desc_hidden_size = hidden_size_desc
-            self.dna_hidden_size = self.dna_encoder.config.hidden_size
-            
-            self.desc_fc = nn.Sequential(
-                nn.Linear(self.desc_hidden_size, self.dna_hidden_size),
-                nn.LeakyReLU(),
-                nn.Linear(self.dna_hidden_size, self.dna_hidden_size),
-            )
-            
-            # Projection layer to ensure matching dimensions
-            self.desc_proj = nn.Linear(self.dna_hidden_size, self.dna_hidden_size)
-        
-        # ===== 3. Decoder =====
-        self.decoder = self._init_decoder(
-            hf_model_name_decoder=hf_model_name_decoder,
-            attn_implementation=attn_implementation,
-            torch_dtype=torch_dtype
-        )
-        
-        # ===== 4. Classifier =====
-        self.classifier = nn.Linear(
-            self.decoder.config.hidden_size, 
-            1,
-            device=next(self.dna_encoder.parameters()).device,
-            dtype=torch_dtype
-        )
-        
-        # Freeze decoder embeddings if they exist
-        if hasattr(self.decoder, "embeddings"):
-            if hasattr(self.decoder.embeddings, "word_embeddings"):
-                self.decoder.embeddings.word_embeddings.weight.requires_grad_(False)
-            elif hasattr(self.decoder.embeddings, "tok_embeddings"):
-                self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
-        
-        # ===== 5. Loss and Activation =====
-        self.loss_fct = loss_fct
-        self.activation = activation
-    
-    def _init_dna_encoder(
-        self,
-        config: Optional[BertConfig],
-        use_hf_dna_model: bool,
-        hf_dna_model_name: str,
-        bert_checkpoint: Optional[str],
-        attn_implementation: str,
-        torch_dtype: torch.dtype
-    ) -> nn.Module:
-        """Initialize the DNA sequence encoder."""
-        try:
-            # Try to import ModernBertModel
-            from transformers import ModernBertModel
-            if "modernbert" in hf_dna_model_name.lower():
-                logger.info(f"Using ModernBERT from {hf_dna_model_name}")
-                model, info = ModernBertModel.from_pretrained(
-                    hf_dna_model_name,
-                    trust_remote_code=True,
-                    attn_implementation=attn_implementation,
-                    output_loading_info=True,
-                    torch_dtype=torch_dtype
-                )
-                config = model.config
-                self._log_loading_info("DNA Encoder", info)
-                return model
-        except ImportError:
-            pass
-        
-        # Fall back to standard BERT
-        if use_hf_dna_model:
-            hf_config = BertConfig.from_pretrained(hf_dna_model_name)
-            model = BertModel(hf_config, add_pooling_layer=False)
-            
-            # Load weights
-            weights_path = cached_file(hf_dna_model_name, "pytorch_model.bin")
-            state_dict = torch.load(weights_path, map_location="cpu")
-            
-            # Update state dict keys
-            updated_state_dict = {
-                k.replace("bert.", ""): v for k, v in state_dict.items()
-                if k.startswith("bert.")
-            }
-            
-            missing, unexpected = model.load_state_dict(updated_state_dict, strict=False)
-            self._log_missing_unexpected("DNA Encoder", missing, unexpected)
-            
-            config = hf_config
-        else:
-            #if config is None:
-            #    raise ValueError("Config must be provided when not using HF model")
-            config = BertConfig.from_pretrained(hf_dna_model_name)
-            model = BertModel(config, add_pooling_layer=False)
-            
-            if bert_checkpoint:
-                checkpoint = torch.load(bert_checkpoint, map_location="cpu")
-                state_dict = checkpoint.get("model_state_dict", checkpoint)
-                
-                # Update state dict keys
+                config = self.bert.config
+                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+                print("mismatched:", info.get("mismatched_keys", [])[:5])
+            else:
+                hf_config = BertConfig.from_pretrained(hf_model_name)
+                self.bert = BertModel(hf_config, add_pooling_layer=False)
+                weights_path = cached_file(hf_model_name, "pytorch_model.bin")
+                state_dict = torch.load(weights_path, map_location="cpu")
                 updated_state_dict = {
                     k.replace("bert.", ""): v for k, v in state_dict.items()
+                    if k.startswith("bert.")
                 }
-                
-                missing, unexpected = model.load_state_dict(updated_state_dict, strict=False)
-                self._log_missing_unexpected("DNA Encoder", missing, unexpected)
-        
-        return model
-    
-    def _init_decoder(
-        self,
-        hf_model_name_decoder: str,
-        attn_implementation: str,
-        torch_dtype: torch.dtype
-    ) -> nn.Module:
-        """Initialize the decoder."""
-        try:
-            from transformers import ModernBertModel
-            logger.info(f"Using ModernBERT for decoder from {hf_model_name_decoder}")
-            model, info = ModernBertModel.from_pretrained(
+                config = hf_config
+        else:
+            config = BertConfig.from_pretrained(hf_model_name)
+            self.bert = BertModel(config, add_pooling_layer=False)
+            if bert_cpt is not None:
+                checkpoint = torch.load(bert_cpt, map_location="cpu")
+                state_dict = checkpoint["model_state_dict"]
+                updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+                missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+
+        if updated_state_dict is not None:
+            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            if len(missing_k) != 0:
+                print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
+            if len(unexpected_k) != 0:
+                print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
+
+
+        self.config = config
+
+        # 2) Description model (qwen)
+        if not self.use_frozen_embeds:
+            self.desc_model_name = desc_model_name
+            self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+
+            for p in self.desc_model.parameters():
+                p.requires_grad = False
+
+            backbone = getattr(self.desc_model, "model", None)
+            if backbone is None:
+                backbone = self.desc_model
+
+            layers = getattr(backbone, "layers", None)
+            if layers is None:
+                raise RuntimeError("Не нашёл слои у desc_model (ожидал .model.layers). Проверь архитектуру модели.")
+
+            #unfreeze last 4 blocks
+            k = 4
+            k = min(k, len(layers)) 
+
+            for block in layers[-k:]:
+                for p in block.parameters():
+                    p.requires_grad = True
+
+            if hasattr(backbone, "norm") and backbone.norm is not None:
+                for p in backbone.norm.parameters():
+                    p.requires_grad = True
+
+            for block in layers[:-k]:
+                block.eval()
+            for block in layers[-k:]:
+                block.train()
+
+            if hasattr(backbone, "norm") and backbone.norm is not None:
+                backbone.norm.train()
+
+            def _is_main_process():
+                return (not torch.distributed.is_available()
+                        or not torch.distributed.is_initialized()
+                        or torch.distributed.get_rank() == 0)
+
+            if _is_main_process():
+                unfrozen_blocks = []
+                for i, block in enumerate(layers):
+                    if any(p.requires_grad for p in block.parameters()):
+                        unfrozen_blocks.append(i)
+
+                print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
+
+                if hasattr(backbone, "norm") and backbone.norm is not None:
+                    norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
+                    norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
+                    print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
+                else:
+                    print("[desc_model] backbone.norm: not found")
+
+                total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
+                total_params = sum(p.numel() for p in self.desc_model.parameters())
+                print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
+
+                names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
+                print(f"[desc_model] trainable tensors: {len(names)}")
+                for n in names[:30]:
+                    print("  -", n)
+                if len(names) > 30:
+                    print(f"  - ... (+{len(names)-30} more)")
+        else:
+            self.desc_hidden_size = hidden_size_desc
+            self.desc_fc = nn.Sequential(
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                nn.LeakyReLU(),
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+            )
+
+        # 3) Проекция, если размерности не совпадают
+        self.gen_hidden_size = config.hidden_size
+        if not self.use_frozen_embeds:
+            self.desc_hidden_size = self.desc_model.config.hidden_size
+            if self.desc_hidden_size != self.gen_hidden_size:
+                self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+            else:
+                self.desc_proj = nn.Identity()
+        else:
+            self.desc_proj = nn.Linear(self.desc_hidden_size, config.hidden_size)
+
+        # 4) Decoder
+        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
-                attn_implementation=attn_implementation,
-                output_loading_info=True,
-                torch_dtype=torch_dtype
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
             )
-            self._log_loading_info("Decoder", info)
-            return model
-        except ImportError:
-            # Fall back to standard BERT
-            logger.info(f"Using standard BERT for decoder from {hf_model_name_decoder}")
-            model = AutoModel.from_pretrained(
-                hf_model_name_decoder,
-                attn_implementation=attn_implementation,
-                torch_dtype=torch_dtype
-            )
-            return model
-    
-    def _log_loading_info(self, component: str, info: Dict[str, Any]):
-        """Log model loading information."""
-        logger.info(f"[{component}] Missing keys: {len(info.get('missing_keys', []))}")
-        if info.get('missing_keys'):
-            logger.info(f"  First 10: {info['missing_keys'][:10]}")
-        
-        logger.info(f"[{component}] Unexpected keys: {len(info.get('unexpected_keys', []))}")
-        if info.get('unexpected_keys'):
-            logger.info(f"  First 10: {info['unexpected_keys'][:10]}")
-        
-        logger.info(f"[{component}] Mismatched keys: {len(info.get('mismatched_keys', []))}")
-        if info.get('mismatched_keys'):
-            logger.info(f"  First 5: {info['mismatched_keys'][:5]}")
-    
-    def _log_missing_unexpected(self, component: str, missing: list, unexpected: list):
-        """Log missing and unexpected keys."""
-        if missing:
-            logger.warning(f"[{component}] Missing keys: {len(missing)}")
-            logger.warning(f"  First 10: {missing[:10]}")
-        if unexpected:
-            logger.warning(f"[{component}] Unexpected keys: {len(unexpected)}")
-            logger.warning(f"  First 10: {unexpected[:10]}")
-    
-    def _compute_unique_indices(
-        self, 
-        dataset_flag: torch.Tensor,
-        device: torch.device
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Compute indices for unique DNA sequences and descriptions.
-        
-        Args:
-            dataset_flag: (B, N) tensor where 1 -> INPUT duplicates, 0 -> DESC duplicates
-        
-        Returns:
-            Tuple of (unique_dna_idx, unique_desc_idx, dna_mapping, desc_mapping)
-        """
-        B, N = dataset_flag.shape
-        BxN = B * N
-        
-        # Create index grid
-        idx_all = torch.arange(BxN, device=device)
-        idx_grid = idx_all.view(B, N)
-        
-        # ===== DNA indices (unique sequences) =====
-        # When dataset_flag == 1 (INPUT duplicates), all N sequences in that batch are the same
-        # We need to deduplicate based on the flag
-        flag = dataset_flag.bool()
-        
-        # Get indices for unique DNA sequences
-        unique_dna_indices = []
-        dna_mapping = torch.zeros(BxN, dtype=torch.long, device=device)
-        
-        current_unique_idx = 0
-        for b in range(B):
-            if flag[b, 0]:  # INPUT duplicates - all N are the same
-                # First one is unique
-                unique_dna_indices.append(idx_grid[b, 0])
-                # Map all N to the same unique index
-                dna_mapping[idx_grid[b]] = current_unique_idx
-                current_unique_idx += 1
-            else:  # DESC duplicates - each is unique (different descriptions)
-                for n in range(N):
-                    unique_dna_indices.append(idx_grid[b, n])
-                    dna_mapping[idx_grid[b, n]] = current_unique_idx
-                    current_unique_idx += 1
-        
-        unique_dna_idx = torch.tensor(unique_dna_indices, device=device)
-        
-        # ===== Description indices (unique descriptions) =====
-        # When dataset_flag == 0 (DESC duplicates), all N descriptions in that batch are the same
-        unique_desc_indices = []
-        desc_mapping = torch.zeros(BxN, dtype=torch.long, device=device)
-        
-        current_unique_idx = 0
-        for b in range(B):
-            if not flag[b, 0]:  # DESC duplicates - all N descriptions are the same
-                # First one is unique
-                unique_desc_indices.append(idx_grid[b, 0])
-                # Map all N to the same unique index
-                desc_mapping[idx_grid[b]] = current_unique_idx
-                current_unique_idx += 1
-            else:  # INPUT duplicates - each description is unique
-                for n in range(N):
-                    unique_desc_indices.append(idx_grid[b, n])
-                    desc_mapping[idx_grid[b, n]] = current_unique_idx
-                    current_unique_idx += 1
-        
-        unique_desc_idx = torch.tensor(unique_desc_indices, device=device)
-        
-        return unique_dna_idx, unique_desc_idx, dna_mapping, desc_mapping
-    
+        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        print("mismatched:", info2.get("mismatched_keys", [])[:5])
+
+
+        # 6) Loss
+        self.activation = activation
+        self.loss_fct = loss_fct
+        self.weight = weight
+
+        dtype = next(self.bert.parameters()).dtype
+        device = next(self.bert.parameters()).device
+
+        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+
+        # 5) Classifier
+        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+
+        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+
+
     def forward(
         self,
-        input_ids: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        labels_mask: Optional[torch.Tensor] = None,
-        labels: Optional[torch.Tensor] = None,
-        return_dict: Optional[bool] = None,
-        desc_input_ids: Optional[torch.Tensor] = None,
-        desc_attention_mask: Optional[torch.Tensor] = None,
-        desc_vectors: Optional[torch.Tensor] = None,
-        dataset_flag: Optional[torch.Tensor] = None,
-    ) -> ExpressionModelOutput:
-        # Validate inputs
+        input_ids=None,              # (B*N, L)
+        attention_mask=None,         # (B*N, L) or None
+        labels_mask=None,            # (B*N, L, 1)
+        labels=None,                 # (B*N, L, 1)
+        return_dict=None,
+        desc_input_ids=None,           # (B, N, D)
+        desc_attention_mask = None,
+        dataset_flag=None,           # (B, N): 1 -> дубли INPUTS; 0 -> дубли DESC
+        desc_vectors=None,           # (B, N, D)
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
         if dataset_flag is None:
-            raise ValueError("dataset_flag must be provided with shape (B, N)")
-        
-        if input_ids is None:
-            raise ValueError("input_ids must be provided")
+            raise ValueError("dataset_flag must be provided and shaped (B, N)")
         
         B, N = dataset_flag.shape
-        device = input_ids.device
-        
-        # Reshape inputs if needed
-        if input_ids.dim() == 3:  # (B, N, L) -> (B*N, L)
-            input_ids = input_ids.reshape(B * N, -1)
-        
-        if attention_mask is not None and attention_mask.dim() == 3:
-            attention_mask = attention_mask.reshape(B * N, -1)
-        
-        if desc_input_ids is not None and desc_input_ids.dim() == 3:
-            desc_input_ids = desc_input_ids.reshape(B * N, -1)
-        
-        if desc_attention_mask is not None and desc_attention_mask.dim() == 3:
-            desc_attention_mask = desc_attention_mask.reshape(B * N, -1)
-        
-        if labels is not None and labels.dim() == 4:
+
+        # 1) Reshape
+        if input_ids is not None and input_ids.dim() == 3:          # (B, N, L) -> (B*N, L)
+            if input_ids.shape[:2] != (B, N):
+                raise ValueError(f"input_ids has shape {tuple(input_ids.shape)}, but dataset_flag is {(B, N)}")
+            input_ids = input_ids.reshape(B * N, input_ids.shape[-1])
+
+        if attention_mask is not None and attention_mask.dim() == 3: # (B, N, L) -> (B*N, L)
+            attention_mask = attention_mask.reshape(B * N, attention_mask.shape[-1])
+
+        # if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
+        #     token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
+
+        if labels is not None and labels.dim() == 4:                 # (B, N, L, 1) -> (B*N, L, 1)
             labels = labels.reshape(B * N, labels.shape[-2], labels.shape[-1])
-        
-        if labels_mask is not None and labels_mask.dim() == 4:
+
+        if labels_mask is not None and labels_mask.dim() == 4:       # (B, N, L, 1) -> (B*N, L, 1)
             labels_mask = labels_mask.reshape(B * N, labels_mask.shape[-2], labels_mask.shape[-1])
+
+        if desc_input_ids is not None and desc_input_ids.dim() == 3:                              # (B, N, D) -> (B*N, D)
+                desc_input_ids = desc_input_ids.reshape(B * N, desc_input_ids.shape[-1])
+
+        if desc_attention_mask is not None and desc_attention_mask.dim() == 3:                              # (B, N, D) -> (B*N, D)
+                desc_attention_mask = desc_attention_mask.reshape(B * N, desc_attention_mask.shape[-1])
+
+        # 2) DNA model, убираем повторы
+        src = input_ids 
+        if src is None:
+            raise ValueError("input_ids must be provided")
+        device = src.device
+        BxN, seq_len = src.shape[:2]
+        B, N = dataset_flag.shape
+        if B * N != BxN:
+            raise ValueError(f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs input_ids rows {BxN}")
         
-        # ===== 1. Compute unique indices =====
-        unique_dna_idx, unique_desc_idx, dna_mapping, desc_mapping = self._compute_unique_indices(
-            dataset_flag, device
-        )
-        
-        # ===== 2. Encode DNA sequences (with deduplication) =====
-        dna_embeddings = self.dna_encoder(
-            input_ids=input_ids[unique_dna_idx],
-            attention_mask=attention_mask[unique_dna_idx] if attention_mask is not None else None,
-            return_dict=True,
-        ).last_hidden_state
-        
-        # Map back to original order
-        dna_embeddings = dna_embeddings[dna_mapping]  # (B*N, L, H)
-        
-        # ===== 3. Encode descriptions (with deduplication) =====
-        if not self.use_frozen_embeds:
-            # Use transformer-based encoder
-            desc_embeddings = self.desc_encoder(
-                input_ids=desc_input_ids[unique_desc_idx] if desc_input_ids is not None else None,
-                attention_mask=desc_attention_mask[unique_desc_idx] if desc_attention_mask is not None else None,
-                desc_vectors=None
+        flag = dataset_flag.to(device).bool()     
+        block_flag = flag[:, 0]                  
+        idx_all = torch.arange(BxN, device=device)
+        idx_grid = idx_all.view(B, N)            
+
+        rep_inputs_idx = idx_grid[block_flag, 0]                         
+        unique_inputs_idx_mode2 = idx_grid[~block_flag, :].reshape(-1)   
+        idx_unique_inputs = torch.cat([unique_inputs_idx_mode2, rep_inputs_idx], dim=0)
+
+        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
+        pos_in_compact[idx_unique_inputs] = torch.arange(idx_unique_inputs.numel(), device=device)
+
+        map_inputs = torch.empty(BxN, dtype=torch.long, device=device)
+        map_inputs[unique_inputs_idx_mode2] = pos_in_compact[unique_inputs_idx_mode2]
+        if rep_inputs_idx.numel() > 0:
+            rows_dup = idx_grid[block_flag, :].reshape(-1)
+            rep_pos = pos_in_compact[rep_inputs_idx]                     
+            map_inputs[rows_dup] = rep_pos.repeat_interleave(N)
+
+        if (map_inputs < 0).any():
+            bad = (map_inputs < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
+            raise RuntimeError(
+                f"map_inputs has -1 indices : {bad.tolist()}. "
+                "Check dataset_flag/idx_unique_inputs mapping."
+    )
+
+        bert_outputs = self.bert(
+                input_ids=input_ids[idx_unique_inputs],                         
+                attention_mask=attention_mask[idx_unique_inputs],
+                return_dict=True,
             )
-            desc_embeddings = desc_embeddings[desc_mapping]
+        seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
+        sequence_output = seq_compact[map_inputs]                       # (B*N, L, H)
+        hidden_size = sequence_output.size(-1)
+
+        # 3) Description model, убираем повторы 
+        unique_desc_idx = idx_grid[block_flag, :].reshape(-1)   # (B_true*N,)
+        rep_desc_idx = idx_grid[~block_flag, 0]                 # (B_false,)
+        idx_unique_desc = torch.cat([unique_desc_idx, rep_desc_idx], dim=0)  # (U_desc,)
+
+        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
+        pos_in_compact[idx_unique_desc] = torch.arange(idx_unique_desc.numel(), device=device)
+        map_desc = torch.empty((BxN,), dtype=torch.long, device=device)
+        if unique_desc_idx.numel() > 0:
+            map_desc[unique_desc_idx] = pos_in_compact[unique_desc_idx]
+        if rep_desc_idx.numel() > 0:
+            rows_dup = idx_grid[~block_flag, :].reshape(-1)          
+            rep_pos = pos_in_compact[rep_desc_idx]                  
+            map_desc[rows_dup] = rep_pos.repeat_interleave(N)       
+
+        if (map_desc < 0).any():
+            bad = (map_desc < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
+            raise RuntimeError(f"map_desc has -1 indices: {bad.tolist()}")
+
+        if not self.use_frozen_embeds:
+            desc_out = self.desc_model(
+                    input_ids=desc_input_ids[idx_unique_desc],
+                    attention_mask=desc_attention_mask[idx_unique_desc],
+                    return_dict=True,
+                    )
+            desc_pooled = desc_out.last_hidden_state[:, -1]
+            desc_pooled = self.desc_proj(desc_pooled)                    
+            desc_pooled = desc_pooled.to(sequence_output.dtype) 
+            desc_output = desc_pooled[map_desc] 
         else:
-            # Use frozen embeddings with MLP
             if desc_vectors is None:
-                raise ValueError("desc_vectors must be provided when use_frozen_embeds=True")
+                raise ValueError("desc_vectors not provided")
             
-            B_orig = desc_vectors.shape[0]
-            desc_vectors_2d = desc_vectors.reshape(B_orig * N, -1)
-            desc_embeddings = self.desc_fc(desc_vectors_2d)
-            desc_embeddings = desc_embeddings.reshape(B_orig, N, -1)
-            
-            # Project and map
-            desc_embeddings = self.desc_proj(desc_embeddings)
-            desc_embeddings = desc_embeddings.reshape(B * N, -1)
-            desc_embeddings = desc_embeddings[desc_mapping]
-        
-        # Ensure same dtype
-        desc_embeddings = desc_embeddings.to(dna_embeddings.dtype)
-        
-        # ===== 4. Combine DNA and description embeddings =====
-        # Add description information to each token position
-        combined_embeddings = dna_embeddings + desc_embeddings.unsqueeze(1)
-        
-        # Optionally mask using attention_mask
+            desc_embeddings = self.desc_fc(desc_vectors)
+            desc_pooled = self.desc_proj(desc_embeddings)
+            desc_output = desc_pooled[map_desc]
+
+        sequence_output = sequence_output.contiguous()
         if attention_mask is not None:
-            combined_embeddings = combined_embeddings * attention_mask.unsqueeze(-1).to(combined_embeddings.dtype)
-        
-        # ===== 5. Decode combined embeddings =====
-        decoder_outputs = self.decoder(
-            inputs_embeds=combined_embeddings,
-            attention_mask=attention_mask,
+            sequence_output = sequence_output + desc_output.unsqueeze(1) * attention_mask[:, :, None].to(sequence_output.dtype)
+        else:
+            sequence_output = sequence_output + desc_output.unsqueeze(1)
+
+
+        # 4) Decoder
+        dec_out = self.decoder(
+            inputs_embeds=sequence_output,        # (B*N, L, H)
+            attention_mask=attention_mask,        # (B*N, L)
             return_dict=True,
         )
-        
-        decoder_hidden = decoder_outputs.last_hidden_state
-        
-        # ===== 6. Classification =====
-        logits = self.activation(self.classifier(decoder_hidden))  # (B*N, L, 1)
-        
-        # ===== 7. Compute loss if labels provided =====
+
+        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+
+
+        # 5) Loss
         loss = None
-        cls_loss = None
-        other_loss = None
-        
+        labels_reshaped = labels_mask_reshaped = cls_loss = mean_loss = diviation_loss = other_loss = None
+
         if labels is not None:
-            labels = labels.to(logits.device)
-            
-            # Compute per-element loss
-            unreduced_loss = self.loss_fct(logits, labels)  # (B*N, L, 1)
-            
-            if labels_mask is not None:
-                labels_mask = labels_mask.to(logits.device)
-                
-                # Separate CLS token (position 0) and other tokens
-                cls_mask = labels_mask[:, 0:1, :]  # (B*N, 1, 1)
-                other_mask = labels_mask[:, 1:, :]  # (B*N, L-1, 1)
-                
-                # Compute CLS loss
+            labels_reshaped = labels.to(logits.device)
+            labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
+
+            unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B*N, L, 1)
+
+            if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
+                cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B*N, 1, 1)
+                other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1)
+
                 if cls_mask.sum().item() > 0:
-                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
-                
-                # Compute other tokens loss
+                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
+                        mean_loss = None
+                        diviation_loss = None
+
                 if other_mask.sum().item() > 0:
                     other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / (other_mask.sum() + 1e-8)
-                
-                # Combine losses
+
                 if cls_loss is not None and other_loss is not None:
                     loss = cls_loss + self.weight * other_loss
                 elif cls_loss is not None:
                     loss = cls_loss
                 elif other_loss is not None:
                     loss = self.weight * other_loss
-        
-        # ===== 8. Return outputs =====
-        return_dict = return_dict if return_dict is not None else True
-        
+
         if not return_dict:
             return (loss, logits)
-        
+
+        hidden_states_out = (decoder_output,)
+
         return ExpressionModelOutput(
             loss=loss,
             logits=logits,
-            hidden_states=(decoder_hidden,),
-            attentions=decoder_outputs.attentions,
-            labels_reshaped=labels,
-            labels_mask_reshaped=labels_mask,
+            hidden_states=hidden_states_out,
+            attentions=bert_outputs.attentions,
+            labels_reshaped=labels_reshaped,
+            labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,
             other_loss=other_loss
         )
