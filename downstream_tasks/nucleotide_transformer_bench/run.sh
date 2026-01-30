@@ -10,7 +10,7 @@ export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:${LD_LIBRARY_PATH:-}"
 export CUDA_VISIBLE_DEVICES=6
 
 NP=1
-config_name="moderngena_base_bs128_lr5e-05_wd1e-04"
+config_name="gena-lm-bert-base-t2t_bs128_lr1e-05_wd1e-04"
 CONFIG="downstream_tasks/nucleotide_transformer_bench/configs/${config_name}.yaml"
 
 declare -A TASK_NUM_LABELS=(

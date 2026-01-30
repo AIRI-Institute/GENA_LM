@@ -12,7 +12,7 @@ def main():
     args = p.parse_args()
 
     BATCH_SIZES = [32, 64, 128]
-    LRS = [1e-5, 5e-5]
+    LRS = [1e-5, 3e-5, 5e-5]
     WEIGHT_DECAYS = [1e-3, 1e-4]
 
     base_cfg = {

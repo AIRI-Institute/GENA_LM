@@ -13,7 +13,8 @@ import torch.nn as nn
 import transformers
 from datasets import load_dataset, Dataset
 from torch.utils.data import DataLoader, DistributedSampler
-from transformers import AutoConfig, AutoTokenizer, HfArgumentParser, ModernBertForSequenceClassification 
+from transformers import AutoConfig, AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification
+from src.gena_lm.modeling_bert import BertForSequenceClassification
 from sklearn.metrics import matthews_corrcoef, f1_score, accuracy_score
 from sklearn.model_selection import KFold, StratifiedKFold
 
@@ -273,25 +274,37 @@ if __name__ == "__main__":
         logger.info(f"Loading ModernBERT for classification from: {hf_model_name}")
         logger.info(f"num_labels={cls_num} | attn_implementation={attn_impl}")
 
-    model = ModernBertForSequenceClassification.from_pretrained(
-        hf_model_name,
-        config=model_cfg,
-        trust_remote_code=True,
-        attn_implementation=attn_impl)  
+    # model = ModernBertForSequenceClassification.from_pretrained(
+    #     hf_model_name,
+    #     config=model_cfg,
+    #     trust_remote_code=True,
+    #     attn_implementation=attn_impl)  
 
-    p = float(getattr(args, "dropout", 0.1))
+    model, info = BertForSequenceClassification.from_pretrained(
+    hf_model_name,
+    config=model_cfg,
+    trust_remote_code=True,
+    output_loading_info=True,
+)
 
-    if hasattr(model, "classifier"):
-        model.classifier = nn.Sequential(nn.Dropout(p), model.classifier)
-        if accelerator.is_main_process:
-            logger.info(f"Wrapped model.classifier with Dropout(p={p})")
-    elif hasattr(model, "score"):
-        model.score = nn.Sequential(nn.Dropout(p), model.score)
-        if accelerator.is_main_process:
-            logger.info(f"Wrapped model.score with Dropout(p={p})")
-    else:
-        if accelerator.is_main_process:
-            logger.warning("No classifier/score head found to wrap with dropout.")
+    print("missing:", len(info.get("missing_keys", [])))
+    print("unexpected:", len(info.get("unexpected_keys", [])))
+    print("mismatched:", len(info.get("mismatched_keys", [])))
+    print("model class:", model.__class__)
+
+    # p = float(getattr(args, "dropout", 0.1))
+
+    # if hasattr(model, "classifier"):
+    #     model.classifier = nn.Sequential(nn.Dropout(p), model.classifier)
+    #     if accelerator.is_main_process:
+    #         logger.info(f"Wrapped model.classifier with Dropout(p={p})")
+    # elif hasattr(model, "score"):
+    #     model.score = nn.Sequential(nn.Dropout(p), model.score)
+    #     if accelerator.is_main_process:
+    #         logger.info(f"Wrapped model.score with Dropout(p={p})")
+    # else:
+    #     if accelerator.is_main_process:
+    #         logger.warning("No classifier/score head found to wrap with dropout.")
 
 
     # define optimizer
@@ -369,53 +382,63 @@ if __name__ == "__main__":
     )
 
     if not args.validate_only:
-        # train loop
         trainer.train()
-        # make sure all workers are done
         accelerator.wait_for_everyone()
-        # run validation after training
-        # if args.save_best:
-        #     best_model_path = str(Path(args.model_path) / "model_best") 
-        #     if accelerator.is_main_process:
-        #         logger.info(f"Loading best saved model from {best_model_path}")
-        #     trainer.load(best_model_path, weights_only=False)
 
-    # # get test dataset
-    # if accelerator.is_main_process:
-    #     logger.info(f"preparing test data for: {task}")
+    if args.save_best and args.model_path is not None:
+        best_model_path = Path(args.model_path) / "model_best"
+        if best_model_path.exists():
+            trainer.load(str(best_model_path))
+            accelerator.wait_for_everyone()
 
-    # test_dataset = dataset_all["test"].filter(lambda ex: ex["task"] == task)
-    # test_dataset = test_dataset.map(tokenization, batched=True)
-    # test_dataset.set_format(type="torch", columns=["input_ids", "token_type_ids", "attention_mask", "label"])
-    # test_sampler = DistributedSampler(test_dataset, rank=rank, num_replicas=world_size, shuffle=False)
-    # test_dataloader = DataLoader(test_dataset, batch_size=per_worker_batch_size, sampler=test_sampler, **kwargs)
+    has_test = "test" in dataset_all
+    if accelerator.is_main_process:
+        logger.info(f"has_test_split: {has_test}")
 
-    # if accelerator.is_main_process:
-    #     logger.info(f"len(test_dataset): {len(test_dataset)}")
-    #     logger.info("Runnning validation on test data:")
+    if has_test:
+        test_dataset = dataset_all["test"].filter(lambda ex: ex["task"] == task)
+        test_dataset = test_dataset.map(
+            tokenization,
+            batched=True,
+            remove_columns=test_dataset.column_names,
+        )
 
-    # metrics = trainer.validate(
-    #     test_dataloader,
-    #     split="test",
-    #     write_tb=accelerator.is_main_process,   
-    # )
+        test_sampler = DistributedSampler(
+            test_dataset, rank=rank, num_replicas=world_size, shuffle=False
+        )
 
-    # accelerator.wait_for_everyone()
+        test_dataloader = DataLoader(
+            test_dataset,
+            batch_size=per_worker_batch_size,
+            sampler=test_sampler,
+            collate_fn=data_collator,
+            **kwargs,
+        )
 
-    # if accelerator.is_main_process:
-    #     results_dir = Path(args.model_path) / "results"
-    #     results_dir.mkdir(parents=True, exist_ok=True)
+        metrics = trainer.validate(
+            test_dataloader,
+            split="test",
+            write_tb=accelerator.is_main_process,
+        )
 
-    #     payload = {
-    #         "time": datetime.now().isoformat(timespec="seconds"),
-    #         "task": task,
-    #         "split": "test",
-    #         "metrics": metrics,
-    #     }
+        accelerator.wait_for_everyone()
 
-    #     out_json = results_dir / f"metrics_{task}_test.json"
-    #     with open(out_json, "w") as f:
-    #         json.dump(payload, f, indent=2)
+        if accelerator.is_main_process and args.model_path is not None:
+            results_dir = Path(args.model_path) / "results"
+            results_dir.mkdir(parents=True, exist_ok=True)
 
-    #     logger.info(f"Saved test metrics to: {out_json}")
+            payload = {
+                "time": datetime.now().isoformat(timespec="seconds"),
+                "task": task,
+                "split": "test",
+                "checkpoint": "model_best",
+                "metrics": metrics,
+            }
+
+            out_json = results_dir / f"metrics_{task}_test.json"
+            with open(out_json, "w") as f:
+                json.dump(payload, f, indent=2)
+
+            logger.info(f"Saved test metrics to: {out_json}")
+
 
