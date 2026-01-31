@@ -40,6 +40,23 @@ def parse_run_params(run_name: str) -> dict:
     return params
 
 
+def extract_model(run_name: str, task: str) -> str:
+    name = run_name
+    if name.startswith(task + "_"):
+        name = name[len(task) + 1 :]
+
+    stop_prefixes = ("lr", "wd", "bs", "p", "seed", "stop", "epochs", "maxep", "maxepochs", "ep")
+    tokens = name.split("_")
+
+    model_tokens = []
+    for t in tokens:
+        if t.startswith(stop_prefixes):
+            break
+        model_tokens.append(t)
+
+    return "_".join(model_tokens) if model_tokens else ""
+
+
 def fold_from_dirname(name: str) -> int | None:
     m = re.fullmatch(r"fold_(\d+)", name)
     return int(m.group(1)) if m else None
@@ -74,7 +91,9 @@ def build_raw_table(root_dir: Path, n_folds: int) -> pd.DataFrame:
 
         fold = fold_from_dirname(fold_dir.name)
         task = task_dir.name
-        params = parse_run_params(run_dir.name)
+        run_name = run_dir.name
+        model = extract_model(run_name, task)
+        params = parse_run_params(run_name)
 
         with json_path.open("r", encoding="utf-8") as f:
             data = json.load(f)
@@ -88,6 +107,7 @@ def build_raw_table(root_dir: Path, n_folds: int) -> pd.DataFrame:
         rows.append(
             {
                 "task": task,
+                "model": model,
                 "lr": params["lr"],
                 "wd": params["wd"],
                 "bs": params["bs"],
@@ -104,7 +124,7 @@ def build_raw_table(root_dir: Path, n_folds: int) -> pd.DataFrame:
     df["fold"] = pd.to_numeric(df["fold"], errors="coerce").astype("Int64")
 
     wide = df.pivot_table(
-        index=["task", "lr", "wd", "bs"],
+        index=["task", "model", "lr", "wd", "bs"],
         columns="fold",
         values="mcc",
         aggfunc="first",
@@ -117,8 +137,12 @@ def build_raw_table(root_dir: Path, n_folds: int) -> pd.DataFrame:
     wide["std"] = wide[fold_cols].std(axis=1, ddof=1, skipna=True)
 
     out = wide.reset_index()
-    col_order = ["task", "mean", "std", "lr", "wd", "bs"] + fold_cols
-    out = out[col_order].sort_values(by=["task", "lr", "wd", "bs"], kind="mergesort").reset_index(drop=True)
+    col_order = ["task", "model", "mean", "std", "lr", "wd", "bs"] + fold_cols
+    out = (
+        out[col_order]
+        .sort_values(by=["task", "model", "lr", "wd", "bs"], kind="mergesort")
+        .reset_index(drop=True)
+    )
     return out
 
 
@@ -156,7 +180,7 @@ def main():
     out_raw = build_raw_table(root_dir, n_folds=args.folds)
     out_fmt = format_table(out_raw, n_folds=args.folds)
 
-    out_fmt = out_fmt.sort_values(by=["task"], kind="mergesort").reset_index(drop=True)
+    out_fmt = out_fmt.sort_values(by=["task", "model"], kind="mergesort").reset_index(drop=True)
     out_fmt.to_csv(out_path, index=False)
 
     print(str(out_path.resolve()))
