@@ -13,7 +13,7 @@ import torch.nn as nn
 import transformers
 from datasets import load_dataset, Dataset
 from torch.utils.data import DataLoader, DistributedSampler
-from transformers import AutoConfig, AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification
+from transformers import AutoConfig, AutoTokenizer, HfArgumentParser, ModernBertForSequenceClassification
 from src.gena_lm.modeling_bert import BertForSequenceClassification
 from sklearn.metrics import matthews_corrcoef, f1_score, accuracy_score
 from sklearn.model_selection import KFold, StratifiedKFold
@@ -274,18 +274,20 @@ if __name__ == "__main__":
         logger.info(f"Loading ModernBERT for classification from: {hf_model_name}")
         logger.info(f"num_labels={cls_num} | attn_implementation={attn_impl}")
 
-    # model = ModernBertForSequenceClassification.from_pretrained(
-    #     hf_model_name,
-    #     config=model_cfg,
-    #     trust_remote_code=True,
-    #     attn_implementation=attn_impl)  
-
-    model, info = BertForSequenceClassification.from_pretrained(
-    hf_model_name,
-    config=model_cfg,
-    trust_remote_code=True,
-    output_loading_info=True,
-)
+    is_moderngena = "moderngena" in str(hf_model_name).lower()
+    if is_moderngena:
+        model, info = ModernBertForSequenceClassification.from_pretrained(
+            hf_model_name,
+            config=model_cfg,
+            trust_remote_code=True,
+            attn_implementation=attn_impl, output_loading_info=True,)  
+    else:
+        model, info = BertForSequenceClassification.from_pretrained(
+        hf_model_name,
+        config=model_cfg,
+        trust_remote_code=True,
+        output_loading_info=True,
+    )
 
     print("missing:", len(info.get("missing_keys", [])))
     print("unexpected:", len(info.get("unexpected_keys", [])))
