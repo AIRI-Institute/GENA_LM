@@ -10,9 +10,9 @@ args_params:
   input_seq_len: 1024
   data_n_workers: 1
   iters: 20000
-  batch_size: 128
+  batch_size: 32
   gradient_accumulation_steps: 1
-  lr: 1.0e-05
+  lr: 3.0e-05
   lr_scheduler: cosine
   num_warmup_steps: 1000
   optimizer: AdamW

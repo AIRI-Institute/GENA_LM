@@ -11,8 +11,8 @@ def main():
     p.add_argument("--out_dir", default="configs/")
     args = p.parse_args()
 
-    BATCH_SIZES = [32, 64, 128]
-    LRS = [1e-5, 3e-5, 5e-5]
+    BATCH_SIZES = [32, 64]
+    LRS = [3e-5, 5e-5]
     WEIGHT_DECAYS = [1e-3, 1e-4]
 
     base_cfg = {
