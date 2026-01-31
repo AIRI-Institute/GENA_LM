@@ -1,0 +1,20 @@
+declare -A TASK_NUM_LABELS=(
+  ["promoter_all"]=2
+  ["promoter_tata"]=2
+  ["promoter_no_tata"]=2
+  ["enhancers"]=2
+# ["enhancers_types"]=3
+  ["splice_sites_all"]=3
+  ["splice_sites_acceptors"]=2
+# ["splice_sites_donors"]=2
+  ["H2AFZ"]=2
+  ["H3K27ac"]=2
+  ["H3K27me3"]=2
+  ["H3K36me3"]=2
+  ["H3K4me1"]=2
+# ["H3K4me2"]=2
+  ["H3K4me3"]=2
+  ["H3K9ac"]=2
+  ["H3K9me3"]=2
+  ["H4K20me1"]=2
+)
