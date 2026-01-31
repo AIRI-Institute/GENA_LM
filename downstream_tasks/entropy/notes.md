@@ -1,4 +1,4 @@
-## Pipelime:
+## Pipeline:
 
 1. Run model inferemce:
 
@@ -50,7 +50,11 @@ fetch_annotations.sh
 
 # for all experiments from experiments_list.txt:
 
-python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 30
+python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/all_models_30shuf.csv --n_shuffles 30
+
+# same for bp-resolution predictions:
+python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct_bp.bedgraph.gz|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/all_models_30shuf_bp.csv --n_shuffles 30
+
 
 # example for 2 files:
 python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs data/gena-lm_chr21_is_correct.bedgraph data/modgena-base-ep30-ba90700_chr21_is_correct.bedgraph --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 4
