@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-jobsDir="jobs/mgenatest/"
+jobsDir="jobs/gena/"
 
 cd ../..
 
 NP=1
-config_name="moderngena_base_bs128_lr5e-05_wd1e-04"
-CONFIG="downstream_tasks/nucleotide_transformer_bench/configs/${config_name}.yaml"
-
-declare -A TASK_NUM_LABELS=(
-  ["H3K4me2"]=2
-  ["enhancers_types"]=3
-  ["splice_sites_donors"]=2
-)
-
 mkdir -p "downstream_tasks/nucleotide_transformer_bench/${jobsDir}/"
 
-for TASK in "${!TASK_NUM_LABELS[@]}"; do
-  CLS_NUM="${TASK_NUM_LABELS[$TASK]}"
+# config_name="moderngena_base_bs128_lr5e-05_wd1e-04.yaml"
+for config_name in downstream_tasks/nucleotide_transformer_bench/configs/gena-lm*
+do
+  config_name=$(basename $config_name)
+  CONFIG="downstream_tasks/nucleotide_transformer_bench/configs/${config_name}"
 
-  TMP_CONFIG="downstream_tasks/nucleotide_transformer_bench/${jobsDir}/ntbench_${TASK}_${config_name}.yaml"
+  declare -A TASK_NUM_LABELS=(
+    ["H3K4me2"]=2
+    ["enhancers_types"]=3
+    ["splice_sites_donors"]=2
+  )
+
+  for TASK in "${!TASK_NUM_LABELS[@]}"; do
+    CLS_NUM="${TASK_NUM_LABELS[$TASK]}"
+
+    TMP_CONFIG="downstream_tasks/nucleotide_transformer_bench/${jobsDir}/ntbench_${TASK}_${config_name}"
 
 
-  python - <<'PY' "$CONFIG" "$TMP_CONFIG" "$TASK" "$CLS_NUM"
+    python - <<'PY' "$CONFIG" "$TMP_CONFIG" "$TASK" "$CLS_NUM"
 import sys
 from omegaconf import OmegaConf
 
@@ -41,9 +44,9 @@ OmegaConf.save(cfg, dst)
 print(dst)
 PY
 
-for FOLD in 0 1 2 3 4 5 6 7 8 9; do
-    PORT=$((29500 + $FOLD))
-  cat > downstream_tasks/nucleotide_transformer_bench/${jobsDir}/ntbench_${TASK}_${config_name}_${FOLD}.sh <<JOB
+  for FOLD in 0 1 2 3 4 5 6 7 8 9; do
+      PORT=$((29500 + $FOLD))
+    cat > downstream_tasks/nucleotide_transformer_bench/${jobsDir}/ntbench_${TASK}_${config_name%.*}_${FOLD}.sh <<JOB
 #!/bin/bash
 #SBATCH --job-name=${TASK}_${config_name}_f${FOLD}
 #SBATCH --nodes=1
@@ -52,7 +55,7 @@ for FOLD in 0 1 2 3 4 5 6 7 8 9; do
 #SBATCH --ntasks-per-node=2
 #SBATCH --reservation=rnd
 
-echo date
+date
 echo "Starting ${TASK}_${config_name}_f${FOLD}"
 cd $HOME/DNALM/GENA_LM/GENA_LM-nt_bench/
 source $HOME/envs/mGenaNTbench/bin/activate
@@ -66,10 +69,10 @@ GENALM_HOME="$(realpath .)" accelerate launch \
   --module downstream_tasks.nucleotide_transformer_bench.run_finetune \
   --experiment_config $TMP_CONFIG \
   --valid_fold $FOLD
-echo date
+date
 echo "Done ${TASK}_${config_name}_f${FOLD}"
 JOB
+    done
   done
 done
-
 echo "done"
