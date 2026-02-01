@@ -1,0 +1,31 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+args_params:
+  _target_: builtins.dict
+  model: ${HOME_PATH}/models/moderngena_base
+  attn: flash_attention_2
+  n_folds: 10
+  stratified: true
+  seed: 42
+  tokenizer: AIRI-Institute/gena-lm-bert-base-t2t
+  input_seq_len: 1024
+  data_n_workers: 1
+  iters: 20000
+  batch_size: 64
+  gradient_accumulation_steps: 1
+  lr: 5.0e-05
+  lr_scheduler: cosine
+  num_warmup_steps: 1000
+  optimizer: AdamW
+  weight_decay: 0.01
+  reset_lr: true
+  reset_optimizer: true
+  reset_iteration: true
+  optimize_metric: mcc
+  optimize_mode: max
+  save_best: true
+  valid_interval: 30
+  log_interval: 30
+  early_stopping_patience: 50
+  validate_only: false
+  hf_model_name: ${HOME_PATH}/models/moderngena_base
+  attn_implementation: flash_attention_2

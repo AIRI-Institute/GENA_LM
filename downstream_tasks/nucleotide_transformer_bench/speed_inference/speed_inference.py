@@ -4,7 +4,18 @@ import numpy as np
 import torch
 import gc
 import multiprocessing as mp
+from src.gena_lm.modeling_bert import BertModel
 from transformers import AutoTokenizer, AutoModel
+import os
+import re
+import csv
+from datetime import datetime, timezone
+
+
+def _safe_name(s: str, maxlen: int = 80) -> str:
+    s = re.sub(r"[^A-Za-z0-9._-]+", "-", s)
+    s = s.strip("-")
+    return (s[:maxlen] if s else "x")
 
 
 def forward_backbone(model, input_ids, attention_mask):
@@ -18,7 +29,7 @@ def _try_batch_worker(q, model_id, seq_len, batch_size, gpu, vocab_size):
         torch.cuda.set_device(gpu)
         device = torch.device(f"cuda:{gpu}")
 
-        model = AutoModel.from_pretrained(model_id, trust_remote_code=True).to(device)
+        model = BertModel.from_pretrained(model_id, trust_remote_code=True, add_pooling_layer=False).to(device)
 
         input_ids = torch.randint(0, vocab_size, (batch_size, seq_len), dtype=torch.long, device=device)
         attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
@@ -122,6 +133,8 @@ if __name__ == "__main__":
     parser.add_argument("--warmup", type=int, default=5)
     parser.add_argument("--batches_per_run", type=int, default=5)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--out_csv", type=str, default=None)
+
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -146,12 +159,11 @@ if __name__ == "__main__":
         )
         print(f"Auto batch size: {args.batch_size}")
 
-    model = AutoModel.from_pretrained(args.model, trust_remote_code=True).to(device)
+    model = BertModel.from_pretrained(args.model, trust_remote_code=True, add_pooling_layer=False).to(device)
     model.eval()
 
     input_ids = torch.randint(0, vocab_size, (args.batch_size, args.seq_len), dtype=torch.long, device=device)
     attention_mask = torch.ones((args.batch_size, args.seq_len), dtype=torch.bool, device=device)
-
 
     with torch.inference_mode():
         for _ in range(args.warmup):
@@ -167,10 +179,8 @@ if __name__ == "__main__":
             torch.cuda.synchronize(device)
             t0 = time.perf_counter()
 
-
             for _ in range(args.batches_per_run):
                 forward_backbone(model, input_ids, attention_mask)
-
 
             torch.cuda.synchronize(device)
             t1 = time.perf_counter()
@@ -184,3 +194,92 @@ if __name__ == "__main__":
     print(f"Runs: {args.n_runs}, batches/run: {args.batches_per_run}")
     print(f"Throughput: {arr.mean():.2f} ± {arr.std(ddof=0):.2f} K tokens/s")
     print("Per-run K tokens/s:", ", ".join(f"{x:.2f}" for x in arr))
+
+    if args.out_csv:
+        model_tag = _safe_name(os.path.basename(args.model.rstrip("/")))
+        tok_tag = _safe_name(args.tokenizer.split("/")[-1])
+        params_tag = (
+            f"m-{model_tag}_t-{tok_tag}"
+            f"_seq{args.seq_len}_bs{args.batch_size}_gpu{args.gpu}"
+            f"_runs{args.n_runs}_bpr{args.batches_per_run}"
+            f"_autob{1 if args.auto_batch else 0}"
+        )
+
+        base = args.out_csv
+        if base.lower().endswith(".csv"):
+            base_noext = base[:-4]
+        else:
+            base_noext = base
+
+        os.makedirs("results", exist_ok=True)
+        out_path = os.path.join("results", f"{os.path.basename(base_noext)}_{params_tag}.csv")
+        out_dir = os.path.dirname(out_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+        file_exists = os.path.isfile(out_path)
+
+        ts = datetime.now(timezone.utc).isoformat()
+        mean = float(arr.mean())
+        std = float(arr.std(ddof=0))
+
+        with open(out_path, "a", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+
+
+            if not file_exists:
+                w.writerow([
+                    "timestamp_utc",
+                    "kind",               
+                    "run_idx",             
+                    "k_tokens_s",          
+                    "k_tokens_s_std",       
+                    "model",
+                    "tokenizer",
+                    "seq_len",
+                    "batch_size",
+                    "gpu",
+                    "n_runs",
+                    "warmup",
+                    "batches_per_run",
+                    "auto_batch",
+                ])
+
+            # Строки по каждому run
+            for i, v in enumerate(arr.tolist()):
+                w.writerow([
+                    ts,
+                    "run",
+                    i,
+                    float(v),
+                    "",
+                    args.model,
+                    args.tokenizer,
+                    args.seq_len,
+                    args.batch_size,
+                    args.gpu,
+                    args.n_runs,
+                    args.warmup,
+                    args.batches_per_run,
+                    1 if args.auto_batch else 0,
+                ])
+
+            # Итоговая строка mean/std
+            w.writerow([
+                ts,
+                "summary",
+                "",
+                mean,
+                std,
+                args.model,
+                args.tokenizer,
+                args.seq_len,
+                args.batch_size,
+                args.gpu,
+                args.n_runs,
+                args.warmup,
+                args.batches_per_run,
+                1 if args.auto_batch else 0,
+            ])
+
+        print(f"Saved CSV: {out_path}")
