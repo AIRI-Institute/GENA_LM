@@ -8,6 +8,7 @@ from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
+import sys
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -165,8 +166,10 @@ class ExpressionCounts(nn.Module):
             self.desc_hidden_size = hidden_size_desc
             self.desc_fc = nn.Sequential(
                 nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
-                nn.LeakyReLU(),
+                nn.LayerNorm(self.desc_hidden_size),
+                nn.LeakyReLU(negative_slope=0.01),
                 nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                #nn.LayerNorm(self.desc_hidden_size)
             )
 
         # 3) Проекция, если размерности не совпадают
@@ -336,12 +339,19 @@ class ExpressionCounts(nn.Module):
             desc_output = desc_pooled[map_desc]
 
         sequence_output = sequence_output.contiguous()
+        
+        #print(f'''
+        #    shapes 0:
+        #    sequence_output: {sequence_output.shape}
+        #    desc_output: {desc_output.shape}
+        #    attention_mask: {attention_mask.shape}
+        #        ''')
         if attention_mask is not None:
-            sequence_output = sequence_output + desc_output.unsqueeze(1) * attention_mask[:, :, None].to(sequence_output.dtype)
+            sequence_output = sequence_output + desc_output * attention_mask.unsqueeze(-1).to(sequence_output.dtype)
         else:
-            sequence_output = sequence_output + desc_output.unsqueeze(1)
-
-
+            sequence_output = sequence_output + desc_output
+            
+        
         # 4) Decoder
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)

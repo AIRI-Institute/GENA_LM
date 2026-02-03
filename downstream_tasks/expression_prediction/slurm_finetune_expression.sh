@@ -9,16 +9,18 @@ export PATH="/usr/local/cuda/bin:$PATH"
 export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
 export GENALM_HOME="/scratch/tsoies-Expression/GENA_LM"
 
-export CUDA_VISIBLE_DEVICES=0
+#export CUDA_VISIBLE_DEVICES=0
 
+export CUDA_LAUNCH_BLOCKING=1
+export TORCH_USE_CUDA_DSA=1
 
 # export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 #  --multi_gpu \
 
-TBS=1000
+TBS=1000 # 100!
 BS=5
-NP=8
+NP=1  #1! gpu count
 GAS=$(( TBS / (BS * NP) ))
 
 config_name="config_random_borzoi"

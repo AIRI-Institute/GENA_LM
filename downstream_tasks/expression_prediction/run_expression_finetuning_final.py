@@ -337,6 +337,7 @@ def main():
     # Padding
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer, trust_remote_code=True)
     text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True)
+    #text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, local_files_only=True, cache_dir='/home/tsoies/.cache')
 
     def _pad_1d(x: torch.Tensor, length: int, pad_value: int, pad_left: bool = False) -> torch.Tensor:
         pad_len = length - x.size(0)

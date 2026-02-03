@@ -39,7 +39,7 @@ class ExpressionCounts(nn.Module):
         nhead = 8,
         weight = 1,
         hidden_ff = 1024,
-        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
+        bert_cpt = None,
         hf: bool = False,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
         desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
@@ -73,11 +73,13 @@ class ExpressionCounts(nn.Module):
                 }
                 config = hf_config
         else:
+            config = BertConfig.from_pretrained(hf_model_name) #modified
             self.bert = BertModel(config, add_pooling_layer=False)
-            checkpoint = torch.load(bert_cpt, map_location="cpu")
-            state_dict = checkpoint["model_state_dict"]
-            updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            if bert_cpt is not None:
+                checkpoint = torch.load(bert_cpt, map_location="cpu")
+                state_dict = checkpoint["model_state_dict"]
+                updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+                missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
 
         if updated_state_dict is not None:
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
@@ -309,13 +311,11 @@ class ExpressionCounts(nn.Module):
         desc_pooled = desc_pooled.to(sequence_output.dtype) 
         desc_output = desc_pooled[map_desc] 
 
-
         sequence_output = sequence_output.contiguous()
         if attention_mask is not None:
             sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
         else:
             sequence_output = sequence_output + desc_output[:, None, :]
-
 
         # 4) Decoder
         dec_out = self.decoder(
@@ -326,7 +326,6 @@ class ExpressionCounts(nn.Module):
 
         decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
         logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
-
 
         # 5) Loss
         loss = None
