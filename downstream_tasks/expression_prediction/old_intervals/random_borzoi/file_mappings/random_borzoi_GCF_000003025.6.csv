@@ -1,2 +1,0 @@
-id,tpm,cpm,bw,metadata,assay,genome,source,processed,dataset_description
-SRX10021131,multi_species_rna_geo_artem/GCF_000003025.6/tpm/SRX10021131.csv,multi_species_rna_geo_artem/GCF_000003025.6/cpm/SRX10021131.csv,,multi_species_rna_geo_artem/GCF_000003025.6/metadata/SRX10021131.json,RNA-seq,GCF_000003025.6,NCBI GEO,Artem,phylogensplit

@@ -1,2 +1,0 @@
-id,tpm,cpm,bw,metadata,assay,genome,source,processed,dataset_description
-ENCSR161RSX,multi_species_rna_geo_artem/GCF_000001405.40/tpm/ENCSR161RSX.csv,multi_species_rna_geo_artem/GCF_000001405.40/cpm/ENCSR161RSX.csv,,multi_species_rna_geo_artem/GCF_000001405.40/metadata/ENCSR161RSX.json,RNA-seq,GCF_000001405.40,ENCODE,Artem,phylogensplit
