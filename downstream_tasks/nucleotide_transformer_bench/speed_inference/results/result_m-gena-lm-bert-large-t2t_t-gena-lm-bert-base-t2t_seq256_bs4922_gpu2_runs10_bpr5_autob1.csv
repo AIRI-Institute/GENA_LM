@@ -1,0 +1,12 @@
+timestamp_utc,kind,run_idx,k_tokens_s,k_tokens_s_std,model,tokenizer,seq_len,batch_size,gpu,n_runs,warmup,batches_per_run,auto_batch
+2026-02-01T18:56:14.807758+00:00,run,0,27.12555802001845,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,1,27.127213794752304,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,2,27.126879157284435,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,3,27.127864848545435,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,4,27.127396248256385,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,5,27.126992670367848,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,6,27.128304840608372,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,7,27.128607285243373,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,8,27.128837310614866,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,run,9,27.127501110530115,,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1
+2026-02-01T18:56:14.807758+00:00,summary,,27.127515528622155,0.0009110294264741355,AIRI-Institute/gena-lm-bert-large-t2t,AIRI-Institute/gena-lm-bert-base-t2t,256,4922,2,10,3,5,1

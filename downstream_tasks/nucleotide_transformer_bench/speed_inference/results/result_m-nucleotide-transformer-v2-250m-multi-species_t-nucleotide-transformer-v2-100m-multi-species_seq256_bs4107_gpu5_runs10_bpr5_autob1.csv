@@ -1,0 +1,12 @@
+timestamp_utc,kind,run_idx,k_tokens_s,k_tokens_s_std,model,tokenizer,seq_len,batch_size,gpu,n_runs,warmup,batches_per_run,auto_batch
+2026-02-01T19:50:27.141797+00:00,run,0,33.321031602513905,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,1,33.323458851752285,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,2,33.329490448917866,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,3,33.3421629602577,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,4,33.55138720240494,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,5,33.560310306620764,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,6,33.5638858847109,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,7,33.567433157194195,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,8,33.56444913804841,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,run,9,33.566848997732926,,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1
+2026-02-01T19:50:27.141797+00:00,summary,,33.46904585501539,0.11451201073868603,InstaDeepAI/nucleotide-transformer-v2-250m-multi-species,InstaDeepAI/nucleotide-transformer-v2-100m-multi-species,256,4107,5,10,3,5,1

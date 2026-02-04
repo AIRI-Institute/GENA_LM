@@ -1,0 +1,12 @@
+timestamp_utc,kind,run_idx,k_tokens_s,k_tokens_s_std,model,tokenizer,seq_len,batch_size,gpu,n_runs,warmup,batches_per_run,auto_batch,min_token
+2026-02-01T20:00:04.545971+00:00,run,0,482.55003431633594,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,1,480.70839122690495,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,2,480.12436457615735,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,3,479.24112744027246,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,4,478.6838516868647,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,5,478.44543842486405,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,6,477.8738746762357,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,7,477.7474462952428,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,8,477.76337539128696,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,run,9,477.2997326132409,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6
+2026-02-01T20:00:04.545971+00:00,summary,,479.0437636647406,1.5649030872349328,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,2048,446,4,10,3,5,1,6

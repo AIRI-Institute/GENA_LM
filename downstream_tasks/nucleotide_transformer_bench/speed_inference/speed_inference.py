@@ -31,7 +31,7 @@ def _try_batch_worker(q, model_id, seq_len, batch_size, gpu, vocab_size):
 
         model = BertModel.from_pretrained(model_id, trust_remote_code=True, add_pooling_layer=False).to(device)
 
-        input_ids = torch.randint(0, vocab_size, (batch_size, seq_len), dtype=torch.long, device=device)
+        input_ids = torch.randint(10, vocab_size, (batch_size, seq_len), dtype=torch.long, device=device)
         attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
 
         with torch.inference_mode():
@@ -106,9 +106,9 @@ def auto_find_max_batch(ctx, model_id, seq_len, gpu, vocab_size, max_batch, log=
 
     found = lo
     if found > 8:
-        found -= 4
+        found -= 10
         if log:
-            print(f"[AutoBatch] Safety margin: -4 -> {found}")
+            print(f"[AutoBatch] Safety margin: -10 -> {found}")
     if found < 1:
         found = 1
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     model = BertModel.from_pretrained(args.model, trust_remote_code=True, add_pooling_layer=False).to(device)
     model.eval()
 
-    input_ids = torch.randint(0, vocab_size, (args.batch_size, args.seq_len), dtype=torch.long, device=device)
+    input_ids = torch.randint(10, vocab_size, (args.batch_size, args.seq_len), dtype=torch.long, device=device)
     attention_mask = torch.ones((args.batch_size, args.seq_len), dtype=torch.bool, device=device)
 
     with torch.inference_mode():

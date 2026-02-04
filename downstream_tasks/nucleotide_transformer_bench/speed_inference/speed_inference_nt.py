@@ -4,13 +4,11 @@ import numpy as np
 import torch
 import gc
 import multiprocessing as mp
-from transformers import AutoTokenizer, ModernBertModel
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 import os
 import re
 import csv
 from datetime import datetime, timezone
-
-AMP_DTYPE = torch.bfloat16
 
 
 def _safe_name(s: str, maxlen: int = 80) -> str:
@@ -19,29 +17,38 @@ def _safe_name(s: str, maxlen: int = 80) -> str:
     return (s[:maxlen] if s else "x")
 
 
+def _get_encoder(full_model):
+    for name in ("esm", "encoder", "base_model"):
+        if hasattr(full_model, name):
+            return getattr(full_model, name)
+    return full_model
+
+
 def _try_batch_worker(q, model_id, seq_len, batch_size, gpu, vocab_size, min_token):
     try:
         torch.cuda.set_device(gpu)
         device = torch.device(f"cuda:{gpu}")
 
-        model = ModernBertModel.from_pretrained(
-            model_id,
-            trust_remote_code=True,
-            attn_implementation="flash_attention_2",
-        ).to(device)
+        full = AutoModelForMaskedLM.from_pretrained(model_id, trust_remote_code=True).to(device)
+        full.eval()
+        model = _get_encoder(full)
         model.eval()
+        if model is not full:
+            del full
+            gc.collect()
+            torch.cuda.empty_cache()
 
         input_ids = torch.randint(min_token, vocab_size, (batch_size, seq_len), dtype=torch.long, device=device)
         attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
 
-        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
-            model(input_ids=input_ids, attention_mask=attention_mask)
+        with torch.inference_mode():
+            model(input_ids=input_ids, attention_mask=attention_mask, encoder_attention_mask=attention_mask)
 
         torch.cuda.synchronize(device)
         q.put(("ok", True))
     except RuntimeError as e:
         msg = str(e).lower()
-        if ("out of memory" in msg) or ("illegal memory access" in msg) or ("device-side assert" in msg):
+        if "out of memory" in msg:
             q.put(("ok", False))
         else:
             q.put(("error", str(e)))
@@ -122,19 +129,20 @@ if __name__ == "__main__":
     ctx = mp.get_context("spawn")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, required=True)
-    parser.add_argument("--tokenizer", type=str, required=True)
+    parser.add_argument("--model", type=str, default="/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base")
+    parser.add_argument("--tokenizer", type=str, default="AIRI-Institute/gena-lm-bert-base")
     parser.add_argument("--seq_len", type=int, default=512)
     parser.add_argument("--batch_size", type=int, default=2210)
     parser.add_argument("--auto_batch", action="store_true")
-    parser.add_argument("--max_batch", type=int, default=100000)
+    parser.add_argument("--max_batch", type=int, default=4096)
     parser.add_argument("--log_batch_search", action="store_true")
     parser.add_argument("--n_runs", type=int, default=10)
     parser.add_argument("--warmup", type=int, default=5)
-    parser.add_argument("--batches_per_run", type=int, default=10)
+    parser.add_argument("--batches_per_run", type=int, default=5)
     parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument("--min_token", type=int, default=6)
     parser.add_argument("--out_csv", type=str, default=None)
+    parser.add_argument("--min_token", type=int, default=6)
+
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -146,6 +154,7 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer, trust_remote_code=True)
     vocab_size = getattr(tokenizer, "vocab_size", None) or len(tokenizer)
+    print(f"vocab size: {vocab_size}")
 
     if args.auto_batch:
         args.batch_size = auto_find_max_batch(
@@ -160,38 +169,40 @@ if __name__ == "__main__":
         )
         print(f"Auto batch size: {args.batch_size}")
 
-    model = ModernBertModel.from_pretrained(
-        args.model,
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2",
-    ).to(device)
+    full = AutoModelForMaskedLM.from_pretrained(args.model, trust_remote_code=True).to(device)
+    full.eval()
+    model = _get_encoder(full)
     model.eval()
+    if model is not full:
+        del full
+        gc.collect()
+        torch.cuda.empty_cache()
 
     input_ids = torch.randint(args.min_token, vocab_size, (args.batch_size, args.seq_len), dtype=torch.long, device=device)
     attention_mask = torch.ones((args.batch_size, args.seq_len), dtype=torch.bool, device=device)
 
-    with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
+    with torch.inference_mode():
         for _ in range(args.warmup):
-            model(input_ids=input_ids, attention_mask=attention_mask)
+            model(input_ids=input_ids, attention_mask=attention_mask, encoder_attention_mask=attention_mask)
     torch.cuda.synchronize(device)
 
     tokens_per_run = args.batch_size * args.seq_len * args.batches_per_run
     k_tokens_per_sec_runs = []
 
-    for i in range(args.n_runs):
-        print(i)
-        torch.cuda.synchronize(device)
-        t0 = time.perf_counter()
+    with torch.inference_mode():
+        for i in range(args.n_runs):
+            print(i)
+            torch.cuda.synchronize(device)
+            t0 = time.perf_counter()
 
-        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
             for _ in range(args.batches_per_run):
-                model(input_ids=input_ids, attention_mask=attention_mask)
+                model(input_ids=input_ids, attention_mask=attention_mask, encoder_attention_mask=attention_mask)
 
-        torch.cuda.synchronize(device)
-        t1 = time.perf_counter()
+            torch.cuda.synchronize(device)
+            t1 = time.perf_counter()
 
-        dt = t1 - t0
-        k_tokens_per_sec_runs.append((tokens_per_run / dt) / 1000.0)
+            dt = t1 - t0
+            k_tokens_per_sec_runs.append((tokens_per_run / dt) / 1000.0)
 
     arr = np.array(k_tokens_per_sec_runs)
     print(f"Model: {args.model}")
@@ -211,10 +222,16 @@ if __name__ == "__main__":
         )
 
         base = args.out_csv
-        base_noext = base[:-4] if base.lower().endswith(".csv") else base
+        if base.lower().endswith(".csv"):
+            base_noext = base[:-4]
+        else:
+            base_noext = base
 
         os.makedirs("results", exist_ok=True)
         out_path = os.path.join("results", f"{os.path.basename(base_noext)}_{params_tag}.csv")
+        out_dir = os.path.dirname(out_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
 
         file_exists = os.path.isfile(out_path)
 
@@ -241,7 +258,6 @@ if __name__ == "__main__":
                     "warmup",
                     "batches_per_run",
                     "auto_batch",
-                    "min_token",
                 ])
 
             for i, v in enumerate(arr.tolist()):
@@ -260,7 +276,6 @@ if __name__ == "__main__":
                     args.warmup,
                     args.batches_per_run,
                     1 if args.auto_batch else 0,
-                    args.min_token,
                 ])
 
             w.writerow([
@@ -278,7 +293,6 @@ if __name__ == "__main__":
                 args.warmup,
                 args.batches_per_run,
                 1 if args.auto_batch else 0,
-                args.min_token,
             ])
 
         print(f"Saved CSV: {out_path}")

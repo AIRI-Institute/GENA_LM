@@ -10,8 +10,6 @@ import re
 import csv
 from datetime import datetime, timezone
 
-AMP_DTYPE = torch.bfloat16
-
 
 def _safe_name(s: str, maxlen: int = 80) -> str:
     s = re.sub(r"[^A-Za-z0-9._-]+", "-", s)
@@ -27,14 +25,13 @@ def _try_batch_worker(q, model_id, seq_len, batch_size, gpu, vocab_size, min_tok
         model = ModernBertModel.from_pretrained(
             model_id,
             trust_remote_code=True,
-            attn_implementation="flash_attention_2",
         ).to(device)
         model.eval()
 
         input_ids = torch.randint(min_token, vocab_size, (batch_size, seq_len), dtype=torch.long, device=device)
         attention_mask = torch.ones((batch_size, seq_len), dtype=torch.bool, device=device)
 
-        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
+        with torch.inference_mode():
             model(input_ids=input_ids, attention_mask=attention_mask)
 
         torch.cuda.synchronize(device)
@@ -162,15 +159,14 @@ if __name__ == "__main__":
 
     model = ModernBertModel.from_pretrained(
         args.model,
-        trust_remote_code=True,
-        attn_implementation="flash_attention_2",
+        trust_remote_code=True
     ).to(device)
     model.eval()
 
     input_ids = torch.randint(args.min_token, vocab_size, (args.batch_size, args.seq_len), dtype=torch.long, device=device)
     attention_mask = torch.ones((args.batch_size, args.seq_len), dtype=torch.bool, device=device)
 
-    with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
+    with torch.inference_mode():
         for _ in range(args.warmup):
             model(input_ids=input_ids, attention_mask=attention_mask)
     torch.cuda.synchronize(device)
@@ -183,7 +179,7 @@ if __name__ == "__main__":
         torch.cuda.synchronize(device)
         t0 = time.perf_counter()
 
-        with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=AMP_DTYPE):
+        with torch.inference_mode():
             for _ in range(args.batches_per_run):
                 model(input_ids=input_ids, attention_mask=attention_mask)
 

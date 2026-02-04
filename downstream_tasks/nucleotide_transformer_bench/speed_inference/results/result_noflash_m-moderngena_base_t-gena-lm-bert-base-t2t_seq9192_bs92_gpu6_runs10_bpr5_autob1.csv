@@ -1,0 +1,12 @@
+timestamp_utc,kind,run_idx,k_tokens_s,k_tokens_s_std,model,tokenizer,seq_len,batch_size,gpu,n_runs,warmup,batches_per_run,auto_batch,min_token
+2026-02-02T00:40:53.794372+00:00,run,0,71.29032434310824,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,1,71.16316017357751,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,2,71.14157081600196,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,3,71.13985235078452,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,4,71.13052236556513,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,5,71.12170563804504,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,6,71.13852162446607,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,7,71.11477903633676,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,8,71.1254501809861,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,run,9,71.13320942742065,,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6
+2026-02-02T00:40:53.794372+00:00,summary,,71.1499095956292,0.04845089382494295,/home/jovyan/shares/SR003.nfs2/nt_files/moderngena_base,AIRI-Institute/gena-lm-bert-base-t2t,9192,92,6,10,3,5,1,6

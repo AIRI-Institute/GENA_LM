@@ -1,0 +1,47 @@
+file,label,seq_len,mean,std,batch_size
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq1024_bs376_gpu1_runs10_bpr5_autob1.csv,DNABERT2,1024,53.415900937547256,0.0071694881857624,376
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq2048_bs90_gpu1_runs10_bpr5_autob1.csv,DNABERT2,2048,40.67850802736366,0.0066961075542075,90
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq256_bs3802_gpu1_runs10_bpr5_autob1.csv,DNABERT2,256,68.57366532258398,0.0098550258997496,3802
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq4096_bs15_gpu1_runs10_bpr5_autob1.csv,DNABERT2,4096,27.574722336448417,0.0086038396559166,15
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq512_bs1433_gpu1_runs10_bpr5_autob1.csv,DNABERT2,512,62.627965278190175,0.0334841990212641,1433
+result_m-DNABERT-2-117M_t-DNABERT-2-117M_seq9192_bs5_gpu1_runs10_bpr5_autob1.csv,DNABERT2,9192,15.482020370258947,0.0051383330171154,5
+result_m-gena-lm-bert-base-t2t_t-gena-lm-bert-base-t2t_seq256_bs6637_gpu2_runs10_bpr5_autob1.csv,GENA,256,91.7800219000168,0.0015076586164117,6637
+result_m-gena-lm-bert-base-t2t_t-gena-lm-bert-base-t2t_seq512_bs2206_gpu2_runs10_bpr5_autob1.csv,GENA,512,81.97973377845481,0.005853735714629,2206
+result_m-gena-lm-bert-large-t2t_t-gena-lm-bert-base-t2t_seq256_bs4922_gpu2_runs10_bpr5_autob1.csv,GENA large,256,27.127515528622155,0.0009110294264741,4922
+result_m-gena-lm-bert-large-t2t_t-gena-lm-bert-base-t2t_seq512_bs1633_gpu2_runs10_bpr5_autob1.csv,GENA large,512,24.79108356308156,0.001363411948926,1633
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq1024_bs901_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),1024,507.60906105815855,1.3567458952325404,901
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq2048_bs446_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),2048,479.0437636647406,1.5649030872349328,446
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq256_bs3631_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),256,552.437729468001,1.4108378165703412,3631
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq4096_bs218_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),4096,425.88096695586574,1.3897802599840212,218
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq512_bs1811_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),512,529.1778536697461,1.42409854538974,1811
+result_m-moderngena_base_t-gena-lm-bert-base-t2t_seq9192_bs92_gpu4_runs10_bpr5_autob1.csv,ModernGENA  (fa2 + autocast bf16),9192,332.54133035023114,0.929810268562841,92
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq1024_bs673_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),1024,212.23928042448117,0.639925210560382,673
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq2048_bs332_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),2048,202.50714173877705,0.6232721170798997,332
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq256_bs2721_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),256,223.7652483761875,0.6631099325339412,2721
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq4096_bs161_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),4096,185.82479518347148,0.4617024255939559,161
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq512_bs1356_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),512,218.23049390549775,0.6188699617297919,1356
+result_m-moderngena_large_t-gena-lm-bert-base-t2t_seq9192_bs67_gpu6_runs10_bpr5_autob1.csv,ModernGENA  large (fa2 + autocast bf16),9192,153.77401866824638,0.4479051703454627,67
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq1024_bs519_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,1024,46.46214344642002,0.003605804406939,519
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq2048_bs132_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,2048,31.72421592693757,0.0114654533298277,132
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq256_bs5941_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,256,70.88320399388316,0.0162413305288109,5941
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq4096_bs26_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,4096,19.01507561587953,0.0074275073354695,26
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq512_bs1845_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,512,60.27931856278987,0.0071390850190635,1845
+result_m-nucleotide-transformer-v2-100m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq9192_bs5_gpu0_runs10_bpr5_autob1.csv,NTv2 100m,9192,9.373909980878196,0.002748300123552,5
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq1024_bs486_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,1024,26.072455907671383,0.0031114483361373,486
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq2048_bs127_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,2048,20.04820356162513,0.0080410871052482,127
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq256_bs4107_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,256,33.46904585501539,0.114512010738686,4107
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq4096_bs26_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,4096,13.487451745203874,0.0016677664377232,26
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq512_bs1649_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,512,30.61890582999745,0.0021688005489526,1649
+result_m-nucleotide-transformer-v2-250m-multi-species_t-nucleotide-transformer-v2-100m-multi-species_seq9192_bs5_gpu5_runs10_bpr5_autob1.csv,NTv2 250m,9192,7.346100132797932,0.0014411728756962,5
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq1024_bs901_gpu6_runs10_bpr5_autob1.csv,ModernGENA,1024,77.20266072332277,0.0060284012861799,901
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq2048_bs446_gpu6_runs10_bpr5_autob1.csv,ModernGENA,2048,76.38238298237702,0.0058112772800108,446
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq256_bs3631_gpu6_runs10_bpr5_autob1.csv,ModernGENA,256,78.11954173978434,0.1480343993345501,3631
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq4096_bs218_gpu6_runs10_bpr5_autob1.csv,ModernGENA,4096,74.82860012205126,0.0073670576574107,218
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq512_bs1811_gpu6_runs10_bpr5_autob1.csv,ModernGENA,512,77.72631965126752,0.0071973081445923,1811
+result_noflash_m-moderngena_base_t-gena-lm-bert-base-t2t_seq9192_bs92_gpu6_runs10_bpr5_autob1.csv,ModernGENA,9192,71.1499095956292,0.0484508938249429,92
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq1024_bs673_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,1024,26.00958756247333,0.0008903268449677,673
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq2048_bs332_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,2048,25.85385109305601,0.000867910376497,332
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq256_bs2721_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,256,26.19913493371488,0.0213301460126634,2721
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq4096_bs161_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,4096,25.56421643175413,0.0023703245220244,161
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq512_bs1356_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,512,26.11071109080487,0.0019807384657085,1356
+result_noflash_m-moderngena_large_t-gena-lm-bert-base-t2t_seq9192_bs67_gpu5_runs10_bpr5_autob1.csv,ModernGENA large,9192,24.86365685633865,0.0028049375358954,67
