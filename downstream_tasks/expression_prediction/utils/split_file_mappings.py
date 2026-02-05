@@ -30,10 +30,10 @@ def split_csv_files(input_dir: str, output_dir: Optional[str] = None,
         print(f"Output directory: {output_path}")
     
     # Find CSV files with pattern
-    csv_files = list(input_path.glob("*_expr_file_mappings.csv"))
+    csv_files = list(input_path.glob("*file_mappings.csv"))
     
     if not csv_files:
-        print(f"No CSV files found in {input_dir} matching pattern '*_expr_file_mappings.csv'")
+        print(f"No CSV files found in {input_dir} matching pattern '*file_mappings.csv'")
         return {}
     
     if verbose:
@@ -44,9 +44,6 @@ def split_csv_files(input_dir: str, output_dir: Optional[str] = None,
     for csv_file in csv_files:
         if verbose:
             print(f"\nProcessing: {csv_file.name}")
-        
-        # Extract split name from filename
-        split_name = csv_file.name.replace("_expr_file_mappings.csv", "")
         
         try:
             # Read CSV file using polars (faster) or pandas as fallback
@@ -90,11 +87,6 @@ def split_csv_files(input_dir: str, output_dir: Optional[str] = None,
                 
                 if verbose:
                     print(f"    Created: {output_filename} ({len(genome_df)} rows)")
-            
-            results[split_name] = files_created
-            
-            if verbose:
-                print(f"  Created {files_created} files for {split_name}")
         
         except Exception as e:
             print(f"  Error processing {csv_file.name}: {e}")
