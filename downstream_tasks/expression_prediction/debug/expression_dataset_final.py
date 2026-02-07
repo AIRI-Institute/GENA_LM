@@ -45,10 +45,22 @@ class ExpressionDataset(Dataset):
         n_keys: Optional[int] = None,
         token_len_for_fetch: int = 10,
         norm_bw = False,
-        text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
-        text_max_seq_len: int = 1000
+        desc_embeddings_path: Optional[str] = None,
+        desc_embedding_dim: int = 1024,
+        use_cached_embeddings: bool = True
     ):
-
+        """
+        Dataset for gene expression prediction.
+        
+        Args:
+            gen_tokenizer: DNA tokenizer
+            targets_path: CSV file with target information
+            genome: Path to genome FASTA file
+            desc_embeddings_path: Path to pickle file with pre-computed embeddings
+                                   Format: {'id': numpy_array}
+            desc_embedding_dim: Dimension of description embeddings
+            use_cached_embeddings: Whether to cache embeddings in HDF5 for faster access
+        """
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(level=loglevel)
 
@@ -72,6 +84,9 @@ class ExpressionDataset(Dataset):
         self.norm_bw = norm_bw 
         
         self.targets_path = targets_path
+        self.desc_embeddings_path = desc_embeddings_path
+        self.desc_embedding_dim = desc_embedding_dim
+        self.use_cached_embeddings = use_cached_embeddings
 
         self.num_before = num_before
         self.transform_targets_bw = transform_targets_bw
@@ -115,14 +130,13 @@ class ExpressionDataset(Dataset):
         else:
             self.precompute_tokenization()
 
-
         if self.bw:
             self.signals_cache_path = self.get_signals_hash_path() + ".h5"
             if os.path.exists(self.signals_cache_path):
                 self.signals_cache = h5py.File(self.signals_cache_path, "r")
             else:
                 self.precompute_signals()
-                   
+                
         if self.tpm:
             assert all(self.paths[k][1] is not None for k in self.paths), "TPM paths are not set for some of the keys"
             tpm_hash_path = self.get_tpm_hash_path()
@@ -144,25 +158,87 @@ class ExpressionDataset(Dataset):
                     self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
                 pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
 
+        # Load or precompute description embeddings
+        if desc_embeddings_path:
+            self._load_description_embeddings()
+        else:
+            self.logger.warning("No description embeddings path provided. Using zeros as embeddings.")
+            self.desc_embeddings = {}
+        
+        # Cache embeddings in HDF5 for faster access
+        if self.use_cached_embeddings:
+            self._cache_embeddings()
+
         self.valid_indices = []
         if self.bw and not self.tpm: 
             self.valid_indices = list(range(len(self.genes)))   
         else:
             self._compute_valid_indices()
-        
-        self.text_tokenizer = AutoTokenizer.from_pretrained(text_tokenizer, padding_side='left')
-        self.text_max_seq_len = text_max_seq_len
-        self.text_data = {}  
-        self.text_data_keys = set()
-        tokenizer_tag = text_tokenizer.replace("/", "_")
-        self.desc_h5_cache_path = f"{os.path.abspath(targets_path)}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
 
-        if os.path.exists(self.desc_h5_cache_path):
-            self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
-        else:
-            self.load_descriptions_from_json(targets_path)
-            self.precompute_descriptions()
-            self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
+    def _load_description_embeddings(self):
+        """Load pre-computed embeddings from pickle file."""
+        self.logger.info(f"Loading description embeddings from {self.desc_embeddings_path}")
+        
+        try:
+            with open(self.desc_embeddings_path, 'rb') as f:
+                embeddings_dict = pickle.load(f)
+            
+            # Validate embeddings
+            self.desc_embeddings = {}
+            for key, embedding in embeddings_dict.items():
+                if isinstance(embedding, np.ndarray):
+                    self.desc_embeddings[key] = embedding.astype(np.float32)
+                elif isinstance(embedding, torch.Tensor):
+                    self.desc_embeddings[key] = embedding.cpu().numpy().astype(np.float32)
+                else:
+                    raise ValueError(f"Embedding for key {key} is not numpy array or torch tensor")
+                    
+                # Check dimensions
+                if self.desc_embeddings[key].ndim != 1:
+                    raise ValueError(f"Embedding for key {key} should be 1D, got shape {self.desc_embeddings[key].shape}")
+                    
+            self.logger.info(f"Loaded {len(self.desc_embeddings)} description embeddings")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to load embeddings: {e}")
+            raise
+
+    def _cache_embeddings(self):
+        """Cache embeddings in HDF5 format for faster access."""
+        cache_path = self.get_embeddings_hash_path() + ".h5"
+        
+        if os.path.exists(cache_path):
+            self.logger.info(f"Loading cached embeddings from {cache_path}")
+            self.embeddings_cache = h5py.File(cache_path, "r")
+            return
+        
+        self.logger.info(f"Caching embeddings to {cache_path}")
+        temp_path = f"{cache_path}.{os.getpid()}.temp"
+        
+        try:
+            with h5py.File(temp_path, "w") as h5f:
+                for key, embedding in tqdm.tqdm(self.desc_embeddings.items(), desc="Caching embeddings"):
+                    if key not in h5f:
+                        h5f.create_dataset(key, data=embedding, compression="gzip")
+                h5f.flush()
+            
+            os.rename(temp_path, cache_path)
+            self.embeddings_cache = h5py.File(cache_path, "r")
+            
+        except Exception as e:
+            self.logger.error(f"Error creating embeddings cache: {e}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
+
+    def get_embeddings_hash_path(self):
+        """Generate hash for embeddings cache."""
+        m = hashlib.blake2b(digest_size=8)
+        m.update(str('desc_embeddings').encode("utf-8"))
+        m.update(self._name_and_size(self.desc_embeddings_path).encode("utf-8"))
+        m.update(str(self.desc_embedding_dim).encode("utf-8"))
+        hash_suffix = m.hexdigest()
+        return str(self.hash_prefix) + ".embeddings." + hash_suffix
 
     def _name_and_size(self, p: str) -> str:
         if p is None:
@@ -545,57 +621,22 @@ class ExpressionDataset(Dataset):
                 os.remove(temp_path)
             raise
 
-    def load_descriptions_from_json(self, targets_path):
-        df = pd.read_csv(targets_path)
-        base_dir = os.path.dirname(targets_path)
-        for idx, row in df.iterrows():
-            description_id = row["id"]
-            metadata_path = row["metadata"]
-            full_metadata_path = metadata_path if os.path.isabs(metadata_path) else os.path.join(base_dir, metadata_path)
-            if not os.path.exists(full_metadata_path):
-                raise ValueError(f"Metadata file not found for id '{description_id}': {full_metadata_path}")
-            with open(full_metadata_path, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-            desc = self.make_description_from_json(meta, description_id, full_metadata_path)
-            self.text_data[description_id] = desc
-        self.text_data_keys = set(self.text_data.keys())
-
-    def make_description_from_json(self, meta, description_id, meta_path):
-        import re
-        if not meta or not isinstance(meta, dict) or len(meta) == 0:
-            raise ValueError(f"No description data in metadata for id '{description_id}', file: {meta_path}")
-        line_texts = []
-        for k, v in meta.items():
-            k = k.replace('_', ' ')
-            v = str(v).replace('_', ' ')
-            clean_k = re.sub(r'^(Characteristics|Chracteristics|Charateristics|Parameter)\\s*', '', k)
-            clean_k = re.sub(r'\\[|\\]', '', clean_k).strip()
-            clean_k = clean_k if clean_k else k
-            clean_v = str(v).replace('"', '').strip()
-            line_texts.append(f'{clean_k} is {clean_v}.')
-        if not line_texts:
-            raise ValueError(f"No description text generated for id '{description_id}', file: {meta_path}")
-        return " ".join(line_texts)
-
-
-    def precompute_descriptions(self):
-        print("Precomputing description tokens to {}".format(self.desc_h5_cache_path))
-        temp_path = "{}.{}.temp".format(self.desc_h5_cache_path, os.getpid())
-        with h5py.File(temp_path, "w") as h5f:
-            for description_id, text in tqdm.tqdm(self.text_data.items(), desc="Tokenizing descriptions"):
-                encoding = self.text_tokenizer(
-                    text,
-                    padding=True,
-                    truncation=True,
-                    max_length=self.text_max_seq_len,
-                    return_tensors="pt"
-                )
-
-                grp = h5f.create_group(str(description_id))
-                grp.create_dataset("input_ids", data=encoding["input_ids"][0])
-                grp.create_dataset("attention_mask", data=encoding["attention_mask"][0])
-            h5f.flush()
-        os.rename(temp_path, self.desc_h5_cache_path)
+    def _get_embedding(self, key: str) -> np.ndarray:
+        """Get embedding for a given key, with fallback to zeros if not found."""
+        if self.use_cached_embeddings and hasattr(self, 'embeddings_cache'):
+            try:
+                if key in self.embeddings_cache:
+                    return np.array(self.embeddings_cache[key])
+            except:
+                pass
+        
+        # Fallback to memory dictionary
+        if key in self.desc_embeddings:
+            return self.desc_embeddings[key]
+        
+        # If embedding not found, return zeros
+        self.logger.warning(f"Embedding not found for key: {key}. Using zeros.")
+        return np.zeros(self.desc_embedding_dim, dtype=np.float32)
 
     def __len__(self):
         return len(self.valid_indices) * self.n_cell_chunks
@@ -682,35 +723,27 @@ class ExpressionDataset(Dataset):
             start_coord = starts[L-1]
             end_coord   = ends[0]
 
-        valid_tpm_count = int(np.count_nonzero(~np.isnan(tpm_values)))
-
-        desc_input_ids = []
-        desc_attention_mask = []
+        # Load description embeddings
+        desc_embeddings_list = []
         for key in selected_keys:
-            grp = self.desc_h5_cache[str(key)]
-            ids = torch.tensor(grp["input_ids"][()], dtype=torch.long)      
-            mask = torch.tensor(grp["attention_mask"][()], dtype=torch.long) 
-            desc_input_ids.append(ids)
-            desc_attention_mask.append(mask)
+            embedding_np = self._get_embedding(key)
+            desc_embeddings_list.append(torch.from_numpy(embedding_np))
 
+        # Pad with zeros if needed
+        if len(desc_embeddings_list) < self.n_keys:
+            zeros_embedding = torch.zeros(self.desc_embedding_dim, dtype=torch.float32)
+            desc_embeddings_list.extend([zeros_embedding] * (self.n_keys - len(desc_embeddings_list)))
 
-        n_missing = self.n_keys - len(desc_input_ids)
-        for _ in range(n_missing):
-            desc_input_ids.append(torch.tensor([20], dtype=torch.long))  
-            desc_attention_mask.append(torch.tensor([1], dtype=torch.long))
-
-        if self.bw and not self.tpm: 
-            features_selected_keys = []
-        else:
-            features_selected_keys = filtered_keys
+        # Stack embeddings into tensor
+        desc_embeddings = torch.stack(desc_embeddings_list, dim=0)  # (n_keys, embedding_dim)
 
         features = {
-            "input_ids": batch_input_ids,          
-            "attention_mask": batch_attn_mask,    
-            "token_type_ids": batch_token_types,  
-            "labels": labels,                    
-            "labels_mask": labels_mask,                    
-            "selected_keys": filtered_keys,      
+            "input_ids": batch_input_ids,          # (n_keys, seq_len)
+            "attention_mask": batch_attn_mask,     # (n_keys, seq_len)
+            "token_type_ids": batch_token_types,   # (n_keys, seq_len)
+            "labels": labels,                      # (n_keys, L+2, 1)
+            "labels_mask": labels_mask,            # (n_keys, L+2, 1)
+            "selected_keys": filtered_keys,        # List of keys with valid TPM
             "gene_id": [gene_id] * len(filtered_keys),       
             "name": self.genes.iloc[original_idx]['gene_name'],
             "chrom": chrom,
@@ -719,8 +752,7 @@ class ExpressionDataset(Dataset):
             "end": end_coord,
             "dataset_description": [self.dataset_description] * self.n_keys,
             "dataset_flag": torch.ones(self.n_keys, dtype=torch.float32),
-            "desc_input_ids": desc_input_ids,         
-            "desc_attention_mask": desc_attention_mask
+            "desc_vectors": desc_embeddings,       # (n_keys, embedding_dim) - NEW: embeddings instead of tokens
         }
 
         return features
@@ -742,6 +774,11 @@ class ExpressionDataset(Dataset):
         except Exception:
             pass
         try:
+            if hasattr(self, 'embeddings_cache') and self.embeddings_cache is not None:
+                self.embeddings_cache.close()
+        except Exception:
+            pass
+        try:
             if hasattr(self, 'bigWigHandlers'):
                 for d in self.bigWigHandlers.values():
                     for h in d.values():
@@ -754,6 +791,7 @@ class ExpressionDataset(Dataset):
 
     def describe(self):
         result = f"ExpressionDataset(n_genes={len(self.valid_indices)}, n_cell_types={len(self.paths.keys())}, n_chunks={self.n_cell_chunks}, bw={self.bw}, tpm={self.tpm}"
+        result += f", embedding_dim={self.desc_embedding_dim}"
         if hasattr(self, 'dataset_description'):
             result += f", dataset_description={self.dataset_description}"
         result += ")"

@@ -39,12 +39,16 @@ class ExpressionCounts(nn.Module):
         nhead = 8,
         weight = 1,
         hidden_ff = 1024,
-        bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
+        bert_cpt = None,
         hf: bool = False,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
         desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
+        use_frozen_embeds: bool = True,
+        hidden_size_desc: int = 768,
     ):
         super().__init__()
+        
+        self.use_frozen_embeds = use_frozen_embeds
 
         updated_state_dict = None
 
@@ -73,11 +77,13 @@ class ExpressionCounts(nn.Module):
                 }
                 config = hf_config
         else:
+            config = BertConfig.from_pretrained(hf_model_name)
             self.bert = BertModel(config, add_pooling_layer=False)
-            checkpoint = torch.load(bert_cpt, map_location="cpu")
-            state_dict = checkpoint["model_state_dict"]
-            updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            if bert_cpt is not None:
+                checkpoint = torch.load(bert_cpt, map_location="cpu")
+                state_dict = checkpoint["model_state_dict"]
+                updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
+                missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
 
         if updated_state_dict is not None:
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
@@ -90,78 +96,89 @@ class ExpressionCounts(nn.Module):
         self.config = config
 
         # 2) Description model (qwen)
-        self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+        if not self.use_frozen_embeds:
+            self.desc_model_name = desc_model_name
+            self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
 
-        for p in self.desc_model.parameters():
-            p.requires_grad = False
+            for p in self.desc_model.parameters():
+                p.requires_grad = False
 
-        backbone = getattr(self.desc_model, "model", None)
-        if backbone is None:
-            backbone = self.desc_model
+            backbone = getattr(self.desc_model, "model", None)
+            if backbone is None:
+                backbone = self.desc_model
 
-        layers = getattr(backbone, "layers", None)
-        if layers is None:
-            raise RuntimeError("Не нашёл слои у desc_model (ожидал .model.layers). Проверь архитектуру модели.")
+            layers = getattr(backbone, "layers", None)
+            if layers is None:
+                raise RuntimeError("Не нашёл слои у desc_model (ожидал .model.layers). Проверь архитектуру модели.")
 
-        #unfreeze last 4 blocks
-        k = 4
-        k = min(k, len(layers)) 
+            #unfreeze last 4 blocks
+            k = 4
+            k = min(k, len(layers)) 
 
-        for block in layers[-k:]:
-            for p in block.parameters():
-                p.requires_grad = True
-
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            for p in backbone.norm.parameters():
-                p.requires_grad = True
-
-        for block in layers[:-k]:
-            block.eval()
-        for block in layers[-k:]:
-            block.train()
-
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            backbone.norm.train()
-
-        def _is_main_process():
-            return (not torch.distributed.is_available()
-                    or not torch.distributed.is_initialized()
-                    or torch.distributed.get_rank() == 0)
-
-        if _is_main_process():
-            unfrozen_blocks = []
-            for i, block in enumerate(layers):
-                if any(p.requires_grad for p in block.parameters()):
-                    unfrozen_blocks.append(i)
-
-            print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
+            for block in layers[-k:]:
+                for p in block.parameters():
+                    p.requires_grad = True
 
             if hasattr(backbone, "norm") and backbone.norm is not None:
-                norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
-                norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
-                print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
-            else:
-                print("[desc_model] backbone.norm: not found")
+                for p in backbone.norm.parameters():
+                    p.requires_grad = True
 
-            total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
-            total_params = sum(p.numel() for p in self.desc_model.parameters())
-            print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
+            for block in layers[:-k]:
+                block.eval()
+            for block in layers[-k:]:
+                block.train()
 
-            names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
-            print(f"[desc_model] trainable tensors: {len(names)}")
-            for n in names[:30]:
-                print("  -", n)
-            if len(names) > 30:
-                print(f"  - ... (+{len(names)-30} more)")
+            if hasattr(backbone, "norm") and backbone.norm is not None:
+                backbone.norm.train()
+
+            def _is_main_process():
+                return (not torch.distributed.is_available()
+                        or not torch.distributed.is_initialized()
+                        or torch.distributed.get_rank() == 0)
+
+            if _is_main_process():
+                unfrozen_blocks = []
+                for i, block in enumerate(layers):
+                    if any(p.requires_grad for p in block.parameters()):
+                        unfrozen_blocks.append(i)
+
+                print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
+
+                if hasattr(backbone, "norm") and backbone.norm is not None:
+                    norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
+                    norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
+                    print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
+                else:
+                    print("[desc_model] backbone.norm: not found")
+
+                total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
+                total_params = sum(p.numel() for p in self.desc_model.parameters())
+                print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
+
+                names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
+                print(f"[desc_model] trainable tensors: {len(names)}")
+                for n in names[:30]:
+                    print("  -", n)
+                if len(names) > 30:
+                    print(f"  - ... (+{len(names)-30} more)")
+        else:
+            self.desc_hidden_size = hidden_size_desc
+            self.desc_fc = nn.Sequential(
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                nn.LeakyReLU(),
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+            )
 
         # 3) Проекция, если размерности не совпадают
         self.gen_hidden_size = config.hidden_size
-        self.desc_hidden_size = self.desc_model.config.hidden_size
-        if self.desc_hidden_size != self.gen_hidden_size:
-            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+        if not self.use_frozen_embeds:
+            self.desc_hidden_size = self.desc_model.config.hidden_size
+            if self.desc_hidden_size != self.gen_hidden_size:
+                self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+            else:
+                self.desc_proj = nn.Identity()
         else:
-            self.desc_proj = nn.Identity()
+            self.desc_proj = nn.Linear(self.desc_hidden_size, config.hidden_size)
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
@@ -203,6 +220,7 @@ class ExpressionCounts(nn.Module):
         desc_input_ids=None,           # (B, N, D)
         desc_attention_mask = None,
         dataset_flag=None,           # (B, N): 1 -> дубли INPUTS; 0 -> дубли DESC
+        desc_vectors=None,           # (B, N, D)
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -299,22 +317,29 @@ class ExpressionCounts(nn.Module):
             bad = (map_desc < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
             raise RuntimeError(f"map_desc has -1 indices: {bad.tolist()}")
 
-        desc_out = self.desc_model(
-                input_ids=desc_input_ids[idx_unique_desc],
-                attention_mask=desc_attention_mask[idx_unique_desc],
-                return_dict=True,
-                )
-        desc_pooled = desc_out.last_hidden_state[:, -1]
-        desc_pooled = self.desc_proj(desc_pooled)                    
-        desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        desc_output = desc_pooled[map_desc] 
-
+        if not self.use_frozen_embeds:
+            desc_out = self.desc_model(
+                    input_ids=desc_input_ids[idx_unique_desc],
+                    attention_mask=desc_attention_mask[idx_unique_desc],
+                    return_dict=True,
+                    )
+            desc_pooled = desc_out.last_hidden_state[:, -1]
+            desc_pooled = self.desc_proj(desc_pooled)                    
+            desc_pooled = desc_pooled.to(sequence_output.dtype) 
+            desc_output = desc_pooled[map_desc] 
+        else:
+            if desc_vectors is None:
+                raise ValueError("desc_vectors not provided")
+            
+            desc_embeddings = self.desc_fc(desc_vectors)
+            desc_pooled = self.desc_proj(desc_embeddings)
+            desc_output = desc_pooled[map_desc]
 
         sequence_output = sequence_output.contiguous()
         if attention_mask is not None:
-            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+            sequence_output = sequence_output + desc_output.unsqueeze(1) * attention_mask[:, :, None].to(sequence_output.dtype)
         else:
-            sequence_output = sequence_output + desc_output[:, None, :]
+            sequence_output = sequence_output + desc_output.unsqueeze(1)
 
 
         # 4) Decoder
