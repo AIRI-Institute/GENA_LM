@@ -211,6 +211,9 @@ class ExpressionCounts(nn.Module):
 
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        
+        #added after 9 model training
+        self.layer_norm = nn.LayerNorm(self.gen_hidden_size)
 
 
     def forward(
@@ -350,8 +353,9 @@ class ExpressionCounts(nn.Module):
             sequence_output = sequence_output + desc_output * attention_mask.unsqueeze(-1).to(sequence_output.dtype)
         else:
             sequence_output = sequence_output + desc_output
-            
         
+        sequence_output = self.layer_norm(sequence_output)
+            
         # 4) Decoder
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)
