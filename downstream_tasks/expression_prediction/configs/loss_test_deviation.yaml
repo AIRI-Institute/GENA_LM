@@ -1,4 +1,4 @@
-TASK_NAME: expression/loss_test
+TASK_NAME: expression/loss_test_deviation
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -84,7 +84,8 @@ model_kwargs:
   config:
     _target_: builtins.dict
 
-  weight: 8
+  use_deviation_loss: True
+  weight_deviation_loss: 5.0
 
 # shared dataset parameters
 shared_dataset_params:

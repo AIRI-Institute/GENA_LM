@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
@@ -15,7 +16,102 @@ class ExpressionModelOutput(TokenClassifierOutput):
     labels_mask_reshaped: Optional[torch.FloatTensor] = None
     cls_loss: Optional[torch.FloatTensor] = None
     other_loss: Optional[torch.FloatTensor] = None
-    
+    deviation_loss: Optional[torch.FloatTensor] = None
+    multinomial_loss: Optional[torch.FloatTensor] = None
+
+
+def cls_deviation_from_mean_loss(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    labels_mask: torch.Tensor,
+    n_keys: int,
+) -> torch.Tensor:
+    """
+    Loss on matching deviations from the mean: deviations of logits from the group mean
+    should match deviations of labels from the group mean (CLS only, mask=1 only).
+
+    For each n_keys: group mean is computed only over positions with mask == 1.
+    loss = MSE(logit_dev - label_dev) over masked positions in each group.
+
+    logits: (B*N, L, 1)
+    labels: (B*N, L, 1)
+    labels_mask: (B*N, L, 1)
+    n_keys: N — group size
+    """
+    B = logits.shape[0] // n_keys
+    cls_logits = logits[:, 0:1, :]   # (B*N, 1, 1)
+    cls_labels = labels[:, 0:1, :]   # (B*N, 1, 1)
+    cls_mask = labels_mask[:, 0:1, :]  # (B*N, 1, 1)
+
+    cls_logits = cls_logits.view(B, n_keys, 1, 1)   # (B, N, 1, 1)
+    cls_labels = cls_labels.view(B, n_keys, 1, 1)   # (B, N, 1, 1)
+    cls_mask = cls_mask.view(B, n_keys, 1, 1)       # (B, N, 1, 1)
+
+    cnt = cls_mask.sum(dim=1, keepdim=True).clamp(min=1e-8)  # (B, 1, 1, 1)
+    mean_logits = (cls_logits * cls_mask).sum(dim=1, keepdim=True) / cnt   # (B, 1, 1, 1)
+    mean_labels = (cls_labels * cls_mask).sum(dim=1, keepdim=True) / cnt   # (B, 1, 1, 1)
+
+    logit_dev = (cls_logits - mean_logits) * cls_mask   # (B, N, 1, 1)
+    label_dev = (cls_labels - mean_labels) * cls_mask   # (B, N, 1, 1)
+    dev_sq = (logit_dev - label_dev).pow(2)             # (B, N, 1, 1)
+
+    loss_per_group = dev_sq.sum(dim=1) / cnt.squeeze(1)  # (B, 1, 1)
+    group_has_mask = (cls_mask.sum(dim=1) > 0).squeeze()  # (B,)
+    if group_has_mask.sum() == 0:
+        return logits.new_zeros(())
+    return loss_per_group[group_has_mask].mean()
+
+
+import torch
+import torch.nn.functional as F
+
+def cls_multinomial_loss(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    labels_mask: torch.Tensor,
+    n_keys: int,
+) -> torch.Tensor:
+    """
+    Multinomial (NLL) loss over each n_keys for CLS token only.
+    In each group of n: masked log_softmax(logits) and NLL w.r.t. target distribution
+    (labels normalized per group only over positions with mask == 1).
+    Positions with mask 0 participate neither in target nor in softmax normalization.
+
+    logits:       (B*N, L, 1)
+    labels:       (B*N, L, 1)
+    labels_mask:  (B*N, L, 1)
+    n_keys:       N — group size
+    """
+    B = logits.shape[0] // n_keys
+
+    # CLS-only (B*N, 1) -> (B*N,)
+    cls_logits = logits[:, 0:1, :].squeeze(-1).squeeze(-1)      # (B*N,)
+    cls_labels = labels[:, 0:1, :].squeeze(-1).squeeze(-1)      # (B*N,)
+    cls_mask   = labels_mask[:, 0:1, :].squeeze(-1).squeeze(-1) # (B*N,)
+
+    # (B, N)
+    cls_logits = cls_logits.view(B, n_keys)
+    cls_labels = cls_labels.view(B, n_keys)
+    cls_mask   = cls_mask.view(B, n_keys)
+
+    mask_bool = cls_mask > 0
+    group_has_mask = mask_bool.any(dim=1)  # (B,)
+    if group_has_mask.sum() == 0:
+        return logits.new_zeros(())
+
+    # masked log_softmax: exclude mask==0 from normalization
+    neg = torch.finfo(cls_logits.dtype).min
+    masked_logits = cls_logits.masked_fill(~mask_bool, neg)
+    log_probs = F.log_softmax(masked_logits, dim=1)  # (B, N)
+
+    # target distribution: normalize labels only over mask==1
+    target = cls_labels * cls_mask
+    target_sum = target.sum(dim=1, keepdim=True).clamp(min=1e-8)
+    target = target / target_sum  # (B, N)
+
+    nll_per_group = -(target * log_probs).sum(dim=1)  # (B,)
+    return nll_per_group[group_has_mask].mean()
+
 
 class ExpressionCounts(nn.Module):
     """
@@ -43,6 +139,10 @@ class ExpressionCounts(nn.Module):
         hf: bool = False,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
         desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
+        use_deviation_loss: bool = False,
+        use_multinomial_loss: bool = False,
+        weight_deviation_loss: float = 1.0,
+        weight_multinomial_loss: float = 1.0,
     ):
         super().__init__()
 
@@ -175,8 +275,10 @@ class ExpressionCounts(nn.Module):
         self.activation = activation
         self.loss_fct = loss_fct
         self.weight = weight
-        self.use_deviation_loss = getattr(config, "use_deviation_loss", True)
-        self.deviation_loss_weight = getattr(config, "deviation_loss_weight", 0.1)
+        self.use_deviation_loss = use_deviation_loss
+        self.use_multinomial_loss = use_multinomial_loss
+        self.weight_deviation_loss = weight_deviation_loss
+        self.weight_multinomial_loss = weight_multinomial_loss
 
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
@@ -326,7 +428,7 @@ class ExpressionCounts(nn.Module):
 
         # 5) Loss
         loss = None
-        labels_reshaped = labels_mask_reshaped = cls_loss = mean_loss = diviation_loss = other_loss = None
+        labels_reshaped = labels_mask_reshaped = cls_loss = deviation_loss = multinomial_loss = other_loss = None
 
         if labels is not None:
             labels_reshaped = labels.to(logits.device)
@@ -339,9 +441,16 @@ class ExpressionCounts(nn.Module):
                 other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1)
 
                 if cls_mask.sum().item() > 0:
-                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
-                        mean_loss = None
-                        diviation_loss = None
+                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
+                    # Group-wise losses over N for CLS only (with mask) — only if enabled by flags
+                    if self.use_deviation_loss:
+                        deviation_loss = cls_deviation_from_mean_loss(
+                            logits, labels_reshaped, labels_mask_reshaped, n_keys=N
+                        )
+                    if self.use_multinomial_loss:
+                        multinomial_loss = cls_multinomial_loss(
+                            logits, labels_reshaped, labels_mask_reshaped, n_keys=N
+                        )
 
                 if other_mask.sum().item() > 0:
                     other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / (other_mask.sum() + 1e-8)
@@ -352,6 +461,12 @@ class ExpressionCounts(nn.Module):
                     loss = cls_loss
                 elif other_loss is not None:
                     loss = self.weight * other_loss
+
+                if loss is not None:
+                    if deviation_loss is not None:
+                        loss = loss + self.weight_deviation_loss * deviation_loss
+                    if multinomial_loss is not None:
+                        loss = loss + self.weight_multinomial_loss * multinomial_loss
 
         if not return_dict:
             return (loss, logits)
@@ -366,5 +481,7 @@ class ExpressionCounts(nn.Module):
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,
-            other_loss=other_loss
+            other_loss=other_loss,
+            deviation_loss=deviation_loss,
+            multinomial_loss=multinomial_loss,
         )
