@@ -191,15 +191,19 @@ class AnnotationModel(torch.nn.Module):
 		predicts = self.activation(logits)
 		if targets is not None:
 			loss = self.loss_fct(predicts, targets)
-
-		return AnnotationModelOutput(
-			loss=loss['total'],
-			loss_TSS=loss['tss'],
-			loss_polya=loss['polya'],
-			loss_intragenic=loss['intragenic'],
-			logits=logits,
-			predicts=predicts,
-		)
+			return AnnotationModelOutput(
+				loss=loss['total'],
+				loss_TSS=loss['tss'],
+				loss_polya=loss['polya'],
+				loss_intragenic=loss['intragenic'],
+				logits=logits,
+				predicts=predicts,
+			)
+		else:
+			return AnnotationModelOutput(
+				logits=logits,
+				predicts=predicts,
+			)
 
 
 

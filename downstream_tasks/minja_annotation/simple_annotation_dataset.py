@@ -13,6 +13,7 @@ import random
 import subprocess
 from omegaconf import ListConfig
 from torch.utils.data import ConcatDataset, Subset
+import tempfile
 
 class GenomicAnnotationDataset(Dataset):
 	"""
@@ -879,6 +880,29 @@ class GenomicAnnotationDataset(Dataset):
 		"""Cleanup when object is destroyed."""
 		self.close()
 
+class GenomicAnnotationDatasetForInference(GenomicAnnotationDataset):
+	def __init__(self, *args, **kwargs):
+		# allow to provide fasta_txt instead of path_to_fasta
+		self.fasta_txt = kwargs.pop("fasta_txt", None)
+		path_to_fasta = kwargs.get("path_to_fasta", None)
+		assert self.fasta_txt is not None or path_to_fasta is not None, "Either fasta_txt or path_to_fasta must be provided"
+		assert not (self.fasta_txt and path_to_fasta), "Either fasta_txt or path_to_fasta must be provided, not both"
+		if self.fasta_txt is not None:
+			# open temp file and save self.fasta to it
+			with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+				tmp_file.write(self.fasta_txt.encode())
+				kwargs["path_to_fasta"] = tmp_file.name
+		
+		# now initialize the dataset
+		super().__init__(*args, **kwargs)
+
+	def _init_gff_db(self):
+		"""Initialize GFF database."""
+		pass # we don't need to initialize GFF database for inference
+	
+	def _extract_annotation_targets(self, *args, **kwargs):
+		return None
+
 def toIGV(sample: Dict, tokenizer: AutoTokenizer, IGV_files_prefix: str, file_mode: str = "w"):
 	"""
 	Convert sample to IGV format. Saves each target as bedGraph file and sample coordinates as bed file.
@@ -991,11 +1015,15 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
 		}
 		
 		# Batch targets
-		target_keys = batch[0]['targets'].keys()
-		for key in target_keys:
-			batched['targets'][key] = torch.stack([item['targets'][key] for item in batch])
-			
-		return batched
+		if batch[0]['targets'] is None:
+			assert np.all([item['targets'] is None for item in batch]), "All targets must be None for inference"
+			batched['targets'] = None
+		else:
+			target_keys = batch[0]['targets'].keys()
+			for key in target_keys:
+				batched['targets'][key] = torch.stack([item['targets'][key] for item in batch])
+
+		return batched		
 
 # Example usage
 if __name__ == "__main__":

@@ -1,3 +1,20 @@
+Define repository root as 
+
+```
+MODERNBERT_HOME=$(realpath "../../../../ModernBERT/") GENALM_HOME=$(realpath "../../../../GENA_LM/") python run_pipeline.py --fa
+sta ../../../data/annotation/test.fa 
+```
+
+Place three checkpoints into relevant folders:
+
+```
+mkdir -p $GENALM_HOME/runs/4class
+mkdir -p $GENALM_HOME/runs/6class
+mkdir -p $GENALM_HOME/runs/pretrained
+```
+
+MODERNBERT_HOME="../../../../ModernBERT/" GENALM_HOME="../../../../GENA_LM/" python run_pipeline.py --fasta ../../../data/annotation/test.fa 
+
 # Gene Finding Pipeline
 
 This pipeline generates filtered transcript intervals (BED) from BigWig outputs produced by two evaluations on the same reference and chromosome:

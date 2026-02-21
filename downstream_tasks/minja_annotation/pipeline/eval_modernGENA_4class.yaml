@@ -1,0 +1,63 @@
+HOME_PATH: ${oc.env:GENALM_HOME}
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+model:
+  _target_: "annotation_model.AnnotationModel"
+  output_dir: null
+  config: null  # Path to the BERT configuration file; null will load from huggingface
+  modernbert_cpt: ${HOME_PATH}/runs/moderngena-base-pretrain-promoters_multi_v2_resume_ep30-ba90700/  # Path to the ModernBERT checkpoint
+  classifier:
+    _target_: "annotation_model.Linear_Classifier_with_dropout"
+    num_layers: 1  # Number of layers
+    num_labels: 4  # Number of labels
+    classifier_dropout: 0.0  # Dropout rate
+  activation:
+    _target_: "torch.nn.Identity"
+  loss_fct:
+    _target_: "annotation_model.WeightedBCEWithLogitsLoss"
+    # set both weight to 1 to get standard BCEWithLogitsLoss
+    w_nonprimary_exists: 0.0  # Weight for non-primary annotation exists
+    w_intergenic: 0.5  # Weight for intergenic regions (only affects polyA)
+
+# region: "chr21:13500000-13600000"
+# region: "chr21:13500000-20000000"
+region: null
+
+eval_dataset:
+  _target_: "simple_annotation_dataset.GenomicAnnotationDatasetForInference"
+  model_input_length_token: 1024
+  min_chromosome_length: 1
+  av_token_len: 9.0
+  chunk_overlap: 0.5
+  path_to_gff_db: null
+  path_to_fasta: null
+  tokenizer:
+    _target_: "transformers.AutoTokenizer.from_pretrained"
+    pretrained_model_name_or_path: "AIRI-Institute/gena-lm-bert-base-t2t"
+  primary_transcript_types: ["protein_coding"]
+  primary_tags: ["GENCODE_Primary", "MANE_Select"]
+  strand: "random"
+  drop_last: False
+
+dataloader:
+  _target_: "torch.utils.data.DataLoader"
+  dataset: ${eval_dataset}
+  sampler:
+    _target_: evaluate_on_chromosome.SequentialRegionalSampler
+    data_source: ${eval_dataset}
+    region: ${region}
+  batch_size: ${batch_size}
+  shuffle: False
+  num_workers: 16
+  collate_fn:
+    _target_: hydra.utils.get_object
+    path: evaluate_on_chromosome.identity_fn
+  pin_memory: False
+  drop_last: False
+  timeout: 0
+  worker_init_fn:
+    _target_: hydra.utils.get_object
+    path: simple_annotation_dataset.worker_init_fn
