@@ -1,18 +1,15 @@
 import os
 import sys
 from pathlib import Path
-
+import pandas as pd
 from tqdm import tqdm
 from scipy.signal import find_peaks
-from typing import List, Tuple, Dict
 
-from hydra import initialize_config_dir, compose
-from argparse import ArgumentParser
 import logging
 from pathlib import Path
 from hydra.utils import instantiate
 import torch
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from safetensors.torch import load_file
 
 # Support both: run as package (relative imports) and run as script (parent on path)
@@ -30,7 +27,43 @@ import numpy as np
 import pyBigWig as bw
 
 ################################ inference #####################################
+class pseudoBigWig:
+	def __init__(self):
+		self.data = {}
+
+	def chroms(self):
+		return {k:len(v) for k,v in self.data.items()}
+	
+	def add_chrom(self, chrom: str, data: np.ndarray):
+		self.data[chrom] = data
+		print ("Adding chromosome {chrom} with data length {len(data)}")
+
+	def values(self, chrom: str, start: int, end: int):
+		assert chrom in self.chroms().keys(), f"Chromosome {chrom} not found"
+		assert start >= 0 and end <= len(self.data[chrom]), f"Start {start} or end {end} out of range for chromosome {chrom}"
+		return self.data[chrom][start:end]
+
+	def close(self):
+		pass
+
 class inferenceHandler(bigWigExporter):
+	def as_bigwig(self, label: str):
+		result = pseudoBigWig()
+		print (len(self.chrom_data))
+		for chrom in self.chrom_data.keys():
+			_ = None
+			print (f"processing chromosome {chrom} with labels {self.chrom_data[chrom].keys()} and looking for label {label}")
+			if label in self.chrom_data[chrom].keys():
+				print ("Adding chromosome {chrom} with data length {len(self.chrom_data[chrom][label])}")
+				result.add_chrom(chrom, self.chrom_data[chrom][label])
+				print (result.chroms())
+				_ = label
+			if _ is None:
+				raise ValueError(f"No results found for label {label} on chromosome {chrom}. Available labels: {self.chrom_data[chrom].keys()}")
+		
+		assert len(result.chroms()) > 0, f"No results found for label {label}"
+		return result
+
 	def __init__(self, chroms: List[str], chrom_lengths: List[int], logger: logging.Logger = None, context_fraction: float = 0.1):
 		self.chroms = chroms
 		self.chrom_lengths = chrom_lengths
@@ -96,7 +129,7 @@ def run_inference(experiment_config: Dict, model_cpt: str, logger: logging.Logge
 	dataset.close()
 	return datahandler
 
-########################## post-processing #####################################
+########################## post-processing - peak finding#####################################
 
 def combine_strands(tss_plus, tss_minus, polya_plus, polya_minus):
 	tss_combined = np.maximum(tss_plus, tss_minus)
@@ -106,75 +139,43 @@ def combine_strands(tss_plus, tss_minus, polya_plus, polya_minus):
 def merge_rev_comp(signal_plus, signal_minus):
 	return np.mean([signal_plus, signal_minus], axis=0)
 
-def read_bigwig(bigwig_path, filename, chromosome="NC_060944.1"):
-	filepath = os.path.join(bigwig_path, filename)
-	if not os.path.exists(filepath):
-		raise FileNotFoundError(f"BigWig file not found: {filepath}")
+def read_bigwig(bigwig_path, filename, chromosome):
+	if isinstance(bigwig_path, str): # we read from a file
+		filepath = os.path.join(bigwig_path, filename)
+		if not os.path.exists(filepath):
+			raise FileNotFoundError(f"BigWig file not found: {filepath}")
 
-	with bw.open(filepath) as bw_file:
-		if chromosome not in bw_file.chroms():
-			raise ValueError(f"Chromosome {chromosome} not found in {filename}")
+		with bw.open(filepath) as bw_file:
+			if chromosome not in bw_file.chroms():
+				raise ValueError(f"Chromosome {chromosome} not found in {filename}")
 
-		chrom_length = bw_file.chroms()[chromosome]
-		print(f"Reading {filename}: chromosome {chromosome} (length: {chrom_length})")
+			chrom_length = bw_file.chroms()[chromosome]
+			print(f"Reading {filename}: chromosome {chromosome} (length: {chrom_length})")
 
-		values = bw_file.values(chromosome, 0, chrom_length//100) # debug
-		values = [0.0 if np.isnan(v) else v for v in values]
-		# print (filepath, np.max(values))
-
-	return np.array(values, dtype=np.float32)
-
-def prepare_preds_for_peaks(files_path, strand):
-	if strand == "both":
-		data = {}
-		for label in ['tss', 'polya']:
-			for file_strand in ['+', '-']:
-				file_name = f"{label}_{file_strand}"
-				data[file_name] = read_bigwig(files_path, f"{file_name}.bw")
-
-				rc_file_name = f"{label}_{file_strand}rev_comp_"
-				data[rc_file_name] = read_bigwig(files_path, f"{rc_file_name}.bw")
-
-		for name in data.keys():
-			print(f"{name}.max = {np.max(data[name])}")
-
-		tss_plus = merge_rev_comp(data["tss_+"], data["tss_-rev_comp_"])
-		tss_minus = merge_rev_comp(data["tss_-"], data["tss_+rev_comp_"])
-
-		polya_plus = merge_rev_comp(data["polya_+"], data["polya_-rev_comp_"])
-		polya_minus = merge_rev_comp(data["polya_-"], data["polya_+rev_comp_"])
-
-		tss_combined, polya_combined = combine_strands(tss_plus, tss_minus, polya_plus, polya_minus)
-
+			values = bw_file.values(chromosome, 0, chrom_length)
+			values = [0.0 if np.isnan(v) else v for v in values]
+		return np.array(values, dtype=np.float32)
+	elif isinstance(bigwig_path, bigWigExporter): # we read from a bigWigExporter object
+		assert filename.endswith(".bw"), "Filename must end with .bw"
+		label = filename.rstrip(".bw")
+		values = bigwig_path.chrom_data[chromosome][label]
+		np.nan_to_num(values, copy=False, nan=0.0)
+		return values.astype(np.float32)
 	else:
-		data = {}
-		for label in ['tss', 'polya']:
-			for file_strand in ['+', '-']:
-				file_name = f"{label}_{file_strand}"
-				data[file_name] = read_bigwig(files_path, f"{file_name}.bw")
+		raise ValueError(f"Unsupported type: {type(bigwig_path)}")
 
-		tss_plus = data["tss_+"]
-		tss_minus = data["tss_-"]
-
-		polya_plus = data["polya_+"]
-		polya_minus = data["polya_-"]
-
-		tss_combined, polya_combined = combine_strands(tss_plus, tss_minus, polya_plus, polya_minus)
-
-	return tss_combined, polya_combined
-
-def prepare_preds_for_peaks_onlyRC(files_path):
+def prepare_preds_for_peaks_onlyRC(files_path, chromosome, logger: logging.Logger):
 	data = {}
 	for label in ['tss', 'polya']:
 		for file_strand in ['+', '-']:
 			file_name = f"{label}_{file_strand}"
-			data[file_name] = read_bigwig(files_path, f"{file_name}.bw")
+			data[file_name] = read_bigwig(files_path, f"{file_name}.bw", chromosome)
 
 			rc_file_name = f"{label}_{file_strand}rev_comp_"
-			data[rc_file_name] = read_bigwig(files_path, f"{rc_file_name}.bw")
+			data[rc_file_name] = read_bigwig(files_path, f"{rc_file_name}.bw", chromosome)
 
 	for name in data.keys():
-		print(f"{name}.max = {np.max(data[name])}")
+		logger.info(f"{name}.max = {np.max(data[name])}")
 
 	tss_plus = merge_rev_comp(data["tss_+"], data["tss_-rev_comp_"])
 	tss_minus = merge_rev_comp(data["tss_-"], data["tss_+rev_comp_"])
@@ -225,8 +226,11 @@ def peak_finding(X: np.ndarray, LP_FRAC: float, PK_PROM: float, PK_DIST: int, PK
 
 	return mask
 
+	########################## post-processing - pairing #####################################
+
 def find_tss_polya_pairs_right_left_only(arr, chrom_name, window_size=2_000_000, k=10,
-										out_bed_path=None, progress_every=None):
+										out_bed_path=None, progress_every=None, 
+										logger=logging.Logger):
 	if arr.ndim != 2 or arr.shape[0] != 4:
 		raise ValueError("arr must have shape (4, X) in order: TSS+, PolyA+, TSS-, PolyA-")
 	X = int(arr.shape[1])
@@ -251,7 +255,7 @@ def find_tss_polya_pairs_right_left_only(arr, chrom_name, window_size=2_000_000,
 	def scan_tss_to_polya_one_sided(seeds_tss: np.ndarray, targets_polya: np.ndarray,
 								   direction: str, strand_sign: str, label: str):
 		if progress_every:
-			print(f"Scanning {len(seeds_tss):,} {label} TSS seeds one sided")
+			logger.info(f"Scanning {len(seeds_tss):,} {label} TSS seeds one sided")
 		for ii, i in enumerate(seeds_tss):
 			i = int(i)
 
@@ -278,7 +282,7 @@ def find_tss_polya_pairs_right_left_only(arr, chrom_name, window_size=2_000_000,
 					pairs_sign.setdefault((a, b), strand_sign)
 
 			if progress_every and (ii + 1) % progress_every == 0:
-				print(f"  processed {ii+1:,}/{len(seeds_tss):,}; pairs so far: {len(pairs_sign):,}")
+				logger.info(f"  processed {ii+1:,}/{len(seeds_tss):,}; pairs so far: {len(pairs_sign):,}")
 
 	scan_tss_to_polya_one_sided(
 		seeds_tss=tss_plus_idx,
@@ -309,43 +313,7 @@ def find_tss_polya_pairs_right_left_only(arr, chrom_name, window_size=2_000_000,
 
 	return final_pairs
 
-
-def load_bed_intervals(bed_path: str) -> List[Tuple[str, int, int, str, list]]:
-	intervals = []
-	skipped = 0
-
-	with open(bed_path, "r") as fh:
-		for line in fh:
-			if not line.strip():
-				continue
-			if line.startswith("#") or line.startswith("track") or line.startswith("browser"):
-				skipped += 1
-				continue
-
-			parts = line.rstrip("\n").split("\t")
-			if len(parts) < 3:
-				skipped += 1
-				continue
-
-			chrom = parts[0]
-			try:
-				start = int(parts[1])
-				end = int(parts[2])
-			except ValueError:
-				skipped += 1
-				continue
-
-			strand = "."
-			if len(parts) >= 4:
-				s = parts[3].strip()
-				strand = s if s in {"+", "-"} else "."
-
-			extra = parts[4:] if len(parts) > 4 else []
-			intervals.append((chrom, start, end, strand, extra))
-
-	print(f"[INFO] BED loaded: {len(intervals):,} intervals (skipped {skipped} header/invalid lines).")
-	return intervals
-
+########################## post-processing - filtering pairs #####################################
 
 def fetch_values(handle, chrom: str, start: int, end: int) -> np.ndarray:
 	vals = handle.values(chrom, start, end)
@@ -367,14 +335,19 @@ def ensure_chrom_available(handles: Dict[str, bw.pyBigWig], chroms_needed: List[
 
 
 def open_bw_inputs(bw_dir_or_file: str, BW_PLUS: str, BW_MINUS: str, BW_PLUS_RC: str, BW_MINUS_RC: str):
+	paths = {
+		"intragenic_+":          BW_PLUS,
+		"intragenic_-":          BW_MINUS,
+		"intragenic_+rev_comp_": BW_PLUS_RC,
+		"intragenic_-rev_comp_": BW_MINUS_RC,
+	}
+
+	if isinstance(bw_dir_or_file, bigWigExporter):
+		return "stranded", {k: bw_dir_or_file.as_bigwig(v.rstrip(".bw")) for k,v in paths.items()}
+
 	if os.path.isdir(bw_dir_or_file):
 		bw_dir = bw_dir_or_file
-		paths = {
-			"intragenic_+":          os.path.join(bw_dir, BW_PLUS),
-			"intragenic_-":          os.path.join(bw_dir, BW_MINUS),
-			"intragenic_+rev_comp_": os.path.join(bw_dir, BW_PLUS_RC),
-			"intragenic_-rev_comp_": os.path.join(bw_dir, BW_MINUS_RC),
-		}
+		paths = {k: os.path.join(bw_dir, v) for k, v in paths.items()}
 		for p in paths.values():
 			if not os.path.exists(p):
 				raise FileNotFoundError(f"[FATAL] Missing bigWig: {p}")
@@ -403,10 +376,10 @@ def close_handles(handles: Dict[str, bw.pyBigWig]):
 			pass
 
 def filter_bed_by_intragenic(pairs, bw_dir, BW_PLUS, BW_MINUS, BW_PLUS_RC, BW_MINUS_RC,
-							prob_threshold,zero_fraction_drop_threshold, bed_out):
+							prob_threshold,zero_fraction_drop_threshold, bed_out, logger: logging.Logger):
 	intervals = pairs
 	if not intervals:
-		print("[WARN] No intervals to process. Writing empty output and exiting.")
+		logger.warning("[WARN] No intervals to process. Writing empty output and exiting.")
 		os.makedirs(os.path.dirname(os.path.abspath(bed_out)), exist_ok=True)
 		with open(bed_out, "w") as _:
 			pass
@@ -417,9 +390,9 @@ def filter_bed_by_intragenic(pairs, bw_dir, BW_PLUS, BW_MINUS, BW_PLUS_RC, BW_MI
 	unique_chroms = sorted({iv[0] for iv in intervals})
 	ensure_chrom_available(handles, unique_chroms)
 
-	print(f"[INFO] Thresholds: prob_threshold={prob_threshold}, "
+	logger.info(f"Thresholds: prob_threshold={prob_threshold}, "
 		  f"zero_fraction_drop_threshold={zero_fraction_drop_threshold}")
-	print(f"[INFO] Processing {len(intervals):,} intervals...")
+	logger.info(f"Processing {len(intervals):,} intervals...")
 
 	kept = []
 	n_dropped = 0
@@ -485,8 +458,23 @@ def filter_bed_by_intragenic(pairs, bw_dir, BW_PLUS, BW_MINUS, BW_PLUS_RC, BW_MI
 
 	total = len(intervals)
 	kept_n = len(kept)
-	print(f"[DONE] Kept {kept_n:,} / {total:,} intervals "
+	logger.info(f"Kept {kept_n:,} / {total:,} intervals "
 		  f"({100.0 * kept_n / total:.2f}%). Dropped {n_dropped:,} ({100.0 * n_dropped / total:.2f}%).")
-	print(f"[INFO] Intervals left after filtration: {kept_n:,}")
+	logger.info(f"Intervals left after filtration: {kept_n:,}")
 
 	close_handles(handles)
+
+######################################################### BED post-processing #########################################################
+
+def shift_bed_by_UCSC_chr_header(bed_path: str):
+	df = pd.read_csv(bed_path, sep="\t", header=None)
+	chroms = df.iloc[:,0].unique()
+	assert len(chroms) == 1, f"Only one chromosome is supported. Found {len(chroms)} chromosomes"
+	chrom = chroms[0]
+	chrom_name = chrom.split(":")[0]
+	chrom_start = chrom.split(":")[1].split("-")[0].replace(",", "")
+	chrom_start = int(chrom_start)
+	df.iloc[:,1] = df.iloc[:,1].astype(int) + chrom_start
+	df.iloc[:,2] = df.iloc[:,2].astype(int) + chrom_start
+	df.iloc[:,0] = chrom_name
+	df.to_csv(bed_path, sep="\t", header=None, index=False)

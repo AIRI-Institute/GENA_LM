@@ -418,7 +418,7 @@ class GenomicAnnotationDataset(Dataset):
 		for chrom, length in self.chrom_info.items():
 			# Skip very small chromosomes
 			if length < self.chunk_length:
-				continue
+				self.logger.warning(f"Chromosome {chrom} length {length} is < chunk_length {self.chunk_length}. We recommend to set min_chromosome_length >= {self.chunk_length + 1}.")
 				
 			# Compute number of chunks for this chromosome
 			if self.drop_last:

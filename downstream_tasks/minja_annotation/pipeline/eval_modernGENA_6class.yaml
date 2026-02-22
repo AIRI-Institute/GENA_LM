@@ -51,7 +51,7 @@ dataloader:
     region: ${region}
   batch_size: ${batch_size}
   shuffle: False
-  num_workers: 16
+  num_workers: 0
   collate_fn:
     _target_: hydra.utils.get_object
     path: evaluate_on_chromosome.identity_fn
