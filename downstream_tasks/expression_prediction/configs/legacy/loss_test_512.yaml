@@ -1,4 +1,4 @@
-TASK_NAME: expression/loss_test_deviation_final_bs210_lr1e5
+TASK_NAME: expression/loss_test_baseline_512_original_tbs100 #identity_frozen_qwen_512_encoder_pad_layernorm
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -8,9 +8,9 @@ args_params:
 
   _target_: builtins.dict
   
-  # init_checkpoint: "/home/jovyan/shares/SR003.nfs2/aspeedok/runs/expression/loss_test_baseline_bs210/20260218-025532/model_3000/pytorch_model.bin"
+  # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
 
-  resume: #"/20251127-022624/model_25000/pytorch_model.bin" 
+  resume: #"/20251127-022624/model_25000/pytorch_model.bin"
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
@@ -20,7 +20,7 @@ args_params:
 
   clip_grad_norm: 1
 
-  input_seq_len: 1024
+  input_seq_len: 510
 
   optimizer: "AdamW"
 
@@ -28,15 +28,15 @@ args_params:
 
   seed: 45
 
-  num_warmup_steps: 10000
+  num_warmup_steps: 1000
 
-  log_interval: 20
+  log_interval: 10
 
-  valid_interval: 20
+  valid_interval: 10
 
   save_best: True
 
-  save_interval: 1000
+  save_interval: 2000
 
   optimize_metric: "score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
 
@@ -44,7 +44,7 @@ args_params:
 
   data_n_workers: 7
 
-  lr: 1e-5
+  lr: 1e-4
 
   lr_scheduler: "constant_with_warmup"
 
@@ -69,19 +69,17 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
   _target_: builtins.dict 
   hf: True
+  # hf_model_name: "AIRI-Institute/gena-lm-bert-large-t2t"
   hf_model_name: "${HOME_PATH}/models/modernbert_large"
   hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
-
-  use_deviation_loss: True
-  weight_deviation_loss: 20.0
   
   loss_fct:
     _target_: torch.nn.MSELoss
     reduction: 'none'
 
   activation:
-    _target_:  downstream_tasks.expression_prediction.expression_model_final.ExpActivation
+    _target_:  torch.nn.Identity #downstream_tasks.expression_prediction.expression_model_final_loss.ExpActivation
 
   config:
     _target_: builtins.dict
@@ -100,7 +98,7 @@ shared_dataset_params:
     "level": "DEBUG"
   seed: "${args_params.seed}"
 
-#train
+# train
 train_dataset_human_borzoi_v1:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -115,7 +113,7 @@ train_dataset_human_borzoi_v1:
 
   tpm: csv
   n_keys: 125
-  num_before: 512 
+  num_before: 255
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -134,7 +132,7 @@ train_dataset_mouse_full_borzoi:
 
   tpm: csv
   n_keys: 125
-  num_before: 512 
+  num_before: 255
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
@@ -187,7 +185,7 @@ valid_dataset_human:
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
   tpm: csv
-  num_before: 512 
+  num_before: 255
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1

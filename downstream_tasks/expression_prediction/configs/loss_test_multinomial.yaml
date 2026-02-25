@@ -1,4 +1,4 @@
-TASK_NAME: expression/loss_test_deviation_final_bs210_lr1e5
+TASK_NAME: expression/loss_test_multinomial_final_bs210_lr1e5
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -73,8 +73,8 @@ model_kwargs:
   hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
 
-  use_deviation_loss: True
-  weight_deviation_loss: 20.0
+  use_multinomial_loss: True
+  weight_multinomial_loss: 5.0
   
   loss_fct:
     _target_: torch.nn.MSELoss

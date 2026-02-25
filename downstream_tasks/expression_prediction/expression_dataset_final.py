@@ -687,17 +687,34 @@ class ExpressionDataset(Dataset):
         desc_input_ids = []
         desc_attention_mask = []
         for key in selected_keys:
-            grp = self.desc_h5_cadesc_h5_cacheche[str(key)]
+            grp = self.desc_h5_cache[str(key)]
             ids = torch.tensor(grp["input_ids"][()], dtype=torch.long)      
             mask = torch.tensor(grp["attention_mask"][()], dtype=torch.long) 
             desc_input_ids.append(ids)
             desc_attention_mask.append(mask)
 
+        pad_text = "this is just padding"
+        pad_enc = self.text_tokenizer(
+            pad_text,
+            add_special_tokens=True,
+            truncation=True,
+            padding=False,
+            return_tensors="pt",
+        )
+
+        self._pad_desc_ids  = pad_enc["input_ids"][0].to(torch.long)         # (Dp,)
+        self._pad_desc_mask = pad_enc["attention_mask"][0].to(torch.long)    # (Dp,)
 
         n_missing = self.n_keys - len(desc_input_ids)
         for _ in range(n_missing):
-            desc_input_ids.append(torch.tensor([20], dtype=torch.long))  
-            desc_attention_mask.append(torch.tensor([1], dtype=torch.long))
+            desc_input_ids.append(self._pad_desc_ids.clone())
+            desc_attention_mask.append(self._pad_desc_mask.clone())
+
+
+        # n_missing = self.n_keys - len(desc_input_ids)
+        # for _ in range(n_missing):
+        #     desc_input_ids.append(torch.tensor([20], dtype=torch.long))  
+        #     desc_attention_mask.append(torch.tensor([1], dtype=torch.long))
 
         if self.bw and not self.tpm: 
             features_selected_keys = []

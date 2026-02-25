@@ -3,9 +3,11 @@ import json
 import logging
 import os
 import time
+import hashlib
 from functools import partial
 from itertools import chain, compress
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # third-party
 import torch
@@ -25,7 +27,6 @@ from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 from accelerate.utils import broadcast_object_list
 
-
 # local
 from lm_experiments_tools import TrainerAccelerate as Trainer
 from lm_experiments_tools import TrainerAccelerateArgs as TrainerArgs
@@ -38,14 +39,6 @@ from downstream_tasks.expression_prediction.expression_dataset_final import work
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions, mean_and_residuals_correlation
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
-# def set_global_seed(seed: int):
-#     if seed is None:
-#         return
-#     print(f"Setting global seed to {seed}")
-#     random.seed(seed)
-#     np.random.seed(seed)
-#     torch.manual_seed(seed)
-#     torch.cuda.manual_seed_all(seed)
 
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
@@ -60,7 +53,6 @@ parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config')
 parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
 parser.add_argument('--save_predictions', action='store_true', help='save predictions to file')
-
 
 
 def merge_default_params_with_dataset_config(dataset_config, default_params, logger):
@@ -90,26 +82,17 @@ def merge_default_params_with_dataset_config(dataset_config, default_params, log
     _merge_nested_dicts(merged_config, default_params_dict)
     return merged_config
 
-import logging
-from typing import Any, Dict, List, Optional, Tuple
-
-import pandas as pd
-from omegaconf import OmegaConf
-from hydra.utils import instantiate
-from torch.utils.data import Dataset, DataLoader, DistributedSampler, ConcatDataset
-from accelerate.utils import broadcast_object_list
-
 
 def _collect_dataset_configs(experiment_config, prefix: str) -> List[Any]:
     """Берёт все ключи вида train_dataset*, valid_dataset*."""
     return [v for k, v in experiment_config.items() if str(k).startswith(prefix)]
+
 
 def get_shared_n_keys(shared_dataset_params) -> Optional[int]:
     """Вернёт n_keys из shared_dataset_params, если он задан и > 0, иначе None."""
     if shared_dataset_params is None:
         return None
 
-    # shared_dataset_params может быть OmegaConf или dict-подобным
     try:
         v = OmegaConf.select(shared_dataset_params, "n_keys")
     except Exception:
@@ -219,7 +202,7 @@ def apply_n_keys_to_all_dataset_cfgs(
     return out
 
 
-def build_dataset_from_cfgs(dataset_cfgs: List[Any]) -> Tuple[Dataset, List[Dataset]]:
+def build_dataset_from_cfgs(dataset_cfgs: List[Any]) -> Tuple[torch.utils.data.Dataset, List[torch.utils.data.Dataset]]:
     """Instantiate -> Dataset or ConcatDataset."""
     datasets = [instantiate(cfg) for cfg in dataset_cfgs]
     if len(datasets) == 0:
@@ -230,7 +213,7 @@ def build_dataset_from_cfgs(dataset_cfgs: List[Any]) -> Tuple[Dataset, List[Data
 
 
 def build_loader(
-    dataset: Dataset,
+    dataset: torch.utils.data.Dataset,
     accelerator,
     batch_size: int,
     seed: int,
@@ -260,20 +243,25 @@ def build_loader(
     )
     return loader, sampler
 
+
+def _stable_u64(text: str) -> int:
+    """Стабильный 64-bit идентификатор из строки (не зависит от PYTHONHASHSEED)."""
+    h = hashlib.blake2b(text.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(h, "little", signed=False)
+
+
 def main():
     args = parser.parse_args()
     logging.getLogger().setLevel(args.log_level)
 
-    #  Accelerate
+    # Accelerate
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision="bf16",
         kwargs_handlers=[ddp_kwargs]
     )
-    #  mixed_precision="bf16",
-    alogger = get_logger(__name__) 
-   # alogger = get_logger('')  # accelerate logger (привязан к процессу)
+    alogger = get_logger(__name__)
     alogger.info(f'num processes: {accelerator.num_processes}')
     alogger.info(f'mixed precision: {accelerator.mixed_precision}')
     alogger.info(f'accelerator state: {accelerator.state}')
@@ -302,8 +290,6 @@ def main():
                 alogger.info(f"Setting attr {k}:{v}")
             args.__setattr__(k, v)
 
-    # set_global_seed(args.seed)
-
     if args.resume is not None:
         alogger.warning(
             f"Resuming from cpt {args.resume}. This will overwrite reset_lr, reset_optimizer, reset_iteration and init_cpt options"
@@ -328,14 +314,13 @@ def main():
         args_dict = collect_run_configuration(args)
         json.dump(args_dict, open(model_path / 'config.json', 'w'), indent=4)
         open(model_path / 'git.diff', 'w').write(get_git_diff())
-        # Сохраняем копию Hydra-конфига
         content = "\n".join(open(experiment_config_path).readlines())
         with open(Path(args.model_path) / "experiment_config.yaml", "w") as fout:
             fout.write(content)
 
     accelerator.wait_for_everyone()
 
-    # Padding
+    # Tokenizers
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer, trust_remote_code=True)
     text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True)
 
@@ -346,7 +331,6 @@ def main():
         pad = x.new_full((pad_len,), pad_value)
         return torch.cat([pad, x], dim=0) if pad_left else torch.cat([x, pad], dim=0)
 
-
     def _pad_2d(x: torch.Tensor, max_len: int, pad_value, dim: int = 0) -> torch.Tensor:
         pad_len = max_len - x.size(dim)
         if pad_len <= 0:
@@ -355,7 +339,6 @@ def main():
         pad_shape[dim] = pad_len
         pad = x.new_full(tuple(pad_shape), pad_value)
         return torch.cat([x, pad], dim=dim)
-
 
     def _pad_3d(x: torch.Tensor, max_len: int, pad_value, dim: int = 1) -> torch.Tensor:
         pad_len = max_len - x.size(dim)
@@ -408,15 +391,15 @@ def main():
                 sample_ids.append(ids)
                 sample_masks.append(mask)
 
-            desc_ids_batch.append(torch.stack(sample_ids, dim=0))   # (n_keys, L_text_max)
-            desc_mask_batch.append(torch.stack(sample_masks, dim=0))# (n_keys, L_text_max)
+            desc_ids_batch.append(torch.stack(sample_ids, dim=0))    # (n_keys, L_text_max)
+            desc_mask_batch.append(torch.stack(sample_masks, dim=0)) # (n_keys, L_text_max)
 
         for sample in batch:
             for key in pad_keys:
                 x = sample[key]
                 if key in ['input_ids', 'attention_mask', 'token_type_ids']:  # (n_keys, L)
-                    x = _pad_2d(x, max_seq_len, pad_token_ids[key], dim=1)    # pad по L -> dim=1
-                if key in ['labels', 'labels_mask']:                                                       
+                    x = _pad_2d(x, max_seq_len, pad_token_ids[key], dim=1)
+                if key in ['labels', 'labels_mask']:
                     x = _pad_3d(x, max_seq_len, pad_token_ids[key], dim=1)
                 batch_dict[key].append(x)
 
@@ -428,19 +411,18 @@ def main():
                 if key in sample:
                     batch_dict[key].append(sample[key])
 
-        # stack
+        # stack tensors
         for key in pad_keys:
-            batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # (B, n_keys, Lmax) или (B, n_keys, Lmax, 1)
+            batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # (B, n_keys, Lmax) or (B, n_keys, Lmax, 1)
 
         for key in no_pad_keys:
             if len(batch_dict[key]) > 0:
                 batch_dict[key] = torch.stack(batch_dict[key], dim=0)
 
-        batch_dict['desc_input_ids'] = torch.stack(desc_ids_batch, dim=0)        # (B, n_keys, L_text_max)
+        batch_dict['desc_input_ids'] = torch.stack(desc_ids_batch, dim=0)         # (B, n_keys, L_text_max)
         batch_dict['desc_attention_mask'] = torch.stack(desc_mask_batch, dim=0)  # (B, n_keys, L_text_max)
 
         return batch_dict
-
 
     # Data
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
@@ -454,20 +436,18 @@ def main():
         raise ValueError("No training datasets found (no train_dataset* in config)")
 
     shared_n_keys = get_shared_n_keys(shared_dataset_params)
-    
+
     if shared_n_keys is not None:
-        # берём n_keys из shared_dataset_params, ничего не считаем
         if accelerator.is_main_process:
             alogger.info(f"[n_keys] using shared_dataset_params.n_keys = {shared_n_keys}")
-    
+
         obj = [shared_n_keys]
         broadcast_object_list(obj)
         shared_n_keys = int(obj[0])
-    
+
         n_keys_global_train = shared_n_keys
         n_keys_global_valid = shared_n_keys
     else:
-        # 1) считаем n_keys только по ExpressionDataset из train/valid
         n_keys_global_train = infer_global_n_keys_from_expression_datasets(
             train_dataset_cfgs=train_cfgs,
             shared_dataset_params=shared_dataset_params,
@@ -475,7 +455,7 @@ def main():
             accelerator=accelerator,
             alogger=alogger,
         )
-    
+
         n_keys_global_valid = infer_global_n_keys_from_expression_datasets(
             train_dataset_cfgs=valid_cfgs,
             shared_dataset_params=shared_dataset_params,
@@ -484,13 +464,12 @@ def main():
             alogger=alogger,
         )
 
-
-    # 2) выставляем n_keys 
+    # выставляем n_keys
     train_cfgs = apply_n_keys_to_all_dataset_cfgs(
         dataset_cfgs=train_cfgs,
         shared_dataset_params=shared_dataset_params,
         merge_fn=merge_default_params_with_dataset_config,
-        n_keys=125,
+        n_keys=1,  # оставляю как у тебя
         alogger=alogger,
     )
 
@@ -498,11 +477,10 @@ def main():
         dataset_cfgs=valid_cfgs,
         shared_dataset_params=shared_dataset_params,
         merge_fn=merge_default_params_with_dataset_config,
-        n_keys=n_keys_global_valid ,
+        n_keys=n_keys_global_valid,
         alogger=alogger,
     )
 
-    # 3) instantiate train
     train_dataset, train_datasets_list = build_dataset_from_cfgs(train_cfgs)
     if accelerator.is_main_process:
         for i, ds in enumerate(train_datasets_list):
@@ -518,7 +496,7 @@ def main():
         drop_last=False,
         num_workers=kwargs_workers,
         collate_fn=collate_fn,
-        worker_init_fn=worker_init_fn,   
+        worker_init_fn=worker_init_fn,
     )
 
     if len(valid_cfgs) > 0:
@@ -549,25 +527,48 @@ def main():
             alogger.info("No validation data is used.")
 
     if accelerator.is_main_process:
-        alogger.info(
-        f"GLOBAL: len(train_dataset)={len(train_dataset)} | n_keys_global={n_keys_global_train} "
-    )
+        alogger.info(f"GLOBAL: len(train_dataset)={len(train_dataset)} | n_keys_global={n_keys_global_train}")
 
-
-    # Model 
-
+    # ===== Model kwargs (ENABLE DEBUG FILE LOGGING) =====
     if "model_kwargs" in experiment_config:
         model_kwargs = instantiate(experiment_config["model_kwargs"])
     else:
         model_kwargs = {}
 
+    # куда писать debug лог (только на главном процессе — иначе файл при DDP не создаётся)
+    debug_log_path = os.path.join(args.model_path, "train_debug.jsonl")
+
+    # Гарантированно создаём файл лога на главном процессе до создания модели (модель потом откроет в "a")
+    log_dir = os.path.dirname(debug_log_path)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+    with open(debug_log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "type": "run_start",
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "desc": "log file created by run script (model will append)",
+            }, ensure_ascii=False) + "\n")
+    alogger.info(f"Debug log file created: {debug_log_path}")
+
+    # эти kwargs должны поддерживаться твоей моделью (моей версией — да)
+    model_kwargs.update({
+        "enable_file_logging": True,
+        "log_path": debug_log_path,
+        "log_every_n_steps": 1,
+        "log_grads_every_n_steps": 1,
+        "debug_print_norms": False,  # stdout лучше отключить
+        "is_main_process": accelerator.is_main_process,  # надёжно: тот же процесс, что создаёт model_path
+    })
+
     model_cls = get_cls_by_name(args.model_cls)
     if accelerator.is_main_process:
         alogger.info(f'Using model class: {model_cls}')
+        alogger.info(f'Debug log path: {debug_log_path}')
+
     model = model_cls(**model_kwargs)
     model_activation_fn = model.activation
 
-    # Optimizer 
+    # Optimizer
     optimizer_cls = get_optimizer(args.optimizer)
     if optimizer_cls is None:
         raise RuntimeError(f'{args.optimizer} was not found in optimizers, torch.optim, transformers.optimization')
@@ -586,8 +587,16 @@ def main():
     else:
         optimizer = optimizer_cls(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
+    # ===== Step state (for global_step in logs) =====
+    step_state = {"opt_step": 0, "micro_step": 0}
+
     # Batch transform
     def batch_transform_fn(batch):
+        """
+        Важно:
+        - добавляем global_step и sample_ids, чтобы модель писала per-sample JSONL
+        - sample_ids = список dict длины B*N
+        """
         result = {
             'input_ids': batch['input_ids'],
             'attention_mask': batch['attention_mask'],
@@ -597,39 +606,65 @@ def main():
             'gene_id': batch['gene_id'],
             'selected_keys': batch['selected_keys'],
             'dataset_description': batch['dataset_description'],
-            'desc_input_ids': batch['desc_input_ids'], 
-            'desc_attention_mask': batch['desc_attention_mask']
+            'desc_input_ids': batch['desc_input_ids'],
+            'desc_attention_mask': batch['desc_attention_mask'],
         }
+
+        # step counters
+        # opt_step — это "итерация оптимайзера" (инкрементируется на optimizer.step)
+        # micro_step — просто счётчик батчей (если хочешь отдельно анализировать)
+        result["global_step"] = int(step_state["opt_step"])
+        result["micro_step"] = int(step_state["micro_step"])
+        step_state["micro_step"] += 1
+
+        # ===== sample ids for ALL (B*N) =====
+        flat_gene_id = list(chain.from_iterable(batch['gene_id']))
+        flat_keys = list(chain.from_iterable(batch['selected_keys']))
+        flat_ds = list(chain.from_iterable(batch['dataset_description']))
+
+        sample_ids = []
+        for d, g, k in zip(flat_ds, flat_gene_id, flat_keys):
+            d_str = str(d)
+            g_str = str(g)
+            k_str = str(k)
+            integration_hash = _stable_u64(d_str)
+            sample_hash = _stable_u64(d_str + "|" + g_str + "|" + k_str)
+            sample_ids.append({
+                "integration": d_str,            # "номер интеграции" в текстовом виде
+                "integration_hash": integration_hash,
+                "gene_id": g_str,
+                "key": k_str,
+                "sample_hash": sample_hash,      # "номер сэмпла" как стабильный 64-bit id
+            })
+
+        result["sample_ids"] = sample_ids
         return result
-    
+
     # Metrics
     def keep_for_metrics_fn(batch, output):
         logits = output["logits"].detach().cpu()
         labels = output["labels_reshaped"].detach().cpu()
         masks  = output["labels_mask_reshaped"].detach().cpu()
 
-        y_true = labels[:, 0, 0]      
-        y_pred = logits[:, 0, 0]     
-        mask   = masks[:, 0, 0] > 0   
+        y_true = labels[:, 0, 0]
+        y_pred = logits[:, 0, 0]
+        mask   = masks[:, 0, 0] > 0
 
         y_true = y_true[mask]
         y_pred = y_pred[mask]
 
-        preds = y_pred.unsqueeze(1)   
-        target = y_true.unsqueeze(1) 
-        reduce_dims = (0, 1)
+        data = {}
 
-        data = {} 
-        
-        for k in ["cls_loss", "other_loss", "multinomial_loss", "deviation_loss"]:
+        for k in ["cls_loss", "other_loss", "multinomial_loss"]:
             if k in output and output[k] is not None:
                 data[k] = output[k].detach().cpu()
 
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
         mask_idx = mask.nonzero(as_tuple=True)[0].tolist()
+
         data['tpm_true'] = y_true.tolist()
         data['tpm_preds'] = y_pred.tolist()
-        data['gene_id'] =  list(chain.from_iterable(batch['gene_id']))
+        data['gene_id'] = list(chain.from_iterable(batch['gene_id']))
         data['keys_id'] = list(chain.from_iterable(batch['selected_keys']))
         data['dataset_description'] = [dataset_description[i] for i in mask_idx]
 
@@ -638,9 +673,10 @@ def main():
     def make_metrics_fn(model_path, save_predictions=False):
         def metrics_fn(data):
             metrics = {}
-            for k in ["cls_loss", "other_loss", "multinomial_loss", "deviation_loss"]:
+            for k in ["cls_loss", "other_loss", "multinomial_loss"]:
                 if k in data and data[k] is not None:
                     metrics[k] = torch.mean(data[k]).item()
+
             tpm_true = data['tpm_true']
             tpm_preds = data['tpm_preds']
             gene_id = data['gene_id']
@@ -657,6 +693,7 @@ def main():
                 'tpm_pred': tpm_preds,
                 'dataset_description': dataset_description,
             })
+
             if save_predictions and accelerator.is_main_process:
                 df.to_csv(os.path.join(model_path, "labels.csv"))
 
@@ -687,13 +724,9 @@ def main():
                     for gene in df_true.index:
                         gene_true = df_true.loc[gene]
                         gene_pred = df_pred.loc[gene]
-                        mask = pd.notna(gene_true) & pd.notna(gene_pred)
-                        gene_true = gene_true[mask]
-                        gene_pred = gene_pred[mask]
-
-                        # if len(gene_pred) > 1 and np.std(gene_pred) == 0:
-                        #     alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
-                        #     raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
+                        mask2 = pd.notna(gene_true) & pd.notna(gene_pred)
+                        gene_true = gene_true[mask2]
+                        gene_pred = gene_pred[mask2]
 
                         if len(gene_true) > 3 and np.std(gene_true) > 0:
                             try:
@@ -710,12 +743,12 @@ def main():
                         if np.std(cell_pred.values) == 0 and len(cell_pred) > 1:
                             raise ValueError(f"All predicted values for {cell_type} are the same")
 
-                        cell_true = cell_true[pd.notna(cell_true)]
-                        cell_pred = cell_pred[pd.notna(cell_pred)]
+                        cell_true2 = cell_true[pd.notna(cell_true)]
+                        cell_pred2 = cell_pred[pd.notna(cell_pred)]
 
-                        if len(cell_true) > 3 and np.std(cell_true) != 0:
+                        if len(cell_true2) > 3 and np.std(cell_true2) != 0:
                             try:
-                                corr = np.corrcoef(cell_true, cell_pred)[0, 1]
+                                corr = np.corrcoef(cell_true2, cell_pred2)[0, 1]
                                 if not np.isnan(corr):
                                     cell_correlations.append(corr)
                             except Exception:
@@ -727,31 +760,29 @@ def main():
                         metrics[f'pearson_corr_genes_{dataset_desc}'] = float(np.mean(cell_correlations))
 
                     ALLOWED = {
-                    "Expression_dataset_v1_GRCh38_csv dataset",
-                    "Expression_dataset_v1_mm10_CPM dataset",
+                        "Expression_dataset_v1_GRCh38_csv dataset",
+                        "Expression_dataset_v1_mm10_CPM dataset",
                     }
 
                     if dataset_desc in ALLOWED:
-                        # клетоспецифичность
-                        df_true = df_true.reset_index()
-                        df_pred = df_pred.reset_index()
+                        df_true_r = df_true.reset_index()
+                        df_pred_r = df_pred.reset_index()
                         score = score_predictions(
-                            df_true,
-                            df_pred,
+                            df_true_r,
+                            df_pred_r,
                             experiment_config.selected_targets_path,
                             need_log=False,
                             logger=alogger
                         )
                         if score and score.get('deviation_r', None):
                             metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
-                        score2 = mean_and_residuals_correlation(df_true,
-                            df_pred, need_log = False)
+
+                        score2 = mean_and_residuals_correlation(df_true_r, df_pred_r, need_log=False)
                         if isinstance(score2, dict):
                             for k, v in score2.items():
                                 if isinstance(v, (np.floating, np.integer)):
                                     v = v.item()
                                 metrics[f"mean_residual_{k}_{dataset_desc}"] = v
-                    
 
             return metrics
 
@@ -759,6 +790,7 @@ def main():
 
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
+    # prepare
     model, optimizer = accelerator.prepare(model, optimizer)
 
     # Trainer
@@ -775,6 +807,14 @@ def main():
     accelerator.wait_for_everyone()
     trainer.train()
     accelerator.wait_for_everyone()
+
+    # close log file if модель поддерживает
+    try:
+        unwrap = accelerator.unwrap_model(model)
+        if hasattr(unwrap, "close_log"):
+            unwrap.close_log()
+    except Exception:
+        pass
 
     # Post-training / validation / save
     if args.save_best:

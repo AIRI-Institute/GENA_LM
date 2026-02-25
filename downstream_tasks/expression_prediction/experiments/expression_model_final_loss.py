@@ -10,6 +10,9 @@ from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
 
+class ExpActivation(nn.Module):
+    def forward(self, x):
+        return torch.exp(x)
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
     labels_reshaped: Optional[torch.FloatTensor] = None
@@ -70,6 +73,7 @@ def cls_multinomial_loss(
     labels: torch.Tensor,
     labels_mask: torch.Tensor,
     n_keys: int,
+    min_target_max: float = 2.0,
 ) -> torch.Tensor:
     """
     Multinomial (NLL) loss over each n_keys for CLS token only.
@@ -98,18 +102,31 @@ def cls_multinomial_loss(
     group_has_mask = mask_bool.any(dim=1)  # (B,)
     if group_has_mask.sum() == 0:
         return logits.new_zeros(())
+    
+       
+    target_max = (cls_labels * cls_mask).max(dim=1).values  # (B,)
+    keep = group_has_mask & (target_max > min_target_max)
+    if keep.sum() == 0:
+        return logits.new_zeros(())
 
-    # masked log_softmax: exclude mask==0 from normalization
-    neg = torch.finfo(cls_logits.dtype).min
-    masked_logits = cls_logits.masked_fill(~mask_bool, neg)
-    log_probs = F.log_softmax(masked_logits, dim=1)  # (B, N)
+    cls_logits = cls_logits[keep]
+    cls_labels = cls_labels[keep]
+    cls_mask   = cls_mask[keep]
+    mask_bool  = mask_bool[keep]
 
-    # target distribution: normalize labels only over mask==1
+    eps = 1e-8
+    w = cls_logits.masked_fill(~mask_bool, 0.0)
+    w_sum = w.sum(dim=1, keepdim=True).clamp(min=eps)
+
+    p = w / w_sum                     
+    log_probs = torch.log(p.clamp(min=eps))
+    log_probs = log_probs.masked_fill(~mask_bool, 0.0)
+
     target = cls_labels * cls_mask
-    target_sum = target.sum(dim=1, keepdim=True).clamp(min=1e-8)
-    target = target / target_sum  # (B, N)
+    target_sum = target.sum(dim=1, keepdim=True).clamp(min=eps)
+    target = target / target_sum
 
-    nll_per_group = -(target * log_probs).sum(dim=1)  # (B,)
+    nll_per_group = -(target * log_probs).sum(dim=1)
     return nll_per_group[group_has_mask].mean()
 
 
@@ -143,8 +160,13 @@ class ExpressionCounts(nn.Module):
         use_multinomial_loss: bool = False,
         weight_deviation_loss: float = 1.0,
         weight_multinomial_loss: float = 1.0,
+        debug_print_norms: bool = True,   # печатать нормы на каждом forward
+        debug_max_print: int = 64,        # максимум строк (сэмплов) на batch, чтобы не убить логи
     ):
         super().__init__()
+
+        self.debug_print_norms = debug_print_norms
+        self.debug_max_print = int(debug_max_print)
 
         updated_state_dict = None
 
@@ -157,7 +179,8 @@ class ExpressionCounts(nn.Module):
                 trust_remote_code=True,
                 attn_implementation="flash_attention_2",
                 output_loading_info=True
-            )
+            ) 
+                
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
                 print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
@@ -196,80 +219,88 @@ class ExpressionCounts(nn.Module):
         for p in self.desc_model.parameters():
             p.requires_grad = False
 
-        backbone = getattr(self.desc_model, "model", None)
-        if backbone is None:
-            backbone = self.desc_model
+        # backbone = getattr(self.desc_model, "model", None)
+        # if backbone is None:
+        #     backbone = self.desc_model
 
-        layers = getattr(backbone, "layers", None)
-        if layers is None:
-            raise RuntimeError("Could not find layers in desc_model (expected .model.layers). Check model architecture.")
+        # layers = getattr(backbone, "layers", None)
+        # if layers is None:
+        #     raise RuntimeError("Could not find layers in desc_model (expected .model.layers). Check model architecture.")
 
-        #unfreeze last 4 blocks
-        k = 4
-        k = min(k, len(layers)) 
+        # #unfreeze last 4 blocks
+        # k = 4
+        # k = min(k, len(layers)) 
 
-        for block in layers[-k:]:
-            for p in block.parameters():
-                p.requires_grad = True
+        # for block in layers[-k:]:
+        #     for p in block.parameters():
+        #         p.requires_grad = True
 
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            for p in backbone.norm.parameters():
-                p.requires_grad = True
+        # if hasattr(backbone, "norm") and backbone.norm is not None:
+        #     for p in backbone.norm.parameters():
+        #         p.requires_grad = True
 
-        for block in layers[:-k]:
-            block.eval()
-        for block in layers[-k:]:
-            block.train()
+        # for block in layers[:-k]:
+        #     block.eval()
+        # for block in layers[-k:]:
+        #     block.train()
 
-        if hasattr(backbone, "norm") and backbone.norm is not None:
-            backbone.norm.train()
+        # if hasattr(backbone, "norm") and backbone.norm is not None:
+        #     backbone.norm.train()
 
-        def _is_main_process():
-            return (not torch.distributed.is_available()
-                    or not torch.distributed.is_initialized()
-                    or torch.distributed.get_rank() == 0)
+        # def _is_main_process():
+        #     return (not torch.distributed.is_available()
+        #             or not torch.distributed.is_initialized()
+        #             or torch.distributed.get_rank() == 0)
 
-        if _is_main_process():
-            unfrozen_blocks = []
-            for i, block in enumerate(layers):
-                if any(p.requires_grad for p in block.parameters()):
-                    unfrozen_blocks.append(i)
+        # if _is_main_process():
+        #     unfrozen_blocks = []
+        #     for i, block in enumerate(layers):
+        #         if any(p.requires_grad for p in block.parameters()):
+        #             unfrozen_blocks.append(i)
 
-            print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
+        #     print(f"[desc_model] unfrozen transformer blocks: {unfrozen_blocks} (total blocks={len(layers)})")
 
-            if hasattr(backbone, "norm") and backbone.norm is not None:
-                norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
-                norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
-                print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
-            else:
-                print("[desc_model] backbone.norm: not found")
+        #     if hasattr(backbone, "norm") and backbone.norm is not None:
+        #         norm_trainable = any(p.requires_grad for p in backbone.norm.parameters())
+        #         norm_params = sum(p.numel() for p in backbone.norm.parameters() if p.requires_grad)
+        #         print(f"[desc_model] backbone.norm trainable: {norm_trainable} (trainable params={norm_params:,})")
+        #     else:
+        #         print("[desc_model] backbone.norm: not found")
 
-            total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
-            total_params = sum(p.numel() for p in self.desc_model.parameters())
-            print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
+        #     total_trainable = sum(p.numel() for p in self.desc_model.parameters() if p.requires_grad)
+        #     total_params = sum(p.numel() for p in self.desc_model.parameters())
+        #     print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
 
-            if len(names) > 30:
-                print(f"  - ... (+{len(names)-30} more)")
+        #     names = [n for n, p in self.desc_model.named_parameters() if p.requires_grad]
+        #     print(f"[desc_model] trainable tensors: {len(names)}")
+        #     for n in names[:30]:
+        #         print("  -", n)
+        #     if len(names) > 30:
+        #         print(f"  - ... (+{len(names)-30} more)")
 
         # 3) Projection if dimensions do not match
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        if self.desc_hidden_size != self.gen_hidden_size:
-            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
-        else:
-            self.desc_proj = nn.Identity()
 
         # 4) Decoder
-        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        self.decoder, info2 = ModernBertModel.from_pretrained(
-                hf_model_name_decoder,
-                trust_remote_code=True,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True
-            )
-        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-        print("mismatched:", info2.get("mismatched_keys", [])[:5])
+        # print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        # self.decoder, info2 = ModernBertModel.from_pretrained(
+        #         hf_model_name_decoder,
+        #         trust_remote_code=True,
+        #         attn_implementation="flash_attention_2",
+        #         output_loading_info=True
+        #     )
+        # print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        # print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        # print("mismatched:", info2.get("mismatched_keys", [])[:5])
+
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=config.hidden_size,
+            nhead=nhead,
+            dim_feedforward=hidden_ff,
+            batch_first=True
+        )
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
 
         # 6) Loss
         self.activation = activation
@@ -283,13 +314,47 @@ class ExpressionCounts(nn.Module):
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
 
-        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        # self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        self.desc_proj = nn.Sequential(
+    nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype),
+    nn.GELU(),
+)
+        self.desc_ln = nn.LayerNorm(self.gen_hidden_size, eps=1e-5, device=device, dtype=dtype)
 
         # 5) Classifier
-        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+        self.classifier = nn.Linear(config.hidden_size, 1, device=device, dtype=dtype)
 
-        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
-            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        # if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+        #     self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+
+    @staticmethod
+    def _is_main_process():
+        return (
+            (not torch.distributed.is_available())
+            or (not torch.distributed.is_initialized())
+            or (torch.distributed.get_rank() == 0)
+        )
+
+    @staticmethod
+    def _masked_mean_no_cls(x: torch.Tensor, mask: Optional[torch.Tensor], eps: float = 1e-8) -> torch.Tensor:
+        """
+        mean over tokens 1: (без CLS)
+        x: (B*N, L, H)
+        mask: (B*N, L)
+        returns: (B*N, H)
+        """
+        if x.size(1) <= 1:
+            # только CLS, больше нечего усреднять
+            return x.mean(dim=1)
+
+        x = x[:, 1:, :]  # drop CLS
+        if mask is None:
+            return x.mean(dim=1)
+
+        mask = mask[:, 1:]  # drop CLS mask too
+        m = mask.unsqueeze(-1).to(dtype=x.dtype)                # (B*N, L-1, 1)
+        denom = m.sum(dim=1).clamp_min(eps)                     # (B*N, 1)
+        return (x * m).sum(dim=1) / denom                       # (B*N, H)
 
 
     def forward(
@@ -404,10 +469,45 @@ class ExpressionCounts(nn.Module):
                 return_dict=True,
                 )
         desc_pooled = desc_out.last_hidden_state[:, -1]
+
+        #здесь
+        proj_dtype = next(self.desc_proj.parameters()).dtype  # dtype весов Linear
+        desc_pooled = desc_pooled.to(proj_dtype)
         desc_pooled = self.desc_proj(desc_pooled)                    
         desc_pooled = desc_pooled.to(sequence_output.dtype) 
+        desc_pooled = self.desc_ln(desc_pooled)
         desc_output = desc_pooled[map_desc] 
 
+        # sequence_output = sequence_output.contiguous()
+        # sequence_output[:, 0, :] = sequence_output[:, 0, :] + desc_output.to(sequence_output.dtype)
+
+                # ===================== DEBUG PRINT (NO CLS) =====================
+        # Печатаем:
+        # - порядок: i -> map_inputs[i], map_desc[i]
+        # - нормы: ||mean(sequence_output_i, tokens 1:)|| и ||desc_output_i||
+        if self.debug_print_norms and self._is_main_process():
+            with torch.no_grad():
+                seq_mean_no_cls = self._masked_mean_no_cls(sequence_output.float(), attention_mask)
+                seq_norm = seq_mean_no_cls.norm(p=2, dim=-1)       # (B*N,)
+                desc_norm = desc_output.float().norm(p=2, dim=-1)  # (B*N,)
+
+                to_print = min(BxN, max(1, self.debug_max_print))
+                if BxN > to_print:
+                    print(f"[norms] printing first {to_print}/{BxN} samples (set debug_max_print to change)")
+
+                # можно раскомментить, если хочешь видеть какие именно индексы реально прогнали через encoder/desc
+                # print(f"[order] idx_unique_inputs: {idx_unique_inputs.tolist()}")
+                # print(f"[order] idx_unique_desc:   {idx_unique_desc.tolist()}")
+
+                for i in range(to_print):
+                    print(
+                        f"[sample {i:04d}] "
+                        f"map_in={int(map_inputs[i])} "
+                        f"map_desc={int(map_desc[i])} "
+                        f"||mean(seq,noCLS)||={seq_norm[i].item():.6f} "
+                        f"||desc||={desc_norm[i].item():.6f}"
+                    )
+        # ===============================================================
 
         sequence_output = sequence_output.contiguous()
         if attention_mask is not None:
@@ -417,14 +517,17 @@ class ExpressionCounts(nn.Module):
 
 
         # 4) Decoder
-        dec_out = self.decoder(
-            inputs_embeds=sequence_output,        # (B*N, L, H)
-            attention_mask=attention_mask,        # (B*N, L)
-            return_dict=True,
-        )
-        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        # dec_out = self.decoder(
+        #     inputs_embeds=sequence_output,        # (B*N, L, H)
+        #     attention_mask=attention_mask,        # (B*N, L)
+        #     return_dict=True,
+        # )
+        # decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        # logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
 
-        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+        encoder_output = self.transformer_encoder(sequence_output)      # (B*N, L, H)
+        logits = self.activation(self.classifier(encoder_output)) 
+
 
         # 5) Loss
         loss = None
@@ -471,12 +574,12 @@ class ExpressionCounts(nn.Module):
         if not return_dict:
             return (loss, logits)
 
-        hidden_states_out = (decoder_output,)
+        # hidden_states_out = (decoder_output,)
 
         return ExpressionModelOutput(
             loss=loss,
             logits=logits,
-            hidden_states=hidden_states_out,
+            # hidden_states=hidden_states_out,
             attentions=bert_outputs.attentions,
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
