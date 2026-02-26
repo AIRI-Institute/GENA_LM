@@ -2,7 +2,7 @@
 # https://github.com/facebookresearch/hydra/issues/1286 - some notes on how to use hydra configs
 
 HOME_PATH: ${oc.env:GENALM_HOME}
-output_dir: ${HOME_PATH}/runs/annotation/modernGENAlarge_ep148_rc_shift/
+output_dir: ${HOME_PATH}/runs/annotation/modernGENAlarge_ep148_rc_shift2/
 batch_size: 24
 total_batch_size: 960
 
