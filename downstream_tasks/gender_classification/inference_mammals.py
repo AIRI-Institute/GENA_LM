@@ -33,9 +33,6 @@ def parse_args():
     # Model and data paths
     parser.add_argument('--model_path', type=str, 
                     default='runs/human_mouse_contigs_16x3072_bs_128_lr_1e-05_chrY_chrY_ratio_0.5/run_1/checkpoint-153250/model.safetensors',
-                    #   default='/disk/10tb/home/chepurova/chepurova/dnalm/downstream_tasks/gender_classification/runs/human_contigs_16x3072_bs_128_lr_1e-05_chrY_from_checkpoint/run_1/checkpoint-50500/model.safetensors',
-                    # default='/disk/10tb/home/chepurova/chepurova/dnalm/downstream_tasks/gender_classification/runs/mouse_contigs_16x3072_bs_128_lr_1e-05_chrY/run_2/checkpoint-125000/model.safetensors',
-                    # help='Path to the model checkpoint'
     )
     parser.add_argument('--data_dir', type=str,
                     #   default='/disk/10tb/home/chepurova/human_data_contigs_separated',
@@ -74,13 +71,17 @@ def parse_args():
     parser.add_argument('--output_file_prefix', type=str, default='',
                         help='Output filename prefix')
     
+    parser.add_argument('--save_probs', action='store_true',
+                        help='Save probabilities')
+
+    parser.add_argument('--metrics_output_file_prefix', type=str, default='evaluation_results.jsonl',
+                        help='Metrics output file prefix')
+    
     return parser.parse_args()
 
 
 def preprocess_collate_fn(samples, tokenizer):
     batch = collate_fn(samples)
-
-
 
     batch['chunks'] = np.array(batch['chunks'])
     shape = batch['chunks'].shape
@@ -209,12 +210,13 @@ def run_inference(args):
         species = 'all'
 
     output_filename = f'{args.output_file_prefix}_model_{args.model_path.replace("/", "_")}_{args.split}_species_{species}_force_Y_sampling_{args.force_sampling_from_y}_Y_ratio_{args.chrY_ratio}_X_ratio_{args.chrX_ratio}_{args.n_per_sample}_per_sample_{args.seed}.pckl'
-    with open(output_filename, 'wb') as f:
-        pickle.dump({
-            'sample_ids_probs': results['sample_ids_probs'],
-            'sample_ids_labels': results['sample_ids_labels'],
-            'sample_ids_sampled_chromosomes': results['sample_ids_sampled_chromosomes']
-        }, f)
+    if args.save_probs:
+        with open(output_filename, 'wb') as f:
+            pickle.dump({
+                'sample_ids_probs': results['sample_ids_probs'],
+                'sample_ids_labels': results['sample_ids_labels'],
+                'sample_ids_sampled_chromosomes': results['sample_ids_sampled_chromosomes']
+            }, f)
     
     return results['sample_ids_probs'], results['sample_ids_labels'], results['sample_ids_sampled_chromosomes']
 
@@ -245,14 +247,14 @@ def run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chrom
 
     max_N = args.n_per_sample
     Ns = []
-    for N in [25, 100, 1_000, 5_000, 15_000, 30_000]:
+    for N in [25, 100, 1_000, 5_000, 15_000, 30_000, 60_000]:
         if N < max_N:
             Ns.append(N)
     Ns.append(max_N)
     N2thr = find_threshold_for_N(new_sample_ids_labels, new_sample_ids_probs, Ns=Ns)
     
     accs, stds, X_probs, Y_probs = calculate_metrics(new_sample_ids_labels, new_sample_ids_probs, new_sample_ids_sampled_chromosomes, N2threshold=N2thr)
-    with open(f"evaluation_results.jsonl", "w") as f:
+    with open(f"{args.metrics_output_file_prefix}", "w") as f:
         f.write(json.dumps({
             "checkpoint": args.model_path,
             "evaluation_species": species,
@@ -260,8 +262,6 @@ def run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chrom
             "Ns": Ns,
             "accs": accs,
             "stds": stds,
-            "X_probs": X_probs,
-            "Y_probs": Y_probs,
             "n_chunks": args.n_chunks,
             "chunk_size": args.chunk_size,
             "n_per_sample": args.n_per_sample,
@@ -271,14 +271,12 @@ def run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chrom
             "seed": args.seed,
         }) + "\n")
 
-    return Ns, accs, stds, X_probs, Y_probs
+    return Ns, accs, stds
 
 if __name__ == '__main__':
     args = parse_args()
     sample_ids_probs, sample_ids_labels, sample_ids_sampled_chromosomes = run_inference(args)
-    Ns, accs, stds, X_probs, Y_probs = run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chromosomes, args)
+    Ns, accs, stds = run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chromosomes, args)
     logger.info(f'At N = {Ns} samples:')
     logger.info(f'Accuracy: {accs}')
     logger.info(f'Standard deviation: {stds}')
-    logger.info(f'Probability of X: {X_probs}')
-    logger.info(f'Probability of Y: {Y_probs}')

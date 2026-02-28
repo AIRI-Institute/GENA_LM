@@ -26,7 +26,6 @@ class MultiSpeciesGenderDataChunkedDataset(IterableDataset):
             split2organism_name = json.load(f)
         self.split2organism_name = split2organism_name
 
-
         self.n_chunks = n_chunks
         self.chunk_size = chunk_size
         self.max_n_samples = max_n_samples

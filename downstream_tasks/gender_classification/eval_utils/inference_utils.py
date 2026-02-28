@@ -89,8 +89,8 @@ def calculate_metrics(sample_ids_labels, sample_ids_probs, sample_ids_sampled_ch
 
     for N in Ns:
         N_scores = []
-        Ns_containX = []
-        Ns_containY = []
+        # Ns_containX = []
+        # Ns_containY = []
 
         for _ in tqdm(range(sampling_freq), total=len(range(sampling_freq))):
             ratios = []
@@ -102,11 +102,11 @@ def calculate_metrics(sample_ids_labels, sample_ids_probs, sample_ids_sampled_ch
                 probs = probs[:,0][prob_idxs]
                 ratios += [(probs > THR).sum() / len(probs)]
 
-                chrs = sample_ids_sampled_chromosomes[k][prob_idxs, :, 0]
+                # chrs = sample_ids_sampled_chromosomes[k][prob_idxs, :, 0]
                 
-                Ns_containX.append(any([any(['X' in chr for chr in chunk ]) for chunk in chrs]))
-                if sample_ids_labels[k] == 0:
-                    Ns_containY.append(any([any(['Y' in chr for chr in chunk ]) for chunk in chrs]))
+                # Ns_containX.append(any([any(['X' in chr for chr in chunk ]) for chunk in chrs]))
+                # if sample_ids_labels[k] == 0:
+                #     Ns_containY.append(any([any(['Y' in chr for chr in chunk ]) for chunk in chrs]))
                 
             ratios = np.array(ratios)
             
