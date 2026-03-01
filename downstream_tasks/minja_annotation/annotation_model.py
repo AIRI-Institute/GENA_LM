@@ -8,8 +8,6 @@ from transformers.modeling_outputs import TokenClassifierOutput
 from torch.nn import BCEWithLogitsLoss
 import os, logging
 import types
-from collections import Counter
-
 
 @dataclass
 class AnnotationModelOutput(TokenClassifierOutput):
@@ -126,6 +124,7 @@ class AnnotationModel(torch.nn.Module):
 		config = None,
 		pretrained_cpt = None,
 		modernbert_cpt = None,
+		freeze_fraction = None, # fraction of the model to freeze, if None, no freezing is done
 		activation = None,
 		classifier = None,
 		loss_fct = None,
@@ -169,6 +168,19 @@ class AnnotationModel(torch.nn.Module):
 		# else:
 		# 	self.logger.warning(f"Randomly initialized backbone.")
 		# 	self.bert = BertModel(config, add_pooling_layer=False)
+
+		if freeze_fraction is not None:
+			if self.is_modernbert_model:
+				# FlexBertModel: encoder layers are at self.bert.encoder.layers
+				encoder_layers = self.bert.encoder.layers
+			else:
+				raise NotImplementedError("Freezing is only implemented for ModernBERT models; check what is the correct attribute for BERT models")
+			n_layers = len(encoder_layers)
+			n_freeze = int(n_layers * freeze_fraction)
+			for layer in encoder_layers[:n_freeze]:
+				for p in layer.parameters():
+					p.requires_grad = False
+			self.logger.info(f"Froze first {n_freeze}/{n_layers} ({freeze_fraction*100:.1f}%) of BERT encoder layers")
 
 		self.classifier = classifier
 		self.classifier.set_params(self.bert.config)
