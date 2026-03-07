@@ -164,15 +164,15 @@ class ExpressionCounts(nn.Module):
                     print(f"  - ... (+{len(names)-30} more)")
         else:
             self.desc_hidden_size = hidden_size_desc
-            #self.desc_fc = nn.Sequential(
-            #    nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
-            #    nn.LayerNorm(self.desc_hidden_size),
-            #    nn.LeakyReLU(negative_slope=0.01),
-            #    nn.Dropout(p=0.2),
-            #    nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
-            #    nn.LayerNorm(self.desc_hidden_size),
-            #    nn.Dropout(p=0.2),
-            #)
+            self.desc_fc = nn.Sequential(
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                nn.LayerNorm(self.desc_hidden_size),
+                nn.LeakyReLU(negative_slope=0.01),
+                nn.Dropout(p=0.2),
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                nn.LayerNorm(self.desc_hidden_size),
+                nn.Dropout(p=0.2),
+            )
 
         # 3) Проекция, если размерности не совпадают
         self.gen_hidden_size = config.hidden_size
@@ -206,7 +206,7 @@ class ExpressionCounts(nn.Module):
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
         
-        #self.desc_fc.to(dtype=dtype, device=device)
+        self.desc_fc.to(dtype=dtype, device=device)
         self.desc_proj.to(dtype=dtype, device=device)
 
         # 5) Classifier
@@ -216,7 +216,6 @@ class ExpressionCounts(nn.Module):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
         
         #added after 9 model training
-        
         self.layer_norm = nn.LayerNorm(self.gen_hidden_size, dtype=dtype, device=device)
 
 
@@ -341,8 +340,8 @@ class ExpressionCounts(nn.Module):
             if desc_vectors is None:
                 raise ValueError("desc_vectors not provided")
             
-            #desc_embeddings = self.desc_fc(desc_vectors)
-            desc_pooled = self.desc_proj(desc_vectors)
+            desc_embeddings = self.desc_fc(desc_vectors)
+            desc_pooled = self.desc_proj(desc_embeddings)
             desc_output = desc_pooled[map_desc]
 
         sequence_output = sequence_output.contiguous()

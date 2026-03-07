@@ -164,15 +164,11 @@ class ExpressionCounts(nn.Module):
                     print(f"  - ... (+{len(names)-30} more)")
         else:
             self.desc_hidden_size = hidden_size_desc
-            #self.desc_fc = nn.Sequential(
-            #    nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
-            #    nn.LayerNorm(self.desc_hidden_size),
-            #    nn.LeakyReLU(negative_slope=0.01),
-            #    nn.Dropout(p=0.2),
-            #    nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
-            #    nn.LayerNorm(self.desc_hidden_size),
-            #    nn.Dropout(p=0.2),
-            #)
+            self.desc_fc = nn.Sequential(
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+                nn.LeakyReLU(),
+                nn.Linear(self.desc_hidden_size, self.desc_hidden_size),
+            )
 
         # 3) Проекция, если размерности не совпадают
         self.gen_hidden_size = config.hidden_size
@@ -183,7 +179,7 @@ class ExpressionCounts(nn.Module):
             else:
                 self.desc_proj = nn.Identity()
         else:
-            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+            self.desc_proj = nn.Linear(self.desc_hidden_size, config.hidden_size)
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
@@ -205,19 +201,14 @@ class ExpressionCounts(nn.Module):
 
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
-        
-        #self.desc_fc.to(dtype=dtype, device=device)
-        self.desc_proj.to(dtype=dtype, device=device)
+
+        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
 
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
 
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
-        
-        #added after 9 model training
-        
-        self.layer_norm = nn.LayerNorm(self.gen_hidden_size, dtype=dtype, device=device)
 
 
     def forward(
@@ -232,6 +223,11 @@ class ExpressionCounts(nn.Module):
         dataset_flag=None,           # (B, N): 1 -> дубли INPUTS; 0 -> дубли DESC
         desc_vectors=None,           # (B, N, D)
     ):
+        print(f'''
+            init shapes:
+            attention_mask: {attention_mask.shape}
+            desc_vectors: {desc_vectors.shape}
+            ''')
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if dataset_flag is None:
@@ -341,25 +337,30 @@ class ExpressionCounts(nn.Module):
             if desc_vectors is None:
                 raise ValueError("desc_vectors not provided")
             
-            #desc_embeddings = self.desc_fc(desc_vectors)
-            desc_pooled = self.desc_proj(desc_vectors)
+            desc_embeddings = self.desc_fc(desc_vectors)
+            desc_pooled = self.desc_proj(desc_embeddings)
             desc_output = desc_pooled[map_desc]
 
         sequence_output = sequence_output.contiguous()
         
-        #print(f'''
-        #    shapes 0:
-        #    sequence_output: {sequence_output.shape}
-        #    desc_output: {desc_output.shape}
-        #    attention_mask: {attention_mask.shape}
-        #        ''')
+        print(f'''
+            shapes 0:
+            sequence_output: {sequence_output.shape}
+            desc_output: {desc_output.shape}
+            attention_mask: {attention_mask.shape}
+                ''')
         if attention_mask is not None:
-            sequence_output = sequence_output + desc_output * attention_mask.unsqueeze(-1).to(sequence_output.dtype)
+            sequence_output = sequence_output + desc_output.unsqueeze(1) * attention_mask[:, :, None].to(sequence_output.dtype)
         else:
             sequence_output = sequence_output + desc_output
+        print(f'''
+            shapes 1:
+            sequence_output: {sequence_output.shape}
+            desc_output: {desc_output.shape}
+            attention_mask: {attention_mask.shape}
+                ''')
+        #sys.exit(1)
         
-        sequence_output = self.layer_norm(sequence_output)
-            
         # 4) Decoder
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)

@@ -649,24 +649,13 @@ def main():
 
         return data
 
-    class MetricsCalculator:
-        def __init__(self, model_path, accelerator, logger, save_predictions=False):
-
-            self.model_path = model_path
-            self.accelerator = accelerator
-            self.logger = logger
-            self.save_predictions = save_predictions
-            self.call_count = 0
-
-        def __call__(self, data):
-            self.call_count += 1
-            call_num = self.call_count
-
+    def make_metrics_fn(model_path, save_predictions=False):
+        def metrics_fn(data):
             metrics = {}
             for k in ["cls_loss", "other_loss"]:
                 if k in data and data[k] is not None:
                     metrics[k] = torch.mean(data[k]).item()
-
+                    
             tpm_true = data['tpm_true']
             tpm_preds = data['tpm_preds']
             gene_id = data['gene_id']
@@ -683,9 +672,9 @@ def main():
                 'tpm_pred': tpm_preds,
                 'dataset_description': dataset_description,
             })
-
-            if self.save_predictions and self.accelerator.is_main_process:
-                df.to_csv(os.path.join(self.model_path, f"labels_{call_num}.csv"))
+            
+            if save_predictions and accelerator.is_main_process:
+                df.to_csv(os.path.join(model_path, "labels.csv"))
 
             # Calculate metrics per dataset
             for dataset_desc in df['dataset_description'].unique():
@@ -703,10 +692,10 @@ def main():
                     values='tpm_true',
                     aggfunc='first'
                 )
-
-                if self.save_predictions and self.accelerator.is_main_process:
-                    df_true.to_csv(os.path.join(self.model_path, f"{dataset_desc}_true_{call_num}.csv"))
-                    df_pred.to_csv(os.path.join(self.model_path, f"{dataset_desc}_pred_{call_num}.csv"))
+                
+                if save_predictions and accelerator.is_main_process:
+                    df_true.to_csv(os.path.join(model_path, f"{dataset_desc}_true.csv"))
+                    df_pred.to_csv(os.path.join(model_path, f"{dataset_desc}_pred.csv"))
 
                 if df_true.empty or df_pred.empty:
                     continue
@@ -733,7 +722,7 @@ def main():
                 for cell_type in df_true.columns:
                     cell_true = df_true[cell_type]
                     cell_pred = df_pred[cell_type]
-
+                    
                     cell_true = cell_true[pd.notna(cell_true)]
                     cell_pred = cell_pred[pd.notna(cell_pred)]
 
@@ -758,20 +747,20 @@ def main():
 
                 if dataset_desc in ALLOWED:
                     # Cell specificity scoring
-                    df_true_reset = df_true.reset_index()
-                    df_pred_reset = df_pred.reset_index()
+                    df_true = df_true.reset_index()
+                    df_pred = df_pred.reset_index()
                     score = score_predictions(
-                        df_true_reset,
-                        df_pred_reset,
+                        df_true,
+                        df_pred,
                         experiment_config.selected_targets_path,
                         need_log=False,
-                        logger=self.logger
+                        logger=alogger
                     )
                     if score and score.get('deviation_r', None):
                         metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
-
+                    
                     # Mean and residuals correlation
-                    score2 = mean_and_residuals_correlation(df_true_reset, df_pred_reset, need_log=False)
+                    score2 = mean_and_residuals_correlation(df_true, df_pred, need_log=False)
                     if isinstance(score2, dict):
                         for k, v in score2.items():
                             if isinstance(v, (np.floating, np.integer)):
@@ -780,15 +769,7 @@ def main():
 
             return metrics
 
-
-
-    def make_metrics_fn(model_path, save_predictions=False):
-        return MetricsCalculator(
-            model_path=model_path,
-            accelerator=accelerator,
-            logger=alogger,          
-            save_predictions=save_predictions
-        )
+        return metrics_fn
 
     metrics_fn = make_metrics_fn(args.model_path, save_predictions=args.save_predictions)
 
