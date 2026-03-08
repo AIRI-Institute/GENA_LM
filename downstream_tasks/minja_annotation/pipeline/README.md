@@ -47,12 +47,20 @@ conda activate bert24
 MODERNBERT_HOME="../../../../ModernBERT/" GENALM_HOME="../../../../GENA_LM/" python run_pipeline.py --fasta ../../../data/annotation/test.fa
 ```
 
-- **Shift coordinates** (Shift output coordinates based on the fasta header so that you can visualize resulting file against reference genome:):
+- **Shift coordinates** (Shift output coordinates based on the fasta header so that you can visualize resulting file against reference genome):
 
 ```bash
 cd $PROOT/GENA_LM/downstream_tasks/minja_annotation/pipeline/
 conda activate bert24
 MODERNBERT_HOME="../../../../ModernBERT/" GENALM_HOME="../../../../GENA_LM/" python run_pipeline.py --fasta ../../../data/annotation/test.fa --shift UCSC
+```
+
+- **Save intermediate files** (peaks before pairing and pairs before filtration):
+
+```
+cd $PROOT/GENA_LM/downstream_tasks/minja_annotation/pipeline/
+conda activate bert24
+MODERNBERT_HOME="../../../../ModernBERT/" GENALM_HOME="../../../../GENA_LM/" python run_pipeline.py --fasta ../../../data/annotation/test.fa --shift UCSC --intermediate_files
 ```
 
 - **Custom temp dir:**

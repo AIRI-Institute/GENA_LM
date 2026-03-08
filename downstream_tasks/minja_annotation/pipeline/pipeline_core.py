@@ -14,14 +14,14 @@ from safetensors.torch import load_file
 
 # Support both: run as package (relative imports) and run as script (parent on path)
 try:
-    from ..simple_annotation_dataset import collate_fn
-    from ..evaluate_on_chromosome import bigWigExporter
+	from ..simple_annotation_dataset import collate_fn
+	from ..evaluate_on_chromosome import bigWigExporter
 except ImportError:
-    _parent_dir = Path(__file__).resolve().parent.parent
-    if str(_parent_dir) not in sys.path:
-        sys.path.insert(0, str(_parent_dir))
-    from simple_annotation_dataset import collate_fn
-    from evaluate_on_chromosome import bigWigExporter
+	_parent_dir = Path(__file__).resolve().parent.parent
+	if str(_parent_dir) not in sys.path:
+		sys.path.insert(0, str(_parent_dir))
+	from simple_annotation_dataset import collate_fn
+	from evaluate_on_chromosome import bigWigExporter
 
 import numpy as np
 import pyBigWig as bw
@@ -227,6 +227,49 @@ def peak_finding(X: np.ndarray, LP_FRAC: float, PK_PROM: float, PK_DIST: int, PK
 	return mask
 
 	########################## post-processing - pairing #####################################
+
+def peaks2file(peaks, fname, chr_name, logger=None):
+	"""
+	Writes peak positions to BED file.
+
+	Args:
+		peaks: np.ndarray of shape (4, seq_len), values {0,1}
+			Row 0: TSS+ (strand +)
+			Row 1: PolyA+ (strand +)
+			Row 2: TSS- (strand -)
+			Row 3: PolyA- (strand -)
+		fname: output BED file name
+		chr_name: chromosome name, e.g., "chr1"
+	"""
+	if logger is not None:
+		logger.info(f"Saving peaks to file {fname}")
+	bed_lines = []
+
+	labels = [
+		("TSS", "+"),
+		("PolyA", "+"),
+		("TSS", "-"),
+		("PolyA", "-"),
+	]
+
+	for i, (signal, strand) in enumerate(labels):
+		if logger is not None:
+			logger.info(f"Computing {(signal, strand)}")
+
+		peak_indices = np.flatnonzero(peaks[i])
+		for pos in peak_indices:
+			# BED: chrom, start, end, name, score, strand
+			start = pos
+			end = pos + 1  # peak is one base
+			name = signal
+			score = 1000  # conventionally use 1000, or 0 if not scored
+			bed_lines.append(f"{chr_name}\t{start}\t{end}\t{name}\t{score}\t{strand}\n")
+
+	if logger is not None:
+		logger.info(f"Writing to file {len(bed_lines)} lines")
+
+	with open(fname, "w") as f:
+		f.writelines(bed_lines)
 
 def find_tss_polya_pairs_right_left_only(arr, chrom_name, window_size=2_000_000, k=10,
 										out_bed_path=None, progress_every=None, 

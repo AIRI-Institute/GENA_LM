@@ -12,6 +12,7 @@ from pipeline_core import (
     find_tss_polya_pairs_right_left_only,
     filter_bed_by_intragenic,
 	shift_bed_by_UCSC_chr_header,
+	peaks2file
 )
 import numpy as np
 
@@ -69,6 +70,10 @@ parser.add_argument('--zero_fraction_drop_threshold', type=float, default=0.01,
 	help='drop intervals with zero-fraction above this')
 
 # output
+
+parser.add_argument('--intermediate_files', action='store_true',
+	help='Save intermediate files')
+
 parser.add_argument('--bed_out', type=str, default=None,
 	help='output BED file path')
 
@@ -146,12 +151,19 @@ def main():
 	])
 
 	arr = peak_finding(X, args.lp_frac, args.pk_prom, args.pk_dist, args.pk_height)
+	if args.intermediate_files:
+		peaks2file(arr, f"{args.bed_out}.unpaired_peaks.bed", chromosome, logger=logger)
+		if args.shift == "UCSC":
+			shift_bed_by_UCSC_chr_header(f"{args.bed_out}.unpaired_peaks.bed")
+
 	pairs = find_tss_polya_pairs_right_left_only(arr, chrom_name=chromosome, 
 													k=args.k, 
-													out_bed_path=None, # we don't need this intermediate file
+													out_bed_path=f"{args.bed_out}.no_intergagenic.filter.bed" if args.intermediate_files else None,
 													progress_every=1000,
 													logger=logger
 												)
+	if args.intermediate_files and args.shift == "UCSC":
+		shift_bed_by_UCSC_chr_header(f"{args.bed_out}.no_intergagenic.filter.bed")
 
 	filter_bed_by_intragenic(pairs, bw_dir = bw6, 
 							BW_PLUS = args.bw_plus, BW_MINUS = args.bw_minus, 
