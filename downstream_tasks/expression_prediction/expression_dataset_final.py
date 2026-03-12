@@ -44,6 +44,7 @@ class ExpressionDataset(Dataset):
         hash_prefix = None,
         n_keys: Optional[int] = None,
         token_len_for_fetch: int = 10,
+        # token_len_for_fetch: int = 1,  # LEV: caduceus version
         norm_bw = False,
         text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
         text_max_seq_len: int = 1000
@@ -358,90 +359,176 @@ class ExpressionDataset(Dataset):
         complement = str.maketrans('ACGTN', 'TGCAN')
         return sequence.translate(complement)[::-1]
 
-    def tokenize_genome(self, i):
-        row = self.genes.iloc[i]  
-        chrom = row["chromosome"] 
-        start = row["TSS"]
-        end = row["TES"] 
-        strand = row["strand"]
-        reverse = 0 if strand == "+" else 1
-        token_lengths = []
+    # def tokenize_genome(self, i):
+    #     # def tokenize_genome(self, gene_idx):  # LEV: renamed i -> gene_idx
+    #     row = self.genes.iloc[i]  
+    #     chrom = row["chromosome"] 
+    #     start = row["TSS"]
+    #     end = row["TES"] 
+    #     strand = row["strand"]
+    #     reverse = 0 if strand == "+" else 1
+    #     token_lengths = []
         
-        if self.num_before > 0: 
-            if (reverse == 0): # forward strand
-                try:
-                    sequence = self.sequences.fetch(chrom, max(start - self.num_before * self.token_len_for_fetch, 0), start).upper()
-                except ValueError as e:
-                    self.logger.error(f"Error sequence {i}")
-            else: # reverse strand
-                chrom_length = self.sequences.get_reference_length(chrom)
-                try:
-                    sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * self.token_len_for_fetch, chrom_length)).upper()
-                    sequence = self.reverse_complement(sequence)
-                except ValueError as e:
-                    self.logger.error(f"Error sequence {i}")
+    #     if self.num_before > 0: 
+    #         if (reverse == 0): # forward strand
+    #             try:
+    #                 sequence = self.sequences.fetch(chrom, max(start - self.num_before * self.token_len_for_fetch, 0), start).upper()
+    #             except ValueError as e:
+    #                 self.logger.error(f"Error sequence {i}")
+    #                 # self.logger.error(f"Error sequence {gene_idx}")  # LEV
+    #         else: # reverse strand
+    #             chrom_length = self.sequences.get_reference_length(chrom)
+    #             try:
+    #                 sequence = self.sequences.fetch(chrom, start, min(start + self.num_before * self.token_len_for_fetch, chrom_length)).upper()
+    #                 sequence = self.reverse_complement(sequence)
+    #             except ValueError as e:
+    #                 self.logger.error(f"Error sequence {i}")
+    #                 # self.logger.error(f"Error sequence {gene_idx}")  # LEV
                 
-            encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-            encoded_sequence['input_ids'] = encoded_sequence['input_ids'][1:-1]
-            encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
-            if len(encoded_sequence['input_ids']) < self.num_before:
-                self.logger.warning(f"Trying to tokenize seq before TSS, but it's too short: {len(encoded_sequence['input_ids'])} < {self.num_before}; {chrom}: {start}-{end} ({strand})")
-            tokens_before = encoded_sequence['input_ids'][-self.num_before:]
-            mapping = encoded_sequence['offset_mapping'][-self.num_before:]
+    #         encoded_sequence = self.gen_tokenizer(sequence, return_offsets_mapping=True)
+    #         encoded_sequence['offset_mapping'] = encoded_sequence['offset_mapping'][1:-1]
+    #         # LEV: caduceus version
+    #         # encoded_sequence = self.gen_tokenizer(sequence)
+    #         # n_tokens = len(encoded_sequence['input_ids'])
+    #         # encoded_sequence['offset_mapping'] = [(j, j+1) for j in range(n_tokens - 1)]
+    #         # encoded_sequence['input_ids'] = encoded_sequence['input_ids'][:-1]
+    #         if len(encoded_sequence['input_ids']) < self.num_before:
+    #             self.logger.warning(f"Trying to tokenize seq before TSS, but it's too short: {len(encoded_sequence['input_ids'])} < {self.num_before}; {chrom}: {start}-{end} ({strand})")
+    #         tokens_before = encoded_sequence['input_ids'][-self.num_before:]
+    #         mapping = encoded_sequence['offset_mapping'][-self.num_before:]
             
-            for i, (start_i, end_i) in enumerate(mapping):
-                token_id = tokens_before[i]
-                if (token_id == 5):
-                    if i > 0:
-                        length = end_i - mapping[i-1][1] 
-                    else:
-                        length = end_i
-                else:
-                    length = end_i - start_i  
-                token = self.gen_tokenizer.decode([token_id])  
-                token_lengths.append((token_id, token, length))
+    #         for i, (start_i, end_i) in enumerate(mapping):
+    #             # for j, (start_i, end_i) in enumerate(mapping):  # LEV: renamed i -> j
+    #             token_id = tokens_before[i]
+    #             if (token_id == 5):
+    #                 if i > 0:
+    #                     length = end_i - mapping[i-1][1] 
+    #                 else:
+    #                     length = end_i
+    #             else:
+    #                 length = end_i - start_i  
+    #             token = self.gen_tokenizer.decode([token_id])  
+    #             token_lengths.append((token_id, token, length))
     
-        if reverse == 0:
-            start_gene = start - sum(t[2] for t in token_lengths)
-        else:
-            start_gene = end
+    #     if reverse == 0:
+    #         start_gene = start - sum(t[2] for t in token_lengths)
+    #     else:
+    #         start_gene = end
     
-        if reverse == 0:
-            try:
-                sequence = self.sequences.fetch(chrom, start, end).upper()
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
-        else:
-            try:
-                sequence = self.sequences.fetch(chrom, end, start).upper()
-                sequence = self.reverse_complement(sequence)
-            except ValueError as e:
-                self.logger.error(f"Error sequence {i}")
+    #     # LEV: caduceus version
+    #     # region_start = min(start, end)
+    #     # region_end = max(start, end)
+    #     # end_limited = min(start + 500, end)
+    #     if reverse == 0:
+    #         try:
+    #             sequence = self.sequences.fetch(chrom, start, end).upper()
+    #         except ValueError as e:
+    #             self.logger.error(f"Error sequence {i}")
+    #     else:
+    #         try:
+    #             sequence = self.sequences.fetch(chrom, end, start).upper()
+    #             sequence = self.reverse_complement(sequence)
+    #         except ValueError as e:
+    #             self.logger.error(f"Error sequence {i}")
         
-        encoded_sequence = self.gen_tokenizer.encode_plus(sequence, return_offsets_mapping=True)
-        tokens_before = encoded_sequence['input_ids'][1:-1]
-        mapping = encoded_sequence['offset_mapping'][1:-1]
+    #     encoded_sequence = self.gen_tokenizer(sequence, return_offsets_mapping=True, use_fast=False)
+    #     tokens_before = encoded_sequence['input_ids'][1:-1]
+    #     mapping = encoded_sequence['offset_mapping'][1:-1]
+    #     # LEV: caduceus version
+    #     # encoded_sequence = self.gen_tokenizer(sequence)
+    #     # n_tokens = len(encoded_sequence['input_ids'])
+    #     # encoded_sequence['offset_mapping']  = [(j, j+1) for j in range(n_tokens - 1)]
+    #     # tokens_before = encoded_sequence['input_ids'][:-1]
+    #     # mapping = encoded_sequence['offset_mapping']
        
-        for i, (start_i, end_i) in enumerate(mapping):
-            token_id = tokens_before[i]
-            if (token_id == 5):
-                if i > 0:
-                    length = end_i - mapping[i-1][1] 
-                else:
-                    length = end_i
-            else:
-                length = end_i - start_i 
-            token = self.gen_tokenizer.decode([token_id])  
-            token_lengths.append((token_id, token, length))
+    #     for i, (start_i, end_i) in enumerate(mapping):
+    #         # for j, (start_i, end_i) in enumerate(mapping):  # LEV: renamed i -> j
+    #         token_id = tokens_before[i]
+    #         if (token_id == 5):
+    #             if i > 0:
+    #                 length = end_i - mapping[i-1][1] 
+    #             else:
+    #                 length = end_i
+    #         else:
+    #             length = end_i - start_i 
+    #         token = self.gen_tokenizer.decode([token_id])  
+    #         token_lengths.append((token_id, token, length))
             
-        if reverse == 1: 
-            token_lengths.reverse()
-        token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
-        token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
-        token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
-        token_lengths_df['chrom'] = chrom
-        if reverse == 1: 
-            token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
+    #     if reverse == 1: 
+    #         token_lengths.reverse()
+    #     token_lengths_df = pd.DataFrame(token_lengths, columns=['token_id', 'token', 'length'])
+    #     token_lengths_df['start'] = token_lengths_df['length'].cumsum().shift(fill_value=0) + start_gene 
+    #     token_lengths_df['end'] = token_lengths_df['start'] + token_lengths_df['length']
+    #     token_lengths_df['chrom'] = chrom
+    #     if reverse == 1: 
+    #         token_lengths_df = token_lengths_df[::-1].reset_index(drop=True)
+    #     return start_gene, token_lengths_df
+    def tokenize_genome(self, i):
+        row = self.genes.iloc[i]
+        chrom = row["chromosome"]
+        tss = int(row["TSS"])
+        tes = int(row["TES"])
+        strand = row["strand"]
+        chrom_len = self.sequences.get_reference_length(chrom)
+
+        num_before = int(self.num_before)
+        token_lengths = []
+
+
+        if strand == "+":  # forward
+            left = max(tss - num_before, 0)
+            right = min(tss + num_before, tes)
+            if left >= right:
+                raise ValueError(f"Bad coords for + strand: {chrom}:{left}-{right}")
+            seq = self.sequences.fetch(chrom, left, right).upper()
+        else:  # reverse
+            left = max(tss - num_before, tes)
+            right = min(tss + num_before, chrom_len)
+            if left >= right:
+                raise ValueError(f"Bad coords for - strand: {chrom}:{left}-{right}")
+            seq = self.sequences.fetch(chrom, left, right).upper()
+            seq = self.reverse_complement(seq)
+
+        if not seq:
+            self.logger.error(
+                f"Empty sequence for gene_idx={i}, {chrom}:{left}-{right}, strand={strand}"
+            )
+            empty_df = pd.DataFrame(
+                columns=["token_id", "token", "length", "start", "end", "chrom"]
+            )
+            return left, empty_df
+
+        encoded = self.gen_tokenizer(seq, add_special_tokens=True)
+        input_ids = encoded["input_ids"]
+
+        for tid in input_ids:
+            tok_str = self.gen_tokenizer.decode([tid])
+            token_lengths.append((tid, tok_str, 1))
+
+        n_tokens = len(token_lengths)
+
+
+        if strand == "+":
+            starts = np.arange(left, left + n_tokens, dtype=np.int64)
+        else:
+            starts = np.arange(right - 1, right - 1 - n_tokens, -1, dtype=np.int64)
+
+        ends = starts + 1
+
+        token_lengths_df = pd.DataFrame(
+            {
+                "token_id": [t[0] for t in token_lengths],
+                "token": [t[1] for t in token_lengths],
+                "length": [t[2] for t in token_lengths],
+                "start": starts,
+                "end": ends,
+                "chrom": [chrom] * n_tokens,
+            }
+        )
+
+        token_lengths_df = token_lengths_df.sort_values("start").reset_index(drop=True)
+        start_gene = int(token_lengths_df["start"].iloc[0]) if n_tokens > 0 else left
+
         return start_gene, token_lengths_df
 
     def process_region_signals(self, bw_handler, chrom, starts, ends, l, strand):
@@ -687,7 +774,8 @@ class ExpressionDataset(Dataset):
         desc_input_ids = []
         desc_attention_mask = []
         for key in selected_keys:
-            grp = self.desc_h5_cadesc_h5_cacheche[str(key)]
+            grp = self.desc_h5_cache[str(key)]
+            # grp = self.desc_h5_cache[str(key)]  # LEV: fixed typo in original
             ids = torch.tensor(grp["input_ids"][()], dtype=torch.long)      
             mask = torch.tensor(grp["attention_mask"][()], dtype=torch.long) 
             desc_input_ids.append(ids)
