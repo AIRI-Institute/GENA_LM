@@ -258,7 +258,7 @@ if __name__ == '__main__':
         report_to='none',  # log to tensorboard with TensorBoardCallbackWithTokens
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
-        save_total_limit=None,  # Keep all checkpoints (set to None or remove this line)
+        save_total_limit=4,  # Keep all checkpoints (set to None or remove this line)
         load_best_model_at_end=True,
     )
 
