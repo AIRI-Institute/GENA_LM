@@ -22,7 +22,7 @@ class NamedMean(Metric):
         v = model_outputs[self.cls_name]
         if isinstance(v, torch.Tensor):
             v = v.detach().float()
-        self.sum += v
+        self.sum += v.mean()
         self.count += 1.0
 
     def compute(self):

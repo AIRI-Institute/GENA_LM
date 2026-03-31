@@ -1,4 +1,4 @@
-from TSS_dataset import TSSDataset
+from TSSprediction.GENA_LM.downstream_tasks.TSSprediction.TSS_dataset_old import TSSDataset
 import logging
 
 TSSDataset(mapping_file='/workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/dataset.csv',

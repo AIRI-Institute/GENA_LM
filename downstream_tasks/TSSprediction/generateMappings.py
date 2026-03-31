@@ -12,7 +12,9 @@ class Metadata():
                 sample2genome:str = 'metadata/file_mappings.csv',
                 sample2taxon:str = 'metadata/sample2taxonType.json',
                 genomesDIR:str = 'data/genomes/',
-                annotationsDIR:str = 'data/annotations/'
+                annotationsDIR:str = 'data/annotations/',
+                genomes_decompressed:bool = True,
+                annotations_decompressed:bool = True
                 ):
         
         self.annotationsDIR = annotationsDIR
@@ -48,40 +50,14 @@ class Metadata():
             
         self.final_metadata = self.annotations.join(self.sample2genomePath, on='id', how='left') \
                                                 .with_columns(taxon = pl.col('id').replace_strict(self.sample2taxon)) #id, ScientificName, genome_acc, annotation, genomePath, taxon
+        if genomes_decompressed:
+            self.final_metadata = self.final_metadata.with_columns(pl.col('genomePath').str.strip_suffix('.gz'))
+        if annotations_decompressed:
+            self.final_metadata = self.final_metadata.with_columns(pl.col('annotation').str.strip_suffix('.gz'))
         
         
         self.condensed_metadata = self.final_metadata.unique('genome_acc').select('genome_acc', 'annotation', 'genomePath', 'taxon')
         
-    
-    
-    @staticmethod
-    def get_tss_region(GTFfile):
-
-        TSSbed=[]
-
-        f = open(GTFfile)
-        for line in f:
-            table = line.split('\t')
-            if len(table) < 3:
-                continue
-            if table[2] == 'transcript':
-                chrom  = table[0]
-                strand = table[6] 
-                tcx = line.split('transcript_id')[1].split('"')[1]
-                geneid = line.split('gene_id')[1].split('"')[1]
-                if "gene_name" in line:
-                    genesymbol = line.split('gene_name')[1].split('"')[1]
-                else:
-                    genesymbol = geneid
-                if  strand == "+":
-                    iregion = {'chrom':chrom, 'TSS':int(table[3])-1, 'strand':strand, 'geneid':geneid, 'gene_symbol':genesymbol, 'annotation': GTFfile}
-                elif strand == '-':
-                    iregion = {'chrom':chrom, 'TSS':int(table[4]), 'strand':strand, 'geneid':geneid, 'gene_symbol':genesymbol, 'annotation': GTFfile}
-                TSSbed.append(iregion)
-
-        f.close()
-        return pl.DataFrame(TSSbed)
-    
         
     def write(self, format:str, out_path:str='metadata/'):
         if format == 'full':

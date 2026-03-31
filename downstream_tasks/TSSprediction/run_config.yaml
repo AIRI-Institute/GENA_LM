@@ -1,0 +1,91 @@
+# Configuration for train_with_accelerate.py
+# https://github.com/facebookresearch/hydra/issues/1286 - some notes on how to use hydra configs
+
+HOME_PATH: ${oc.env:GENALM_HOME}
+output_dir: ${HOME_PATH}/runs/CRE_prediction
+batch_size: 96
+total_batch_size: 960
+resume_from_checkpoint: false
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+model:
+  _target_: CRE_model.CreModel
+  output_dir: ${output_dir}
+  activation:
+    _target_: "torch.nn.Identity"
+  loss_fct:
+    _target_: "torch.nn.BCEWithLogitsLoss"
+    reduction: 'none'
+  hf: true
+  num_taxons: 8
+
+TrainingArguments:
+  _target_: transformers.TrainingArguments
+  output_dir: ${output_dir}
+  per_device_train_batch_size: ${batch_size}
+  per_device_eval_batch_size: ${batch_size}
+  dataloader_num_workers: 8
+  gradient_accumulation_steps:
+    _target_: train_with_accelerate.gradient_accumulation_steps
+    batch_size: ${batch_size}
+    total_batch_size: ${total_batch_size}
+  dataloader_pin_memory: false
+  remove_unused_columns: false
+  load_best_model_at_end: true
+  save_strategy: "steps"
+  save_total_limit: 2
+  eval_strategy: "steps"
+  save_steps: 250
+  eval_steps: 250
+  metric_for_best_model: "eval_loss"
+  lr_scheduler_type: "constant"
+  num_train_epochs: 20
+  logging_steps: 50  
+
+trainer:
+  _target_: custom_trainer.CustomTrainer
+  model: ${model}
+  data_collator:
+    _target_: hydra.utils.get_object
+    path: simple_annotation_dataset.collate_fn
+  train_dataset: ${train_dataset}
+  eval_dataset: ${valid_dataset}
+  args: ${TrainingArguments}
+  log_train_metrics: 50
+  train_metrics:
+    - _target_: custom_trainer.NamedMean
+      cls_name: "loss"
+
+train_dataset:
+  _target_: CRE_dataset.CreDataset
+  genome: data/genomes/Pongo_pygmaeus.fasta
+  chrom_file: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/data/chrom_files/Pongo_pygmaeus_train.csv
+  taxon: Mammalia
+  annotation: data/annotations/GCF_028885625.2_NHGRI_mPonPyg2-v2.0_pri_genomic.gtf
+  inputType: TSS
+  unknown_taxon_prob: 0.15
+  min_cre_number: null
+  min_cre_coverage: null
+  cre_bed: null
+  max_seq_len: 1024
+  tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
+  token_len_for_fetch: 10
+  cache_dir: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/cache
+valid_dataset:
+  _target_: CRE_dataset.CreDataset
+  genome: data/genomes/Pongo_pygmaeus.fasta
+  chrom_file: data/chrom_files/Pongo_pygmaeus_valid.csv
+  taxon: Mammalia
+  annotation: data/annotations/GCF_028885625.2_NHGRI_mPonPyg2-v2.0_pri_genomic.gtf
+  inputType: TSS
+  unknown_taxon_prob: 0.15
+  min_cre_number: null
+  min_cre_coverage: null
+  cre_bed: null
+  max_seq_len: 1024
+  tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
+  token_len_for_fetch: 10
+  cache_dir: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/cache

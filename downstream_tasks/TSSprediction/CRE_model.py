@@ -9,15 +9,15 @@ from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
 import sys
+from pathlib import Path
 
 @dataclass
-class TssModelOutput(TokenClassifierOutput):
+class CreModelOutput(TokenClassifierOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: Optional[torch.FloatTensor] = None
-    labels_reshaped: Optional[torch.FloatTensor] = None
-    labels_mask_reshaped: Optional[torch.FloatTensor] = None
+    predicts: Optional[torch.FloatTensor] = None
 
-class TssModel(nn.Module):
+class CreModel(nn.Module):
 
     def __init__(
         self,
@@ -38,13 +38,14 @@ class TssModel(nn.Module):
             if "modernbert" in hf_model_name.lower():
                 print(f"Using ModernBERT from {hf_model_name}")
                 self.bert, info  = ModernBertModel.from_pretrained(
-                hf_model_name,
+                Path(hf_model_name),
                 trust_remote_code=True,
                 attn_implementation="flash_attention_2",
                 attention_dropout=0.1,
                 embedding_dropout=0.1,
                 mlp_dropout=0.1,
-                output_loading_info=True
+                output_loading_info=True,
+                reference_compile=False
             )
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
@@ -117,8 +118,16 @@ class TssModel(nn.Module):
         labels_mask=None,            # (B, L, 1)
         labels=None,                 # (B, L, 1)
         return_dict=None,
-        taxons=None                  # (B, 1)
+        taxon=None                  # (B, 1)
     ):
+        
+        #print(f'''
+        #      input_ids shape: {input_ids.shape}
+        #      attention_mask shape: {attention_mask.shape}
+        #      labels_mask shape: {labels_mask.shape}
+        #      labels shape: {labels.shape}
+        #      taxon shape: {taxon.shape}
+        #      ''')
         
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
@@ -129,43 +138,33 @@ class TssModel(nn.Module):
             )
         sequence_output = bert_outputs.last_hidden_state # (B, L, H)
         
-        taxon_embedding = self.taxon_embeddings(taxons)  # (B, H)
+        taxon_embedding = self.taxon_embeddings(taxon)  # (B, H)
         
         taxon_sequence_output = sequence_output + taxon_embedding.unsqueeze(1)
         
         logits = self.activation(self.classifier(taxon_sequence_output))  # (B, L, 1)
         # 5) Loss
         loss = None
-        labels_reshaped = labels_mask_reshaped = cls_loss = mean_loss = diviation_loss = other_loss = None
+        labels_reshaped = labels_mask_reshaped = cls_loss = None
         if labels is not None:
             labels_reshaped = labels.to(logits.device)
             labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
             unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B, L, 1)
             if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
                 cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B, 1, 1)
-                other_mask = labels_mask_reshaped[:, 1:, :]          # (B, L-1, 1)
+
                 if cls_mask.sum().item() > 0:
-                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
-                        mean_loss = None
-                        diviation_loss = None
-                if other_mask.sum().item() > 0:
-                    other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / (other_mask.sum() + 1e-8)
-                if cls_loss is not None and other_loss is not None:
-                    loss = cls_loss + self.weight * other_loss
-                elif cls_loss is not None:
+                    cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
+                if cls_loss is not None:
                     loss = cls_loss
-                elif other_loss is not None:
-                    loss = self.weight * other_loss
+
         if not return_dict:
             return (loss, logits)
         hidden_states_out = (sequence_output,)
-        return TssModelOutput(
+        return CreModelOutput(
             loss=loss,
             logits=logits,
-            hidden_states=hidden_states_out,
-            attentions=bert_outputs.attentions,
-            labels_reshaped=labels_reshaped,
-            labels_mask_reshaped=labels_mask_reshaped,
+            predicts = self.classifier(taxon_sequence_output)
         )
 
     
