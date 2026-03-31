@@ -70,7 +70,7 @@ train_dataset_CRE_Homo_sapiens:
   unknown_taxon_prob: 0.15
   min_cre_number: 0
   min_cre_coverage: 0.3
-  cre_bed: null
+  cre_bed: data/cre/GRCh38-cCREs.bed
   max_seq_len: 1024
   tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
   token_len_for_fetch: 10
@@ -86,7 +86,7 @@ train_dataset_CRE_Homo_sapiens:
   unknown_taxon_prob: 0.15
   min_cre_number: 0
   min_cre_coverage: 0.3
-  cre_bed: null
+  cre_bed: data/cre/GRCh38-cCREs.bed
   max_seq_len: 1024
   tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
   token_len_for_fetch: 10
@@ -104,7 +104,7 @@ train_dataset_CRE_Mus_musculus:
   unknown_taxon_prob: 0.15
   min_cre_number: 0
   min_cre_coverage: 0.3
-  cre_bed: null
+  cre_bed: data/cre/mm10-cCREs.bed
   max_seq_len: 1024
   tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
   token_len_for_fetch: 10
@@ -120,7 +120,7 @@ valid_dataset_CRE_Mus_musculus:
   unknown_taxon_prob: 0.15
   min_cre_number: 0
   min_cre_coverage: 0.3
-  cre_bed: null
+  cre_bed: data/cre/mm10-cCREs.bed
   max_seq_len: 1024
   tokenizer: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
   token_len_for_fetch: 10
