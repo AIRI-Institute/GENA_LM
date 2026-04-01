@@ -76,7 +76,7 @@ train_dataset_CRE_Homo_sapiens:
   token_len_for_fetch: 10
   cache_dir: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/cache
 
-train_dataset_CRE_Homo_sapiens:
+valid_dataset_CRE_Homo_sapiens:
   _target_: CRE_dataset.CreDataset
   genome: data/cre/genomes_cre/hg38.fa
   chrom_file: /workspace-SR003.nfs2/estsoi/TSSprediction/GENA_LM/downstream_tasks/TSSprediction/data/chrom_files/Homo_sapiens_CRE_valid.csv
