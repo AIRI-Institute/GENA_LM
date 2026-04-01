@@ -68,23 +68,24 @@ def main():
  
  
 	# Datasets
+	logger.info('Collecting dataset configs...')
 	train_dataset_configs = _collect_dataset_configs(experiment_config=experiment_config, prefix='train_dataset')
 	eval_dataset_configs = _collect_dataset_configs(experiment_config=experiment_config, prefix='valid_dataset')
 	
+	logger.info('Building concat datasets from configs...')
 	train_concat_dataset = build_dataset_from_cfgs(train_dataset_configs)
 	eval_concat_dataset = build_dataset_from_cfgs(eval_dataset_configs)
  
 
 	# Initialize Trainer with custom trainer class
 	trainer_config = experiment_config.trainer.copy()
- 
-	trainer_config['train_dataset'] = train_concat_dataset
-	trainer_config['eval_dataset'] = eval_concat_dataset
-	trainer = instantiate(trainer_config)
+
+	trainer = instantiate(trainer_config, train_dataset=train_concat_dataset, eval_dataset=eval_concat_dataset)
 	
 	
 	# Prepare trainer with accelerator
 	trainer = accelerator.prepare(trainer)
+
 
 	# Train and evaluate
 	resume_from_checkpoint = experiment_config.get('resume_from_checkpoint', None)
