@@ -196,28 +196,45 @@ class ExpressionDataset(Dataset):
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         input_strings = []
-        
-        input_str = str('tokens')
+
+        input_str = "tokens"
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
-        
+
         input_str = str(self.intervals_hash)
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
-        
+
         input_str = self._name_and_size(self.genome)
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
-        
+
         input_str = str(self.num_before)
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
-        
-        if self.token_len_for_fetch != 10: # 8 was default in first version of the dataset; TODO: remove at some point
+
+        tok = self.gen_tokenizer
+
+        name = getattr(tok, "name_or_path", None)
+        if name is None and hasattr(tok, "tokenizer"):
+            inner = getattr(tok, "tokenizer")
+            name = getattr(inner, "name_or_path", None)
+
+        tok_name = str(name) if name is not None else type(tok).__name__
+
+        if tok_name == "AIRI-Institute/gena-lm-bert-base-t2t":
+            input_str = tok_name
+        else:
+            input_str = tok_name
+
+        m.update(input_str.encode("utf-8"))
+        input_strings.append(input_str)
+
+        if self.token_len_for_fetch != 10:
             input_str = str(self.token_len_for_fetch)
             m.update(input_str.encode("utf-8"))
             input_strings.append(input_str)
-            
+
         self.logger.debug(f"Hash inputs: {input_strings}")
         self.logger.debug(f"constructed hash suffix: {m.hexdigest()}")
         hash_suffix = m.hexdigest()
@@ -431,7 +448,7 @@ class ExpressionDataset(Dataset):
     #         except ValueError as e:
     #             self.logger.error(f"Error sequence {i}")
         
-    #     encoded_sequence = self.gen_tokenizer(sequence, return_offsets_mapping=True, use_fast=False)
+    #     encoded_sequence = self.gen_tokenizer(sequence, return_offsets_mapping=True)
     #     tokens_before = encoded_sequence['input_ids'][1:-1]
     #     mapping = encoded_sequence['offset_mapping'][1:-1]
     #     # LEV: caduceus version
@@ -526,7 +543,6 @@ class ExpressionDataset(Dataset):
             }
         )
 
-        token_lengths_df = token_lengths_df.sort_values("start").reset_index(drop=True)
         start_gene = int(token_lengths_df["start"].iloc[0]) if n_tokens > 0 else left
 
         return start_gene, token_lengths_df
@@ -889,6 +905,7 @@ class ExpressionDatasetMode2(ExpressionDataset):
         hash_prefix=None,
         n_keys: Optional[int] = None,
         token_len_for_fetch: int = 10,
+        # token_len_for_fetch: int = 1,  # LEV: caduceus version
         norm_bw=False,
         text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
         text_max_seq_len: int = 1000

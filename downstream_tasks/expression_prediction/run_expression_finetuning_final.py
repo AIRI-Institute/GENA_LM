@@ -34,7 +34,8 @@ from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuratio
 import lm_experiments_tools.optimizers as optimizers
 from lm_experiments_tools import get_optimizer
 
-from downstream_tasks.expression_prediction.expression_dataset import worker_init_fn
+from downstream_tasks.expression_prediction.expression_dataset_final import worker_init_fn
+# from downstream_tasks.expression_prediction.expression_dataset_final import worker_init_fn  # LEV: changed module name
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions, mean_and_residuals_correlation
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 
@@ -266,9 +267,11 @@ def main():
 
     #  Accelerate
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
+    # ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)  # LEV: was True for caduceus
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision="bf16",
+        mixed_precision="fp16",
+        # mixed_precision="fp16",  # LEV: fp16 for V100 compatibility
         kwargs_handlers=[ddp_kwargs]
     )
     #  mixed_precision="bf16",
@@ -279,6 +282,7 @@ def main():
     alogger.info(f'accelerator state: {accelerator.state}')
 
     prepare_run(args, alogger, logger_fmt, accelerator=accelerator)
+    # #prepare_run(args, alogger, logger_fmt, accelerator=accelerator)  # LEV: moved below
 
     if accelerator.is_main_process:
         timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -287,7 +291,7 @@ def main():
     obj = [timestamp]
     broadcast_object_list(obj)
     timestamp = obj[0]
-
+    
     experiment_config_path = Path(args.experiment_config).expanduser().absolute()
 
     with initialize_config_dir(str(experiment_config_path.parents[0])):
@@ -320,6 +324,7 @@ def main():
 
     args.model_path = os.path.join(args.model_path, timestamp)
     alogger.info(f"rank: {accelerator.process_index}, Model path: {args.model_path}")
+    # prepare_run(args, alogger, logger_fmt, accelerator=accelerator)  # LEV: moved here from above
 
     if accelerator.is_main_process and args.model_path is not None:
         model_path = Path(args.model_path)
@@ -338,6 +343,7 @@ def main():
     # Padding
     tokenizer = AutoTokenizer.from_pretrained(args.gen_tokenizer, trust_remote_code=True)
     text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True)
+    # text_tokenizer = AutoTokenizer.from_pretrained(args.text_tokenizer, trust_remote_code=True, use_fast=False)  # LEV: added use_fast=False
 
     def _pad_1d(x: torch.Tensor, length: int, pad_value: int, pad_left: bool = False) -> torch.Tensor:
         pad_len = length - x.size(0)
@@ -691,9 +697,9 @@ def main():
                         gene_true = gene_true[mask]
                         gene_pred = gene_pred[mask]
 
-                        # if len(gene_pred) > 1 and np.std(gene_pred) == 0:
-                        #     alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
-                        #     raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
+                        if len(gene_pred) > 1 and np.std(gene_pred) == 0:
+                            alogger.error(f"dataset {dataset_desc} gene {gene} has all predicted values the same")
+                            raise ValueError(f"All predicted values for {gene} are the same. Are you missing cell type descriptions?")
 
                         if len(gene_true) > 3 and np.std(gene_true) > 0:
                             try:

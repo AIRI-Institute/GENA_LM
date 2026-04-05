@@ -5,6 +5,7 @@ from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
+# from transformers import AutoModel, BertConfig, AutoTokenizer  # LEV: caduceus version
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
@@ -15,7 +16,10 @@ class ExpressionModelOutput(TokenClassifierOutput):
     labels_mask_reshaped: Optional[torch.FloatTensor] = None
     cls_loss: Optional[torch.FloatTensor] = None
     other_loss: Optional[torch.FloatTensor] = None
-    
+
+class ExpActivation(nn.Module):
+    def forward(self, x):
+        return torch.exp(x)
 
 class ExpressionCounts(nn.Module):
     """
@@ -50,18 +54,26 @@ class ExpressionCounts(nn.Module):
 
         # 1) DNA model (GENA) 
         if hf:
-            if "modernbert" in hf_model_name.lower():
-                print(f"Using ModernBERT from {hf_model_name}")
-                self.bert, info  = ModernBertModel.from_pretrained(
-                hf_model_name,
-                trust_remote_code=True,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True
-            )
-                config = self.bert.config
-                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
-                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
-                print("mismatched:", info.get("mismatched_keys", [])[:5])
+            # if "modernbert" in hf_model_name.lower():
+            #     print(f"Using ModernBERT from {hf_model_name}")
+            #     self.bert, info  = ModernBertModel.from_pretrained(
+            #     hf_model_name,
+            #     trust_remote_code=True,
+            #     attn_implementation="sdpa",
+            #     output_loading_info=True
+            # )
+            #     config = self.bert.config
+            #     print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+            #     print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+            #     print("mismatched:", info.get("mismatched_keys", [])[:5])
+            # LEV: caduceus version
+            if "caduceus" in hf_model_name.lower():
+                print(f"using caduceus: {hf_model_name}")
+                self.caduceus = AutoModel.from_pretrained(
+                    hf_model_name,
+                    trust_remote_code=True #No sdpa or flash attn? 
+                )
+                config = self.caduceus.config
             else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
@@ -91,7 +103,8 @@ class ExpressionCounts(nn.Module):
 
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="sdpa" )
+        # self.desc_model = AutoModel.from_pretrained(self.desc_model_name, attn_implementation="sdpa")  # LEV: SDPA for V100 compatibility
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -148,11 +161,17 @@ class ExpressionCounts(nn.Module):
             total_params = sum(p.numel() for p in self.desc_model.parameters())
             print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
 
-            if len(names) > 30:
-                print(f"  - ... (+{len(names)-30} more)")
+            # if len(names) > 30:
+            #     print(f"  - ... (+{len(names)-30} more)")
+            # LEV: above was broken - names not defined
 
         # 3) Проекция, если размерности не совпадают
-        self.gen_hidden_size = config.hidden_size
+        # self.gen_hidden_size = config.d_model
+        # LEV: caduceus version
+        encoder_hidden_size = getattr(config, 'hidden_size', config.d_model)
+        if getattr(config, 'rcps', False):
+            encoder_hidden_size = 2 * encoder_hidden_size
+        self.gen_hidden_size = encoder_hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
         if self.desc_hidden_size != self.gen_hidden_size:
             self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
@@ -160,13 +179,24 @@ class ExpressionCounts(nn.Module):
             self.desc_proj = nn.Identity()
 
         # 4) Decoder
-        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        self.decoder, info2 = ModernBertModel.from_pretrained(
-                hf_model_name_decoder,
-                trust_remote_code=True,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True
-            )
+        print(f"Using dercoder from {hf_model_name_decoder}")
+        # self.decoder, info2 = ModernBertModel.from_pretrained(
+        #         hf_model_name_decoder,
+        #         trust_remote_code=True,
+        #         attn_implementation="sdpa",
+        #         output_loading_info=True
+        #     )
+        # print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+        # print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+        # print("mismatched:", info2.get("mismatched_keys", [])[:5])
+        # LEV: caduceus version
+        # print(f"This time using Caduceus for decoder")
+        # import os
+        self.decoder, info2 = AutoModel.from_pretrained(
+            hf_model_name_decoder,
+            trust_remote_code=True,
+            output_loading_info=True
+        )
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
@@ -176,16 +206,25 @@ class ExpressionCounts(nn.Module):
         self.loss_fct = loss_fct
         self.weight = weight
 
-        dtype = next(self.bert.parameters()).dtype
-        device = next(self.bert.parameters()).device
+        # dtype = next(self.bert.parameters()).dtype
+        # device = next(self.bert.parameters()).device
+        _encoder = self.caduceus if hasattr(self, 'caduceus') else self.bert
+        dtype = next(_encoder.parameters()).dtype
+        device = next(_encoder.parameters()).device
 
         self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
 
         # 5) Classifier
-        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+        # self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+        # LEV: caduceus version
+        decoder_hidden_size = getattr(self.decoder.config, 'hidden_size', self.decoder.config.d_model)
+        if getattr(self.decoder.config, 'rcps', False):
+            decoder_hidden_size = 2 * decoder_hidden_size
+        self.classifier = nn.Linear(decoder_hidden_size, 1, device=device, dtype=dtype)
 
-        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
-            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        if hasattr(self.decoder.backbone, "embeddings") and hasattr(self.decoder.backbone.embeddings, "word_embeddings"):
+            self.decoder.backbone.embeddings.word_embeddings.weight.requires_grad_(False)
+        # LEV: commented out above in caduceus version
 
 
     def forward(
@@ -266,12 +305,19 @@ class ExpressionCounts(nn.Module):
                 "Check dataset_flag/idx_unique_inputs mapping."
     )
 
-        bert_outputs = self.bert(
-                input_ids=input_ids[idx_unique_inputs],                         
-                attention_mask=attention_mask[idx_unique_inputs],
+        # bert_outputs = self.bert(
+        #         input_ids=input_ids[idx_unique_inputs],                         
+        #         attention_mask=attention_mask[idx_unique_inputs],
+        #         # #attention_mask=attention_mask[idx_unique_inputs],  # LEV: commented out for caduceus
+        #         return_dict=True,
+        #     )
+        caduceus_outputs = self.caduceus(
+                input_ids=input_ids[idx_unique_inputs],
+                # attention_mask=attention_mask[idx_unique_inputs],  # LEV: Caduceus (Mamba) не использует attention_mask
                 return_dict=True,
             )
-        seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
+        # seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
+        seq_compact = caduceus_outputs.last_hidden_state                  # (U_inp, L, H)
         sequence_output = seq_compact[map_inputs]                       # (B*N, L, H)
         hidden_size = sequence_output.size(-1)
 
@@ -302,6 +348,7 @@ class ExpressionCounts(nn.Module):
         desc_pooled = desc_out.last_hidden_state[:, -1]
         desc_pooled = self.desc_proj(desc_pooled)                    
         desc_pooled = desc_pooled.to(sequence_output.dtype) 
+        # LEV: swapped order above (dtype cast before proj) for caduceus
         desc_output = desc_pooled[map_desc] 
 
 
@@ -311,11 +358,14 @@ class ExpressionCounts(nn.Module):
         else:
             sequence_output = sequence_output + desc_output[:, None, :]
 
+        # LEV: Caduceus (Mamba) не обнуляет pad-позиции внутри — зануляем явно перед decoder
+        if attention_mask is not None:
+            sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
 
         # 4) Decoder
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)
-            attention_mask=attention_mask,        # (B*N, L)
+            # attention_mask=attention_mask,      # LEV: Caduceus (Mamba) не использует attention_mask
             return_dict=True,
         )
         decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
@@ -360,7 +410,8 @@ class ExpressionCounts(nn.Module):
             loss=loss,
             logits=logits,
             hidden_states=hidden_states_out,
-            attentions=bert_outputs.attentions,
+            # attentions=bert_outputs.attentions,
+            attentions=getattr(caduceus_outputs, 'attentions', None),  # LEV: caduceus version
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,
