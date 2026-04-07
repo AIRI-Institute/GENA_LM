@@ -360,7 +360,7 @@ def main():
         pad_shape = list(x.shape)
         pad_shape[dim] = pad_len
         pad = x.new_full(tuple(pad_shape), pad_value)
-        return torch.cat([x, pad], dim=dim)
+        return torch.cat([pad, x], dim=dim)
 
 
     def _pad_3d(x: torch.Tensor, max_len: int, pad_value, dim: int = 1) -> torch.Tensor:

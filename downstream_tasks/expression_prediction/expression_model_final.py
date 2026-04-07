@@ -218,8 +218,8 @@ class ExpressionCounts(nn.Module):
         # self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
         # LEV: caduceus version
         decoder_hidden_size = getattr(self.decoder.config, 'hidden_size', self.decoder.config.d_model)
-        if getattr(self.decoder.config, 'rcps', False):
-            decoder_hidden_size = 2 * decoder_hidden_size
+        # if getattr(self.decoder.config, 'rcps', False):
+        #     decoder_hidden_size = 2 * decoder_hidden_size
         self.classifier = nn.Linear(decoder_hidden_size, 1, device=device, dtype=dtype)
 
         if hasattr(self.decoder.backbone, "embeddings") and hasattr(self.decoder.backbone.embeddings, "word_embeddings"):
@@ -348,29 +348,44 @@ class ExpressionCounts(nn.Module):
         desc_pooled = desc_out.last_hidden_state[:, -1]
         desc_pooled = self.desc_proj(desc_pooled)                    
         desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        # LEV: swapped order above (dtype cast before proj) for caduceus
         desc_output = desc_pooled[map_desc] 
 
 
-        sequence_output = sequence_output.contiguous()
-        if attention_mask is not None:
-            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        else:
-            sequence_output = sequence_output + desc_output[:, None, :]
 
-        # LEV: Caduceus (Mamba) не обнуляет pad-позиции внутри — зануляем явно перед decoder
+        # if attention_mask is not None:
+        #     sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+        # else:
+        #     sequence_output = sequence_output + desc_output[:, None, :]
+        # if attention_mask is not None:
+        #     sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
+
+        # 4) Decoder — receives pure DNA representation; desc is injected after pooling
+        sequence_output = sequence_output.contiguous()
+        # Caduceus (Mamba) does not zero pad positions internally — do it explicitly
         if attention_mask is not None:
             sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
 
-        # 4) Decoder
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)
-            # attention_mask=attention_mask,      # LEV: Caduceus (Mamba) не использует attention_mask
+            # attention_mask=attention_mask,      # LEV: Caduceus  не использует attention_mask
             return_dict=True,
         )
         decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
 
-        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+        # Mean pooling over valid (non-padding) positions.
+        if attention_mask is not None:
+            mask = attention_mask.float()[:, :, None]                              # (B*N, L, 1)
+            pooled = (decoder_output * mask).sum(dim=1) / (mask.sum(dim=1) + 1e-8)  # (B*N, H)
+        else:
+            pooled = decoder_output.mean(dim=1)  # (B*N, H)
+
+
+        pooled = pooled + desc_output  # (B*N, H)
+
+        # logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+
+
+        logits = self.activation(self.classifier(pooled)).unsqueeze(1)  # (B*N, 1, 1)
 
         # 5) Loss
         loss = None
@@ -380,14 +395,16 @@ class ExpressionCounts(nn.Module):
             labels_reshaped = labels.to(logits.device)
             labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
 
-            unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B*N, L, 1)
+            # logits is now (B*N, 1, 1) from mean-pooled representation;
+            # labels_reshaped[:, 0:1, :] selects the TPM target at position 0
+            unreduced_loss = self.loss_fct(logits, labels_reshaped[:, 0:1, :])  # (B*N, 1, 1)
 
             if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
                 cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B*N, 1, 1)
-                other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1)
+                other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1) — always empty (no BigWig)
 
                 if cls_mask.sum().item() > 0:
-                        cls_loss = (unreduced_loss[:, 0:1, :] * cls_mask).sum() / (cls_mask.sum() + 1e-8)
+                        cls_loss = (unreduced_loss * cls_mask).sum() / (cls_mask.sum() + 1e-8)
                         mean_loss = None
                         diviation_loss = None
 

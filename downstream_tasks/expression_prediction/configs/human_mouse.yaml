@@ -30,9 +30,9 @@ args_params:
 
   num_warmup_steps: 10000
 
-  log_interval: 20
+  log_interval: 100
 
-  valid_interval: 20
+  valid_interval: 100
 
   save_best: True
 
@@ -40,7 +40,7 @@ args_params:
 
   #optimize_metric: #"score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
 
-  optimize_mode: "max"
+  optimize_mode: "min"
 
   data_n_workers: 7
 
