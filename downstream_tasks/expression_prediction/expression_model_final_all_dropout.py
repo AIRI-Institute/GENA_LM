@@ -163,6 +163,13 @@ class ExpressionCounts(nn.Module):
     ):
         super().__init__()
 
+        def _is_main_process():
+            return (
+                not torch.distributed.is_available()
+                or not torch.distributed.is_initialized()
+                or torch.distributed.get_rank() == 0
+            )
+
         updated_state_dict = None
 
         # 1) DNA model (GENA) 
@@ -170,7 +177,8 @@ class ExpressionCounts(nn.Module):
             model_name = hf_model_name.lower()
 
             if "modern" in model_name:
-                print(f"Using ModernGENA from {hf_model_name}")
+                if _is_main_process():
+                    print(f"Using ModernGENA from {hf_model_name}")
                 self.bert, info = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
@@ -181,20 +189,22 @@ class ExpressionCounts(nn.Module):
                     output_loading_info=True,
                 )
                 config = self.bert.config
-                print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
-                print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
-                print("mismatched:", info.get("mismatched_keys", [])[:5])
-                print(
-                    "bert dropouts:",
-                    {
-                        "attention_dropout": config.attention_dropout,
-                        "embedding_dropout": config.embedding_dropout,
-                        "mlp_dropout": config.mlp_dropout,
-                    }
-                )
+                if _is_main_process():
+                    print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
+                    print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
+                    print("mismatched:", info.get("mismatched_keys", [])[:5])
+                    print(
+                        "bert dropouts:",
+                        {
+                            "attention_dropout": config.attention_dropout,
+                            "embedding_dropout": config.embedding_dropout,
+                            "mlp_dropout": config.mlp_dropout,
+                        }
+                    )
 
             elif "gena" in model_name:
-                print(f"Using GENA from {hf_model_name}")
+                if _is_main_process():
+                    print(f"Using GENA from {hf_model_name}")
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
                 weights_path = cached_file(hf_model_name, "pytorch_model.bin")
@@ -219,9 +229,9 @@ class ExpressionCounts(nn.Module):
 
         if updated_state_dict is not None:
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
-            if len(missing_k) != 0:
+            if len(missing_k) != 0 and _is_main_process():
                 print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
-            if len(unexpected_k) != 0:
+            if len(unexpected_k) != 0 and _is_main_process():
                 print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
 
 
@@ -235,12 +245,13 @@ class ExpressionCounts(nn.Module):
             torch_dtype=torch.bfloat16,
             attention_dropout=dropout_prob,
         )
-        print(
-            "qwen dropouts:",
-            {
-                "attention_dropout": self.desc_model.config.attention_dropout,
-            }
-        )
+        if _is_main_process():
+            print(
+                "qwen dropouts:",
+                {
+                    "attention_dropout": self.desc_model.config.attention_dropout,
+                }
+            )
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -272,11 +283,6 @@ class ExpressionCounts(nn.Module):
 
         if hasattr(backbone, "norm") and backbone.norm is not None:
             backbone.norm.train()
-
-        def _is_main_process():
-            return (not torch.distributed.is_available()
-                    or not torch.distributed.is_initialized()
-                    or torch.distributed.get_rank() == 0)
 
         if _is_main_process():
             unfrozen_blocks = []
@@ -311,7 +317,8 @@ class ExpressionCounts(nn.Module):
         self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
 
         # 4) Decoder
-        print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
+        if _is_main_process():
+            print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
         self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
@@ -321,17 +328,18 @@ class ExpressionCounts(nn.Module):
                 mlp_dropout=dropout_prob,
                 output_loading_info=True
             )
-        print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-        print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-        print("mismatched:", info2.get("mismatched_keys", [])[:5])
-        print(
-            "decoder dropouts:",
-            {
-                "attention_dropout": self.decoder.config.attention_dropout,
-                "embedding_dropout": self.decoder.config.embedding_dropout,
-                "mlp_dropout": self.decoder.config.mlp_dropout,
-            }
-        )
+        if _is_main_process():
+            print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
+            print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
+            print("mismatched:", info2.get("mismatched_keys", [])[:5])
+            print(
+                "decoder dropouts:",
+                {
+                    "attention_dropout": self.decoder.config.attention_dropout,
+                    "embedding_dropout": self.decoder.config.embedding_dropout,
+                    "mlp_dropout": self.decoder.config.mlp_dropout,
+                }
+            )
 
 
 
