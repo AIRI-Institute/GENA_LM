@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
-hf_logging.set_verbosity_info()
+hf_logging.set_verbosity_warning()
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
