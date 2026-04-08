@@ -100,11 +100,7 @@ class ExpressionDataset(Dataset):
 
         self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
         self.all_keys = list(self.paths.keys())
-        self.selected_keys_chunks: List[List[str]] = []
-        for i in range(self.n_cell_chunks):
-            start_idx = i * n_keys
-            end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
-            self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
+        self.epoch = 0
 
         self.files_opened = False
         self.sequences = FastaFile(self.genome)
@@ -247,6 +243,28 @@ class ExpressionDataset(Dataset):
     
     def get_num_keys(self):
         return len(self.paths.keys())
+
+    def set_epoch(self, epoch: int):
+        self.epoch = int(epoch)
+
+    def _stable_gene_seed(self, gene_id: str) -> int:
+        h = hashlib.blake2b(
+            f"{self.seed}|{self.epoch}|{gene_id}".encode("utf-8"),
+            digest_size=8
+        )
+        return int.from_bytes(h.digest(), "little") % (2**32)
+
+    def _get_gene_key_order(self, gene_id: str) -> List[str]:
+        rng = np.random.default_rng(self._stable_gene_seed(gene_id))
+        perm = rng.permutation(len(self.all_keys))
+        return [self.all_keys[i] for i in perm]
+
+    def _get_selected_keys_for_gene(self, gene_id: str, chunk_idx: int) -> List[str]:
+        ordered_keys = self._get_gene_key_order(gene_id)
+        start_idx = chunk_idx * self.n_keys
+        end_idx = min(start_idx + self.n_keys, len(ordered_keys))
+        return ordered_keys[start_idx:end_idx]
+
         
     def read_paths(self):
         self.paths: Dict[str, List[Any]] = {}
@@ -646,7 +664,7 @@ class ExpressionDataset(Dataset):
         original_idx = self.valid_indices[gene_idx]
         gene_id = self.genes.iloc[original_idx]['gene_id']
         gene_group = self.h5_cache[gene_id]
-        selected_keys = self.selected_keys_chunks[chunk_idx]
+        selected_keys = self._get_selected_keys_for_gene(gene_id, chunk_idx)
         n_real = len(selected_keys)
 
         if self.bw and not self.files_opened:

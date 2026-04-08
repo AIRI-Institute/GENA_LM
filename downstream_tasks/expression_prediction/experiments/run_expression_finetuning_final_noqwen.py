@@ -402,8 +402,8 @@ def main():
                 ids = sample['desc_input_ids'][k]       # (L_i,)
                 mask = sample['desc_attention_mask'][k] # (L_i,)
 
-                ids  = _pad_1d(ids,  max_text_seq_len, pad_token_ids['desc_input_ids'], pad_left=True)
-                mask = _pad_1d(mask, max_text_seq_len, pad_token_ids['desc_attention_mask'], pad_left=True)
+                ids  = _pad_1d(ids,  max_text_seq_len, pad_token_ids['desc_input_ids'], pad_left = True)
+                mask = _pad_1d(mask, max_text_seq_len, pad_token_ids['desc_attention_mask'], pad_left = True)
 
                 sample_ids.append(ids)
                 sample_masks.append(mask)

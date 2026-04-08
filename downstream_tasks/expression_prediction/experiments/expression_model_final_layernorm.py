@@ -159,6 +159,7 @@ class ExpressionCounts(nn.Module):
         use_multinomial_loss: bool = False,
         weight_deviation_loss: float = 1.0,
         weight_multinomial_loss: float = 1.0,
+        fusion_norm_mode: str = "none",   # "none" | "pre" | "post"
     ):
         super().__init__()
 
@@ -284,8 +285,24 @@ class ExpressionCounts(nn.Module):
         # 3) Projection if dimensions do not match
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
-        self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
+
+        #LayerNorm
+        self.fusion_norm_mode = fusion_norm_mode
+
+        if self.fusion_norm_mode not in {"none", "pre", "post"}:
+            raise ValueError(f"Unknown fusion_norm_mode: {self.fusion_norm_mode}")
+
+        if self.fusion_norm_mode == "pre":
+            self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
+            self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
+        else:
+            self.dna_ln = None
+            self.desc_ln = None
+
+        if self.fusion_norm_mode == "post":
+            self.fusion_ln = nn.LayerNorm(self.gen_hidden_size)
+        else:
+            self.fusion_ln = None
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
@@ -298,9 +315,6 @@ class ExpressionCounts(nn.Module):
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
-
-
 
         # 6) Loss
         self.activation = activation
@@ -319,7 +333,6 @@ class ExpressionCounts(nn.Module):
 
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
-
 
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
@@ -442,12 +455,17 @@ class ExpressionCounts(nn.Module):
         desc_output = desc_pooled[map_desc] 
 
 
-        sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
-        desc_output = self.desc_ln(desc_output)          # (B*N, H)
+        sequence_output = sequence_output.contiguous()
+
+        if self.fusion_norm_mode == "pre":
+            sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
+            desc_output = self.desc_ln(desc_output)          # (B*N, H)
 
         desc_broadcast = desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
         sequence_output = sequence_output + desc_broadcast
 
+        if self.fusion_norm_mode == "post":
+            sequence_output = self.fusion_ln(sequence_output)
 
         # 4) Decoder
         dec_out = self.decoder(

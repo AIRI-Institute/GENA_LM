@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch import Tensor
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
@@ -21,6 +22,12 @@ class ExpressionModelOutput(TokenClassifierOutput):
 class ExpActivation(nn.Module):
     def forward(self, x):
         return torch.exp(x)
+
+
+def average_pool(last_hidden_states: Tensor,
+                 attention_mask: Tensor) -> Tensor:
+    last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+    return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
         
 def cls_deviation_from_mean_loss(
     logits: torch.Tensor,
@@ -131,20 +138,20 @@ def cls_multinomial_loss(
 
 class ExpressionCounts(nn.Module):
     """
-    Expected shapes:
-      - input_ids:      (B*N, L)
-      - attention_mask: (B*N, L)
-      - token_type_ids: (B*N, L) [optional]
-      - desc_vectors:   (B, N, D)
-      - dataset_flag:   (B, N)   [in block of N elements either all 1 (INPUTS duplicates), or all 0 (DESC duplicates)]
-      - labels:         (B*N, L, 1)
-      - labels_mask:    (B*N, L, 1)
+    Expected shapes (N = 1):
+      - input_ids:      (B, L) or (B, 1, L)
+      - attention_mask: (B, L) or (B, 1, L)
+      - token_type_ids: (B, L) [optional]
+      - desc_vectors:   (B, D) or (B, 1, D)
+      - labels:         (B, L, 1) or (B, 1, L, 1)
+      - labels_mask:    (B, L, 1) or (B, 1, L, 1)
     """
 
     def __init__(
         self,
         config,
         hf_model_name_decoder,
+        desc_model_name,
         loss_fct=nn.MSELoss(reduction="none"),
         activation = nn.Identity(),
         num_encoder_layers = 3,
@@ -154,7 +161,6 @@ class ExpressionCounts(nn.Module):
         bert_cpt = '/mnt/nfs_dna/DNALM/trained_models/bert_base_512_t2t_1000G_bs256_lr_1e-04_fp16/model_best.pth',
         hf: bool = False,
         hf_model_name: str = "AIRI-Institute/gena-lm-bert-large-t2t",
-        desc_model_name: str = "intfloat/multilingual-e5-large-instruct",
         use_deviation_loss: bool = False,
         use_multinomial_loss: bool = False,
         weight_deviation_loss: float = 1.0,
@@ -166,38 +172,28 @@ class ExpressionCounts(nn.Module):
 
         # 1) DNA model (GENA) 
         if hf:
-            model_name = hf_model_name.lower()
-
-            if "modern" in model_name:
-                print(f"Using ModernGENA from {hf_model_name}")
-                self.bert, info = ModernBertModel.from_pretrained(
-                    hf_model_name,
-                    trust_remote_code=True,
-                    attn_implementation="flash_attention_2",
-                    output_loading_info=True,
-                )
+            if "modernbert" in hf_model_name.lower():
+                print(f"Using ModernBERT from {hf_model_name}")
+                self.bert, info  = ModernBertModel.from_pretrained(
+                hf_model_name,
+                trust_remote_code=True,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
+            )
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
                 print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
                 print("mismatched:", info.get("mismatched_keys", [])[:5])
-
-            elif "gena" in model_name:
-                print(f"Using GENA from {hf_model_name}")
+            else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
                 weights_path = cached_file(hf_model_name, "pytorch_model.bin")
                 state_dict = torch.load(weights_path, map_location="cpu")
                 updated_state_dict = {
-                    k.replace("bert.", ""): v
-                    for k, v in state_dict.items()
+                    k.replace("bert.", ""): v for k, v in state_dict.items()
                     if k.startswith("bert.")
                 }
                 config = hf_config
-
-            else:
-                raise ValueError(
-                    f"Unsupported hf_model_name: {hf_model_name}. "
-                )
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
             checkpoint = torch.load(bert_cpt, map_location="cpu")
@@ -218,7 +214,7 @@ class ExpressionCounts(nn.Module):
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
         self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
-
+        
         for p in self.desc_model.parameters():
             p.requires_grad = False
 
@@ -284,8 +280,10 @@ class ExpressionCounts(nn.Module):
         # 3) Projection if dimensions do not match
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
-        self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
+        if self.desc_hidden_size != self.gen_hidden_size:
+            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+        else:
+            self.desc_proj = nn.Identity()
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
@@ -298,9 +296,6 @@ class ExpressionCounts(nn.Module):
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
-
-
 
         # 6) Loss
         self.activation = activation
@@ -315,11 +310,12 @@ class ExpressionCounts(nn.Module):
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
 
+        self.dna_ln = nn.LayerNorm(self.gen_hidden_size, device=device, dtype=dtype)
         self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        self.desc_ln = nn.LayerNorm(self.gen_hidden_size, device=device, dtype=dtype)
 
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
-
 
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
@@ -334,119 +330,53 @@ class ExpressionCounts(nn.Module):
         return_dict=None,
         desc_input_ids=None,           # (B, N, D)
         desc_attention_mask = None,
-        dataset_flag=None,           # (B, N): 1 -> INPUTS duplicates; 0 -> DESC duplicates
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        # 1) Reshape (assume N = 1)
+        input_ids = input_ids.reshape(-1, input_ids.shape[-1])
 
-        if dataset_flag is None:
-            raise ValueError("dataset_flag must be provided and shaped (B, N)")
-        
-        B, N = dataset_flag.shape
+        attention_mask = attention_mask.reshape(-1, attention_mask.shape[-1])
 
-        # 1) Reshape
-        if input_ids is not None and input_ids.dim() == 3:          # (B, N, L) -> (B*N, L)
-            if input_ids.shape[:2] != (B, N):
-                raise ValueError(f"input_ids has shape {tuple(input_ids.shape)}, but dataset_flag is {(B, N)}")
-            input_ids = input_ids.reshape(B * N, input_ids.shape[-1])
+        labels = labels.reshape(-1, labels.shape[-2], labels.shape[-1])
 
-        if attention_mask is not None and attention_mask.dim() == 3: # (B, N, L) -> (B*N, L)
-            attention_mask = attention_mask.reshape(B * N, attention_mask.shape[-1])
+        labels_mask = labels_mask.reshape(-1, labels_mask.shape[-2], labels_mask.shape[-1])
 
-        # if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
-        #     token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
+        desc_input_ids = desc_input_ids.reshape(-1, desc_input_ids.shape[-1])
 
-        if labels is not None and labels.dim() == 4:                 # (B, N, L, 1) -> (B*N, L, 1)
-            labels = labels.reshape(B * N, labels.shape[-2], labels.shape[-1])
+        desc_attention_mask = desc_attention_mask.reshape(-1, desc_attention_mask.shape[-1])
 
-        if labels_mask is not None and labels_mask.dim() == 4:       # (B, N, L, 1) -> (B*N, L, 1)
-            labels_mask = labels_mask.reshape(B * N, labels_mask.shape[-2], labels_mask.shape[-1])
-
-        if desc_input_ids is not None and desc_input_ids.dim() == 3:                              # (B, N, D) -> (B*N, D)
-                desc_input_ids = desc_input_ids.reshape(B * N, desc_input_ids.shape[-1])
-
-        if desc_attention_mask is not None and desc_attention_mask.dim() == 3:                              # (B, N, D) -> (B*N, D)
-                desc_attention_mask = desc_attention_mask.reshape(B * N, desc_attention_mask.shape[-1])
-
-        # 2) DNA model, remove duplicates
+        # 2) DNA model (no duplicates, N=1)
         src = input_ids 
         if src is None:
             raise ValueError("input_ids must be provided")
         device = src.device
-        BxN, seq_len = src.shape[:2]
-        B, N = dataset_flag.shape
-        if B * N != BxN:
-            raise ValueError(f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs input_ids rows {BxN}")
-        
-        flag = dataset_flag.to(device).bool()     
-        block_flag = flag[:, 0]                  
-        idx_all = torch.arange(BxN, device=device)
-        idx_grid = idx_all.view(B, N)            
-
-        rep_inputs_idx = idx_grid[block_flag, 0]                         
-        unique_inputs_idx_mode2 = idx_grid[~block_flag, :].reshape(-1)   
-        idx_unique_inputs = torch.cat([unique_inputs_idx_mode2, rep_inputs_idx], dim=0)
-
-        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
-        pos_in_compact[idx_unique_inputs] = torch.arange(idx_unique_inputs.numel(), device=device)
-
-        map_inputs = torch.empty(BxN, dtype=torch.long, device=device)
-        map_inputs[unique_inputs_idx_mode2] = pos_in_compact[unique_inputs_idx_mode2]
-        if rep_inputs_idx.numel() > 0:
-            rows_dup = idx_grid[block_flag, :].reshape(-1)
-            rep_pos = pos_in_compact[rep_inputs_idx]                     
-            map_inputs[rows_dup] = rep_pos.repeat_interleave(N)
-
-        if (map_inputs < 0).any():
-            bad = (map_inputs < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
-            raise RuntimeError(
-                f"map_inputs has -1 indices : {bad.tolist()}. "
-                "Check dataset_flag/idx_unique_inputs mapping."
-    )
-
         bert_outputs = self.bert(
-                input_ids=input_ids[idx_unique_inputs],                         
-                attention_mask=attention_mask[idx_unique_inputs],
+                input_ids=input_ids,
+                attention_mask=attention_mask,
                 return_dict=True,
             )
-        seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
-        sequence_output = seq_compact[map_inputs]                       # (B*N, L, H)
+        sequence_output = bert_outputs.last_hidden_state               # (B*N, L, H)
+        sequence_output = self.dna_ln(sequence_output)
         hidden_size = sequence_output.size(-1)
 
-        # 3) Description model, remove duplicates 
-        unique_desc_idx = idx_grid[block_flag, :].reshape(-1)   # (B_true*N,)
-        rep_desc_idx = idx_grid[~block_flag, 0]                 # (B_false,)
-        idx_unique_desc = torch.cat([unique_desc_idx, rep_desc_idx], dim=0)  # (U_desc,)
-
-        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
-        pos_in_compact[idx_unique_desc] = torch.arange(idx_unique_desc.numel(), device=device)
-        map_desc = torch.empty((BxN,), dtype=torch.long, device=device)
-        if unique_desc_idx.numel() > 0:
-            map_desc[unique_desc_idx] = pos_in_compact[unique_desc_idx]
-        if rep_desc_idx.numel() > 0:
-            rows_dup = idx_grid[~block_flag, :].reshape(-1)          
-            rep_pos = pos_in_compact[rep_desc_idx]                  
-            map_desc[rows_dup] = rep_pos.repeat_interleave(N)       
-
-        if (map_desc < 0).any():
-            bad = (map_desc < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
-            raise RuntimeError(f"map_desc has -1 indices: {bad.tolist()}")
+        # 3) Description model (no duplicates, N=1)
+        if desc_input_ids is None or desc_attention_mask is None:
+            raise ValueError("desc_input_ids and desc_attention_mask must be provided")
 
         desc_out = self.desc_model(
-                input_ids=desc_input_ids[idx_unique_desc],
-                attention_mask=desc_attention_mask[idx_unique_desc],
+                input_ids=desc_input_ids,
+                attention_mask=desc_attention_mask,
                 return_dict=True,
                 )
         desc_pooled = desc_out.last_hidden_state[:, -1]
-        desc_pooled = self.desc_proj(desc_pooled)                    
-        desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        desc_output = desc_pooled[map_desc] 
+        desc_pooled = self.desc_proj(desc_pooled)
+        desc_output = self.desc_ln(desc_pooled)
 
-
-        sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
-        desc_output = self.desc_ln(desc_output)          # (B*N, H)
-
-        desc_broadcast = desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        sequence_output = sequence_output + desc_broadcast
+        sequence_output = sequence_output.contiguous()
+        if attention_mask is not None:
+            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+        else:
+            sequence_output = sequence_output + desc_output[:, None, :]
 
 
         # 4) Decoder
@@ -479,12 +409,12 @@ class ExpressionCounts(nn.Module):
                         
                         if self.use_deviation_loss:
                             deviation_loss = cls_deviation_from_mean_loss(
-                                logits, labels_reshaped, labels_mask_reshaped, n_keys=N
+                                logits, labels_reshaped, labels_mask_reshaped, n_keys=1
                             )
                         
                         if self.use_multinomial_loss:
                             multinomial_loss = cls_multinomial_loss(
-                                logits, labels_reshaped, labels_mask_reshaped, n_keys=N
+                                logits, labels_reshaped, labels_mask_reshaped, n_keys=1
                             )
 
                 if other_mask.sum().item() > 0:

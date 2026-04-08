@@ -177,23 +177,35 @@ class ExpressionDataset(Dataset):
             size = 0
         return f"{name}|{size}"
 
+    # def _compute_valid_indices(self):
+    #     self.logger.debug("Computing valid indices...")
+    #     if not self.tpm:
+    #         self.valid_indices = list(range(len(self.genes)))
+    #         self.logger.info(f"TPM disabled — using all {len(self.valid_indices)} genes as valid")
+    #         return
+
+    #     for idx in range(len(self.genes)):
+    #         gene_id = self.genes.iloc[idx]['gene_id']
+    #         has_tpm_data = False
+    #         for key in self.paths.keys():
+    #             if gene_id in self.tpm_lookup[key].index:
+    #                 has_tpm_data = True
+    #                 break
+    #         if has_tpm_data:
+    #             self.valid_indices.append(idx)
+
     def _compute_valid_indices(self):
         self.logger.debug("Computing valid indices...")
-        if not self.tpm:
-            self.valid_indices = list(range(len(self.genes)))
-            self.logger.info(f"TPM disabled — using all {len(self.valid_indices)} genes as valid")
-            return
+        self.valid_indices = []
 
         for idx in range(len(self.genes)):
-            gene_id = self.genes.iloc[idx]['gene_id']
-            has_tpm_data = False
-            for key in self.paths.keys():
-                if gene_id in self.tpm_lookup[key].index:
-                    has_tpm_data = True
-                    break
-            if has_tpm_data:
+            gene_id = self.genes.iloc[idx]["gene_id"]
+
+            if all(gene_id in self.tpm_lookup[key].index for key in self.paths.keys()):
                 self.valid_indices.append(idx)
+
         self.logger.info(f"Found {len(self.valid_indices)} valid samples out of {len(self.genes)}")
+
         
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
@@ -624,7 +636,7 @@ class ExpressionDataset(Dataset):
             for description_id, text in tqdm.tqdm(self.text_data.items(), desc="Tokenizing descriptions"):
                 encoding = self.text_tokenizer(
                     text,
-                    padding=False,
+                    padding=True,
                     truncation=True,
                     max_length=self.text_max_seq_len,
                     return_tensors="pt"    

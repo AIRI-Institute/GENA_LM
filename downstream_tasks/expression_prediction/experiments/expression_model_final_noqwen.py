@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch import Tensor
 from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
@@ -21,6 +22,12 @@ class ExpressionModelOutput(TokenClassifierOutput):
 class ExpActivation(nn.Module):
     def forward(self, x):
         return torch.exp(x)
+
+
+def average_pool(last_hidden_states: Tensor,
+                 attention_mask: Tensor) -> Tensor:
+    last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+    return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
         
 def cls_deviation_from_mean_loss(
     logits: torch.Tensor,
@@ -166,38 +173,28 @@ class ExpressionCounts(nn.Module):
 
         # 1) DNA model (GENA) 
         if hf:
-            model_name = hf_model_name.lower()
-
-            if "modern" in model_name:
-                print(f"Using ModernGENA from {hf_model_name}")
-                self.bert, info = ModernBertModel.from_pretrained(
-                    hf_model_name,
-                    trust_remote_code=True,
-                    attn_implementation="flash_attention_2",
-                    output_loading_info=True,
-                )
+            if "modernbert" in hf_model_name.lower():
+                print(f"Using ModernBERT from {hf_model_name}")
+                self.bert, info  = ModernBertModel.from_pretrained(
+                hf_model_name,
+                trust_remote_code=True,
+                attn_implementation="flash_attention_2",
+                output_loading_info=True
+            )
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
                 print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
                 print("mismatched:", info.get("mismatched_keys", [])[:5])
-
-            elif "gena" in model_name:
-                print(f"Using GENA from {hf_model_name}")
+            else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
                 weights_path = cached_file(hf_model_name, "pytorch_model.bin")
                 state_dict = torch.load(weights_path, map_location="cpu")
                 updated_state_dict = {
-                    k.replace("bert.", ""): v
-                    for k, v in state_dict.items()
+                    k.replace("bert.", ""): v for k, v in state_dict.items()
                     if k.startswith("bert.")
                 }
                 config = hf_config
-
-            else:
-                raise ValueError(
-                    f"Unsupported hf_model_name: {hf_model_name}. "
-                )
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
             checkpoint = torch.load(bert_cpt, map_location="cpu")
@@ -217,7 +214,7 @@ class ExpressionCounts(nn.Module):
 
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,trust_remote_code=True)
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -226,9 +223,21 @@ class ExpressionCounts(nn.Module):
         if backbone is None:
             backbone = self.desc_model
 
+        # Try to find transformer blocks for different architectures
         layers = getattr(backbone, "layers", None)
         if layers is None:
-            raise RuntimeError("Could not find layers in desc_model (expected .model.layers). Check model architecture.")
+            encoder = getattr(backbone, "encoder", None)
+            if encoder is not None:
+                layers = getattr(encoder, "layers", None)
+                if layers is None:
+                    layers = getattr(encoder, "layer", None)
+
+        if layers is None:
+            raise RuntimeError(
+                "Could not find transformer layers in desc_model "
+                "(tried .model.layers, .encoder.layers, .encoder.layer). "
+                "Check description model architecture."
+            )
 
         #unfreeze last 4 blocks
         k = 4
@@ -284,8 +293,10 @@ class ExpressionCounts(nn.Module):
         # 3) Projection if dimensions do not match
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
-        self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
+        if self.desc_hidden_size != self.gen_hidden_size:
+            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+        else:
+            self.desc_proj = nn.Identity()
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
@@ -298,9 +309,6 @@ class ExpressionCounts(nn.Module):
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
-
-
 
         # 6) Loss
         self.activation = activation
@@ -319,7 +327,6 @@ class ExpressionCounts(nn.Module):
 
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
-
 
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
@@ -436,17 +443,19 @@ class ExpressionCounts(nn.Module):
                 attention_mask=desc_attention_mask[idx_unique_desc],
                 return_dict=True,
                 )
-        desc_pooled = desc_out.last_hidden_state[:, -1]
+        desc_pooled = average_pool(
+                desc_out.last_hidden_state,
+                desc_attention_mask[idx_unique_desc],
+                )
         desc_pooled = self.desc_proj(desc_pooled)                    
-        desc_pooled = desc_pooled.to(sequence_output.dtype) 
         desc_output = desc_pooled[map_desc] 
 
 
-        sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
-        desc_output = self.desc_ln(desc_output)          # (B*N, H)
-
-        desc_broadcast = desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        sequence_output = sequence_output + desc_broadcast
+        sequence_output = sequence_output.contiguous()
+        if attention_mask is not None:
+            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+        else:
+            sequence_output = sequence_output + desc_output[:, None, :]
 
 
         # 4) Decoder

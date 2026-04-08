@@ -523,7 +523,7 @@ def main():
         accelerator=accelerator,
         batch_size=per_worker_batch_size,
         seed=args.seed,
-        shuffle=True,
+        shuffle=False,
         drop_last=False,
         num_workers=kwargs_workers,
         collate_fn=collate_fn,

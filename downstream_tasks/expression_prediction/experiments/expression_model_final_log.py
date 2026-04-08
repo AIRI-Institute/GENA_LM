@@ -166,37 +166,32 @@ class ExpressionCounts(nn.Module):
 
         # 1) DNA model (GENA) 
         if hf:
-            model_name = hf_model_name.lower()
-
-            if "modern" in model_name:
-                print(f"Using ModernGENA from {hf_model_name}")
-                self.bert, info = ModernBertModel.from_pretrained(
+            if "modernbert" in hf_model_name.lower():
+                print(f"Using ModernBERT from {hf_model_name}")
+                self.bert, info  = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
                     attn_implementation="flash_attention_2",
-                    output_loading_info=True,
+                    output_loading_info=True
                 )
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
                 print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
                 print("mismatched:", info.get("mismatched_keys", [])[:5])
-
-            elif "gena" in model_name:
-                print(f"Using GENA from {hf_model_name}")
+                print(f"[checkpoint-debug][bert] source=hf_modernbert, model={hf_model_name}")
+            else:
                 hf_config = BertConfig.from_pretrained(hf_model_name)
                 self.bert = BertModel(hf_config, add_pooling_layer=False)
                 weights_path = cached_file(hf_model_name, "pytorch_model.bin")
                 state_dict = torch.load(weights_path, map_location="cpu")
                 updated_state_dict = {
-                    k.replace("bert.", ""): v
-                    for k, v in state_dict.items()
+                    k.replace("bert.", ""): v for k, v in state_dict.items()
                     if k.startswith("bert.")
                 }
                 config = hf_config
-
-            else:
-                raise ValueError(
-                    f"Unsupported hf_model_name: {hf_model_name}. "
+                print(
+                    f"[checkpoint-debug][bert] source=hf_bert, model={hf_model_name}, "
+                    f"weights_path={weights_path}, tensors_total={len(state_dict)}"
                 )
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
@@ -204,6 +199,12 @@ class ExpressionCounts(nn.Module):
             state_dict = checkpoint["model_state_dict"]
             updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+            epoch = checkpoint.get("epoch", "n/a")
+            step = checkpoint.get("global_step", checkpoint.get("step", "n/a"))
+            print(
+                f"[checkpoint-debug][bert] source=local_checkpoint, path={bert_cpt}, "
+                f"tensors_total={len(state_dict)}, epoch={epoch}, step={step}"
+            )
 
         if updated_state_dict is not None:
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
@@ -217,7 +218,15 @@ class ExpressionCounts(nn.Module):
 
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+        self.desc_model = AutoModel.from_pretrained(
+            self.desc_model_name,
+            attn_implementation="flash_attention_2",
+            torch_dtype=torch.bfloat16,
+        )
+        print(
+            f"[checkpoint-debug][desc_model] name={self.desc_model_name}, "
+            f"class={self.desc_model.__class__.__name__}"
+        )
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -284,23 +293,25 @@ class ExpressionCounts(nn.Module):
         # 3) Projection if dimensions do not match
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
-        self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
+        if self.desc_hidden_size != self.gen_hidden_size:
+            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+        else:
+            self.desc_proj = nn.Identity()
 
         # 4) Decoder
         print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
         self.decoder, info2 = ModernBertModel.from_pretrained(
-                hf_model_name_decoder,
-                trust_remote_code=True,
-                attn_implementation="flash_attention_2",
-                output_loading_info=True
-            )
+            hf_model_name_decoder,
+            trust_remote_code=True,
+            attn_implementation="flash_attention_2",
+            output_loading_info=True,
+        )
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
         print("mismatched:", info2.get("mismatched_keys", [])[:5])
-
-
-
+        print(
+            f"[checkpoint-debug][decoder] source=hf_modernbert, model={hf_model_name_decoder}"
+        )
 
         # 6) Loss
         self.activation = activation
@@ -320,10 +331,35 @@ class ExpressionCounts(nn.Module):
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
 
-
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
 
+        # Debug prints with weights for main modules
+        if _is_main_process():
+            def _print_module_stats(module, name: str):
+                try:
+                    p = next(module.parameters())
+                except StopIteration:
+                    print(f"[weights-debug] {name}: no parameters")
+                    return
+                with torch.no_grad():
+                    w = p.detach()
+                    total_params = sum(param.numel() for param in module.parameters())
+                    flat = w.view(-1)
+                    n_show = min(10, flat.numel())
+                    sample_vals = flat[:n_show].cpu().tolist()
+                    print(
+                        f"[weights-debug] {name}: "
+                        f"shape={tuple(w.shape)}, "
+                        f"dtype={w.dtype}, device={w.device}, "
+                        f"mean={w.mean().item():.4f}, std={w.std().item():.4f}, "
+                        f"total_params={total_params}"
+                    )
+                    print(f"[weights-debug] {name} first_{n_show}_values={sample_vals}")
+
+            _print_module_stats(self.bert, "self.bert")
+            _print_module_stats(self.desc_model, "self.desc_model")
+            _print_module_stats(self.decoder, "self.decoder")
 
     def forward(
         self,
@@ -343,6 +379,9 @@ class ExpressionCounts(nn.Module):
         
         B, N = dataset_flag.shape
 
+        print ("B,N",B,N)
+        print ("input_ids",input_ids[:,:,:3])
+
         # 1) Reshape
         if input_ids is not None and input_ids.dim() == 3:          # (B, N, L) -> (B*N, L)
             if input_ids.shape[:2] != (B, N):
@@ -355,12 +394,14 @@ class ExpressionCounts(nn.Module):
         # if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
         #     token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
 
+        print ("labels",labels[:,:,3,:])
         if labels is not None and labels.dim() == 4:                 # (B, N, L, 1) -> (B*N, L, 1)
             labels = labels.reshape(B * N, labels.shape[-2], labels.shape[-1])
 
         if labels_mask is not None and labels_mask.dim() == 4:       # (B, N, L, 1) -> (B*N, L, 1)
             labels_mask = labels_mask.reshape(B * N, labels_mask.shape[-2], labels_mask.shape[-1])
 
+        print ("desc_input_ids",desc_input_ids[:,:,:3])
         if desc_input_ids is not None and desc_input_ids.dim() == 3:                              # (B, N, D) -> (B*N, D)
                 desc_input_ids = desc_input_ids.reshape(B * N, desc_input_ids.shape[-1])
 
@@ -442,11 +483,11 @@ class ExpressionCounts(nn.Module):
         desc_output = desc_pooled[map_desc] 
 
 
-        sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
-        desc_output = self.desc_ln(desc_output)          # (B*N, H)
-
-        desc_broadcast = desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        sequence_output = sequence_output + desc_broadcast
+        sequence_output = sequence_output.contiguous()
+        if attention_mask is not None:
+            sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
+        else:
+            sequence_output = sequence_output + desc_output[:, None, :]
 
 
         # 4) Decoder

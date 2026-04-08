@@ -174,12 +174,23 @@ class ExpressionCounts(nn.Module):
                     hf_model_name,
                     trust_remote_code=True,
                     attn_implementation="flash_attention_2",
+                    attention_dropout=0.1,
+                    embedding_dropout=0.1,
+                    mlp_dropout=0.1,
                     output_loading_info=True,
                 )
                 config = self.bert.config
                 print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
                 print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
                 print("mismatched:", info.get("mismatched_keys", [])[:5])
+                print(
+                    "dropouts:",
+                    {
+                        "attention_dropout": config.attention_dropout,
+                        "embedding_dropout": config.embedding_dropout,
+                        "mlp_dropout": config.mlp_dropout,
+                    }
+                )
 
             elif "gena" in model_name:
                 print(f"Using GENA from {hf_model_name}")
