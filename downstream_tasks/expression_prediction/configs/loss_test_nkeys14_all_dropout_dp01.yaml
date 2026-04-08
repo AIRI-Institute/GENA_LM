@@ -1,4 +1,4 @@
-TASK_NAME: expression/fixed_loss_test_final_bs256_lr1e5_nkeys14_all_dropout_dp01
+TASK_NAME: expression/fixed_loss_test_final_bs256_lr1e5_nkeys14_shuffle_all_dropout_dp01
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -99,7 +99,7 @@ shared_dataset_params:
 #train
 train_dataset_human_borzoi_v1:
 
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.ExpressionDataset
 
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
 
@@ -112,12 +112,12 @@ train_dataset_human_borzoi_v1:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.logtransform        
     pseudocount: 1
 
 train_dataset_mouse_full_borzoi:
 
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.ExpressionDataset
 
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
 
@@ -130,13 +130,13 @@ train_dataset_mouse_full_borzoi:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.logtransform        
     pseudocount: 1
 
 
 #valid
 valid_dataset_human:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.ExpressionDataset
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
@@ -144,5 +144,5 @@ valid_dataset_human:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final_shufflenkeys.logtransform        
     pseudocount: 1
