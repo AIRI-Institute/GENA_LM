@@ -70,7 +70,7 @@ data/genomes/*
 data/pretrain/*
 notebooks/data/*
 *.pyc
-.DS_Store/*
+.DS_Store
 .ipynb_checkpoints/*
 *.pth
 downstream_tasks/promoter_prediction/*.ipynb
