@@ -63,6 +63,13 @@ class ExpressionDataset(Dataset):
 
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
+        self._genome_sizes_map = {}
+        genome_sizes_path = Path(
+            "/mnt/20tb/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/genome_sizes.tsv"
+        )
+        if genome_sizes_path.exists():
+            df_sizes = pd.read_csv(genome_sizes_path, sep="\t")
+            self._genome_sizes_map = dict(zip(df_sizes["path"], df_sizes["size"]))
 
         self.seed = seed
         np.random.seed(self.seed)
@@ -166,11 +173,16 @@ class ExpressionDataset(Dataset):
     def _name_and_size(self, p: str) -> str:
         if p is None:
             return "None|0"
-        name = Path(p).name
+        path = str(p)
+        name = Path(path).name
         try:
-            size = os.path.getsize(p)  # bytes
+            size = os.path.getsize(path)  # bytes
         except OSError:
-            size = 0
+            if path == self.genome:
+                genome_size = self._genome_sizes_map.get(path)
+                if genome_size is not None:
+                    return f"{name}|{genome_size}"
+            raise FileNotFoundError(f"File not found for hashing: {path}")
         return f"{name}|{size}"
 
     def _compute_valid_indices(self):
