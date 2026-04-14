@@ -512,6 +512,13 @@ def main():
         alogger=alogger,
     )
 
+    expanded_train_cfgs = []
+    for cfg in train_cfgs:
+        repeat = int(cfg.get("repeat_factor", 1))
+        expanded_train_cfgs.extend([cfg.copy()] * repeat)
+
+    train_cfgs = expanded_train_cfgs
+
     train_dataset, train_datasets_list = build_dataset_from_cfgs(train_cfgs)
     if accelerator.is_main_process:
         for i, ds in enumerate(train_datasets_list):
