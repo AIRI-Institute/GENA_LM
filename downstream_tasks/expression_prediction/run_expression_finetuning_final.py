@@ -642,11 +642,13 @@ def main():
                 data[k] = output[k].detach().cpu()
 
         dataset_description = list(chain.from_iterable(batch['dataset_description']))
+        gene_id = list(chain.from_iterable(batch['gene_id']))
+        keys_id = list(chain.from_iterable(batch['selected_keys']))
         mask_idx = mask.nonzero(as_tuple=True)[0].tolist()
         data['tpm_true'] = y_true.tolist()
         data['tpm_preds'] = y_pred.tolist()
-        data['gene_id'] =  list(chain.from_iterable(batch['gene_id']))
-        data['keys_id'] = list(chain.from_iterable(batch['selected_keys']))
+        data['gene_id'] = [gene_id[i] for i in mask_idx]
+        data['keys_id'] = [keys_id[i] for i in mask_idx]
         data['dataset_description'] = [dataset_description[i] for i in mask_idx]
 
         return data

@@ -925,6 +925,24 @@ class ExpressionDatasetMode2(ExpressionDataset):
         self._pad_desc_ids = torch.tensor([20], dtype=torch.long)
         self._pad_desc_mask = torch.tensor([1], dtype=torch.long)
 
+    def _stable_cell_seed(self, cell_id: str) -> int:
+        h = hashlib.blake2b(
+            f"{self.seed}|{self.epoch}|{cell_id}".encode("utf-8"),
+            digest_size=8
+        )
+        return int.from_bytes(h.digest(), "little") % (2**32)
+
+    def _get_cell_gene_order(self, cell_id: str) -> List[int]:
+        rng = np.random.default_rng(self._stable_cell_seed(cell_id))
+        perm = rng.permutation(len(self.valid_indices))
+        return [self.valid_indices[i] for i in perm]
+
+    def _get_selected_gene_indices_for_cell(self, cell_id: str, chunk_idx: int) -> List[int]:
+        ordered_gene_indices = self._get_cell_gene_order(cell_id)
+        start_idx = chunk_idx * self.n_keys
+        end_idx = min(start_idx + self.n_keys, len(ordered_gene_indices))
+        return ordered_gene_indices[start_idx:end_idx]
+
     @staticmethod
     def _pad_to_len(t: torch.Tensor, L: int, fill):
         if t.shape[0] == L:
@@ -941,9 +959,7 @@ class ExpressionDatasetMode2(ExpressionDataset):
         gene_chunk = idx % self.num_gene_chunks
         cell_id = self.all_keys[cell_chunk]
 
-        start_idx = gene_chunk * self.n_keys
-        end_idx = min((gene_chunk + 1) * self.n_keys, len(self.valid_indices))
-        gene_indices = self.valid_indices[start_idx:end_idx]
+        gene_indices = self._get_selected_gene_indices_for_cell(cell_id, gene_chunk)
         n_real = len(gene_indices)
         assert n_real > 0, "Empty gene_indices chunk"
 
