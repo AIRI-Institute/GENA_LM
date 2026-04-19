@@ -1,4 +1,3 @@
-import importlib
 import json
 import logging
 import os
@@ -14,9 +13,9 @@ import transformers
 from mammals_gender_dataset import MultiSpeciesGenderDataChunkedDataset, collate_fn, worker_init_fn
 from model import GenderChunkedClassifier
 from safetensors.torch import load_model
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score, balanced_accuracy_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, precision_recall_fscore_support, roc_auc_score
 from torch.utils.data import DataLoader
-from transformers import AutoModel, AutoTokenizer, EarlyStoppingCallback, HfArgumentParser, Trainer, TrainingArguments
+from transformers import AutoConfig, AutoModel, AutoTokenizer, EarlyStoppingCallback, HfArgumentParser, Trainer, TrainingArguments
 from transformers.integrations.integration_utils import TensorBoardCallback, rewrite_logs
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -38,6 +37,7 @@ def compute_metrics(p):
 
     return {
         'accuracy': accuracy_score(y_true=labels, y_pred=predictions),
+        'balanced_accuracy': balanced_accuracy_score(y_true=labels, y_pred=predictions),
         'precision': p,
         'recall': r,
         'f1': f1,
@@ -89,7 +89,7 @@ class CustomTrainer(Trainer):
         logger.info(f'setting num_training_steps for lr_scheduler to {num_training_steps}')
         return super().create_scheduler(num_training_steps, optimizer)
 
-    def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
+    def training_step(self, model: torch.nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], num_items_in_batch=None) -> torch.Tensor:
         main_input_name = getattr(self.model, "main_input_name", "input_ids")
         input_device = inputs[main_input_name].device
         # fixes num seen tokens device for gather op
@@ -100,7 +100,7 @@ class CustomTrainer(Trainer):
                 torch.tensor(inputs[main_input_name].numel(), device=input_device, dtype=torch.int64)
             )
         ).item()
-        return super().training_step(model, inputs)
+        return super().training_step(model, inputs, num_items_in_batch)
 
     def log(self, logs: Dict[str, float]) -> None:
         logs['num_input_tokens_seen'] = self.state.num_input_tokens_seen
@@ -138,7 +138,7 @@ class ExperimentArgs:
     early_stopping_patience: Optional[int] = field(default=50)
     seed: Optional[int] = field(default=142)
     freeze_backbone: Optional[bool] = field(default=False)
-    from_pretrained: Optional[str] = field(default='AIRI-Institute/gena-lm-bert-base-t2t')
+    from_pretrained: Optional[str] = field(default='AIRI-Institute/moderngena-base')
     init_checkpoint: Optional[str] = field(default=None)
 
 
@@ -169,11 +169,11 @@ if __name__ == '__main__':
         Path(args.exp_path).mkdir(parents=True)
         json.dump(config, open(os.path.join(args.exp_path, 'config.json'), 'w'), indent=4)
 
-    tokenizer = AutoTokenizer.from_pretrained(args.from_pretrained)
-    model = AutoModel.from_pretrained(args.from_pretrained, trust_remote_code=True)
-    model_module = importlib.import_module(model.__class__.__module__)
-    cls = getattr(model_module, 'BertModel')
-    model = cls.from_pretrained(args.from_pretrained, add_pooling_layer=False)
+    tokenizer = AutoTokenizer.from_pretrained(args.from_pretrained, trust_remote_code=True)
+    pretrained_config = AutoConfig.from_pretrained(args.from_pretrained, trust_remote_code=True)
+    is_modern = 'modern' in getattr(pretrained_config, 'model_type', '').lower()
+    load_kwargs = {} if is_modern else {'add_pooling_layer': False}
+    model = AutoModel.from_pretrained(args.from_pretrained, trust_remote_code=True, **load_kwargs)
 
     args.data_path = Path(args.data_path)
     dataset = MultiSpeciesGenderDataChunkedDataset(data_path=args.data_path, split_name='train',
@@ -236,8 +236,8 @@ if __name__ == '__main__':
         assert args.total_batch_size == args_total_bs
 
     training_args = TrainingArguments(
-        output_dir=output_dir,
-        logging_dir=output_dir,
+        output_dir=str(output_dir),
+        logging_dir=str(output_dir),
         per_device_train_batch_size=args.per_device_batch_size,
         per_device_eval_batch_size=args.per_device_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -270,7 +270,7 @@ if __name__ == '__main__':
         compute_metrics=compute_metrics,
         data_collator=preprocess_collate_fn,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=args.early_stopping_patience),
-                   TensorBoardCallbackWithTokens
+                   TensorBoardCallbackWithTokens()
                    ],
     )
 

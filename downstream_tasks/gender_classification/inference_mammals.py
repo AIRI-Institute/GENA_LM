@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Configure environment variables
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 def parse_args():
@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument('--data_dir', type=str,
                     #   default='/disk/10tb/home/chepurova/human_data_contigs_separated',
                       default='/disk/10tb/home/chepurova/mouse_data_contigs_separated_2',
-                      help='Directory containing the data files')
+                      help='Directory accs, stds, X_probs, Y_probs ing the data files')
     
     # Model configuration
     parser.add_argument('--n_chunks', type=int, default=16,
@@ -209,7 +209,7 @@ def run_inference(args):
     if not args.force_species:
         species = 'all'
 
-    output_filename = f'{args.output_file_prefix}_model_{args.model_path.replace("/", "_")}_{args.split}_species_{species}_force_Y_sampling_{args.force_sampling_from_y}_Y_ratio_{args.chrY_ratio}_X_ratio_{args.chrX_ratio}_{args.n_per_sample}_per_sample_{args.seed}.pckl'
+    output_filename = f'{args.output_file_prefix}_{args.model_path.replace("/", "_")}_{args.split}_{species}_force_Y_sampling_{args.force_sampling_from_y}_Y_ratio_{args.chrY_ratio}_X_ratio_{args.chrX_ratio}_{args.n_per_sample}_per_sample_{args.seed}.pckl'
     if args.save_probs:
         with open(output_filename, 'wb') as f:
             pickle.dump({
@@ -253,8 +253,8 @@ def run_evaluation(sample_ids_probs, sample_ids_labels, sample_ids_sampled_chrom
     Ns.append(max_N)
     N2thr = find_threshold_for_N(new_sample_ids_labels, new_sample_ids_probs, Ns=Ns)
     
-    accs, stds, X_probs, Y_probs = calculate_metrics(new_sample_ids_labels, new_sample_ids_probs, new_sample_ids_sampled_chromosomes, N2threshold=N2thr)
-    with open(f"{args.metrics_output_file_prefix}", "w") as f:
+    accs, stds = calculate_metrics(new_sample_ids_labels, new_sample_ids_probs, new_sample_ids_sampled_chromosomes, N2threshold=N2thr)
+    with open(f"{args.metrics_output_file_prefix}.jsonl", "a") as f:
         f.write(json.dumps({
             "checkpoint": args.model_path,
             "evaluation_species": species,

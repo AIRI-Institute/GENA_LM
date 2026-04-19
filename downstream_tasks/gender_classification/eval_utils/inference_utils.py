@@ -124,7 +124,8 @@ def calculate_metrics(sample_ids_labels, sample_ids_probs, sample_ids_sampled_ch
 
         scores += [np.mean(N_scores)]
         stds.append(np.std(N_scores))
-        X_probs.append(np.mean(Ns_containX))
-        Y_probs.append(np.mean(Ns_containY))
+        # X_probs.append(np.mean(Ns_containX))
+        # Y_probs.append(np.mean(Ns_containY))
 
-    return scores, stds, X_probs, Y_probs
+    # return scores, stds, X_probs, Y_probs
+    return scores, stds

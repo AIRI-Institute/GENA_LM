@@ -10,11 +10,11 @@ FORCE_SAMPLING_FROM_Y=false
 FREEZE_BACKBONE=false
 # CHRY_NAME=Ys
 CHRY_NAME=Y
-# CHRY_RATIO=0.0625
+CHRY_RATIO=0.25
 
 LR=1e-05
 TBS=128
-PER_DEVICE_BATCH_SIZE=4
+PER_DEVICE_BATCH_SIZE=8
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
 
 EXP_PATH="./runs/mammals_contig_separated_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
@@ -34,8 +34,13 @@ fi
 
 N=1
 
-
+TMP_DIR=/disk/10tb/home/chepurova/bigger_tmp
 EXP_PATH="${EXP_PATH}/run_$N"
+
+# ---- Redirect temp & cache dirs ----
+export TMPDIR=$TMP_DIR
+export TEMP=$TMP_DIR
+export TMP=$TMP_DIR
 
 # conda activate dna-lm 
 # Execute the script using accelerate for parallel processing
@@ -52,15 +57,15 @@ accelerate launch \
   --per_device_batch_size $PER_DEVICE_BATCH_SIZE \
   --gradient_accumulation_steps $GRAD_ACC_STEPS \
   --learning_rate $LR \
+  --warmup_steps 1000 \
   --max_steps 150000 \
   --eval_steps 250 \
   --early_stopping_patience 5000 \
-  --warmup_steps 1000 \
   --data_path /disk/10tb/home/chepurova/chepurova/mammals_data_contig_separated/ \
   $( [ "$FORCE_SAMPLING_FROM_Y" = true ] && echo "--force_sampling_from_y" ) \
   $( [ "$FREEZE_BACKBONE" = true ] && echo "--freeze_backbone" ) \
   $( [ -n "$CHRY_RATIO" ] && echo "--chrY_ratio $CHRY_RATIO" )
-    # --init_checkpoint ./runs/human_contigs_16x3072_bs_128_lr_1e-05_chrY/run_1/checkpoint-21750/model.safetensors \
+  # --init_checkpoint ./runs/mammals_contig_separated_16x3072_bs_128_lr_1e-05_Y_chrY_ratio_0.25/run_3/checkpoint-18500/model.safetensors \
 
   
 
