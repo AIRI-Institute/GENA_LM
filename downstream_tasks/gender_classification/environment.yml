@@ -1,0 +1,35 @@
+name: dna-lm
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.12
+  - ipykernel
+  - minimap2
+  - pip
+  - pip:
+    # Deep learning
+    - torch==2.6.0
+    - accelerate==1.5.2
+    - transformers==5.5.4
+    - tokenizers==0.22.2
+    - huggingface-hub==1.11.0
+    - safetensors==0.5.3
+    # Bioinformatics
+    - biopython==1.85
+    # Data science
+    - numpy==1.26.4
+    - pandas==2.2.3
+    - scikit-learn==1.6.1
+    - scipy==1.15.2
+    - h5py==3.13.0
+    # Visualization
+    - matplotlib==3.10.1
+    - seaborn==0.13.2
+    - plotly==6.3.0
+    # Utilities
+    - tqdm==4.67.1
+    - tensorboard==2.19.0
+    - protobuf==4.25.3
