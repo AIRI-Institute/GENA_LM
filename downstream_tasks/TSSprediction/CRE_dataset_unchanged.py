@@ -16,7 +16,6 @@ import polars as pl
 import random
 
 from typing import List, Dict
-import glob
 
 #'input_ids': input_ids,
 #'attention_mask': attention_mask,
@@ -42,7 +41,6 @@ def collate_fn(batch: List[Dict]) -> Dict[str, torch.Tensor]:
             'taxon': torch.stack([torch.tensor(item['taxon']) for item in batch]),
             'labels_mask': torch.stack([item['labels_mask'] for item in batch]),
 			'labels': torch.stack([item['labels'] for item in batch]),
-            'loss_weight': torch.stack([torch.tensor(item['loss_weight']) for item in batch])
 		}
 
 		return batched	
@@ -59,7 +57,7 @@ class CreDataset(Dataset):
                 cache_dir:str, 
                 inputType:str,
                 taxon:str,
-                loglevel:int= logging.INFO,
+                loglevel:int= logging.WARNING,
                 unknown_taxon_prob:float = 0.15,
                 min_cre_number:int|None = None, 
                 min_cre_coverage:float|None = None,
@@ -92,13 +90,7 @@ class CreDataset(Dataset):
         self.chrom2TSSlist = None
         self.inputType = inputType
         
-        #self.h5_cache_path = self.get_hash_path() + '.h5'
-        if self.inputType == "TSS":
-            self.h5_cache_path = self.hash_prefix +'.642f636d7e1fe430.h5'
-        elif self.inputType == 'CRE':
-            self.h5_cache_path = self.hash_prefix +'.65abb2ab387f7e7f.h5'
-        else:
-            self.h5_cache_path = None
+        self.h5_cache_path = self.get_hash_path() + '.h5'
         
         self.cls_id = self.tokenizer.cls_token_id
         self.sep_id = self.tokenizer.sep_token_id
@@ -109,7 +101,7 @@ class CreDataset(Dataset):
         
         
         if os.path.exists(self.h5_cache_path):
-            self.h5_cache = h5py.File(self.h5_cache_path, 'r', rdcc_nbytes=10*1024**2, libver='latest', driver='core', backing_store=False)
+            self.h5_cache = h5py.File(self.h5_cache_path, 'r')
         else:
             self.precompute_intervals_tokinization()
             
@@ -160,7 +152,7 @@ class CreDataset(Dataset):
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + "." + hash_suffix
     
-    def encode_taxon(self, taxon) -> int:
+    def encode_taxon(self, taxon) -> int: #TODO
         mapping = {'Unknown': 0,
                     "Lepidosauria": 1,
                     "Chondrichthyes": 2,
@@ -174,44 +166,31 @@ class CreDataset(Dataset):
 
     def merge_intervals(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Merge overlapping intervals within each chromosome.
-        Assumes DataFrame has columns: 'chrom', 'start', 'end'.
+        Merge overlapping or adjacent intervals per chromosome.
+        Input df must have columns: chrom, start, end
         """
-        if df.is_empty():
-            return df
-
         return (
             df.sort(["chrom", "start"])
             .with_columns(
-                # Running maximum of 'end' within each chromosome
-                running_max_end=pl.col("end").cum_max().over("chrom")
-            )
-            .with_columns(
-                # Previous running max (null for the first interval in each chrom)
-                prev_running_max=pl.col("running_max_end").shift(1).over("chrom")
-            )
-            .with_columns(
-                # Mark new merged intervals: True when current start > previous running max
-                is_new_group=pl.when(pl.col("prev_running_max").is_null())
-                            .then(True)
-                            .otherwise(pl.col("start") > pl.col("prev_running_max"))
-            )
-            .with_columns(
-                # Cumulative sum of markers creates a unique ID for each merged interval
-                group_id=pl.col("is_new_group").cum_sum().over("chrom")
+                group_id = (
+                    (pl.col("start") > pl.col("end").cum_max().shift(1).fill_null(0)) 
+                    | (pl.col("chrom") != pl.col("chrom").shift(1).fill_null(""))
+                ).cum_sum()
             )
             .group_by(["chrom", "group_id"])
             .agg(
-                pl.min("start").alias("start"),
-                pl.max("end").alias("end")
+                pl.col("start").min().alias("start"),
+                pl.col("end").max().alias("end")
             )
-            .drop("group_id")
+            .select("chrom", "start", "end")
             .sort(["chrom", "start"])
-            .select(["chrom", "start", "end"])
         )
 
     def compute_coverage_merged(self, chrom: str, start: int, end: int) -> float:
-
+        """
+        Compute coverage fraction for a region using pre-merged intervals.
+        df_merged must have columns: chrom, start, end (non-overlapping)
+        """
         region_len = end - start
         if region_len <= 0:
             return 0.0
@@ -320,7 +299,7 @@ class CreDataset(Dataset):
         
         try:
             with h5py.File(temp_path, 'w') as h5f:
-                pbar = tqdm.tqdm(desc='Tokenizing intervals')
+                #pbar = tqdm.tqdm(desc='Tokenizing intervals')
                 with FastaFile(self.genome) as genome:
                     
                     idx = 0
@@ -350,33 +329,25 @@ class CreDataset(Dataset):
                                 #target = self.check_if_cre_enriched(chrom, start, end)
                                 target = self.check_if_exceeds_min_coverage(chrom, start, start + tokenized_sequence_len)
                             
-                            #self.logger.info(
-                            #    f'''
-                            #    Input type: {self.inputType}
-                            #    Sequence len: {tokenized_sequence_len}
-                            #    Sequence len in tokens: {len(tokens)}
-                            #    Coverage: {self.compute_coverage_merged(chrom, start, start + tokenized_sequence_len)}
-                            #    Target: {target}
-                            #    Start: {start}
-                            #    End: {end}
-                            #    Chrom: {chrom}
-                            #    '''   
-                            #)
+                            start += tokenized_sequence_len
+                            
                             
                             interval_group = h5f.create_group(str(idx))
                             interval_group.create_dataset('input_ids', data=np.array(tokens, dtype=np.int32))
                             interval_group.attrs['target'] = target
-                            
-                            start += tokenized_sequence_len
+                            interval_group.attrs['start'] = start
+                            interval_group.attrs['end'] = end
+                            interval_group.attrs['chrom'] = chrom
+                            interval_group.attrs['taxon'] = self.taxon
                             
 
                             if idx % 100 == 0:
                                 h5f.flush()
                                 
-                            pbar.update()
+                            #pbar.update()
                             
                             idx += 1
-                pbar.close()
+                #pbar.close()
                 h5f.flush()
             
             os.rename(temp_path, self.h5_cache_path)
@@ -393,7 +364,7 @@ class CreDataset(Dataset):
         token_ids = grp['input_ids'][()]
         
         target = grp.attrs['target']
-        taxon = random.choices([self.taxon, 0], weights = [1-self.unknown_taxon_prob, self.unknown_taxon_prob], k=1)[0]
+        taxon = random.choices([grp.attrs['taxon'], 0], weights = [1-self.unknown_taxon_prob, self.unknown_taxon_prob], k=1)[0]
         
         seq_ids = [self.cls_id] + token_ids.tolist() + [self.sep_id]
         seq_len = len(seq_ids)
@@ -419,7 +390,6 @@ class CreDataset(Dataset):
             'labels': labels,
             'labels_mask': labels_mask,
             'taxon': taxon,
-            'loss_weight': 10 if self.inputType == 'CRE' else 1
         }
         
         

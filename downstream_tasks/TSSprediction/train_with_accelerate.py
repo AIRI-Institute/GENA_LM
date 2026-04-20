@@ -8,9 +8,12 @@ from argparse import ArgumentParser
 from hydra import initialize_config_dir, compose
 import math
 from accelerate import Accelerator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from torch.utils.data import DataLoader, DistributedSampler, ConcatDataset, Dataset
 from typing import List, Tuple, Any
+
+import threading
 
 # Fix for PyTorch 2.6+ weights_only default change
 import numpy
@@ -19,18 +22,31 @@ torch.serialization.add_safe_globals([
     numpy.ndarray, numpy.dtype, numpy.dtypes.UInt32DType
 ])
 
+os.environ["WANDB_MODE"] = "disabled"
+
+def _warmup_dataset(dataset_cfg):
+    dataset = instantiate(dataset_cfg)
+    _ = len(dataset)
+    return dataset
+
 def _collect_dataset_configs(experiment_config, prefix: str) -> List[Any]:
     """Берёт все ключи вида train_dataset*, valid_dataset*."""
     return [v for k, v in experiment_config.items() if str(k).startswith(prefix)]
 
 def build_dataset_from_cfgs(dataset_cfgs: List[Any]) -> Dataset:
     """Instantiate -> Dataset or ConcatDataset."""
-    datasets = [instantiate(cfg) for cfg in dataset_cfgs]
-    if len(datasets) == 0:
+    #datasets = [instantiate(cfg) for cfg in dataset_cfgs]
+    loaded_datasets = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(_warmup_dataset, cfg) for cfg in dataset_cfgs]
+        for future in as_completed(futures):
+            loaded_datasets.append(future.result())
+        
+    if len(loaded_datasets) == 0:
         raise ValueError("No datasets after instantiate()")
-    if len(datasets) == 1:
-        return datasets[0]
-    return ConcatDataset(datasets)
+    if len(loaded_datasets) == 1:
+        return loaded_datasets[0]
+    return ConcatDataset(loaded_datasets)
 
 def gradient_accumulation_steps(batch_size: int, total_batch_size: int) -> int:
 	return min(1, math.ceil(total_batch_size / batch_size))
@@ -42,6 +58,11 @@ parser.add_argument('--output_dir', type=str, help='output directory')
 
 def main():
 	# Initialize accelerator
+ 
+	#if os.environ.get('CUDA_VISIBLE_DEVICES', None) is None:
+	#	os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(torch.cuda.device_count())])
+	os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,6'
+
 	accelerator = Accelerator()
 	
 	# Set up logging
@@ -49,9 +70,6 @@ def main():
 	logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=args.log_level)
 	logger = logging.getLogger()
 	experiment_config_path = Path(args.config).expanduser().absolute()
-
-	if os.environ.get('CUDA_VISIBLE_DEVICES', None) is None:
-		os.environ['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(torch.cuda.device_count())])
 
 	logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
 	logger.info(f"CUDA DEVICE COUNT: {torch.cuda.device_count()}")

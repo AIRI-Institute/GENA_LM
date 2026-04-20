@@ -109,7 +109,7 @@ class CreModel(nn.Module):
         self.classifier = nn.Linear(self.bert.config.hidden_size, 1, device=device, dtype=dtype)
         
         if num_taxons is not None:
-            self.taxon_embeddings = nn.Embedding(num_embeddings=num_taxons, embedding_dim=self.bert.config.hidden_size)
+            self.taxon_embeddings = nn.Embedding(num_embeddings=num_taxons, embedding_dim=self.bert.config.hidden_size, device=device, dtype=dtype)
 
     def forward(
         self,
@@ -118,7 +118,8 @@ class CreModel(nn.Module):
         labels_mask=None,            # (B, L, 1)
         labels=None,                 # (B, L, 1)
         return_dict=None,
-        taxon=None                  # (B, 1)
+        taxon=None,                  # (B, 1)
+        loss_weight=None             # (B, 1)
     ):
         
         #print(f'''
@@ -146,10 +147,16 @@ class CreModel(nn.Module):
         # 5) Loss
         loss = None
         labels_reshaped = labels_mask_reshaped = cls_loss = None
+        
+        
         if labels is not None:
             labels_reshaped = labels.to(logits.device)
             labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
             unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B, L, 1)
+            
+            #applying weights
+            unreduced_loss = unreduced_loss * loss_weight.unsqueeze(-1).unsqueeze(-1).to(logits.device)
+            
             if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
                 cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B, 1, 1)
 
@@ -160,7 +167,7 @@ class CreModel(nn.Module):
 
         if not return_dict:
             return (loss, logits)
-        hidden_states_out = (sequence_output,)
+
         return CreModelOutput(
             loss=loss,
             logits=logits,
