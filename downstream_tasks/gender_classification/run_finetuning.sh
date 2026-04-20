@@ -10,14 +10,15 @@ FORCE_SAMPLING_FROM_Y=false
 FREEZE_BACKBONE=false
 # CHRY_NAME=Ys
 CHRY_NAME=Y
-CHRY_RATIO=0.25
+CHRY_RATIO="${CHRY_RATIO:-0.25}"
+DATA_PATH="${DATA_PATH:-/disk/10tb/home/chepurova/chepurova/mammals_data_contig_separated/}"
 
 LR=1e-05
 TBS=128
 PER_DEVICE_BATCH_SIZE=8
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
 
-EXP_PATH="./runs/mammals_contig_separated_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
+EXP_PATH="./runs/mammals_contig_separated_modern_gena_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
 
 if [ -n "$CHRY_RATIO" ]; then
   EXP_PATH="${EXP_PATH}_chrY_ratio_${CHRY_RATIO}"
@@ -61,7 +62,7 @@ accelerate launch \
   --max_steps 150000 \
   --eval_steps 250 \
   --early_stopping_patience 5000 \
-  --data_path /disk/10tb/home/chepurova/chepurova/mammals_data_contig_separated/ \
+  --data_path "$DATA_PATH" \
   $( [ "$FORCE_SAMPLING_FROM_Y" = true ] && echo "--force_sampling_from_y" ) \
   $( [ "$FREEZE_BACKBONE" = true ] && echo "--freeze_backbone" ) \
   $( [ -n "$CHRY_RATIO" ] && echo "--chrY_ratio $CHRY_RATIO" )

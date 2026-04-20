@@ -102,13 +102,14 @@ class CustomTrainer(Trainer):
         ).item()
         return super().training_step(model, inputs, num_items_in_batch)
 
-    def log(self, logs: Dict[str, float]) -> None:
+    def log(self, logs: Dict[str, float], start_time: Optional[float] = None) -> None:
         logs['num_input_tokens_seen'] = self.state.num_input_tokens_seen
-        # log early stopping patience
         for cb in self.callback_handler.callbacks:
             if isinstance(cb, EarlyStoppingCallback):
                 logs['patience'] = cb.early_stopping_patience_counter
                 break
+        if start_time is not None:
+            return super().log(logs, start_time)
         return super().log(logs)
 
 

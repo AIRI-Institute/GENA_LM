@@ -1,4 +1,4 @@
-name: dna-lm
+name: gender-cls
 channels:
   - conda-forge
   - bioconda
