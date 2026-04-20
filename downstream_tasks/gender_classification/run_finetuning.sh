@@ -35,10 +35,10 @@ fi
 
 N=1
 
-TMP_DIR=/disk/10tb/home/chepurova/bigger_tmp
 EXP_PATH="${EXP_PATH}/run_$N"
 
 # ---- Redirect temp & cache dirs ----
+TMP_DIR="${TMP_DIR:-/disk/10tb/home/chepurova/bigger_tmp}"
 export TMPDIR=$TMP_DIR
 export TEMP=$TMP_DIR
 export TMP=$TMP_DIR
