@@ -1,0 +1,89 @@
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+data:
+  train_csv: "examples/modernGENA/data/processed/sequence_classification/train.csv"
+  valid_csv: "examples/modernGENA/data/processed/sequence_classification/valid.csv"
+  max_length: 1024
+  pad_to_multiple_of: 8
+
+training:
+  output_dir: "runs/modernGENA/sequence_classification/ctcf_liver_base"
+  resume_from_checkpoint: null
+
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: "AIRI-Institute/moderngena-base"
+  trust_remote_code: true
+
+model:
+  _target_: transformers.AutoModelForSequenceClassification.from_pretrained
+  pretrained_model_name_or_path: "AIRI-Institute/moderngena-base"
+  num_labels: 2
+  trust_remote_code: true
+
+train_dataset:
+  _target_: examples.modernGENA.sequence_classification.dataset.GenomicSequenceClassificationDataset
+  data_path: ${data.train_csv}
+  max_length: ${data.max_length}
+  tokenizer: ${tokenizer}
+
+valid_dataset:
+  _target_: examples.modernGENA.sequence_classification.dataset.GenomicSequenceClassificationDataset
+  data_path: ${data.valid_csv}
+  max_length: ${data.max_length}
+  tokenizer: ${tokenizer}
+
+data_collator:
+  _target_: transformers.DataCollatorWithPadding
+  pad_to_multiple_of: ${data.pad_to_multiple_of}
+  tokenizer: ${tokenizer}
+
+training_args:
+  _target_: transformers.TrainingArguments
+  output_dir: ${training.output_dir}
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 8
+  gradient_accumulation_steps: 4
+  learning_rate: 3.0e-5
+  weight_decay: 1.0e-3
+  num_train_epochs: 10
+  lr_scheduler_type: "linear"
+  warmup_ratio: 0.06
+  logging_steps: 20
+  eval_steps: 100
+  save_steps: 100
+  save_total_limit: 2
+  dataloader_num_workers: 4
+  dataloader_pin_memory: false
+  fp16: false
+  bf16: false
+  remove_unused_columns: false
+  report_to: "tensorboard"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_pr_auc"
+  greater_is_better: true
+  eval_strategy: "steps"
+  save_strategy: "steps"
+  seed: 42
+
+callbacks:
+  - _target_: transformers.EarlyStoppingCallback
+    early_stopping_patience: 30
+    early_stopping_threshold: 0.0
+
+trainer:
+  _target_: transformers.Trainer
+  _convert_: all
+  model: ${model}
+  args: ${training_args}
+  train_dataset: ${train_dataset}
+  eval_dataset: ${valid_dataset}
+  data_collator: ${data_collator}
+  callbacks: ${callbacks}
+  tokenizer: ${tokenizer}
+
+hydra:
+  run:
+    dir: .

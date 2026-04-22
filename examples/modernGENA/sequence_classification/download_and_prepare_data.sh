@@ -2,9 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODERNGENA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-RAW_DIR="${SCRIPT_DIR}/data/raw"
-PROCESSED_DIR="${SCRIPT_DIR}/data/processed"
+RAW_DIR="${MODERNGENA_DIR}/data/raw"
+PROCESSED_DIR="${MODERNGENA_DIR}/data/processed/sequence_classification"
 BED_URL="https://www.encodeproject.org/files/ENCFF046XEZ/@@download/ENCFF046XEZ.bed.gz"
 BED_GZ="${RAW_DIR}/ENCFF046XEZ.bed.gz"
 BED_FILE="${RAW_DIR}/ENCFF046XEZ.bed"
@@ -29,11 +30,14 @@ else
 fi
 FASTA_PATH="${UCSC_FASTA}"
 
-echo "[2/4] Downloading ENCODE CTCF liver peaks ..."
-curl -L "${BED_URL}" -o "${BED_GZ}"
-
-echo "[3/4] Decompressing BED ..."
-gzip -dc "${BED_GZ}" > "${BED_FILE}"
+if [[ ! -f "${BED_FILE}" ]]; then
+  echo "[2/4] Downloading ENCODE CTCF liver peaks ..."
+  curl -L "${BED_URL}" -o "${BED_GZ}"
+  echo "[3/4] Decompressing BED ..."
+  gzip -dc "${BED_GZ}" > "${BED_FILE}"
+else
+  echo "[2/4] Reusing existing CTCF BED: ${BED_FILE}"
+fi
 
 echo "[4/4] Building train/valid CSV files ..."
 python "${SCRIPT_DIR}/prepare_ctcf_liver_dataset.py" \
