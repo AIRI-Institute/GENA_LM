@@ -116,8 +116,8 @@ train_dataset_ATAC_mouse:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1
 
 train_dataset_ATAC_human_1:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -137,8 +137,8 @@ train_dataset_ATAC_human_1:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1.5
   
 train_dataset_ATAC_human_2:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -158,8 +158,8 @@ train_dataset_ATAC_human_2:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1.5
 
 #Alex datasets
 train_dataset_ATACseq_human_encode_biophysinf:
@@ -176,8 +176,8 @@ train_dataset_ATACseq_human_encode_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1
 
 
 train_dataset_ATACseq_mouse_encode_biophysinf:
@@ -194,8 +194,8 @@ train_dataset_ATACseq_mouse_encode_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 20
 
 
 train_dataset_ATACseq_mouse_wmb_CATlas_biophysinf:
@@ -212,8 +212,8 @@ train_dataset_ATACseq_mouse_wmb_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 20
 
 
 train_dataset_ATACseq_mouse_tissue_CATlas_biophysinf:
@@ -230,8 +230,8 @@ train_dataset_ATACseq_mouse_tissue_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1
 
 
 train_dataset_ATACseq_human_fetal_CATlas_biophysinf:
@@ -248,8 +248,8 @@ train_dataset_ATACseq_human_fetal_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 650
 
 
 train_dataset_ATACseq_human_brain_CATlas_biophysinf:
@@ -266,8 +266,8 @@ train_dataset_ATACseq_human_brain_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1
 
 
 train_dataset_ATACseq_human_neocortex_CATlas_biophysinf:
@@ -284,8 +284,8 @@ train_dataset_ATACseq_human_neocortex_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 1
 
 
 train_dataset_ATACseq_mouse_neocortex_CATlas_biophysinf:
@@ -302,8 +302,8 @@ train_dataset_ATACseq_mouse_neocortex_CATlas_biophysinf:
   token_len_for_fetch: 15
 
   transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 20
 
 #TF datasets
 train_dataset_mouse_tf_1:
@@ -322,6 +322,10 @@ train_dataset_mouse_tf_1:
   num_before: 0
   token_len_for_fetch: 15
 
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
 
 train_dataset_mouse_tf_2:
 
@@ -339,6 +343,10 @@ train_dataset_mouse_tf_2:
   num_before: 0
   token_len_for_fetch: 15
 
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
 
 train_dataset_mouse_tf_3:
 
@@ -355,6 +363,10 @@ train_dataset_mouse_tf_3:
   bw: bw
   num_before: 0
   token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
 
 
 #3 datasets
@@ -374,7 +386,7 @@ train_dataset_snRNA_MAT_artem:
   tpm: CPM
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_snRNA_Plant_artem:
@@ -392,7 +404,7 @@ train_dataset_snRNA_Plant_artem:
   tpm: CPM
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_snRNA_scRNA_artem:
@@ -410,7 +422,7 @@ train_dataset_snRNA_scRNA_artem:
   tpm: CPM
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 
@@ -430,7 +442,7 @@ train_dataset_human_full_csv:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_human_full_borzoi:
@@ -448,7 +460,7 @@ train_dataset_human_full_borzoi:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_human_full_CPM:
@@ -466,7 +478,7 @@ train_dataset_human_full_CPM:
   tpm: CPM
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_mouse_full_csv:
@@ -484,7 +496,7 @@ train_dataset_mouse_full_csv:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
   
 train_dataset_mouse_full_borzoi:
@@ -502,7 +514,7 @@ train_dataset_mouse_full_borzoi:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_mouse_full_CPM:
@@ -520,7 +532,7 @@ train_dataset_mouse_full_CPM:
   tpm: CPM
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 # cellxgene
@@ -539,7 +551,7 @@ train_dataset_human_cellxgene:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 train_dataset_mouse_cellxgene:
@@ -557,7 +569,7 @@ train_dataset_mouse_cellxgene:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 #multi_species_sra
@@ -571,8 +583,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_000260255.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_000260355.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -584,8 +596,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_000260355.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_000276665.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -597,8 +609,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_000276665.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_003255815.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -610,8 +622,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_003255815.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_003339765.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -623,8 +635,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_003339765.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_004115215.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -636,8 +648,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_004115215.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_004115265.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -649,8 +661,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_004115265.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_006229205.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -662,8 +674,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_006229205.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_009761245.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -675,8 +687,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_009761245.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_011762595.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -688,8 +700,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_011762595.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_014108235.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -701,8 +713,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_014108235.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_014176215.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -714,8 +726,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_014176215.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_017591425.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -727,8 +739,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_017591425.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_018345385.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -740,8 +752,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_018345385.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_018350195.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -753,8 +765,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_018350195.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_019320065.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -766,8 +778,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_019320065.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_021234165.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -779,8 +791,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_021234165.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_022376915.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -792,8 +804,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_022376915.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_022682495.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -805,8 +817,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_022682495.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_023699985.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -818,8 +830,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_023699985.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_027580195.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -831,8 +843,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_027580195.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_028885655.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -844,8 +856,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_028885655.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_029281585.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -857,8 +869,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_029281585.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_029289425.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -870,8 +882,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_029289425.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_029407905.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -883,8 +895,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_029407905.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_033118175.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -896,8 +908,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_033118175.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_036321535.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -909,8 +921,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_036321535.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_036562045.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -922,8 +934,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_036562045.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_036850765.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -935,8 +947,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_036850765.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_040939455.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -948,8 +960,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_040939455.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_048418805.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -961,8 +973,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_048418805.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_048773025.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -974,8 +986,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_048773025.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_902635505.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -987,8 +999,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_902635505.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_902686445.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1000,8 +1012,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_902686445.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1013,7 +1025,7 @@ train_dataset_multi_species_rna_sra_artem_GCF_903995435.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
   
 
@@ -1027,7 +1039,7 @@ train_dataset_multi_species_rna_sra_artem_GCF_910594005.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
   
 
@@ -1041,7 +1053,7 @@ train_dataset_multi_species_rna_sra_artem_GCF_949987515.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
   
 
@@ -1055,8 +1067,8 @@ train_dataset_multi_species_rna_sra_artem_GCF_949987535.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1068,7 +1080,7 @@ train_dataset_multi_species_rna_sra_artem_GCF_963930625.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
     
 #multi_species_geo
@@ -1082,8 +1094,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000003025.6_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000243295.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1095,8 +1107,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000243295.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000247695.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1108,8 +1120,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000247695.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000283155.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1121,8 +1133,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000283155.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1134,8 +1146,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000317375.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000325575.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1147,8 +1159,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000325575.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000334495.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1160,8 +1172,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000334495.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000412655.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1173,8 +1185,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000412655.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000622305.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1186,8 +1198,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000622305.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_000955945.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1199,8 +1211,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_000955945.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_001704415.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1212,8 +1224,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_001704415.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_001890085.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1225,8 +1237,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_001890085.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_002007445.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1238,8 +1250,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_002007445.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_002099425.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1251,8 +1263,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_002099425.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1264,8 +1276,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_002263795.3_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_003668045.3_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1277,8 +1289,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_003668045.3_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_004028035.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1290,8 +1302,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_004028035.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_004664715.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1303,8 +1315,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_004664715.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_008728515.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1316,8 +1328,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_008728515.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011064425.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1329,8 +1341,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011064425.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011100555.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1342,8 +1354,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011100555.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011100635.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1355,8 +1367,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011100635.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011100685.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1368,8 +1380,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011100685.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011762505.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1381,8 +1393,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011762505.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_011764305.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1394,8 +1406,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_011764305.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_012274545.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1407,8 +1419,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_012274545.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_014885135.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1420,8 +1432,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_014885135.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_015220235.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1433,8 +1445,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_015220235.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_016772045.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1446,8 +1458,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_016772045.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_016881025.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1459,8 +1471,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_016881025.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1 
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_017639785.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1472,8 +1484,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_017639785.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_018350175.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1485,8 +1497,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_018350175.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_019923935.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1498,8 +1510,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_019923935.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_020740685.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1511,8 +1523,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_020740685.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_020975775.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1524,8 +1536,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_020975775.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_021218885.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1537,8 +1549,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_021218885.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_021234435.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1550,8 +1562,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_021234435.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_022079265.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1563,8 +1575,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_022079265.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_027574615.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1576,8 +1588,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_027574615.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_027887165.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1589,8 +1601,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_027887165.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_028372415.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1602,8 +1614,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_028372415.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_028538775.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1615,8 +1627,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_028538775.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_028858775.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1628,8 +1640,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_028858775.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_028885625.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1641,8 +1653,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_028885625.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_029215605.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1654,8 +1666,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_029215605.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_029378745.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1667,8 +1679,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_029378745.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_030014295.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1680,8 +1692,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_030014295.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_030254825.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1693,8 +1705,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_030254825.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_030445035.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1706,8 +1718,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_030445035.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_034190915.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1719,8 +1731,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_034190915.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1732,8 +1744,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_036323735.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_037993035.2_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1745,8 +1757,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_037993035.2_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_040802235.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1758,8 +1770,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_040802235.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_041296235.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1771,8 +1783,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_041296235.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_041296265.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1784,8 +1796,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_041296265.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_043159975.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1797,8 +1809,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_043159975.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_047511655.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1810,8 +1822,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_047511655.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_047511675.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1823,8 +1835,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_047511675.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_047675955.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1836,8 +1848,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_047675955.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_048593235.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1849,8 +1861,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_048593235.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_902806735.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1862,8 +1874,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_902806735.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_963259705.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1875,8 +1887,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_963259705.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 train_dataset_multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1888,8 +1900,8 @@ train_dataset_multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw:
   tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+    pseudocount: 1
 
 #valid
 valid_dataset_mouse:
@@ -1901,7 +1913,7 @@ valid_dataset_mouse:
   tpm: CPM
   num_before: 512
   transform_targets_tpm: 
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
 
@@ -1914,6 +1926,5 @@ valid_dataset_human:
   tpm: csv
   num_before: 512 
   transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
-

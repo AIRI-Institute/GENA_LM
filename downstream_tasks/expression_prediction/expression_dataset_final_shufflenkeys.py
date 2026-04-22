@@ -869,6 +869,19 @@ class logtransform():
         return np.round(np.exp(x) - self.pseudocount, self.rounddigits)
 
 
+class multiplytransform():
+    def __init__(self, coefficient=1.0):
+        self.coefficient = float(coefficient)
+
+    def __call__(self, x):
+        return x * self.coefficient
+
+    def reverse(self, x):
+        if self.coefficient == 0:
+            raise ValueError("Cannot reverse multiplytransform with coefficient=0")
+        return x / self.coefficient
+
+
 class ExpressionDatasetMode2(ExpressionDataset):
     def __init__(
         self,
