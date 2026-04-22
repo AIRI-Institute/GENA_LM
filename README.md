@@ -50,11 +50,11 @@ ModernGENA improves downstream performance on NT bench and leads among comparabl
 import importlib.util
 from transformers import AutoTokenizer, AutoModel
 
-tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/gena-lm-bert-base-t2t")
 model_kwargs = {"trust_remote_code": True}
 if importlib.util.find_spec("flash_attn") is not None:
     model_kwargs["attn_implementation"] = "flash_attention_2"
 
+tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/moderngena-base", **model_kwargs)
 model = AutoModel.from_pretrained("AIRI-Institute/moderngena-base", **model_kwargs)
 ```
 
@@ -77,4 +77,23 @@ python examples/modernGENA/sequence_classification/train.py
 
 ## Citation
 
-- [Back to BERT in 2026: ModernGENA as a Strong, Efficient Baseline for DNA Foundation Models](https://openreview.net/forum?id=8QsSDzYK97)
+- ModernGENA: [Back to BERT in 2026: ModernGENA as a Strong, Efficient Baseline for DNA Foundation Models](https://openreview.net/forum?id=8QsSDzYK97)
+
+- original GENA paper:
+
+```
+@article{GENA_LM,
+    author = {Fishman, Veniamin and Kuratov, Yuri and Shmelev, Aleksei and Petrov, Maxim and Penzar, Dmitry and Shepelin, Denis and Chekanov, Nikolay and Kardymon, Olga and Burtsev, Mikhail},
+    title = {GENA-LM: a family of open-source foundational DNA language models for long sequences},
+    journal = {Nucleic Acids Research},
+    volume = {53},
+    number = {2},
+    pages = {gkae1310},
+    year = {2025},
+    month = {01},
+    issn = {0305-1048},
+    doi = {10.1093/nar/gkae1310},
+    url = {https://doi.org/10.1093/nar/gkae1310},
+    eprint = {https://academic.oup.com/nar/article-pdf/53/2/gkae1310/61443229/gkae1310.pdf},
+}
+```
