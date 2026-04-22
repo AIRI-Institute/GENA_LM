@@ -305,14 +305,32 @@ train_dataset_ATACseq_mouse_neocortex_CATlas_biophysinf:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
     coefficient: 20
 
+# DNASE-seq
+train_dataset_DNASEseq_human_encode_biophysinf:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/DNaseseq_human_encode_biophysinf/file_mappings.qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 17
+
 #TF datasets
 train_dataset_mouse_tf_1:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
 
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.sample_1of2p5.seed1.csv"
 
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.sample_1of2p5.seed1.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf_mouse/file_mappings_1.csv"
   
@@ -331,9 +349,9 @@ train_dataset_mouse_tf_2:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
 
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.sample_1of2p5.seed2.csv"
 
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.sample_1of2p5.seed2.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf_mouse/file_mappings_2.csv"
   
@@ -352,9 +370,9 @@ train_dataset_mouse_tf_3:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
 
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.csv"
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.sample_1of2p5.seed3.csv"
 
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.sample_1of2p5.seed3.csv"
 
   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf_mouse/file_mappings_3.csv"
   
@@ -362,6 +380,115 @@ train_dataset_mouse_tf_3:
 
   bw: bw
   num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
+# tf
+train_dataset_human_tf_1:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.sample_1of7.seed1.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.sample_1of7.seed1.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf/file_mappings_1.csv"
+
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
+train_dataset_human_tf_2:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.sample_1of7.seed2.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.sample_1of7.seed2.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf/file_mappings_2.csv"
+
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+
+  num_before: 0
+
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
+train_dataset_human_tf_3:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.sample_1of7.seed3.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.sample_1of7.seed3.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf/file_mappings_3.csv"
+
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+
+  num_before: 0
+
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
+train_dataset_human_tf_4:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.sample_1of7.seed4.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.sample_1of7.seed4.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf/file_mappings_4.csv"
+
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+
+  num_before: 0
+
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 3
+
+train_dataset_human_tf_5:
+
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.sample_1of7.seed5.csv"
+
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.sample_1of7.seed5.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/tf/file_mappings_5.csv"
+
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+
+  num_before: 0
+
   token_len_for_fetch: 15
 
   transform_targets_bw:
