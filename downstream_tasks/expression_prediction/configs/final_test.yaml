@@ -97,28 +97,6 @@ shared_dataset_params:
     "level": "DEBUG"
   seed: "${args_params.seed}"
 
-#ATAC-seq
-train_dataset_ATAC_mouse:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.cre_modernbert.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.cre_modernbert.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor/file_mappings_qnorm.csv"
-
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm39/mm39.fa"
-  
-  bw: bw
-
-  num_before: 0
-
-  token_len_for_fetch: 15
-
-  transform_targets_bw:
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
-
 train_dataset_mouse:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
@@ -130,19 +108,6 @@ train_dataset_mouse:
   transform_targets_tpm: 
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
     pseudocount: 1
-
-train_dataset_multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_964237555.1/GCF_964237555.1.fa"
-  targets_path: ${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/multi_species_rna_geo_artem/file_mappings_multi_species_rna_geo_artem/multi_species_rna_geo_artem_GCF_964237555.1_tpm_bw.csv
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.forward.tsv"
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/GCF_964237555.1/GCF_964237555.1.train.reverse.tsv"
-  tpm: tpm
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1  
 
 #valid
 valid_dataset_mouse:
@@ -156,17 +121,3 @@ valid_dataset_mouse:
   transform_targets_tpm: 
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
     pseudocount: 1
-
-
-valid_dataset_human:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
-  tpm: csv
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1
-

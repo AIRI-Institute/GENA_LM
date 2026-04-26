@@ -268,7 +268,6 @@ def main():
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        mixed_precision="bf16",
         kwargs_handlers=[ddp_kwargs]
     )
     #  mixed_precision="bf16",

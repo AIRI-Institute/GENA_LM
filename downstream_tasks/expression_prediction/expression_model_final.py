@@ -242,9 +242,11 @@ class ExpressionCounts(nn.Module):
         self.desc_model = AutoModel.from_pretrained(
             self.desc_model_name,
             attn_implementation="sdpa",
-            torch_dtype=torch.bfloat16,
             attention_dropout=dropout_prob,
         )
+
+        # torch_dtype=torch.float16,
+        
         if _is_main_process():
             print(
                 "qwen dropouts:",
@@ -505,11 +507,16 @@ class ExpressionCounts(nn.Module):
         loss = None
         labels_reshaped = labels_mask_reshaped = cls_loss = deviation_loss = multinomial_loss = other_loss = None
 
+        
+
         if labels is not None:
             labels_reshaped = labels.to(logits.device)
             labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
 
             unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B*N, L, 1)
+
+            print(f'logits {logits}' )
+            print(f'labels_reshaped {labels_reshaped}' )
 
             if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
                 cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B*N, 1, 1)
