@@ -1,4 +1,4 @@
-TASK_NAME: expression/loss_test_baseline_final_bs210_lr1e5
+TASK_NAME: expression/loss_test_final_bs210_lr1e5
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -36,7 +36,7 @@ args_params:
 
   save_best: True
 
-  save_interval: 500
+  save_interval: 1000
 
   optimize_metric: "score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
 
@@ -78,13 +78,11 @@ model_kwargs:
     reduction: 'none'
 
   activation:
-    _target_:  downstream_tasks.expression_prediction.expression_model_final_loss.ExpActivation
+    _target_:  downstream_tasks.expression_prediction.expression_model_final.ExpActivation
 
   config:
     _target_: builtins.dict
 
-  # use_multinomial_loss: True
-  # weight_multinomial_loss: 5.0
 
 # shared dataset parameters
 shared_dataset_params:

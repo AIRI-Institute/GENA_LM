@@ -70,7 +70,7 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
   _target_: builtins.dict 
   hf: True
-  hf_model_name: "${HOME_PATH}/models/modernbert_large"
+  hf_model_name: "AIRI-Institute/moderngena-large"
   hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   

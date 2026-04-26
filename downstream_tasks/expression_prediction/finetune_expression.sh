@@ -7,18 +7,17 @@ export CUDA_HOME="$HOME/.local/cuda/"
 export PATH="$HOME/.local/cuda/bin:$PATH"
 export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:$LD_LIBRARY_PATH"
 
- export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-
+ export CUDA_VISIBLE_DEVICES=0,1
 # export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 #  --multi_gpu \
 
-TBS=100
-BS=10
-NP=7
+TBS=80
+BS=2
+NP=2
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="loss_test_nkeys14_shufflenkeys"
+config_name="final_test"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29515 \

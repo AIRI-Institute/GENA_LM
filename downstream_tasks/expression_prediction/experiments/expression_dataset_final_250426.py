@@ -63,13 +63,6 @@ class ExpressionDataset(Dataset):
 
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
-        self._genome_sizes_map = {}
-        genome_sizes_path = Path(
-            "/mnt/20tb/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/genome_sizes.tsv"
-        )
-        if genome_sizes_path.exists():
-            df_sizes = pd.read_csv(genome_sizes_path, sep="\t")
-            self._genome_sizes_map = dict(zip(df_sizes["path"], df_sizes["size"]))
 
         self.seed = seed
         np.random.seed(self.seed)
@@ -107,7 +100,11 @@ class ExpressionDataset(Dataset):
 
         self.n_cell_chunks = ((len(self.paths.keys()) - 1) // n_keys) + 1
         self.all_keys = list(self.paths.keys())
-        self.epoch = 0
+        self.selected_keys_chunks: List[List[str]] = []
+        for i in range(self.n_cell_chunks):
+            start_idx = i * n_keys
+            end_idx = min((i + 1) * self.n_keys, len(self.all_keys))
+            self.selected_keys_chunks.append(self.all_keys[start_idx:end_idx])
 
         self.files_opened = False
         self.sequences = FastaFile(self.genome)
@@ -173,16 +170,11 @@ class ExpressionDataset(Dataset):
     def _name_and_size(self, p: str) -> str:
         if p is None:
             return "None|0"
-        path = str(p)
-        name = Path(path).name
+        name = Path(p).name
         try:
-            size = os.path.getsize(path)  # bytes
+            size = os.path.getsize(p)  # bytes
         except OSError:
-            if path == self.genome:
-                genome_size = self._genome_sizes_map.get(path)
-                if genome_size is not None:
-                    return f"{name}|{genome_size}"
-            raise FileNotFoundError(f"File not found for hashing: {path}")
+            size = 0
         return f"{name}|{size}"
 
     def _compute_valid_indices(self):
@@ -255,28 +247,6 @@ class ExpressionDataset(Dataset):
     
     def get_num_keys(self):
         return len(self.paths.keys())
-
-    def set_epoch(self, epoch: int):
-        self.epoch = int(epoch)
-
-    def _stable_gene_seed(self, gene_id: str) -> int:
-        h = hashlib.blake2b(
-            f"{self.seed}|{self.epoch}|{gene_id}".encode("utf-8"),
-            digest_size=8
-        )
-        return int.from_bytes(h.digest(), "little") % (2**32)
-
-    def _get_gene_key_order(self, gene_id: str) -> List[str]:
-        rng = np.random.default_rng(self._stable_gene_seed(gene_id))
-        perm = rng.permutation(len(self.all_keys))
-        return [self.all_keys[i] for i in perm]
-
-    def _get_selected_keys_for_gene(self, gene_id: str, chunk_idx: int) -> List[str]:
-        ordered_keys = self._get_gene_key_order(gene_id)
-        start_idx = chunk_idx * self.n_keys
-        end_idx = min(start_idx + self.n_keys, len(ordered_keys))
-        return ordered_keys[start_idx:end_idx]
-
         
     def read_paths(self):
         self.paths: Dict[str, List[Any]] = {}
@@ -676,7 +646,7 @@ class ExpressionDataset(Dataset):
         original_idx = self.valid_indices[gene_idx]
         gene_id = self.genes.iloc[original_idx]['gene_id']
         gene_group = self.h5_cache[gene_id]
-        selected_keys = self._get_selected_keys_for_gene(gene_id, chunk_idx)
+        selected_keys = self.selected_keys_chunks[chunk_idx]
         n_real = len(selected_keys)
 
         if self.bw and not self.files_opened:
@@ -869,19 +839,6 @@ class logtransform():
         return np.round(np.exp(x) - self.pseudocount, self.rounddigits)
 
 
-class multiplytransform():
-    def __init__(self, coefficient=1.0):
-        self.coefficient = float(coefficient)
-
-    def __call__(self, x):
-        return x * self.coefficient
-
-    def reverse(self, x):
-        if self.coefficient == 0:
-            raise ValueError("Cannot reverse multiplytransform with coefficient=0")
-        return x / self.coefficient
-
-
 class ExpressionDatasetMode2(ExpressionDataset):
     def __init__(
         self,
@@ -938,24 +895,6 @@ class ExpressionDatasetMode2(ExpressionDataset):
         self._pad_desc_ids = torch.tensor([20], dtype=torch.long)
         self._pad_desc_mask = torch.tensor([1], dtype=torch.long)
 
-    def _stable_cell_seed(self, cell_id: str) -> int:
-        h = hashlib.blake2b(
-            f"{self.seed}|{self.epoch}|{cell_id}".encode("utf-8"),
-            digest_size=8
-        )
-        return int.from_bytes(h.digest(), "little") % (2**32)
-
-    def _get_cell_gene_order(self, cell_id: str) -> List[int]:
-        rng = np.random.default_rng(self._stable_cell_seed(cell_id))
-        perm = rng.permutation(len(self.valid_indices))
-        return [self.valid_indices[i] for i in perm]
-
-    def _get_selected_gene_indices_for_cell(self, cell_id: str, chunk_idx: int) -> List[int]:
-        ordered_gene_indices = self._get_cell_gene_order(cell_id)
-        start_idx = chunk_idx * self.n_keys
-        end_idx = min(start_idx + self.n_keys, len(ordered_gene_indices))
-        return ordered_gene_indices[start_idx:end_idx]
-
     @staticmethod
     def _pad_to_len(t: torch.Tensor, L: int, fill):
         if t.shape[0] == L:
@@ -972,7 +911,9 @@ class ExpressionDatasetMode2(ExpressionDataset):
         gene_chunk = idx % self.num_gene_chunks
         cell_id = self.all_keys[cell_chunk]
 
-        gene_indices = self._get_selected_gene_indices_for_cell(cell_id, gene_chunk)
+        start_idx = gene_chunk * self.n_keys
+        end_idx = min((gene_chunk + 1) * self.n_keys, len(self.valid_indices))
+        gene_indices = self.valid_indices[start_idx:end_idx]
         n_real = len(gene_indices)
         assert n_real > 0, "Empty gene_indices chunk"
 
