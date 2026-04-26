@@ -641,15 +641,31 @@ def main():
             if k in output and output[k] is not None:
                 data[k] = output[k].detach().cpu()
 
-        dataset_description = list(chain.from_iterable(batch['dataset_description']))
+        # `gene_id` and `selected_keys` are already compacted in the dataset to contain
+        # only entries with valid TPM targets. In contrast, `mask` lives in the full
+        # B * n_keys space, so indexing compact metadata with absolute `mask_idx`
+        # can go out of range. Keep metadata in the same compact order as y_true/y_pred.
         gene_id = list(chain.from_iterable(batch['gene_id']))
         keys_id = list(chain.from_iterable(batch['selected_keys']))
-        mask_idx = mask.nonzero(as_tuple=True)[0].tolist()
+        dataset_description = [
+            (descs[0] if isinstance(descs, (list, tuple)) and len(descs) > 0 else descs)
+            for descs, gene_ids in zip(batch['dataset_description'], batch['gene_id'])
+            for _ in range(len(gene_ids))
+        ]
         data['tpm_true'] = y_true.tolist()
         data['tpm_preds'] = y_pred.tolist()
-        data['gene_id'] = [gene_id[i] for i in mask_idx]
-        data['keys_id'] = [keys_id[i] for i in mask_idx]
-        data['dataset_description'] = [dataset_description[i] for i in mask_idx]
+        data['gene_id'] = gene_id
+        data['keys_id'] = keys_id
+        data['dataset_description'] = dataset_description
+
+        assert len(data['tpm_true']) == len(data['gene_id']) == len(data['keys_id']) == len(data['dataset_description']), \
+            (
+                "Mismatch in compacted metadata sizes: "
+                f"tpm_true={len(data['tpm_true'])}, "
+                f"gene_id={len(data['gene_id'])}, "
+                f"keys_id={len(data['keys_id'])}, "
+                f"dataset_description={len(data['dataset_description'])}"
+            )
 
         return data
 
