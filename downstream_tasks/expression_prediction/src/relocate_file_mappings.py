@@ -5,7 +5,7 @@ import argparse
 import csv
 import os
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Union
 
 import yaml
 
@@ -79,7 +79,8 @@ def resolve_home_path(raw_path: str, repo: Path) -> Path:
 
 def build_file_mappings_dir_raw(intervals_path_raw: str) -> str:
     intervals_path = PurePosixPath(intervals_path_raw)
-    return str(intervals_path.parent.parent / "file_mappings")
+    intervals_root = find_intervals_root(intervals_path)
+    return str(intervals_root.parent / "file_mappings")
 
 
 def looks_like_path(value: str) -> bool:
@@ -152,6 +153,14 @@ def rewrite_mapping_csv(src: Path, dst: Path, repo: Path) -> None:
         writer.writerows(rewritten_rows)
 
 
+def find_intervals_root(path_obj: Union[Path, PurePosixPath]) -> Union[Path, PurePosixPath]:
+    parts = path_obj.parts
+    if "intervals" not in parts:
+        raise ValueError(f"Expected 'intervals' in path: {path_obj}")
+    intervals_idx = parts.index("intervals")
+    return type(path_obj)(*parts[: intervals_idx + 1])
+
+
 def iter_dataset_blocks(cfg: dict[str, Any]):
     for name, value in cfg.items():
         if not isinstance(value, dict):
@@ -180,7 +189,8 @@ def transform_config(config_path: Path) -> tuple[Path, Path]:
 
         src_mapping = resolve_home_path(targets_path_raw, repo).resolve()
         intervals_path = resolve_home_path(intervals_path_raw, repo).resolve()
-        file_mappings_dir = intervals_path.parent.parent / "file_mappings"
+        intervals_root = find_intervals_root(intervals_path)
+        file_mappings_dir = intervals_root.parent / "file_mappings"
 
         dst_mapping_name = f"file_mappings_{dataset_name}.csv"
         dst_mapping = file_mappings_dir / dst_mapping_name
