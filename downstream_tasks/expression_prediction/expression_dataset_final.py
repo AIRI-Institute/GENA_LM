@@ -110,12 +110,13 @@ class ExpressionDataset(Dataset):
         self.epoch = 0
 
         self.files_opened = False
-        self.sequences = FastaFile(self.genome)
+        self.sequences = None
         self.h5_cache_path = self.get_hash_path() + ".h5"
 
         if os.path.exists(self.h5_cache_path):
             self.h5_cache = h5py.File(self.h5_cache_path, "r")
         else:
+            self._ensure_sequences_open("token cache precomputation")
             self.precompute_tokenization()
 
 
@@ -202,6 +203,15 @@ class ExpressionDataset(Dataset):
             if has_tpm_data:
                 self.valid_indices.append(idx)
         self.logger.info(f"Found {len(self.valid_indices)} valid samples out of {len(self.genes)}")
+
+    def _ensure_sequences_open(self, required_for: str = "sequence access"):
+        if self.sequences is not None:
+            return
+        if not self.genome or not os.path.exists(self.genome):
+            raise FileNotFoundError(
+                f"Genome fasta is required for {required_for}, but was not found: {self.genome}"
+            )
+        self.sequences = FastaFile(self.genome)
         
     def get_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
@@ -379,6 +389,7 @@ class ExpressionDataset(Dataset):
         if getattr(self, "signals_cache", None) is not None:
             self.files_opened = True
             return
+        self._ensure_sequences_open("bigWig/genome consistency checks")
         self.bigWigHandlers: Dict[str, Dict[str, Any]] = {}
         for k, (v1, v2) in self.paths.items():
             try:
@@ -395,6 +406,7 @@ class ExpressionDataset(Dataset):
         return sequence.translate(complement)[::-1]
 
     def tokenize_genome(self, i):
+        self._ensure_sequences_open("genome tokenization")
         row = self.genes.iloc[i]  
         chrom = row["chromosome"] 
         start = row["TSS"]
