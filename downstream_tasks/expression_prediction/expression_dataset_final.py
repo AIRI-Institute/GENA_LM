@@ -64,12 +64,13 @@ class ExpressionDataset(Dataset):
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
         self._genome_sizes_map = {}
-        genome_sizes_path = Path(
-            "/mnt/20tb/aspeedok/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/genome_sizes.tsv"
-        )
+        genome_sizes_path = Path(self.genome).expanduser().parent / "genome_sizes.tsv"
         if genome_sizes_path.exists():
             df_sizes = pd.read_csv(genome_sizes_path, sep="\t")
-            self._genome_sizes_map = dict(zip(df_sizes["path"], df_sizes["size"]))
+            for p, size in zip(df_sizes["path"], df_sizes["size"]):
+                p_str = str(Path(p).expanduser())
+                self._genome_sizes_map[p_str] = size
+                self._genome_sizes_map[str(Path(p_str).resolve())] = size
 
         self.seed = seed
         np.random.seed(self.seed)
@@ -180,9 +181,10 @@ class ExpressionDataset(Dataset):
             size = os.path.getsize(path)  # bytes
         except OSError:
             if path == self.genome:
-                genome_size = self._genome_sizes_map.get(path)
-                if genome_size is not None:
-                    return f"{name}|{genome_size}"
+                for candidate in (path, str(Path(path).expanduser().resolve())):
+                    genome_size = self._genome_sizes_map.get(candidate)
+                    if genome_size is not None:
+                        return f"{name}|{genome_size}"
             raise FileNotFoundError(f"File not found for hashing: {path}")
         return f"{name}|{size}"
 
