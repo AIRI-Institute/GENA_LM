@@ -163,7 +163,19 @@ class ExpressionDataset(Dataset):
         self.text_data = {}  
         self.text_data_keys = set()
         tokenizer_tag = text_tokenizer.replace("/", "_")
-        self.desc_h5_cache_path = f"{os.path.abspath(targets_path)}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
+        intervals_dir = Path(
+            forward_intervals_path if forward_intervals_path is not None else reverse_intervals_path
+        ).expanduser().resolve().parent
+        descriptions_dir = intervals_dir.parent / "descriptions"
+        descriptions_dir.mkdir(parents=True, exist_ok=True)
+        targets_tag = hashlib.blake2b(
+            os.path.abspath(targets_path).encode("utf-8"),
+            digest_size=8,
+        ).hexdigest()
+        desc_cache_name = (
+            f"{Path(targets_path).name}.{targets_tag}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
+        )
+        self.desc_h5_cache_path = str(descriptions_dir / desc_cache_name)
 
         if os.path.exists(self.desc_h5_cache_path):
             self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
