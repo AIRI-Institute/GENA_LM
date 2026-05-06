@@ -109,6 +109,24 @@ train_dataset_mouse:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
     pseudocount: 1
 
+# DNASE-seq
+train_dataset_DNASEseq_human_encode_biophysinf:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/DNaseseq_human_encode_biophysinf/file_mappings.qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 17
+
 #valid
 valid_dataset_mouse:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
