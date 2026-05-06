@@ -45,13 +45,12 @@ class ExpressionCounts(_BaseExpressionCounts):
         self._grad_log_fh = None
         self._grad_log_batch_id = 0
         self._grad_log_context: Optional[Dict[str, Any]] = None
-        self._grad_log_stats: Dict[str, Dict[str, Any]] = {}
-        self._grad_log_hook_handles = []
         self._grad_log_module_order = (
             "dna_model",
             "description_model",
             "decoder",
         )
+        self._grad_log_callback_queued = False
 
         if self._should_log_gradients():
             grad_log_file = Path(self.grad_log_path).expanduser()
@@ -64,7 +63,6 @@ class ExpressionCounts(_BaseExpressionCounts):
                     "rank_zero_only": self.grad_log_rank_zero_only,
                 }
             )
-            self._register_grad_hooks()
 
     def _should_log_gradients(self) -> bool:
         if not self.grad_log_rank_zero_only:
@@ -74,26 +72,6 @@ class ExpressionCounts(_BaseExpressionCounts):
         if not torch.distributed.is_initialized():
             return True
         return torch.distributed.get_rank() == 0
-
-    def _register_grad_hooks(self):
-        modules = {
-            "dna_model": self.bert,
-            "description_model": self.desc_model,
-            "decoder": self.decoder,
-        }
-        for module_name, module in modules.items():
-            handle = module.register_full_backward_hook(self._make_grad_hook(module_name))
-            self._grad_log_hook_handles.append(handle)
-
-    def _make_grad_hook(self, module_name: str):
-        def _hook(module, grad_input, grad_output):
-            if self._grad_log_context is None:
-                return
-            self._grad_log_stats[module_name] = self._collect_grad_stats(module)
-            if all(name in self._grad_log_stats for name in self._grad_log_module_order):
-                self._flush_grad_record()
-
-        return _hook
 
     @staticmethod
     def _collect_grad_stats(module: torch.nn.Module) -> Dict[str, Any]:
@@ -143,20 +121,35 @@ class ExpressionCounts(_BaseExpressionCounts):
             "N": int(N),
             "BxN": int(BxN),
         }
-        self._grad_log_stats = {}
+        self._grad_log_callback_queued = False
 
     def _write_grad_record(self, record: Dict[str, Any]):
         if self._grad_log_fh is None:
             return
         self._grad_log_fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
+    def _queue_grad_flush_callback(self):
+        if self._grad_log_fh is None or self._grad_log_context is None or self._grad_log_callback_queued:
+            return
+        engine = getattr(torch.autograd.Variable, "_execution_engine", None)
+        if engine is None or not hasattr(engine, "queue_callback"):
+            logger.warning("[gradlog] torch execution engine has no queue_callback; skipping grad log for this batch")
+            return
+        engine.queue_callback(self._flush_grad_record)
+        self._grad_log_callback_queued = True
+
     def _flush_grad_record(self):
         if self._grad_log_context is None:
             return
 
         record = dict(self._grad_log_context)
+        modules = {
+            "dna_model": self.bert,
+            "description_model": self.desc_model,
+            "decoder": self.decoder,
+        }
         record["modules"] = {
-            name: self._grad_log_stats[name]
+            name: self._collect_grad_stats(modules[name])
             for name in self._grad_log_module_order
         }
         self._write_grad_record(record)
@@ -174,7 +167,7 @@ class ExpressionCounts(_BaseExpressionCounts):
         )
 
         self._grad_log_context = None
-        self._grad_log_stats = {}
+        self._grad_log_callback_queued = False
 
     def forward(
         self,
@@ -198,6 +191,7 @@ class ExpressionCounts(_BaseExpressionCounts):
             else:
                 BxN = int(B * N)
             self._start_grad_batch(B=B, N=N, BxN=BxN, global_step=global_step)
+            self._queue_grad_flush_callback()
 
         return super().forward(
             input_ids=input_ids,
@@ -212,13 +206,7 @@ class ExpressionCounts(_BaseExpressionCounts):
 
     def __del__(self):
         try:
-            for handle in getattr(self, "_grad_log_hook_handles", []):
-                handle.remove()
-        except Exception:
-            pass
-        try:
             if getattr(self, "_grad_log_fh", None) is not None:
                 self._grad_log_fh.close()
         except Exception:
             pass
-
