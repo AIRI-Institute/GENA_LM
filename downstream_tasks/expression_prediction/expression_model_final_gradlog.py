@@ -138,6 +138,16 @@ class ExpressionCounts(_BaseExpressionCounts):
         engine.queue_callback(self._flush_grad_record)
         self._grad_log_callback_queued = True
 
+    def _register_loss_grad_hook(self, loss: torch.Tensor):
+        if self._grad_log_fh is None or self._grad_log_context is None or loss is None or not loss.requires_grad:
+            return
+
+        def _hook(grad: torch.Tensor):
+            self._queue_grad_flush_callback()
+            return grad
+
+        loss.register_hook(_hook)
+
     def _flush_grad_record(self):
         if self._grad_log_context is None:
             return
@@ -191,9 +201,8 @@ class ExpressionCounts(_BaseExpressionCounts):
             else:
                 BxN = int(B * N)
             self._start_grad_batch(B=B, N=N, BxN=BxN, global_step=global_step)
-            self._queue_grad_flush_callback()
 
-        return super().forward(
+        outputs = super().forward(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels_mask=labels_mask,
@@ -203,6 +212,17 @@ class ExpressionCounts(_BaseExpressionCounts):
             desc_attention_mask=desc_attention_mask,
             dataset_flag=dataset_flag,
         )
+
+        loss = None
+        if hasattr(outputs, "loss"):
+            loss = outputs.loss
+        elif isinstance(outputs, tuple) and len(outputs) > 0 and torch.is_tensor(outputs[0]):
+            loss = outputs[0]
+
+        if self.training and torch.is_grad_enabled() and loss is not None:
+            self._register_loss_grad_hook(loss)
+
+        return outputs
 
     def __del__(self):
         try:
