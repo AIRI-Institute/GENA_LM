@@ -182,7 +182,7 @@ class ExpressionCounts(nn.Module):
                 self.bert, info = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
-                    attn_implementation="sdpa",
+                    attn_implementation="flash_attention_2",
                     attention_dropout=dropout_prob,
                     embedding_dropout=dropout_prob,
                     mlp_dropout=dropout_prob,
@@ -241,11 +241,12 @@ class ExpressionCounts(nn.Module):
         self.desc_model_name = desc_model_name
         self.desc_model = AutoModel.from_pretrained(
             self.desc_model_name,
-            attn_implementation="sdpa",
+            attn_implementation="flash_attention_2",
+            torch_dtype=torch.bfloat16,
             attention_dropout=dropout_prob,
         )
 
-        # torch_dtype=torch.float16,
+        
         
         if _is_main_process():
             print(
@@ -324,7 +325,7 @@ class ExpressionCounts(nn.Module):
         self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
-                attn_implementation="sdpa",
+                attn_implementation="flash_attention_2",
                 attention_dropout=dropout_prob,
                 embedding_dropout=dropout_prob,
                 mlp_dropout=dropout_prob,
