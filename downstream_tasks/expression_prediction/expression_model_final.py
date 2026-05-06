@@ -4,11 +4,11 @@ from transformers.modeling_outputs import TokenClassifierOutput
 from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
-from transformers import AutoModel, BertConfig, ModernBertModel
-# from transformers import AutoModel, BertConfig, AutoTokenizer  # LEV: caduceus version
-from transformers.utils import cached_file
+from transformers import AutoConfig, AutoModel, ModernBertModel
 from transformers.utils import logging as hf_logging
 hf_logging.set_verbosity_info()
+
+
 
 @dataclass
 class ExpressionModelOutput(TokenClassifierOutput):
@@ -24,13 +24,11 @@ class ExpActivation(nn.Module):
 class ExpressionCounts(nn.Module):
     """
     Ожидаемые формы:
-      - input_ids:      (B*N, L)
-      - attention_mask: (B*N, L)
-      - token_type_ids: (B*N, L) [опционально]
-      - desc_vectors:   (B, N, D)
+      - full_input_ids:      (B*N, L_full)
+      - full_attention_mask: (B*N, L_full)
       - dataset_flag:   (B, N)   [в блоке из N элементов либо все 1 (дубли INPUTS), либо все 0 (дубли DESC)]
-      - labels:         (B*N, L, 1)
-      - labels_mask:    (B*N, L, 1)
+      - labels:         (B*N,)
+      - labels_mask:    (B*N,)
     """
 
     def __init__(
@@ -50,23 +48,8 @@ class ExpressionCounts(nn.Module):
     ):
         super().__init__()
 
-        updated_state_dict = None
-
         # 1) DNA model (GENA) 
         if hf:
-            # if "modernbert" in hf_model_name.lower():
-            #     print(f"Using ModernBERT from {hf_model_name}")
-            #     self.bert, info  = ModernBertModel.from_pretrained(
-            #     hf_model_name,
-            #     trust_remote_code=True,
-            #     attn_implementation="sdpa",
-            #     output_loading_info=True
-            # )
-            #     config = self.bert.config
-            #     print("missing:", len(info["missing_keys"]), info["missing_keys"][:10])
-            #     print("unexpected:", len(info["unexpected_keys"]), info["unexpected_keys"][:10])
-            #     print("mismatched:", info.get("mismatched_keys", [])[:5])
-            # LEV: caduceus version
             if "caduceus" in hf_model_name.lower():
                 print(f"using caduceus: {hf_model_name}")
                 self.caduceus = AutoModel.from_pretrained(
@@ -75,15 +58,10 @@ class ExpressionCounts(nn.Module):
                 )
                 config = self.caduceus.config
             else:
-                hf_config = BertConfig.from_pretrained(hf_model_name)
-                self.bert = BertModel(hf_config, add_pooling_layer=False)
-                weights_path = cached_file(hf_model_name, "pytorch_model.bin")
-                state_dict = torch.load(weights_path, map_location="cpu")
-                updated_state_dict = {
-                    k.replace("bert.", ""): v for k, v in state_dict.items()
-                    if k.startswith("bert.")
-                }
-                config = hf_config
+                raise ValueError(
+                    f"Unsupported hf_model_name for ExpressionCounts: {hf_model_name}. "
+                    "Expected a Caduceus checkpoint when hf=True."
+                )
         else:
             self.bert = BertModel(config, add_pooling_layer=False)
             checkpoint = torch.load(bert_cpt, map_location="cpu")
@@ -91,8 +69,7 @@ class ExpressionCounts(nn.Module):
             updated_state_dict = {k.replace("bert.", ""): v for k, v in state_dict.items()}
             missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
 
-        if updated_state_dict is not None:
-            missing_k, unexpected_k = self.bert.load_state_dict(updated_state_dict, strict=False)
+        if not hf:
             if len(missing_k) != 0:
                 print(f"{missing_k} were not loaded from checkpoint! These parameters were randomly initialized.")
             if len(unexpected_k) != 0:
@@ -104,7 +81,6 @@ class ExpressionCounts(nn.Module):
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
         self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="sdpa" )
-        # self.desc_model = AutoModel.from_pretrained(self.desc_model_name, attn_implementation="sdpa")  # LEV: SDPA for V100 compatibility
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -166,36 +142,26 @@ class ExpressionCounts(nn.Module):
             # LEV: above was broken - names not defined
 
         # 3) Проекция, если размерности не совпадают
-        # self.gen_hidden_size = config.d_model
-        # LEV: caduceus version
         encoder_hidden_size = getattr(config, 'hidden_size', config.d_model)
         if getattr(config, 'rcps', False):
             encoder_hidden_size = 2 * encoder_hidden_size
         self.gen_hidden_size = encoder_hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        if self.desc_hidden_size != self.gen_hidden_size:
-            self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
-        else:
-            self.desc_proj = nn.Identity()
+        # if self.desc_hidden_size != self.gen_hidden_size:
+        #     self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size)
+        # else:
+        #     self.desc_proj = nn.Identity()
 
-        # 4) Decoder
-        print(f"Using dercoder from {hf_model_name_decoder}")
-        # self.decoder, info2 = ModernBertModel.from_pretrained(
-        #         hf_model_name_decoder,
-        #         trust_remote_code=True,
-        #         attn_implementation="sdpa",
-        #         output_loading_info=True
-        #     )
-        # print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-        # print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-        # print("mismatched:", info2.get("mismatched_keys", [])[:5])
-        # LEV: caduceus version
-        # print(f"This time using Caduceus for decoder")
-        # import os
-        self.decoder, info2 = AutoModel.from_pretrained(
+        # 4) Decoder — ModernBERT как «второй стек» (inputs_embeds + attention_mask), sdpa как у desc_model (V100).
+        print(f"Using ModernBERT for decoder from {hf_model_name_decoder}")
+        decoder_config = AutoConfig.from_pretrained(hf_model_name_decoder)
+        decoder_config.reference_compile = False
+        self.decoder, info2 = ModernBertModel.from_pretrained(
             hf_model_name_decoder,
+            config=decoder_config,
             trust_remote_code=True,
-            output_loading_info=True
+            attn_implementation="sdpa",
+            output_loading_info=True,
         )
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
         print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
@@ -206,33 +172,37 @@ class ExpressionCounts(nn.Module):
         self.loss_fct = loss_fct
         self.weight = weight
 
-        # dtype = next(self.bert.parameters()).dtype
-        # device = next(self.bert.parameters()).device
-        _encoder = self.caduceus if hasattr(self, 'caduceus') else self.bert
+        _encoder = self.caduceus if hasattr(self, "caduceus") else self.bert
         dtype = next(_encoder.parameters()).dtype
         device = next(_encoder.parameters()).device
 
-        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        decoder_hidden_size = int(self.decoder.config.hidden_size)
+        if self.gen_hidden_size != decoder_hidden_size:
+            self.encoder_to_decoder = nn.Linear(
+                self.gen_hidden_size, decoder_hidden_size, device=device, dtype=dtype
+            )
+        else:
+            self.encoder_to_decoder = nn.Identity()
 
-        # 5) Classifier
-        # self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
-        # LEV: caduceus version
-        decoder_hidden_size = getattr(self.decoder.config, 'hidden_size', self.decoder.config.d_model)
-        # if getattr(self.decoder.config, 'rcps', False):
-        #     decoder_hidden_size = 2 * decoder_hidden_size
+        self.desc_proj_decoder = nn.Linear(
+            self.desc_hidden_size, decoder_hidden_size, device=device, dtype=dtype
+        )
+        self.dna_ln_dec = nn.LayerNorm(decoder_hidden_size, device=device, dtype=dtype)
+        self.desc_ln_dec = nn.LayerNorm(decoder_hidden_size, device=device, dtype=dtype)
+
+        # 5) Classifier — по каждой позиции L (как в исходном коде).
         self.classifier = nn.Linear(decoder_hidden_size, 1, device=device, dtype=dtype)
 
-        if hasattr(self.decoder.backbone, "embeddings") and hasattr(self.decoder.backbone.embeddings, "word_embeddings"):
-            self.decoder.backbone.embeddings.word_embeddings.weight.requires_grad_(False)
-        # LEV: commented out above in caduceus version
-
+        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
+            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
 
     def forward(
         self,
-        input_ids=None,              # (B*N, L)
-        attention_mask=None,         # (B*N, L) or None
-        labels_mask=None,            # (B*N, L, 1)
-        labels=None,                 # (B*N, L, 1)
+        full_input_ids=None,         # (B*N, L_full) or None
+        full_attention_mask=None,    # (B*N, L_full) or None
+        tss_token_idx=None,          # (B*N,) index in unpadded full sequence
+        labels_mask=None,            # (B*N,)
+        labels=None,                 # (B*N,)
         return_dict=None,
         desc_input_ids=None,           # (B, N, D)
         desc_attention_mask = None,
@@ -242,26 +212,26 @@ class ExpressionCounts(nn.Module):
 
         if dataset_flag is None:
             raise ValueError("dataset_flag must be provided and shaped (B, N)")
-        
+        if full_input_ids is None:
+            raise ValueError("full_input_ids must be provided")
+
         B, N = dataset_flag.shape
 
         # 1) Reshape
-        if input_ids is not None and input_ids.dim() == 3:          # (B, N, L) -> (B*N, L)
-            if input_ids.shape[:2] != (B, N):
-                raise ValueError(f"input_ids has shape {tuple(input_ids.shape)}, but dataset_flag is {(B, N)}")
-            input_ids = input_ids.reshape(B * N, input_ids.shape[-1])
+        if full_input_ids is not None and full_input_ids.dim() == 3:
+            full_input_ids = full_input_ids.reshape(B * N, full_input_ids.shape[-1])
 
-        if attention_mask is not None and attention_mask.dim() == 3: # (B, N, L) -> (B*N, L)
-            attention_mask = attention_mask.reshape(B * N, attention_mask.shape[-1])
+        if full_attention_mask is not None and full_attention_mask.dim() == 3:
+            full_attention_mask = full_attention_mask.reshape(B * N, full_attention_mask.shape[-1])
 
-        # if token_type_ids is not None and token_type_ids.dim() == 3: # (B, N, L) -> (B*N, L)
-        #     token_type_ids = token_type_ids.reshape(B * N, token_type_ids.shape[-1])
+        if tss_token_idx is not None and tss_token_idx.dim() == 2:
+            tss_token_idx = tss_token_idx.reshape(B * N)
 
-        if labels is not None and labels.dim() == 4:                 # (B, N, L, 1) -> (B*N, L, 1)
-            labels = labels.reshape(B * N, labels.shape[-2], labels.shape[-1])
+        if labels is not None and labels.dim() == 2:
+            labels = labels.reshape(B * N)
 
-        if labels_mask is not None and labels_mask.dim() == 4:       # (B, N, L, 1) -> (B*N, L, 1)
-            labels_mask = labels_mask.reshape(B * N, labels_mask.shape[-2], labels_mask.shape[-1])
+        if labels_mask is not None and labels_mask.dim() == 2:
+            labels_mask = labels_mask.reshape(B * N)
 
         if desc_input_ids is not None and desc_input_ids.dim() == 3:                              # (B, N, D) -> (B*N, D)
                 desc_input_ids = desc_input_ids.reshape(B * N, desc_input_ids.shape[-1])
@@ -270,14 +240,13 @@ class ExpressionCounts(nn.Module):
                 desc_attention_mask = desc_attention_mask.reshape(B * N, desc_attention_mask.shape[-1])
 
         # 2) DNA model, убираем повторы
-        src = input_ids 
-        if src is None:
-            raise ValueError("input_ids must be provided")
+        # FIX: Encode full gene with Caduceus when available.
+        src = full_input_ids
         device = src.device
         BxN, seq_len = src.shape[:2]
         B, N = dataset_flag.shape
         if B * N != BxN:
-            raise ValueError(f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs input_ids rows {BxN}")
+            raise ValueError(f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs full_input_ids rows {BxN}")
         
         flag = dataset_flag.to(device).bool()     
         block_flag = flag[:, 0]                  
@@ -305,21 +274,42 @@ class ExpressionCounts(nn.Module):
                 "Check dataset_flag/idx_unique_inputs mapping."
     )
 
-        # bert_outputs = self.bert(
-        #         input_ids=input_ids[idx_unique_inputs],                         
-        #         attention_mask=attention_mask[idx_unique_inputs],
-        #         # #attention_mask=attention_mask[idx_unique_inputs],  # LEV: commented out for caduceus
-        #         return_dict=True,
-        #     )
         caduceus_outputs = self.caduceus(
-                input_ids=input_ids[idx_unique_inputs],
-                # attention_mask=attention_mask[idx_unique_inputs],  # LEV: Caduceus (Mamba) не использует attention_mask
+                input_ids=src[idx_unique_inputs],
                 return_dict=True,
             )
-        # seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
         seq_compact = caduceus_outputs.last_hidden_state                  # (U_inp, L, H)
-        sequence_output = seq_compact[map_inputs]                       # (B*N, L, H)
-        hidden_size = sequence_output.size(-1)
+        sequence_output = seq_compact[map_inputs]                       # (B*N, L_full, H) or (B*N, L, H)
+        encoder_attention_mask = full_attention_mask
+        if encoder_attention_mask is None:
+            encoder_attention_mask = torch.ones(BxN, seq_len, device=device, dtype=torch.long)
+
+        #  Crop fixed 1024 window around TSS 
+        if tss_token_idx is None:
+            raise ValueError("tss_token_idx must be provided when full_input_ids is used")
+        left_context = 512
+        right_context = 511
+        crop_len = left_context + right_context + 1
+        pad_shift = (encoder_attention_mask.shape[1] - encoder_attention_mask.sum(dim=1)).long()
+        tss_pos = (tss_token_idx.long().to(device) + pad_shift).clamp(0, encoder_attention_mask.shape[1] - 1)
+
+        cropped_hidden = []
+        cropped_mask = []
+        base = torch.arange(crop_len, device=device, dtype=torch.long)
+        for i in range(BxN):
+            idx = tss_pos[i] - left_context + base
+            valid = (idx >= 0) & (idx < encoder_attention_mask.shape[1])
+            idx_safe = idx.clamp(0, encoder_attention_mask.shape[1] - 1)
+            hid = sequence_output[i, idx_safe]
+            msk = encoder_attention_mask[i, idx_safe] > 0
+            msk = msk & valid
+            hid = hid * msk[:, None].to(hid.dtype)
+            cropped_hidden.append(hid)
+            cropped_mask.append(msk.long())
+
+        sequence_output = torch.stack(cropped_hidden, dim=0)
+        attention_mask = torch.stack(cropped_mask, dim=0)
+        seq_len = crop_len
 
         # 3) Description model, убираем повторы 
         unique_desc_idx = idx_grid[block_flag, :].reshape(-1)   # (B_true*N,)
@@ -340,83 +330,63 @@ class ExpressionCounts(nn.Module):
             bad = (map_desc < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
             raise RuntimeError(f"map_desc has -1 indices: {bad.tolist()}")
 
-        desc_out = self.desc_model(
-                input_ids=desc_input_ids[idx_unique_desc],
-                attention_mask=desc_attention_mask[idx_unique_desc],
-                return_dict=True,
-                )
-        desc_pooled = desc_out.last_hidden_state[:, -1]
-        desc_pooled = self.desc_proj(desc_pooled)                    
-        desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        desc_output = desc_pooled[map_desc] 
-
-
-
-        # if attention_mask is not None:
-        #     sequence_output = sequence_output + desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        # else:
-        #     sequence_output = sequence_output + desc_output[:, None, :]
-        # if attention_mask is not None:
-        #     sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
-
-        # 4) Decoder — receives pure DNA representation; desc is injected after pooling
+        
         sequence_output = sequence_output.contiguous()
-        # Caduceus (Mamba) does not zero pad positions internally — do it explicitly
-        if attention_mask is not None:
-            sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
+        if attention_mask is None:
+            attention_mask = torch.ones(BxN, seq_len, device=device, dtype=torch.long)
+        sequence_output = sequence_output * attention_mask[:, :, None].to(sequence_output.dtype)
 
-        dec_out = self.decoder(
-            inputs_embeds=sequence_output,        # (B*N, L, H)
-            # attention_mask=attention_mask,      # LEV: Caduceus  не использует attention_mask
+        dec_dtype = next(self.decoder.parameters()).dtype
+        dna_emb = self.encoder_to_decoder(sequence_output).to(dtype=dec_dtype)
+        dna_emb = self.dna_ln_dec(dna_emb)
+        dna_attn = attention_mask
+
+        #
+        desc_out = self.desc_model(
+            input_ids=desc_input_ids[idx_unique_desc],
+            attention_mask=desc_attention_mask[idx_unique_desc],
             return_dict=True,
         )
-        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        desc_seq_compact = desc_out.last_hidden_state
+        desc_seq = desc_seq_compact[map_desc]
+        desc_seq = self.desc_proj_decoder(desc_seq).to(dtype=dec_dtype)
+        desc_seq = self.desc_ln_dec(desc_seq)
+        desc_attn = desc_attention_mask
 
-        # Mean pooling over valid (non-padding) positions.
-        if attention_mask is not None:
-            mask = attention_mask.float()[:, :, None]                              # (B*N, L, 1)
-            pooled = (decoder_output * mask).sum(dim=1) / (mask.sum(dim=1) + 1e-8)  # (B*N, H)
-        else:
-            pooled = decoder_output.mean(dim=1)  # (B*N, H)
+        #
+        combined_emb = torch.cat([desc_seq, dna_emb], dim=1)
+        combined_attn = torch.cat([desc_attn, dna_attn], dim=1)
 
+        # 
+        dec_out = self.decoder(
+            inputs_embeds=combined_emb,
+            attention_mask=combined_attn,
+            return_dict=True,
+        )
+        decoder_output = dec_out.last_hidden_state
 
-        pooled = pooled + desc_output  # (B*N, H)
+        #
+        dna_pool_mask = torch.cat(
+            [torch.zeros_like(desc_attn), dna_attn], dim=1
+        ).to(decoder_output.dtype).unsqueeze(-1)
 
-        # logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
-
-
-        logits = self.activation(self.classifier(pooled)).unsqueeze(1)  # (B*N, 1, 1)
+        pooled = (decoder_output * dna_pool_mask).sum(dim=1) / dna_pool_mask.sum(dim=1).clamp_min(1e-8)
+        logits = self.activation(self.classifier(pooled)).squeeze(-1)
 
         # 5) Loss
         loss = None
-        labels_reshaped = labels_mask_reshaped = cls_loss = mean_loss = diviation_loss = other_loss = None
+        labels_reshaped = labels_mask_reshaped = None
+        cls_loss = None
+        other_loss = None
 
         if labels is not None:
-            labels_reshaped = labels.to(logits.device)
-            labels_mask_reshaped = labels_mask.to(logits.device) if labels_mask is not None else None
-
-            # logits is now (B*N, 1, 1) from mean-pooled representation;
-            # labels_reshaped[:, 0:1, :] selects the TPM target at position 0
-            unreduced_loss = self.loss_fct(logits, labels_reshaped[:, 0:1, :])  # (B*N, 1, 1)
-
-            if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
-                cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B*N, 1, 1)
-                other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1) — always empty (no BigWig)
-
-                if cls_mask.sum().item() > 0:
-                        cls_loss = (unreduced_loss * cls_mask).sum() / (cls_mask.sum() + 1e-8)
-                        mean_loss = None
-                        diviation_loss = None
-
-                if other_mask.sum().item() > 0:
-                    other_loss = (unreduced_loss[:, 1:, :] * other_mask).sum() / (other_mask.sum() + 1e-8)
-
-                if cls_loss is not None and other_loss is not None:
-                    loss = cls_loss + self.weight * other_loss
-                elif cls_loss is not None:
-                    loss = cls_loss
-                elif other_loss is not None:
-                    loss = self.weight * other_loss
+            if labels_mask is None:
+                raise ValueError("labels_mask must be provided when labels are provided")
+            labels_reshaped = labels.reshape(-1).to(logits.device, dtype=logits.dtype)
+            labels_mask_reshaped = labels_mask.reshape(-1).to(logits.device, dtype=logits.dtype)
+            unreduced_loss = self.loss_fct(logits, labels_reshaped)
+            denom = labels_mask_reshaped.sum().clamp_min(1.0)
+            loss = (unreduced_loss * labels_mask_reshaped).sum() / denom
 
         if not return_dict:
             return (loss, logits)
@@ -427,10 +397,9 @@ class ExpressionCounts(nn.Module):
             loss=loss,
             logits=logits,
             hidden_states=hidden_states_out,
-            # attentions=bert_outputs.attentions,
-            attentions=getattr(caduceus_outputs, 'attentions', None),  # LEV: caduceus version
+            attentions=None,
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,
-            other_loss=other_loss
+            other_loss=other_loss,
         )

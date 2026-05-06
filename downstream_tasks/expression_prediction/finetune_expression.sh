@@ -20,8 +20,8 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 LOG_FILE="$LOG_DIR/full_${TIMESTAMP}.log"
 
-TBS=2
-BS=1
+TBS=8
+BS=2
 # NP=8  # Original: 8 processes for 8 GPUs
 NP=2  # Modified for 2 GPUs
 GAS=$(( TBS / (BS * NP) ))  

@@ -43,8 +43,7 @@ class ExpressionDataset(Dataset):
         tpm : str = "",
         hash_prefix = None,
         n_keys: Optional[int] = None,
-        token_len_for_fetch: int = 10,
-        # token_len_for_fetch: int = 1,  # LEV: caduceus version
+        token_len_for_fetch: int = 1,
         norm_bw = False,
         text_tokenizer: str = "intfloat/multilingual-e5-large-instruct",
         text_max_seq_len: int = 1000
@@ -230,7 +229,7 @@ class ExpressionDataset(Dataset):
         m.update(input_str.encode("utf-8"))
         input_strings.append(input_str)
 
-        if self.token_len_for_fetch != 10:
+        if self.token_len_for_fetch != 1:
             input_str = str(self.token_len_for_fetch)
             m.update(input_str.encode("utf-8"))
             input_strings.append(input_str)
@@ -494,12 +493,12 @@ class ExpressionDataset(Dataset):
 
         if strand == "+":  # forward
             left = max(tss - num_before, 0)
-            right = min(tss + num_before, tes)
+            right = tes
             if left >= right:
                 raise ValueError(f"Bad coords for + strand: {chrom}:{left}-{right}")
             seq = self.sequences.fetch(chrom, left, right).upper()
         else:  # reverse
-            left = max(tss - num_before, tes)
+            left = tes
             right = min(tss + num_before, chrom_len)
             if left >= right:
                 raise ValueError(f"Bad coords for - strand: {chrom}:{left}-{right}")
@@ -716,50 +715,54 @@ class ExpressionDataset(Dataset):
         if self.bw and not self.files_opened:
             self.open_files()
 
-        n_tokens = gene_group["input_ids"].shape[0]
-        L = min(n_tokens, self.gen_max_seq_len - 2)
-        assert L>0, f"Empty token sequence for gene_id={gene_id}"
-        
-        input_ids = gene_group["input_ids"][:L]
-        starts    = gene_group["starts"][:L]
-        ends      = gene_group["ends"][:L]
+        # Keep full gene tokenized sequence for Caduceus encoder.
+        full_input_ids_np = np.array(gene_group["input_ids"])
+        full_starts = np.array(gene_group["starts"])
+        full_ends = np.array(gene_group["ends"])
+        full_len = int(full_input_ids_np.shape[0])
+        assert full_len > 0, f"Empty token sequence for gene_id={gene_id}"
+
+        tss_coord = int(self.genes.iloc[original_idx]["TSS"])
+        tss_matches = np.where(full_starts == tss_coord)[0]
+        if tss_matches.size > 0:
+            tss_idx_full = int(tss_matches[0])
+        else:
+            # FIX: Fallback for edge rounding/tokenization mismatch.
+            tss_idx_full = int(np.argmin(np.abs(full_starts - tss_coord)))
+
+        # FIX: Cap Caduceus encoder context to avoid OOM on very long genes.
+        encoder_cap = 10_000
+        if full_len > encoder_cap:
+            left_cap = encoder_cap // 2
+            right_cap = encoder_cap - left_cap - 1
+
+            cap_start = max(0, tss_idx_full - left_cap)
+            cap_end = min(full_len, tss_idx_full + right_cap + 1)
+
+            # Keep the crop as close to `encoder_cap` as possible near chromosome edges.
+            deficit = encoder_cap - (cap_end - cap_start)
+            if deficit > 0:
+                shift_left = min(deficit, cap_start)
+                cap_start -= shift_left
+                deficit -= shift_left
+                cap_end = min(full_len, cap_end + deficit)
+
+            full_input_ids_np = full_input_ids_np[cap_start:cap_end]
+            full_starts = full_starts[cap_start:cap_end]
+            full_ends = full_ends[cap_start:cap_end]
+            tss_idx_full = tss_idx_full - cap_start
+            full_len = int(full_input_ids_np.shape[0])
+
+        full_input_ids = torch.as_tensor(full_input_ids_np, dtype=torch.long)
+        full_attn_mask = torch.ones(full_len, dtype=torch.long)
         chrom  = gene_group.attrs['chrom']
         strand    = gene_group.attrs['strand']
         assert strand == self.genes.iloc[original_idx]['strand']
         assert chrom == self.genes.iloc[original_idx]['chromosome']
 
-        cls_id = self.gen_tokenizer.cls_token_id
-        sep_id = self.gen_tokenizer.sep_token_id
-        assert (cls_id is not None) and (sep_id is not None), "Tokenizer must have CLS/SEP"
-
-        tok = torch.as_tensor(input_ids, dtype=torch.long)
-        seq_input_ids = torch.cat([tok.new_tensor([cls_id]), tok, tok.new_tensor([sep_id])], dim=0)
-        seq_attn_mask = torch.ones(seq_input_ids.size(0), dtype=torch.long)
-        seq_token_types = torch.zeros(seq_input_ids.size(0), dtype=torch.long)
-
-        batch_input_ids   = seq_input_ids.unsqueeze(0).expand(self.n_keys, -1)
-        batch_attn_mask   = seq_attn_mask.unsqueeze(0).expand(self.n_keys, -1)
-        batch_token_types = seq_token_types.unsqueeze(0).expand(self.n_keys, -1)
-
-        labels = torch.zeros((self.n_keys, L + 2, 1), dtype=torch.float32)
-        labels_mask = torch.zeros((self.n_keys, L + 2, 1), dtype=torch.bool)
-
-        if self.bw:
-            if self.signals_cache is not None:
-                bigwig_signals = np.array(self.signals_cache[gene_id]['signals'])  
-            else:
-                N_tracks = len(self.bigWigHandlers)
-                bigwig_signals = np.zeros((L, N_tracks), dtype=np.float32)
-                for i_key, (key, bw_pair) in enumerate(self.bigWigHandlers.items()):
-                    bigwig_signals[:, i_key] = self.process_region_signals(
-                        bw_pair[strand], chrom, starts, ends, L, strand
-                    )
-            cols = [self._bw_key_to_col[k] for k in selected_keys]
-            bw_np = bigwig_signals[:L, cols].T  # (n_keys, L)
-            if self.transform_targets_bw is not None:
-                bw_np = self.transform_targets_bw(bw_np)
-            labels[:n_real, 1:1+L, 0] = torch.from_numpy(bw_np)
-            labels_mask[:n_real, 1:1+L, 0] = True
+        batch_full_input_ids = full_input_ids.unsqueeze(0).expand(self.n_keys, -1)
+        batch_full_attn_mask = full_attn_mask.unsqueeze(0).expand(self.n_keys, -1)
+        batch_tss_idx = torch.full((self.n_keys,), tss_idx_full, dtype=torch.long)
 
         tpm_values = np.full(self.n_keys, np.nan, dtype=np.float32)
         if self.tpm:
@@ -774,18 +777,20 @@ class ExpressionDataset(Dataset):
 
         filtered_keys = [k for k, m in zip(selected_keys, tpm_mask) if m]
 
-        labels[:, 0, 0] = torch.from_numpy(tpm_filled)
-        labels_mask[:, 0, 0] = torch.from_numpy(tpm_mask).bool()
+        labels = torch.from_numpy(tpm_filled)
+        labels_mask = torch.from_numpy(tpm_mask).bool()
 
         reverse = 0 if strand == "+" else 1
-        if reverse == 0 :
-            start_coord = starts[0]
-            end_coord   = ends[L-1]
+        if full_len > 0:
+            if reverse == 0:
+                start_coord = int(full_starts[0])
+                end_coord = int(full_ends[full_len - 1])
+            else:
+                start_coord = int(full_starts[full_len - 1])
+                end_coord = int(full_ends[0])
         else:
-            start_coord = starts[L-1]
-            end_coord   = ends[0]
-
-        valid_tpm_count = int(np.count_nonzero(~np.isnan(tpm_values)))
+            start_coord = int(tss_coord)
+            end_coord = int(tss_coord)
 
         desc_input_ids = []
         desc_attention_mask = []
@@ -803,15 +808,10 @@ class ExpressionDataset(Dataset):
             desc_input_ids.append(torch.tensor([20], dtype=torch.long))  
             desc_attention_mask.append(torch.tensor([1], dtype=torch.long))
 
-        if self.bw and not self.tpm: 
-            features_selected_keys = []
-        else:
-            features_selected_keys = filtered_keys
-
         features = {
-            "input_ids": batch_input_ids,          
-            "attention_mask": batch_attn_mask,    
-            "token_type_ids": batch_token_types,  
+            "full_input_ids": batch_full_input_ids,
+            "full_attention_mask": batch_full_attn_mask,
+            "tss_token_idx": batch_tss_idx,
             "labels": labels,                    
             "labels_mask": labels_mask,                    
             "selected_keys": filtered_keys,      

@@ -352,8 +352,7 @@ def main():
         pad = x.new_full((pad_len,), pad_value)
         return torch.cat([pad, x], dim=0) if pad_left else torch.cat([x, pad], dim=0)
 
-
-    def _pad_2d(x: torch.Tensor, max_len: int, pad_value, dim: int = 0) -> torch.Tensor:
+    def _pad_2d(x: torch.Tensor, max_len: int, pad_value: int, dim: int = 1) -> torch.Tensor:
         pad_len = max_len - x.size(dim)
         if pad_len <= 0:
             return x
@@ -363,31 +362,20 @@ def main():
         return torch.cat([pad, x], dim=dim)
 
 
-    def _pad_3d(x: torch.Tensor, max_len: int, pad_value, dim: int = 1) -> torch.Tensor:
-        pad_len = max_len - x.size(dim)
-        if pad_len <= 0:
-            return x
-        pad_shape = list(x.shape)
-        pad_shape[dim] = pad_len
-        pad = x.new_full(tuple(pad_shape), pad_value)
-        return torch.cat([x, pad], dim=dim)
-
     def collate_fn(batch):
-        pad_keys = ['input_ids', 'attention_mask', 'token_type_ids', 'labels', 'labels_mask']
-        no_pad_keys = ['tpm', 'dataset_flag']
+        pad_keys = ['full_input_ids', 'full_attention_mask']
+        label_keys = ['labels', 'labels_mask']
+        no_pad_keys = ['tpm', 'dataset_flag', 'tss_token_idx']
         special_keys = ['gene_id', 'selected_keys', 'dataset_description', 'name', 'chrom', 'reverse', 'start', 'end']
 
         pad_token_ids = {
-            'input_ids': tokenizer.pad_token_id,
-            'attention_mask': 0,
-            'token_type_ids': 0,
-            'labels': 0.0,
-            'labels_mask': 0,
+            'full_input_ids': tokenizer.pad_token_id,
+            'full_attention_mask': 0,
             'desc_input_ids': text_tokenizer.pad_token_id,
             'desc_attention_mask': 0,
         }
 
-        max_seq_len = max(sample['input_ids'].size(1) for sample in batch)
+        max_full_seq_len = max(sample['full_input_ids'].size(1) for sample in batch)
 
         n_keys = len(batch[0]['desc_input_ids'])
         max_text_seq_len = 0
@@ -397,7 +385,7 @@ def main():
         if max_text_seq_len == 0:
             max_text_seq_len = 1
 
-        batch_dict = {key: [] for key in pad_keys + no_pad_keys + special_keys}
+        batch_dict = {key: [] for key in pad_keys + label_keys + no_pad_keys + special_keys}
 
         desc_ids_batch = []
         desc_mask_batch = []
@@ -420,11 +408,12 @@ def main():
         for sample in batch:
             for key in pad_keys:
                 x = sample[key]
-                if key in ['input_ids', 'attention_mask', 'token_type_ids']:  # (n_keys, L)
-                    x = _pad_2d(x, max_seq_len, pad_token_ids[key], dim=1)    # pad по L -> dim=1
-                if key in ['labels', 'labels_mask']:                                                       
-                    x = _pad_3d(x, max_seq_len, pad_token_ids[key], dim=1)
+                if key in ['full_input_ids', 'full_attention_mask']:  # (n_keys, L_full)
+                    x = _pad_2d(x, max_full_seq_len, pad_token_ids[key], dim=1)
                 batch_dict[key].append(x)
+
+            for key in label_keys:
+                batch_dict[key].append(sample[key])
 
             for key in no_pad_keys:
                 if key in sample:
@@ -437,6 +426,9 @@ def main():
         # stack
         for key in pad_keys:
             batch_dict[key] = torch.stack(batch_dict[key], dim=0)  # (B, n_keys, Lmax) или (B, n_keys, Lmax, 1)
+
+        for key in label_keys:
+            batch_dict[key] = torch.stack(batch_dict[key], dim=0)
 
         for key in no_pad_keys:
             if len(batch_dict[key]) > 0:
@@ -595,8 +587,9 @@ def main():
     # Batch transform
     def batch_transform_fn(batch):
         result = {
-            'input_ids': batch['input_ids'],
-            'attention_mask': batch['attention_mask'],
+            'full_input_ids': batch['full_input_ids'],
+            'full_attention_mask': batch['full_attention_mask'],
+            'tss_token_idx': batch['tss_token_idx'],
             'labels_mask': batch['labels_mask'],
             'dataset_flag': batch['dataset_flag'],
             'labels': batch['labels'],
@@ -614,16 +607,9 @@ def main():
         labels = output["labels_reshaped"].detach().cpu()
         masks  = output["labels_mask_reshaped"].detach().cpu()
 
-        y_true = labels[:, 0, 0]      
-        y_pred = logits[:, 0, 0]     
-        mask   = masks[:, 0, 0] > 0   
-
-        y_true = y_true[mask]
-        y_pred = y_pred[mask]
-
-        preds = y_pred.unsqueeze(1)   
-        target = y_true.unsqueeze(1) 
-        reduce_dims = (0, 1)
+        mask = masks > 0
+        y_true = labels[mask]
+        y_pred = logits[mask]
 
         data = {}
         
@@ -750,13 +736,32 @@ def main():
                         )
                         if score and score.get('deviation_r', None):
                             metrics[f'score_predictions_{dataset_desc}'] = score['deviation_r']
-                        score2 = mean_and_residuals_correlation(df_true,
-                            df_pred, need_log = False)
-                        if isinstance(score2, dict):
-                            for k, v in score2.items():
-                                if isinstance(v, (np.floating, np.integer)):
-                                    v = v.item()
-                                metrics[f"mean_residual_{k}_{dataset_desc}"] = v
+
+                        # FIX: Guard against tiny/degenerate gene x cell_type matrices.
+                        # On small train windows this metric can be undefined (NaN), so
+                        # skip logging instead of crashing the whole training loop.
+                        if df_true.shape[0] < 2 or df_true.shape[1] < 3:
+                            # Need at least 2 genes and >=2 cell-type columns (+gene_id).
+                            alogger.warning(
+                                f"Skipping mean_and_residuals_correlation for {dataset_desc}: "
+                                f"insufficient shape true={df_true.shape}, pred={df_pred.shape}"
+                            )
+                        else:
+                            try:
+                                score2 = mean_and_residuals_correlation(
+                                    df_true, df_pred, need_log=False
+                                )
+                            except AssertionError as exc:
+                                alogger.warning(
+                                    f"Skipping mean_and_residuals_correlation for {dataset_desc}: {exc}"
+                                )
+                                score2 = None
+
+                            if isinstance(score2, dict):
+                                for k, v in score2.items():
+                                    if isinstance(v, (np.floating, np.integer)):
+                                        v = v.item()
+                                    metrics[f"mean_residual_{k}_{dataset_desc}"] = v
                     
 
             return metrics
