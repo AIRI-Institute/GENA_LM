@@ -516,9 +516,6 @@ class ExpressionCounts(nn.Module):
 
             unreduced_loss = self.loss_fct(logits, labels_reshaped)  # (B*N, L, 1)
 
-            print(f'logits {logits}' )
-            print(f'labels_reshaped {labels_reshaped}' )
-
             if labels_mask_reshaped is not None and labels_mask_reshaped.sum().item() > 0:
                 cls_mask = labels_mask_reshaped[:, 0:1, :]           # (B*N, 1, 1)
                 other_mask = labels_mask_reshaped[:, 1:, :]          # (B*N, L-1, 1)

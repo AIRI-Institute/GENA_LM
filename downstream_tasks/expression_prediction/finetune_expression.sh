@@ -17,7 +17,7 @@ BS=2
 NP=2
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="final_test"
+config_name="human_mouse_gradlog"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29515 \
