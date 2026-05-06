@@ -64,13 +64,18 @@ class ExpressionDataset(Dataset):
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
         self._genome_sizes_map = {}
+        self._genome_sizes_base_dir = None
         genome_sizes_path = Path(self.genome).expanduser().parent / "genome_sizes.tsv"
         if genome_sizes_path.exists():
+            self._genome_sizes_base_dir = genome_sizes_path.parent
             df_sizes = pd.read_csv(genome_sizes_path, sep="\t")
             for p, size in zip(df_sizes["path"], df_sizes["size"]):
-                p_str = str(Path(p).expanduser())
-                self._genome_sizes_map[p_str] = size
-                self._genome_sizes_map[str(Path(p_str).resolve())] = size
+                if pd.isna(p) or pd.isna(size):
+                    continue
+                genome_path = Path(str(p)).expanduser()
+                if not genome_path.is_absolute():
+                    genome_path = self._genome_sizes_base_dir / genome_path
+                self._genome_sizes_map[str(genome_path.resolve())] = size
 
         self.seed = seed
         np.random.seed(self.seed)
@@ -192,11 +197,13 @@ class ExpressionDataset(Dataset):
         try:
             size = os.path.getsize(path)  # bytes
         except OSError:
-            if path == self.genome:
-                for candidate in (path, str(Path(path).expanduser().resolve())):
-                    genome_size = self._genome_sizes_map.get(candidate)
-                    if genome_size is not None:
-                        return f"{name}|{genome_size}"
+            if path == self.genome and self._genome_sizes_base_dir is not None:
+                genome_path = Path(path).expanduser()
+                if not genome_path.is_absolute():
+                    genome_path = self._genome_sizes_base_dir / genome_path
+                genome_size = self._genome_sizes_map.get(str(genome_path.resolve()))
+                if genome_size is not None:
+                    return f"{name}|{genome_size}"
             raise FileNotFoundError(f"File not found for hashing: {path}")
         return f"{name}|{size}"
 
