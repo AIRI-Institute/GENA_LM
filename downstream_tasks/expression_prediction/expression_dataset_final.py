@@ -65,7 +65,7 @@ class ExpressionDataset(Dataset):
         self.genome = genome
         self._genome_sizes_map = {}
         self._genome_sizes_base_dir = None
-        genome_sizes_path = Path(self.genome).expanduser().parent / "genome_sizes.tsv"
+        genome_sizes_path = Path(self.genome).expanduser().parent.parent / "genome_sizes.tsv"
         if genome_sizes_path.exists():
             self._genome_sizes_base_dir = genome_sizes_path.parent
             df_sizes = pd.read_csv(genome_sizes_path, sep="\t")
@@ -168,13 +168,10 @@ class ExpressionDataset(Dataset):
         self.text_data = {}  
         self.text_data_keys = set()
         tokenizer_tag = text_tokenizer.replace("/", "_")
-        intervals_dir = Path(
-            forward_intervals_path if forward_intervals_path is not None else reverse_intervals_path
-        ).expanduser().resolve().parent
-        descriptions_dir = intervals_dir.parent / "descriptions"
+        descriptions_dir = Path(__file__).resolve().parent / "descriptions"
         descriptions_dir.mkdir(parents=True, exist_ok=True)
         targets_tag = hashlib.blake2b(
-            os.path.abspath(targets_path).encode("utf-8"),
+            self._name_and_size(targets_path).encode("utf-8"),
             digest_size=8,
         ).hexdigest()
         desc_cache_name = (
