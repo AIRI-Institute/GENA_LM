@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+import warnings
 from collections import defaultdict
 from functools import partial
 from itertools import chain, compress
@@ -49,6 +50,12 @@ def set_global_seed(seed: int):
 logger_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(format=logger_fmt, level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*You are using `torch\.load` with `weights_only=False`.*experimental feature\.",
+    category=FutureWarning,
+)
 
 if os.environ.get("CUDA_VISIBLE_DEVICES") is None:
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in range(torch.cuda.device_count()))
@@ -256,7 +263,7 @@ def maybe_load_model_weights(model: torch.nn.Module, checkpoint_path: Optional[s
 
     checkpoint_path = str(Path(checkpoint_path).expanduser())
     logger.info(f"Loading model weights from {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
         checkpoint = checkpoint["model_state_dict"]
 
@@ -282,6 +289,7 @@ class ExpressionTrainer(Trainer):
         self.metrics_fn = metrics_fn
         self.model_forward_args = set(get_fn_param_names(self.model.forward))
         self.lr_drop_scheduler = None
+        self.train_metrics_data = defaultdict(list)
 
     def get_train_dataloader(self):
         dataloader = super().get_train_dataloader()
@@ -345,12 +353,6 @@ class ExpressionTrainer(Trainer):
             return None
         return super().create_scheduler(num_training_steps, optimizer)
 
-    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        model_inputs = {k: v for k, v in inputs.items() if k in self.model_forward_args}
-        outputs = model(**model_inputs)
-        loss = outputs["loss"] if isinstance(outputs, dict) else outputs.loss
-        return (loss, outputs) if return_outputs else loss
-
     @staticmethod
     def _flatten_python_values(values):
         flattened = []
@@ -376,6 +378,20 @@ class ExpressionTrainer(Trainer):
 
         return ExpressionTrainer._flatten_python_values(values)
 
+    def _append_metrics_data(self, storage, kept):
+        for key, value in kept.items():
+            storage[key].append(value.detach().cpu() if isinstance(value, torch.Tensor) else value)
+
+    def _collect_metrics_from_storage(self, storage):
+        collected = {}
+        for key, values in storage.items():
+            gathered = accelerate.utils.gather_object(values)
+            collected[key] = self._merge_gathered_metric_data(gathered)
+        return collected
+
+    def _reset_train_metrics_data(self):
+        self.train_metrics_data = defaultdict(list)
+
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         model = self._wrap_model(self.model, training=False, dataloader=eval_dataloader)
@@ -395,8 +411,7 @@ class ExpressionTrainer(Trainer):
 
             if self.keep_for_metrics_fn is not None and self.metrics_fn is not None:
                 kept = self.keep_for_metrics_fn(batch, outputs)
-                for key, value in kept.items():
-                    metrics_data[key].append(value.detach().cpu() if isinstance(value, torch.Tensor) else value)
+                self._append_metrics_data(metrics_data, kept)
 
         metrics = {}
         gathered_losses = accelerate.utils.gather_object(loss_values)
@@ -405,10 +420,7 @@ class ExpressionTrainer(Trainer):
             metrics["loss"] = float(np.mean(gathered_losses))
 
         if self.keep_for_metrics_fn is not None and self.metrics_fn is not None:
-            collected = {}
-            for key, values in metrics_data.items():
-                gathered = accelerate.utils.gather_object(values)
-                collected[key] = self._merge_gathered_metric_data(gathered)
+            collected = self._collect_metrics_from_storage(metrics_data)
             metrics.update(self.metrics_fn(collected))
 
         metrics = {f"{metric_key_prefix}_{key}": value for key, value in metrics.items()}
@@ -419,6 +431,28 @@ class ExpressionTrainer(Trainer):
             self.lr_drop_scheduler.step(metrics[metric_name])
 
         return metrics
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        model_inputs = {k: v for k, v in inputs.items() if k in self.model_forward_args}
+        outputs = model(**model_inputs)
+        loss = outputs["loss"] if isinstance(outputs, dict) else outputs.loss
+
+        if model.training and self.keep_for_metrics_fn is not None and self.metrics_fn is not None:
+            kept = self.keep_for_metrics_fn(inputs, outputs)
+            self._append_metrics_data(self.train_metrics_data, kept)
+
+        return (loss, outputs) if return_outputs else loss
+
+    def log(self, logs, *args, **kwargs):
+        logs = dict(logs)
+        is_train_log = "loss" in logs and not any(key.startswith("eval_") for key in logs)
+        if is_train_log and self.keep_for_metrics_fn is not None and self.metrics_fn is not None:
+            if len(self.train_metrics_data) > 0:
+                train_metrics = self.metrics_fn(self._collect_metrics_from_storage(self.train_metrics_data))
+                for key, value in train_metrics.items():
+                    logs[f"train_{key}"] = value
+                self._reset_train_metrics_data()
+        return super().log(logs, *args, **kwargs)
 
 def main():
     args = parser.parse_args()
