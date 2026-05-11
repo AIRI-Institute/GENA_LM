@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - human_mouse_gradlog
+  - _self_
+
+TASK_NAME: expression/v1_gradlog_hf_native
+
+MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
+
+args_params:
+  _target_: builtins.dict
+
+  model_path: ${MODEL_PATH_ROOT}
+
+  # В HF-скрипте batch_size теперь означает microbatch на device,
+  # а gradient_accumulation_steps управляет накоплением градиента штатно через Trainer.
+  # batch_size: 2
+  # gradient_accumulation_steps: 20
+
+  # Для resume указывай checkpoint directory HF Trainer-а либо относительный путь от model_path.
+  resume:
