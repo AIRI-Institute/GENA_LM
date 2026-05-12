@@ -7,19 +7,19 @@ export CUDA_HOME="$HOME/.local/cuda/"
 export PATH="$HOME/.local/cuda/bin:$PATH"
 export LD_LIBRARY_PATH="$HOME/.local/cuda/lib64/:$LD_LIBRARY_PATH"
 
- export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+ export CUDA_VISIBLE_DEVICES=0,1
 
 
 # export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 #  --multi_gpu \
 
-TBS=1000
-BS=5
-NP=8
+TBS=8
+BS=2
+NP=2
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="final"
+config_name="human_mouse"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29516 \

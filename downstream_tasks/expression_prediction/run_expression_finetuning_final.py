@@ -34,7 +34,7 @@ from lm_experiments_tools.utils import get_cls_by_name, collect_run_configuratio
 import lm_experiments_tools.optimizers as optimizers
 from lm_experiments_tools import get_optimizer
 
-from downstream_tasks.expression_prediction.expression_dataset import worker_init_fn
+from downstream_tasks.expression_prediction.expression_dataset_final import worker_init_fn
 from downstream_tasks.expression_prediction.datasets.src.score_ct_specificity import score_predictions, mean_and_residuals_correlation
 from downstream_tasks.expression_prediction.datasets.src.correlation_selected_cells import calculate_target_genes_metrics
 

@@ -16,6 +16,9 @@ class ExpressionModelOutput(TokenClassifierOutput):
     cls_loss: Optional[torch.FloatTensor] = None
     other_loss: Optional[torch.FloatTensor] = None
     
+class ExpActivation(nn.Module):
+    def forward(self, x):
+        return torch.exp(x)
 
 class ExpressionCounts(nn.Module):
     """
@@ -55,7 +58,7 @@ class ExpressionCounts(nn.Module):
                 self.bert, info  = ModernBertModel.from_pretrained(
                 hf_model_name,
                 trust_remote_code=True,
-                attn_implementation="flash_attention_2",
+                attn_implementation="sdpa",
                 output_loading_info=True
             )
                 config = self.bert.config
@@ -91,7 +94,7 @@ class ExpressionCounts(nn.Module):
 
         # 2) Description model (qwen)
         self.desc_model_name = desc_model_name
-        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="flash_attention_2" , torch_dtype=torch.bfloat16)
+        self.desc_model = AutoModel.from_pretrained(self.desc_model_name,attn_implementation="sdpa" , torch_dtype=torch.bfloat16)
 
         for p in self.desc_model.parameters():
             p.requires_grad = False
@@ -148,8 +151,8 @@ class ExpressionCounts(nn.Module):
             total_params = sum(p.numel() for p in self.desc_model.parameters())
             print(f"[desc_model] trainable params: {total_trainable:,} / {total_params:,}")
 
-            if len(names) > 30:
-                print(f"  - ... (+{len(names)-30} more)")
+            # if len(names) > 30:
+            #     print(f"  - ... (+{len(names)-30} more)")
 
         # 3) Проекция, если размерности не совпадают
         self.gen_hidden_size = config.hidden_size
@@ -164,7 +167,7 @@ class ExpressionCounts(nn.Module):
         self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
-                attn_implementation="flash_attention_2",
+                attn_implementation="sdpa",
                 output_loading_info=True
             )
         print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
