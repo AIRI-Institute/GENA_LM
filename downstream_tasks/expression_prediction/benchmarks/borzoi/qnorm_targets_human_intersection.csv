@@ -1,0 +1,1374 @@
+identifier,identifier_base,id,original_id,clip,clip_soft,scale,sum_stat,description
+ENCFF168OLY+,ENCFF168OLY,ENCFF731CJY,ENCFF168OLY,768,384,0.3,sum_sqrt,RNA:bladder microvascular endothelial cell male adult (46 years) and male adult (60 years)
+ENCFF168OLY-,ENCFF168OLY,ENCFF731CJY,ENCFF168OLY,768,384,0.3,sum_sqrt,RNA:bladder microvascular endothelial cell male adult (46 years) and male adult (60 years)
+ENCFF153YEN+,ENCFF153YEN,ENCFF242NRP,ENCFF153YEN,768,384,0.3,sum_sqrt,RNA:bronchial epithelial cell female adult (40 years) and male adult (68 years)
+ENCFF153YEN-,ENCFF153YEN,ENCFF242NRP,ENCFF153YEN,768,384,0.3,sum_sqrt,RNA:bronchial epithelial cell female adult (40 years) and male adult (68 years)
+ENCFF366CCB+,ENCFF366CCB,ENCFF465EDA,ENCFF366CCB,768,384,0.3,sum_sqrt,RNA:dermis blood vessel endothelial cell female child (16 years) and male child (13 years)
+ENCFF366CCB-,ENCFF366CCB,ENCFF465EDA,ENCFF366CCB,768,384,0.3,sum_sqrt,RNA:dermis blood vessel endothelial cell female child (16 years) and male child (13 years)
+ENCFF805UDX+,ENCFF805UDX,ENCFF152CYS,ENCFF805UDX,768,384,0.3,sum_sqrt,RNA:dermis lymphatic vessel endothelial cell female adult (45 years) and male child (6 years)
+ENCFF805UDX-,ENCFF805UDX,ENCFF152CYS,ENCFF805UDX,768,384,0.3,sum_sqrt,RNA:dermis lymphatic vessel endothelial cell female adult (45 years) and male child (6 years)
+ENCFF079OMS+,ENCFF079OMS,ENCFF900QOK,ENCFF079OMS,768,384,0.3,sum_sqrt,RNA:dermis microvascular lymphatic vessel endothelial cell female adult (38 years) and female adult (64 years)
+ENCFF079OMS-,ENCFF079OMS,ENCFF900QOK,ENCFF079OMS,768,384,0.3,sum_sqrt,RNA:dermis microvascular lymphatic vessel endothelial cell female adult (38 years) and female adult (64 years)
+ENCFF114NWW+,ENCFF114NWW,ENCFF708BZY,ENCFF114NWW,768,384,0.3,sum_sqrt,RNA:nasal cavity respiratory epithelium epithelial cell of viscerocranial mucosa female adult (70 years) and male adult (46 years)
+ENCFF114NWW-,ENCFF114NWW,ENCFF708BZY,ENCFF114NWW,768,384,0.3,sum_sqrt,RNA:nasal cavity respiratory epithelium epithelial cell of viscerocranial mucosa female adult (70 years) and male adult (46 years)
+ENCFF520FAO+,ENCFF520FAO,ENCFF225PNB,ENCFF520FAO,768,384,0.3,sum_sqrt,RNA:pulmonary artery endothelial cell male adult (23 years) and male adult (52 years)
+ENCFF520FAO-,ENCFF520FAO,ENCFF225PNB,ENCFF520FAO,768,384,0.3,sum_sqrt,RNA:pulmonary artery endothelial cell male adult (23 years) and male adult (52 years)
+ENCFF556PAF+,ENCFF556PAF,ENCFF898FAP,ENCFF556PAF,768,384,0.3,sum_sqrt,RNA:fibroblast of lung female adult (83 years) and male adult (23 years)
+ENCFF556PAF-,ENCFF556PAF,ENCFF898FAP,ENCFF556PAF,768,384,0.3,sum_sqrt,RNA:fibroblast of lung female adult (83 years) and male adult (23 years)
+ENCFF618FQK+,ENCFF618FQK,ENCFF160GXU,ENCFF618FQK,768,384,0.3,sum_sqrt,RNA:lung microvascular endothelial cell female adult (55 years) and male adult (63 years)
+ENCFF618FQK-,ENCFF618FQK,ENCFF160GXU,ENCFF618FQK,768,384,0.3,sum_sqrt,RNA:lung microvascular endothelial cell female adult (55 years) and male adult (63 years)
+ENCFF520NFI+,ENCFF520NFI,ENCFF342TVX,ENCFF520NFI,768,384,0.3,sum_sqrt,RNA:tracheal epithelial cell male adult (21 years) and male adult (68 years)
+ENCFF520NFI-,ENCFF520NFI,ENCFF342TVX,ENCFF520NFI,768,384,0.3,sum_sqrt,RNA:tracheal epithelial cell male adult (21 years) and male adult (68 years)
+ENCFF572FWT+,ENCFF572FWT,ENCFF411NXG,ENCFF572FWT,768,384,0.3,sum_sqrt,RNA:epithelial cell of umbilical artery female newborn and male newborn
+ENCFF572FWT-,ENCFF572FWT,ENCFF411NXG,ENCFF572FWT,768,384,0.3,sum_sqrt,RNA:epithelial cell of umbilical artery female newborn and male newborn
+ENCFF470BSF+,ENCFF470BSF,ENCFF563OCX,ENCFF470BSF,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF470BSF-,ENCFF470BSF,ENCFF563OCX,ENCFF470BSF,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF617ZDV+,ENCFF617ZDV,ENCFF729OOW,ENCFF617ZDV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF617ZDV-,ENCFF617ZDV,ENCFF729OOW,ENCFF617ZDV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF993POP+,ENCFF993POP,ENCFF381QCU,ENCFF993POP,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF993POP-,ENCFF993POP,ENCFF381QCU,ENCFF993POP,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF678ITA+,ENCFF678ITA,ENCFF949BCP,ENCFF678ITA,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF678ITA-,ENCFF678ITA,ENCFF949BCP,ENCFF678ITA,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF812WIL,ENCFF812WIL,ENCFF140UJC,ENCFF812WIL,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF142WGV,ENCFF142WGV,ENCFF150MRJ,ENCFF142WGV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF980ZHM+,ENCFF980ZHM,ENCFF595XJM,ENCFF980ZHM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF980ZHM-,ENCFF980ZHM,ENCFF595XJM,ENCFF980ZHM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF132DVY+,ENCFF132DVY,ENCFF754JEN,ENCFF132DVY,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF132DVY-,ENCFF132DVY,ENCFF754JEN,ENCFF132DVY,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF919EXM+,ENCFF919EXM,ENCFF219JME,ENCFF919EXM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF919EXM-,ENCFF919EXM,ENCFF219JME,ENCFF919EXM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF552CYS+,ENCFF552CYS,ENCFF864OUS,ENCFF552CYS,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF552CYS-,ENCFF552CYS,ENCFF864OUS,ENCFF552CYS,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF991BRF,ENCFF991BRF,ENCFF578UUD,ENCFF991BRF,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF769VLM,ENCFF769VLM,ENCFF688VJF,ENCFF769VLM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF638TDD+,ENCFF638TDD,ENCFF605GCL,ENCFF638TDD,768,384,0.3,sum_sqrt,RNA:cerebellum tissue female embryo (19 weeks) and female embryo (37 weeks)
+ENCFF638TDD-,ENCFF638TDD,ENCFF605GCL,ENCFF638TDD,768,384,0.3,sum_sqrt,RNA:cerebellum tissue female embryo (19 weeks) and female embryo (37 weeks)
+ENCFF355IUO+,ENCFF355IUO,ENCFF087WBL,ENCFF355IUO,768,384,0.3,sum_sqrt,RNA:diencephalon tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF355IUO-,ENCFF355IUO,ENCFF087WBL,ENCFF355IUO,768,384,0.3,sum_sqrt,RNA:diencephalon tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF217HQN+,ENCFF217HQN,ENCFF371QMA,ENCFF217HQN,768,384,0.3,sum_sqrt,RNA:frontal cortex tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF217HQN-,ENCFF217HQN,ENCFF371QMA,ENCFF217HQN,768,384,0.3,sum_sqrt,RNA:frontal cortex tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF454SXU+,ENCFF454SXU,ENCFF795IZJ,ENCFF454SXU,768,384,0.3,sum_sqrt,RNA:heart tissue female embryo (19 weeks) and female embryo (28 weeks)
+ENCFF454SXU-,ENCFF454SXU,ENCFF795IZJ,ENCFF454SXU,768,384,0.3,sum_sqrt,RNA:heart tissue female embryo (19 weeks) and female embryo (28 weeks)
+ENCFF367PUX+,ENCFF367PUX,ENCFF746EQL,ENCFF367PUX,768,384,0.3,sum_sqrt,RNA:metanephros tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF367PUX-,ENCFF367PUX,ENCFF746EQL,ENCFF367PUX,768,384,0.3,sum_sqrt,RNA:metanephros tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF892OBT+,ENCFF892OBT,ENCFF055STD,ENCFF892OBT,768,384,0.3,sum_sqrt,RNA:lung tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF892OBT-,ENCFF892OBT,ENCFF055STD,ENCFF892OBT,768,384,0.3,sum_sqrt,RNA:lung tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF537TSF+,ENCFF537TSF,ENCFF119BVB,ENCFF537TSF,768,384,0.3,sum_sqrt,RNA:occipital lobe tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF537TSF-,ENCFF537TSF,ENCFF119BVB,ENCFF537TSF,768,384,0.3,sum_sqrt,RNA:occipital lobe tissue female embryo (20 weeks) and male embryo (22 weeks)
+ENCFF470OAY+,ENCFF470OAY,ENCFF876PVW,ENCFF470OAY,768,384,0.3,sum_sqrt,RNA:parietal lobe tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF470OAY-,ENCFF470OAY,ENCFF876PVW,ENCFF470OAY,768,384,0.3,sum_sqrt,RNA:parietal lobe tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF198TLM+,ENCFF198TLM,ENCFF301XTS,ENCFF198TLM,768,384,0.3,sum_sqrt,RNA:skin of body tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF198TLM-,ENCFF198TLM,ENCFF301XTS,ENCFF198TLM,768,384,0.3,sum_sqrt,RNA:skin of body tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF768YRQ+,ENCFF768YRQ,ENCFF216IXN,ENCFF768YRQ,768,384,0.3,sum_sqrt,RNA:spinal cord tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF768YRQ-,ENCFF768YRQ,ENCFF216IXN,ENCFF768YRQ,768,384,0.3,sum_sqrt,RNA:spinal cord tissue female embryo (24 weeks) and male embryo (22 weeks)
+ENCFF709SZT+,ENCFF709SZT,ENCFF547WLJ,ENCFF709SZT,768,384,0.3,sum_sqrt,RNA:temporal lobe tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF709SZT-,ENCFF709SZT,ENCFF547WLJ,ENCFF709SZT,768,384,0.3,sum_sqrt,RNA:temporal lobe tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF844XCX+,ENCFF844XCX,ENCFF169HKI,ENCFF844XCX,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female embryo (37 weeks) and female embryo (40 weeks)
+ENCFF844XCX-,ENCFF844XCX,ENCFF169HKI,ENCFF844XCX,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female embryo (37 weeks) and female embryo (40 weeks)
+ENCFF175KXC+,ENCFF175KXC,ENCFF774CJM,ENCFF175KXC,768,384,0.3,sum_sqrt,RNA:tongue tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF175KXC-,ENCFF175KXC,ENCFF774CJM,ENCFF175KXC,768,384,0.3,sum_sqrt,RNA:tongue tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF604YPC+,ENCFF604YPC,ENCFF936XZJ,ENCFF604YPC,768,384,0.3,sum_sqrt,RNA:umbilical cord tissue male embryo (20 weeks) and male embryo (31 weeks)
+ENCFF604YPC-,ENCFF604YPC,ENCFF936XZJ,ENCFF604YPC,768,384,0.3,sum_sqrt,RNA:umbilical cord tissue male embryo (20 weeks) and male embryo (31 weeks)
+ENCFF592ZIP+,ENCFF592ZIP,ENCFF615MVP,ENCFF592ZIP,768,384,0.3,sum_sqrt,RNA:uterus tissue female embryo (24 weeks) and female embryo (28 weeks)
+ENCFF592ZIP-,ENCFF592ZIP,ENCFF615MVP,ENCFF592ZIP,768,384,0.3,sum_sqrt,RNA:uterus tissue female embryo (24 weeks) and female embryo (28 weeks)
+ENCFF676EVQ+,ENCFF676EVQ,ENCFF609EXJ,ENCFF676EVQ,768,384,0.3,sum_sqrt,RNA:camera-type eye tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF676EVQ-,ENCFF676EVQ,ENCFF609EXJ,ENCFF676EVQ,768,384,0.3,sum_sqrt,RNA:camera-type eye tissue female embryo (20 weeks) and female embryo (24 weeks)
+ENCFF018EZY+,ENCFF018EZY,ENCFF433YMU,ENCFF018EZY,768,384,0.3,sum_sqrt,RNA:heart tissue male adult (34 years)
+ENCFF018EZY-,ENCFF018EZY,ENCFF433YMU,ENCFF018EZY,768,384,0.3,sum_sqrt,RNA:heart tissue male adult (34 years)
+ENCFF549SVZ,ENCFF549SVZ,ENCFF391TNI,ENCFF549SVZ,768,384,0.3,sum_sqrt,"RNA:Jurkat, Clone E6-1"
+ENCFF263CML,ENCFF263CML,ENCFF511EQD,ENCFF263CML,768,384,0.3,sum_sqrt,RNA:A549 treated with 0.1 nM dexamethasone for 1 hour
+ENCFF882JUS,ENCFF882JUS,ENCFF857QNY,ENCFF882JUS,768,384,0.3,sum_sqrt,RNA:Ishikawa treated with 100 nM bisphenol A for 4 hours
+ENCFF188RIO,ENCFF188RIO,ENCFF951RYM,ENCFF188RIO,768,384,0.3,sum_sqrt,RNA:Ishikawa treated with 0.02% dimethyl sulfoxide for 4 hours
+ENCFF165CZI,ENCFF165CZI,ENCFF562SXG,ENCFF165CZI,768,384,0.3,sum_sqrt,RNA:Ishikawa treated with 10 nM estradiol for 4 hours
+ENCFF755HLM,ENCFF755HLM,ENCFF220IPM,ENCFF755HLM,768,384,0.3,sum_sqrt,RNA:Ishikawa treated with 100 nM genistein for 4 hours
+ENCFF353TRR,ENCFF353TRR,ENCFF562IUX,ENCFF353TRR,768,384,0.3,sum_sqrt,RNA:T47D treated with 100 nM bisphenol A for 4 hours
+ENCFF287DGM,ENCFF287DGM,ENCFF396EGD,ENCFF287DGM,768,384,0.3,sum_sqrt,RNA:T47D treated with 0.02% dimethyl sulfoxide for 4 hours
+ENCFF660UBK,ENCFF660UBK,ENCFF064NMJ,ENCFF660UBK,768,384,0.3,sum_sqrt,RNA:T47D treated with 10 nM estradiol for 4 hours
+ENCFF353MIF,ENCFF353MIF,ENCFF865UQW,ENCFF353MIF,768,384,0.3,sum_sqrt,RNA:T47D treated with 100 nM genistein for 4 hours
+ENCFF808QXI,ENCFF808QXI,ENCFF749PME,ENCFF808QXI,768,384,0.3,sum_sqrt,RNA:A549 treated with 1 nM dexamethasone for 1 hour
+ENCFF181YIA,ENCFF181YIA,ENCFF313MIX,ENCFF181YIA,768,384,0.3,sum_sqrt,RNA:A549 treated with 0.5 nM dexamethasone for 1 hour
+ENCFF409JEW,ENCFF409JEW,ENCFF284LBU,ENCFF409JEW,768,384,0.3,sum_sqrt,RNA:A549 treated with 5 nM dexamethasone for 1 hour
+ENCFF949LLY,ENCFF949LLY,ENCFF925ESW,ENCFF949LLY,768,384,0.3,sum_sqrt,RNA:BE2C
+ENCFF038WPL,ENCFF038WPL,ENCFF279CBC,ENCFF038WPL,768,384,0.3,sum_sqrt,RNA:SK-N-SH
+ENCFF142KMX,ENCFF142KMX,ENCFF257MUY,ENCFF142KMX,768,384,0.3,sum_sqrt,RNA:Panc1
+ENCFF378HTE,ENCFF378HTE,ENCFF507UBT,ENCFF378HTE,768,384,0.3,sum_sqrt,RNA:PFSK-1
+ENCFF450BGT,ENCFF450BGT,ENCFF132XOB,ENCFF450BGT,768,384,0.3,sum_sqrt,RNA:U-87 MG
+ENCFF222BDI+,ENCFF222BDI,ENCFF289OVP,ENCFF222BDI,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF222BDI-,ENCFF222BDI,ENCFF289OVP,ENCFF222BDI,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF516KYO+,ENCFF516KYO,ENCFF850LBX,ENCFF516KYO,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF516KYO-,ENCFF516KYO,ENCFF850LBX,ENCFF516KYO,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF575YME+,ENCFF575YME,ENCFF687OMX,ENCFF575YME,768,384,0.3,sum_sqrt,RNA:A549
+ENCFF575YME-,ENCFF575YME,ENCFF687OMX,ENCFF575YME,768,384,0.3,sum_sqrt,RNA:A549
+ENCFF735EPI+,ENCFF735EPI,ENCFF486ABY,ENCFF735EPI,768,384,0.3,sum_sqrt,RNA:AG04450
+ENCFF735EPI-,ENCFF735EPI,ENCFF486ABY,ENCFF735EPI,768,384,0.3,sum_sqrt,RNA:AG04450
+ENCFF829TKX+,ENCFF829TKX,ENCFF471OWY,ENCFF829TKX,768,384,0.3,sum_sqrt,RNA:BJ
+ENCFF829TKX-,ENCFF829TKX,ENCFF471OWY,ENCFF829TKX,768,384,0.3,sum_sqrt,RNA:BJ
+ENCFF914IXY+,ENCFF914IXY,ENCFF311RKY,ENCFF914IXY,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF914IXY-,ENCFF914IXY,ENCFF311RKY,ENCFF914IXY,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF696CDU+,ENCFF696CDU,ENCFF762YBF,ENCFF696CDU,768,384,0.3,sum_sqrt,RNA:GM12878 cytosolic fraction
+ENCFF696CDU-,ENCFF696CDU,ENCFF762YBF,ENCFF696CDU,768,384,0.3,sum_sqrt,RNA:GM12878 cytosolic fraction
+ENCFF501KFP+,ENCFF501KFP,ENCFF081FQX,ENCFF501KFP,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF501KFP-,ENCFF501KFP,ENCFF081FQX,ENCFF501KFP,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF729MSA+,ENCFF729MSA,ENCFF128HEW,ENCFF729MSA,768,384,0.3,sum_sqrt,RNA:H1 cytosolic fraction
+ENCFF729MSA-,ENCFF729MSA,ENCFF128HEW,ENCFF729MSA,768,384,0.3,sum_sqrt,RNA:H1 cytosolic fraction
+ENCFF587OLO+,ENCFF587OLO,ENCFF074PZH,ENCFF587OLO,768,384,0.3,sum_sqrt,RNA:H1 nuclear fraction
+ENCFF587OLO-,ENCFF587OLO,ENCFF074PZH,ENCFF587OLO,768,384,0.3,sum_sqrt,RNA:H1 nuclear fraction
+ENCFF888MQS+,ENCFF888MQS,ENCFF248IZE,ENCFF888MQS,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female
+ENCFF888MQS-,ENCFF888MQS,ENCFF248IZE,ENCFF888MQS,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female
+ENCFF005LKD+,ENCFF005LKD,ENCFF675NVY,ENCFF005LKD,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein male newborn
+ENCFF005LKD-,ENCFF005LKD,ENCFF675NVY,ENCFF005LKD,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein male newborn
+ENCFF032IMA+,ENCFF032IMA,ENCFF546BFB,ENCFF032IMA,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein cytosolic fraction male newborn
+ENCFF032IMA-,ENCFF032IMA,ENCFF546BFB,ENCFF032IMA,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein cytosolic fraction male newborn
+ENCFF804BGA+,ENCFF804BGA,ENCFF523SST,ENCFF804BGA,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein nuclear fraction male newborn
+ENCFF804BGA-,ENCFF804BGA,ENCFF523SST,ENCFF804BGA,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein nuclear fraction male newborn
+ENCFF431NUC+,ENCFF431NUC,ENCFF281BBM,ENCFF431NUC,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF431NUC-,ENCFF431NUC,ENCFF281BBM,ENCFF431NUC,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF065PJM+,ENCFF065PJM,ENCFF947VHW,ENCFF065PJM,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF065PJM-,ENCFF065PJM,ENCFF947VHW,ENCFF065PJM,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF518DFP+,ENCFF518DFP,ENCFF927NZL,ENCFF518DFP,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF518DFP-,ENCFF518DFP,ENCFF927NZL,ENCFF518DFP,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF119ONM+,ENCFF119ONM,ENCFF950KXS,ENCFF119ONM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF119ONM-,ENCFF119ONM,ENCFF950KXS,ENCFF119ONM,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF217JSG+,ENCFF217JSG,ENCFF119KHR,ENCFF217JSG,768,384,0.3,sum_sqrt,RNA:keratinocyte nuclear fraction female
+ENCFF217JSG-,ENCFF217JSG,ENCFF119KHR,ENCFF217JSG,768,384,0.3,sum_sqrt,RNA:keratinocyte nuclear fraction female
+ENCFF226FBQ+,ENCFF226FBQ,ENCFF715DGD,ENCFF226FBQ,768,384,0.3,sum_sqrt,RNA:keratinocyte cytosolic fraction female
+ENCFF226FBQ-,ENCFF226FBQ,ENCFF715DGD,ENCFF226FBQ,768,384,0.3,sum_sqrt,RNA:keratinocyte cytosolic fraction female
+ENCFF703WGS+,ENCFF703WGS,ENCFF994TIH,ENCFF703WGS,768,384,0.3,sum_sqrt,RNA:keratinocyte female
+ENCFF703WGS-,ENCFF703WGS,ENCFF994TIH,ENCFF703WGS,768,384,0.3,sum_sqrt,RNA:keratinocyte female
+ENCFF664JII+,ENCFF664JII,ENCFF744KRW,ENCFF664JII,768,384,0.3,sum_sqrt,RNA:fibroblast of lung male adult (45 years)
+ENCFF664JII-,ENCFF664JII,ENCFF744KRW,ENCFF664JII,768,384,0.3,sum_sqrt,RNA:fibroblast of lung male adult (45 years)
+ENCFF217KTR+,ENCFF217KTR,ENCFF564QXH,ENCFF217KTR,768,384,0.3,sum_sqrt,RNA:SK-N-SH treated with 6 uM all-trans-retinoic acid for 48 hours
+ENCFF217KTR-,ENCFF217KTR,ENCFF564QXH,ENCFF217KTR,768,384,0.3,sum_sqrt,RNA:SK-N-SH treated with 6 uM all-trans-retinoic acid for 48 hours
+ENCFF983FMY+,ENCFF983FMY,ENCFF993NSG,ENCFF983FMY,768,384,0.3,sum_sqrt,RNA:GM12878 nuclear fraction
+ENCFF983FMY-,ENCFF983FMY,ENCFF993NSG,ENCFF983FMY,768,384,0.3,sum_sqrt,RNA:GM12878 nuclear fraction
+ENCFF425GMM+,ENCFF425GMM,ENCFF118WJD,ENCFF425GMM,768,384,0.3,sum_sqrt,RNA:HeLa-S3 cytosolic fraction
+ENCFF425GMM-,ENCFF425GMM,ENCFF118WJD,ENCFF425GMM,768,384,0.3,sum_sqrt,RNA:HeLa-S3 cytosolic fraction
+ENCFF515VVS+,ENCFF515VVS,ENCFF181XMI,ENCFF515VVS,768,384,0.3,sum_sqrt,RNA:HeLa-S3 nuclear fraction
+ENCFF515VVS-,ENCFF515VVS,ENCFF181XMI,ENCFF515VVS,768,384,0.3,sum_sqrt,RNA:HeLa-S3 nuclear fraction
+ENCFF708PAF+,ENCFF708PAF,ENCFF177JCJ,ENCFF708PAF,768,384,0.3,sum_sqrt,RNA:HeLa-S3
+ENCFF708PAF-,ENCFF708PAF,ENCFF177JCJ,ENCFF708PAF,768,384,0.3,sum_sqrt,RNA:HeLa-S3
+ENCFF669RVI+,ENCFF669RVI,ENCFF327DXV,ENCFF669RVI,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF669RVI-,ENCFF669RVI,ENCFF327DXV,ENCFF669RVI,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF795XIC+,ENCFF795XIC,ENCFF159NNM,ENCFF795XIC,768,384,0.3,sum_sqrt,RNA:MCF-7
+ENCFF795XIC-,ENCFF795XIC,ENCFF159NNM,ENCFF795XIC,768,384,0.3,sum_sqrt,RNA:MCF-7
+ENCFF124AUH+,ENCFF124AUH,ENCFF204KIH,ENCFF124AUH,768,384,0.3,sum_sqrt,RNA:K562 chromatin fraction
+ENCFF124AUH-,ENCFF124AUH,ENCFF204KIH,ENCFF124AUH,768,384,0.3,sum_sqrt,RNA:K562 chromatin fraction
+ENCFF886LMB+,ENCFF886LMB,ENCFF793LYB,ENCFF886LMB,768,384,0.3,sum_sqrt,RNA:K562 nucleolus fraction
+ENCFF886LMB-,ENCFF886LMB,ENCFF793LYB,ENCFF886LMB,768,384,0.3,sum_sqrt,RNA:K562 nucleolus fraction
+ENCFF246QLC+,ENCFF246QLC,ENCFF021ZXF,ENCFF246QLC,768,384,0.3,sum_sqrt,RNA:K562 nucleoplasmic fraction
+ENCFF246QLC-,ENCFF246QLC,ENCFF021ZXF,ENCFF246QLC,768,384,0.3,sum_sqrt,RNA:K562 nucleoplasmic fraction
+ENCFF087WJT+,ENCFF087WJT,ENCFF775WKB,ENCFF087WJT,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF087WJT-,ENCFF087WJT,ENCFF775WKB,ENCFF087WJT,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF717ESE+,ENCFF717ESE,ENCFF964FBY,ENCFF717ESE,768,384,0.3,sum_sqrt,RNA:A549 cytosolic fraction
+ENCFF717ESE-,ENCFF717ESE,ENCFF964FBY,ENCFF717ESE,768,384,0.3,sum_sqrt,RNA:A549 cytosolic fraction
+ENCFF771QOV+,ENCFF771QOV,ENCFF009MEF,ENCFF771QOV,768,384,0.3,sum_sqrt,RNA:A549 nuclear fraction
+ENCFF771QOV-,ENCFF771QOV,ENCFF009MEF,ENCFF771QOV,768,384,0.3,sum_sqrt,RNA:A549 nuclear fraction
+ENCFF096YGQ+,ENCFF096YGQ,ENCFF560TMJ,ENCFF096YGQ,768,384,0.3,sum_sqrt,RNA:IMR-90 cytosolic fraction
+ENCFF096YGQ-,ENCFF096YGQ,ENCFF560TMJ,ENCFF096YGQ,768,384,0.3,sum_sqrt,RNA:IMR-90 cytosolic fraction
+ENCFF229AJQ+,ENCFF229AJQ,ENCFF125YQH,ENCFF229AJQ,768,384,0.3,sum_sqrt,RNA:MCF-7 nuclear fraction
+ENCFF229AJQ-,ENCFF229AJQ,ENCFF125YQH,ENCFF229AJQ,768,384,0.3,sum_sqrt,RNA:MCF-7 nuclear fraction
+ENCFF236YOT+,ENCFF236YOT,ENCFF763NIZ,ENCFF236YOT,768,384,0.3,sum_sqrt,RNA:IMR-90 nuclear fraction
+ENCFF236YOT-,ENCFF236YOT,ENCFF763NIZ,ENCFF236YOT,768,384,0.3,sum_sqrt,RNA:IMR-90 nuclear fraction
+ENCFF705NPF+,ENCFF705NPF,ENCFF768XGT,ENCFF705NPF,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF705NPF-,ENCFF705NPF,ENCFF768XGT,ENCFF705NPF,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF031HEW+,ENCFF031HEW,ENCFF398LLD,ENCFF031HEW,768,384,0.3,sum_sqrt,RNA:SK-N-SH cytosolic fraction
+ENCFF031HEW-,ENCFF031HEW,ENCFF398LLD,ENCFF031HEW,768,384,0.3,sum_sqrt,RNA:SK-N-SH cytosolic fraction
+ENCFF256CAM+,ENCFF256CAM,ENCFF437DAI,ENCFF256CAM,768,384,0.3,sum_sqrt,RNA:SK-N-SH nuclear fraction
+ENCFF256CAM-,ENCFF256CAM,ENCFF437DAI,ENCFF256CAM,768,384,0.3,sum_sqrt,RNA:SK-N-SH nuclear fraction
+ENCFF601EJS+,ENCFF601EJS,ENCFF666OAW,ENCFF601EJS,768,384,0.3,sum_sqrt,RNA:SK-N-SH
+ENCFF601EJS-,ENCFF601EJS,ENCFF666OAW,ENCFF601EJS,768,384,0.3,sum_sqrt,RNA:SK-N-SH
+ENCFF297JKU+,ENCFF297JKU,ENCFF844QFX,ENCFF297JKU,768,384,0.3,sum_sqrt,RNA:MCF-7 cytosolic fraction
+ENCFF297JKU-,ENCFF297JKU,ENCFF844QFX,ENCFF297JKU,768,384,0.3,sum_sqrt,RNA:MCF-7 cytosolic fraction
+ENCFF252DFZ+,ENCFF252DFZ,ENCFF026RXV,ENCFF252DFZ,768,384,0.3,sum_sqrt,RNA:B cell female adult (27 years) and female adult (43 years)
+ENCFF252DFZ-,ENCFF252DFZ,ENCFF026RXV,ENCFF252DFZ,768,384,0.3,sum_sqrt,RNA:B cell female adult (27 years) and female adult (43 years)
+ENCFF779FMR+,ENCFF779FMR,ENCFF808GOE,ENCFF779FMR,768,384,0.3,sum_sqrt,RNA:placental pericyte female newborn and male newborn
+ENCFF779FMR-,ENCFF779FMR,ENCFF808GOE,ENCFF779FMR,768,384,0.3,sum_sqrt,RNA:placental pericyte female newborn and male newborn
+ENCFF653TAB+,ENCFF653TAB,ENCFF923NFZ,ENCFF653TAB,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of adipose female adult (37 years) and female adult (42 years)
+ENCFF653TAB-,ENCFF653TAB,ENCFF923NFZ,ENCFF653TAB,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of adipose female adult (37 years) and female adult (42 years)
+ENCFF841GMC+,ENCFF841GMC,ENCFF120RCC,ENCFF841GMC,768,384,0.3,sum_sqrt,RNA:hematopoietic multipotent progenitor cell
+ENCFF841GMC-,ENCFF841GMC,ENCFF120RCC,ENCFF841GMC,768,384,0.3,sum_sqrt,RNA:hematopoietic multipotent progenitor cell
+ENCFF798NEI+,ENCFF798NEI,ENCFF176WEG,ENCFF798NEI,768,384,0.3,sum_sqrt,RNA:hair follicle dermal papilla cell female adult (47 years) and female adult (70 years)
+ENCFF798NEI-,ENCFF798NEI,ENCFF176WEG,ENCFF798NEI,768,384,0.3,sum_sqrt,RNA:hair follicle dermal papilla cell female adult (47 years) and female adult (70 years)
+ENCFF023YXV+,ENCFF023YXV,ENCFF193JED,ENCFF023YXV,768,384,0.3,sum_sqrt,RNA:CD14-positive monocyte female
+ENCFF023YXV-,ENCFF023YXV,ENCFF193JED,ENCFF023YXV,768,384,0.3,sum_sqrt,RNA:CD14-positive monocyte female
+ENCFF359MTP+,ENCFF359MTP,ENCFF997ZTN,ENCFF359MTP,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of the bone marrow female adult (60 years) and male adult (57 years)
+ENCFF359MTP-,ENCFF359MTP,ENCFF997ZTN,ENCFF359MTP,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of the bone marrow female adult (60 years) and male adult (57 years)
+ENCFF314QIG+,ENCFF314QIG,ENCFF701DRY,ENCFF314QIG,768,384,0.3,sum_sqrt,RNA:articular chondrocyte of knee joint female adult (56 years) and male adult (64 years)
+ENCFF314QIG-,ENCFF314QIG,ENCFF701DRY,ENCFF314QIG,768,384,0.3,sum_sqrt,RNA:articular chondrocyte of knee joint female adult (56 years) and male adult (64 years)
+ENCFF953CRN+,ENCFF953CRN,ENCFF998VKC,ENCFF953CRN,768,384,0.3,sum_sqrt,RNA:osteoblast female adult (56 years) and male adult (62 years)
+ENCFF953CRN-,ENCFF953CRN,ENCFF998VKC,ENCFF953CRN,768,384,0.3,sum_sqrt,RNA:osteoblast female adult (56 years) and male adult (62 years)
+ENCFF143TXA+,ENCFF143TXA,ENCFF175HEN,ENCFF143TXA,768,384,0.3,sum_sqrt,RNA:vein endothelial cell male adult (48 years) and male adult (52 years)
+ENCFF143TXA-,ENCFF143TXA,ENCFF175HEN,ENCFF143TXA,768,384,0.3,sum_sqrt,RNA:vein endothelial cell male adult (48 years) and male adult (52 years)
+ENCFF343FWG+,ENCFF343FWG,ENCFF376KFP,ENCFF343FWG,768,384,0.3,sum_sqrt,RNA:fibroblast of dermis female adult (44 years) and female adult (55 years)
+ENCFF343FWG-,ENCFF343FWG,ENCFF376KFP,ENCFF343FWG,768,384,0.3,sum_sqrt,RNA:fibroblast of dermis female adult (44 years) and female adult (55 years)
+ENCFF804YRV+,ENCFF804YRV,ENCFF705LRX,ENCFF804YRV,768,384,0.3,sum_sqrt,RNA:skeletal muscle satellite cell female adult (64 years) and male adult (21 years)
+ENCFF804YRV-,ENCFF804YRV,ENCFF705LRX,ENCFF804YRV,768,384,0.3,sum_sqrt,RNA:skeletal muscle satellite cell female adult (64 years) and male adult (21 years)
+ENCFF256ZZS+,ENCFF256ZZS,ENCFF935KPA,ENCFF256ZZS,768,384,0.3,sum_sqrt,RNA:fibroblast of the aortic adventitia female adult (24 years) and male adult (47 years)
+ENCFF256ZZS-,ENCFF256ZZS,ENCFF935KPA,ENCFF256ZZS,768,384,0.3,sum_sqrt,RNA:fibroblast of the aortic adventitia female adult (24 years) and male adult (47 years)
+ENCFF805HMR+,ENCFF805HMR,ENCFF266XOR,ENCFF805HMR,768,384,0.3,sum_sqrt,RNA:thoracic aorta endothelial cell female adult (22 years) and male adult (55 years)
+ENCFF805HMR-,ENCFF805HMR,ENCFF266XOR,ENCFF805HMR,768,384,0.3,sum_sqrt,RNA:thoracic aorta endothelial cell female adult (22 years) and male adult (55 years)
+ENCFF649CUP+,ENCFF649CUP,ENCFF999JNH,ENCFF649CUP,768,384,0.3,sum_sqrt,RNA:fibroblast of villous mesenchyme female newborn and male newborn
+ENCFF649CUP-,ENCFF649CUP,ENCFF999JNH,ENCFF649CUP,768,384,0.3,sum_sqrt,RNA:fibroblast of villous mesenchyme female newborn and male newborn
+ENCFF233TOO+,ENCFF233TOO,ENCFF279CXA,ENCFF233TOO,768,384,0.3,sum_sqrt,RNA:subcutaneous preadipocyte female adult (62 years) and male adult (65 years)
+ENCFF233TOO-,ENCFF233TOO,ENCFF279CXA,ENCFF233TOO,768,384,0.3,sum_sqrt,RNA:subcutaneous preadipocyte female adult (62 years) and male adult (65 years)
+ENCFF096YBH+,ENCFF096YBH,ENCFF512OQU,ENCFF096YBH,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female adult (23 years)
+ENCFF096YBH-,ENCFF096YBH,ENCFF512OQU,ENCFF096YBH,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female adult (23 years)
+ENCFF492ICA+,ENCFF492ICA,ENCFF969QLB,ENCFF492ICA,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of Wharton's jelly female newborn and male newborn
+ENCFF492ICA-,ENCFF492ICA,ENCFF969QLB,ENCFF492ICA,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell of Wharton's jelly female newborn and male newborn
+ENCFF591NKN+,ENCFF591NKN,ENCFF584ZVO,ENCFF591NKN,768,384,0.3,sum_sqrt,RNA:placental epithelial cell female newborn and male newborn
+ENCFF591NKN-,ENCFF591NKN,ENCFF584ZVO,ENCFF591NKN,768,384,0.3,sum_sqrt,RNA:placental epithelial cell female newborn and male newborn
+ENCFF723WDG+,ENCFF723WDG,ENCFF074YUJ,ENCFF723WDG,768,384,0.3,sum_sqrt,RNA:melanocyte of skin male child (1 year) and male child (3 years)
+ENCFF723WDG-,ENCFF723WDG,ENCFF074YUJ,ENCFF723WDG,768,384,0.3,sum_sqrt,RNA:melanocyte of skin male child (1 year) and male child (3 years)
+ENCFF230ZSG+,ENCFF230ZSG,ENCFF498IEF,ENCFF230ZSG,768,384,0.3,sum_sqrt,RNA:melanocyte of skin female adult (52 years) and male adult (55 years)
+ENCFF230ZSG-,ENCFF230ZSG,ENCFF498IEF,ENCFF230ZSG,768,384,0.3,sum_sqrt,RNA:melanocyte of skin female adult (52 years) and male adult (55 years)
+ENCFF151XTV+,ENCFF151XTV,ENCFF872PDN,ENCFF151XTV,768,384,0.3,sum_sqrt,RNA:mononuclear cell female adult (52 years)
+ENCFF151XTV-,ENCFF151XTV,ENCFF872PDN,ENCFF151XTV,768,384,0.3,sum_sqrt,RNA:mononuclear cell female adult (52 years)
+ENCFF853JVS+,ENCFF853JVS,ENCFF183DAT,ENCFF853JVS,768,384,0.3,sum_sqrt,RNA:GM12878 nucleolus fraction
+ENCFF853JVS-,ENCFF853JVS,ENCFF183DAT,ENCFF853JVS,768,384,0.3,sum_sqrt,RNA:GM12878 nucleolus fraction
+ENCFF982YRZ,ENCFF982YRZ,ENCFF059EED,ENCFF982YRZ,768,384,0.3,sum_sqrt,RNA:K562 treated with Interferon gamma for 6 hours
+ENCFF594PZM,ENCFF594PZM,ENCFF762IMM,ENCFF594PZM,768,384,0.3,sum_sqrt,RNA:K562 treated with Interferon gamma for 30 minutes
+ENCFF722OTS,ENCFF722OTS,ENCFF387XMN,ENCFF722OTS,768,384,0.3,sum_sqrt,RNA:K562 treated with interferon alpha for 6 hours
+ENCFF311UQI,ENCFF311UQI,ENCFF881ZVB,ENCFF311UQI,768,384,0.3,sum_sqrt,RNA:K562 treated with interferon alpha for 30 minutes
+ENCFF987SCM,ENCFF987SCM,ENCFF728FRI,ENCFF987SCM,768,384,0.3,sum_sqrt,RNA:GM12891
+ENCFF659BXA,ENCFF659BXA,ENCFF421USV,ENCFF659BXA,768,384,0.3,sum_sqrt,RNA:GM12892
+ENCFF069PST,ENCFF069PST,ENCFF074RGC,ENCFF069PST,768,384,0.3,sum_sqrt,RNA:HCT116
+ENCFF106FBY,ENCFF106FBY,ENCFF398FLG,ENCFF106FBY,768,384,0.3,sum_sqrt,RNA:skeletal muscle myoblast
+ENCFF543YFY,ENCFF543YFY,ENCFF108DXL,ENCFF543YFY,768,384,0.3,sum_sqrt,RNA:myocyte originated from LHCN-M2
+ENCFF905ISC,ENCFF905ISC,ENCFF226JAL,ENCFF905ISC,768,384,0.3,sum_sqrt,RNA:LHCN-M2
+ENCFF808PHI,ENCFF808PHI,ENCFF534TOF,ENCFF808PHI,768,384,0.3,sum_sqrt,RNA:MCF-7
+ENCFF036JNR,ENCFF036JNR,ENCFF201YGM,ENCFF036JNR,768,384,0.3,sum_sqrt,RNA:fibroblast of lung
+ENCFF684NXV,ENCFF684NXV,ENCFF156YPU,ENCFF684NXV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF860AKE,ENCFF860AKE,ENCFF357ZHP,ENCFF860AKE,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF687EZU,ENCFF687EZU,ENCFF323OQO,ENCFF687EZU,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF587FSZ,ENCFF587FSZ,ENCFF796WEV,ENCFF587FSZ,768,384,0.3,sum_sqrt,RNA:HeLa-S3
+ENCFF995HXY,ENCFF995HXY,ENCFF410NOU,ENCFF995HXY,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF618GYZ,ENCFF618GYZ,ENCFF701OMJ,ENCFF618GYZ,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein newborn
+ENCFF609GRY,ENCFF609GRY,ENCFF982FSG,ENCFF609GRY,768,384,0.3,sum_sqrt,RNA:keratinocyte female
+ENCFF155OWV+,ENCFF155OWV,ENCFF853YJN,ENCFF155OWV,768,384,0.3,sum_sqrt,RNA:OCI-LY7
+ENCFF155OWV-,ENCFF155OWV,ENCFF853YJN,ENCFF155OWV,768,384,0.3,sum_sqrt,RNA:OCI-LY7
+ENCFF775NPV+,ENCFF775NPV,ENCFF406EWU,ENCFF775NPV,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from HUES64
+ENCFF775NPV-,ENCFF775NPV,ENCFF406EWU,ENCFF775NPV,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from HUES64
+ENCFF357VZF+,ENCFF357VZF,ENCFF966CZY,ENCFF357VZF,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (47 years)
+ENCFF357VZF-,ENCFF357VZF,ENCFF966CZY,ENCFF357VZF,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (47 years)
+ENCFF496WON,ENCFF496WON,ENCFF961IGN,ENCFF496WON,768,384,0.3,sum_sqrt,RNA:K562 treated with 100 nM GSK J4 for 4 hours
+ENCFF028ZKC,ENCFF028ZKC,ENCFF624FEC,ENCFF028ZKC,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell"
+ENCFF952CKD+,ENCFF952CKD,ENCFF443TQL,ENCFF952CKD,768,384,0.3,sum_sqrt,RNA:Right ventricle myocardium inferior tissue male adult (60 years)
+ENCFF952CKD-,ENCFF952CKD,ENCFF443TQL,ENCFF952CKD,768,384,0.3,sum_sqrt,RNA:Right ventricle myocardium inferior tissue male adult (60 years)
+ENCFF233HJC+,ENCFF233HJC,ENCFF877NUD,ENCFF233HJC,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF233HJC-,ENCFF233HJC,ENCFF877NUD,ENCFF233HJC,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF626VIR+,ENCFF626VIR,ENCFF812GYC,ENCFF626VIR,768,384,0.3,sum_sqrt,RNA:HepG2 insoluble cytoplasmic fraction
+ENCFF626VIR-,ENCFF626VIR,ENCFF812GYC,ENCFF626VIR,768,384,0.3,sum_sqrt,RNA:HepG2 insoluble cytoplasmic fraction
+ENCFF401YXF+,ENCFF401YXF,ENCFF077MDV,ENCFF401YXF,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female
+ENCFF401YXF-,ENCFF401YXF,ENCFF077MDV,ENCFF401YXF,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female
+ENCFF354WKE,ENCFF354WKE,ENCFF020WAT,ENCFF354WKE,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of scalp male embryo (97 days)
+ENCFF044XSJ,ENCFF044XSJ,ENCFF454GHG,ENCFF044XSJ,768,384,0.3,sum_sqrt,RNA:bipolar neuron originated from GM23338 treated with 0.5 ug/mL doxycycline hyclate for 4 days
+ENCFF796PND+,ENCFF796PND,ENCFF922XCX,ENCFF796PND,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue male adult (54 years)
+ENCFF796PND-,ENCFF796PND,ENCFF922XCX,ENCFF796PND,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue male adult (54 years)
+ENCFF182JIC+,ENCFF182JIC,ENCFF254YHN,ENCFF182JIC,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (37 years)
+ENCFF182JIC-,ENCFF182JIC,ENCFF254YHN,ENCFF182JIC,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (37 years)
+ENCFF579IBH+,ENCFF579IBH,ENCFF164FQH,ENCFF579IBH,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (20 years)"
+ENCFF579IBH-,ENCFF579IBH,ENCFF164FQH,ENCFF579IBH,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (20 years)"
+ENCFF487XUM+,ENCFF487XUM,ENCFF679EIY,ENCFF487XUM,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue female adult (51 years)
+ENCFF487XUM-,ENCFF487XUM,ENCFF679EIY,ENCFF487XUM,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue female adult (51 years)
+ENCFF475JUK+,ENCFF475JUK,ENCFF211KHO,ENCFF475JUK,768,384,0.3,sum_sqrt,RNA:with mild cognitive impairment; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF475JUK-,ENCFF475JUK,ENCFF211KHO,ENCFF475JUK,768,384,0.3,sum_sqrt,RNA:with mild cognitive impairment; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF438BUG,ENCFF438BUG,ENCFF237ABA,ENCFF438BUG,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF933QBC+,ENCFF933QBC,ENCFF283LWN,ENCFF933QBC,768,384,0.3,sum_sqrt,RNA:K562 membrane fraction
+ENCFF933QBC-,ENCFF933QBC,ENCFF283LWN,ENCFF933QBC,768,384,0.3,sum_sqrt,RNA:K562 membrane fraction
+ENCFF008CRB+,ENCFF008CRB,ENCFF345YKH,ENCFF008CRB,768,384,0.8734908657664815,sum_sqrt,RNA:small intestine tissue female adult (30 years)
+ENCFF008CRB-,ENCFF008CRB,ENCFF345YKH,ENCFF008CRB,768,384,0.8734908657664815,sum_sqrt,RNA:small intestine tissue female adult (30 years)
+ENCFF384MPW,ENCFF384MPW,ENCFF482AEE,ENCFF384MPW,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; immature natural killer cell
+ENCFF444LLL+,ENCFF444LLL,ENCFF473DXC,ENCFF444LLL,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF444LLL-,ENCFF444LLL,ENCFF473DXC,ENCFF444LLL,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF411VWO+,ENCFF411VWO,ENCFF013YPF,ENCFF411VWO,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (51 years)
+ENCFF411VWO-,ENCFF411VWO,ENCFF013YPF,ENCFF411VWO,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (51 years)
+ENCFF392VPC,ENCFF392VPC,ENCFF426VSF,ENCFF392VPC,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF674RUW+,ENCFF674RUW,ENCFF155LBU,ENCFF674RUW,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from ganglionic eminence
+ENCFF674RUW-,ENCFF674RUW,ENCFF155LBU,ENCFF674RUW,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from ganglionic eminence
+ENCFF636VGI+,ENCFF636VGI,ENCFF187WYJ,ENCFF636VGI,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF636VGI-,ENCFF636VGI,ENCFF187WYJ,ENCFF636VGI,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF789CEJ,ENCFF789CEJ,ENCFF261TPF,ENCFF789CEJ,768,384,0.3,sum_sqrt,RNA:right lung tissue male embryo (105 days)
+ENCFF905NZB+,ENCFF905NZB,ENCFF242BWW,ENCFF905NZB,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (47 years)
+ENCFF905NZB-,ENCFF905NZB,ENCFF242BWW,ENCFF905NZB,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (47 years)
+ENCFF096UCI+,ENCFF096UCI,ENCFF579DSX,ENCFF096UCI,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (47 years)
+ENCFF096UCI-,ENCFF096UCI,ENCFF579DSX,ENCFF096UCI,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (47 years)
+ENCFF639BWZ,ENCFF639BWZ,ENCFF516KCN,ENCFF639BWZ,768,384,0.3,sum_sqrt,RNA:heart tissue male embryo (120 days)
+ENCFF638TAY+,ENCFF638TAY,ENCFF718PXS,ENCFF638TAY,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from ganglionic eminence
+ENCFF638TAY-,ENCFF638TAY,ENCFF718PXS,ENCFF638TAY,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from ganglionic eminence
+ENCFF804UGI+,ENCFF804UGI,ENCFF340KKR,ENCFF804UGI,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue female embryo (40 weeks)
+ENCFF804UGI-,ENCFF804UGI,ENCFF340KKR,ENCFF804UGI,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue female embryo (40 weeks)
+ENCFF196HWN+,ENCFF196HWN,ENCFF363MZD,ENCFF196HWN,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (71 years)
+ENCFF196HWN-,ENCFF196HWN,ENCFF363MZD,ENCFF196HWN,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (71 years)
+ENCFF205IED,ENCFF205IED,ENCFF861FRF,ENCFF205IED,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM MB-3 for 12 hours
+ENCFF856SMT+,ENCFF856SMT,ENCFF923RZX,ENCFF856SMT,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF856SMT-,ENCFF856SMT,ENCFF923RZX,ENCFF856SMT,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF035GJD+,ENCFF035GJD,ENCFF412SMK,ENCFF035GJD,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF035GJD-,ENCFF035GJD,ENCFF412SMK,ENCFF035GJD,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF381TII+,ENCFF381TII,ENCFF171XXN,ENCFF381TII,768,384,0.3,sum_sqrt,"RNA:with Alzheimer's disease, Cognitive impairment; middle frontal area 46 tissue female adult (87 years)"
+ENCFF381TII-,ENCFF381TII,ENCFF171XXN,ENCFF381TII,768,384,0.3,sum_sqrt,"RNA:with Alzheimer's disease, Cognitive impairment; middle frontal area 46 tissue female adult (87 years)"
+ENCFF994NAN+,ENCFF994NAN,ENCFF552ETT,ENCFF994NAN,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF994NAN-,ENCFF994NAN,ENCFF552ETT,ENCFF994NAN,768,384,0.3,sum_sqrt,RNA:HepG2 nuclear fraction
+ENCFF127NDE,ENCFF127NDE,ENCFF789YHW,ENCFF127NDE,768,384,0.3,sum_sqrt,RNA:K562 treated with 1% DMSO for 4 hours
+ENCFF639UPM,ENCFF639UPM,ENCFF036XST,ENCFF639UPM,768,384,0.3,sum_sqrt,RNA:large intestine tissue male embryo (108 days)
+ENCFF225USB+,ENCFF225USB,ENCFF923CBT,ENCFF225USB,768,384,0.3,sum_sqrt,RNA:HT1080 nuclear fraction
+ENCFF225USB-,ENCFF225USB,ENCFF923CBT,ENCFF225USB,768,384,0.3,sum_sqrt,RNA:HT1080 nuclear fraction
+ENCFF840VTO,ENCFF840VTO,ENCFF831NNE,ENCFF840VTO,768,384,0.3,sum_sqrt,RNA:thymus tissue male embryo (127 days)
+ENCFF432ENB+,ENCFF432ENB,ENCFF648SGA,ENCFF432ENB,768,384,0.3,sum_sqrt,RNA:uterus tissue female adult (51 years)
+ENCFF432ENB-,ENCFF432ENB,ENCFF648SGA,ENCFF432ENB,768,384,0.3,sum_sqrt,RNA:uterus tissue female adult (51 years)
+ENCFF480GYV+,ENCFF480GYV,ENCFF399UWQ,ENCFF480GYV,768,384,0.3,sum_sqrt,RNA:OCI-LY7
+ENCFF480GYV-,ENCFF480GYV,ENCFF399UWQ,ENCFF480GYV,768,384,0.3,sum_sqrt,RNA:OCI-LY7
+ENCFF432CYV,ENCFF432CYV,ENCFF087YYT,ENCFF432CYV,768,384,0.3,sum_sqrt,RNA:right lung tissue female embryo (98 days)
+ENCFF434LID+,ENCFF434LID,ENCFF808IYB,ENCFF434LID,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (26 years)
+ENCFF434LID-,ENCFF434LID,ENCFF808IYB,ENCFF434LID,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (26 years)
+ENCFF073NKN,ENCFF073NKN,ENCFF277QKF,ENCFF073NKN,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF847OUD+,ENCFF847OUD,ENCFF725UBV,ENCFF847OUD,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue male adult (54 years)
+ENCFF847OUD-,ENCFF847OUD,ENCFF725UBV,ENCFF847OUD,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue male adult (54 years)
+ENCFF894JRG,ENCFF894JRG,ENCFF955YBO,ENCFF894JRG,768,384,0.3,sum_sqrt,RNA:IgD-negative memory B cell
+ENCFF865FLR,ENCFF865FLR,ENCFF573BJH,ENCFF865FLR,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF387UUZ+,ENCFF387UUZ,ENCFF035CWS,ENCSR094GVZ,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue female adult (53 years)
+ENCFF387UUZ-,ENCFF387UUZ,ENCFF035CWS,ENCSR094GVZ,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue female adult (53 years)
+ENCFF863UAA+,ENCFF863UAA,ENCFF249CRP,ENCFF863UAA,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue male adult (37 years)
+ENCFF863UAA-,ENCFF863UAA,ENCFF249CRP,ENCFF863UAA,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue male adult (37 years)
+ENCFF942QIE+,ENCFF942QIE,ENCFF229BRI,ENCFF942QIE,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (61 years)
+ENCFF942QIE-,ENCFF942QIE,ENCFF229BRI,ENCFF942QIE,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (61 years)
+ENCFF071TXL+,ENCFF071TXL,ENCFF171VHL,ENCFF071TXL,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue female adult (53 years)
+ENCFF071TXL-,ENCFF071TXL,ENCFF171VHL,ENCFF071TXL,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue female adult (53 years)
+ENCFF710BHJ,ENCFF710BHJ,ENCFF037PQJ,ENCFF710BHJ,768,384,0.3,sum_sqrt,RNA:K562 treated with 1% DMSO for 24 hours
+ENCFF689GBG,ENCFF689GBG,ENCFF883VBS,ENCFF689GBG,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Chaetocin for 24 hours
+ENCFF988EBT+,ENCFF988EBT,ENCFF863CHX,ENCFF988EBT,768,384,0.3,sum_sqrt,RNA:esophagus tissue male adult (34 years)
+ENCFF988EBT-,ENCFF988EBT,ENCFF863CHX,ENCFF988EBT,768,384,0.3,sum_sqrt,RNA:esophagus tissue male adult (34 years)
+ENCFF056NWD+,ENCFF056NWD,ENCFF003QOJ,ENCFF056NWD,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue embryo (16 weeks)
+ENCFF056NWD-,ENCFF056NWD,ENCFF003QOJ,ENCFF056NWD,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue embryo (16 weeks)
+ENCFF876APW,ENCFF876APW,ENCFF481ZHF,ENCFF876APW,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Vorinostat for 12 hours
+ENCFF507FAA+,ENCFF507FAA,ENCFF753TAP,ENCFF507FAA,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (54 years)
+ENCFF507FAA-,ENCFF507FAA,ENCFF753TAP,ENCFF507FAA,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (54 years)
+ENCFF136YVC+,ENCFF136YVC,ENCFF440ZBY,ENCFF136YVC,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue male adult (54 years)
+ENCFF136YVC-,ENCFF136YVC,ENCFF440ZBY,ENCFF136YVC,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue male adult (54 years)
+ENCFF478XYM,ENCFF478XYM,ENCFF968ZYP,ENCFF478XYM,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF944XYT+,ENCFF944XYT,ENCFF349JGI,ENCFF944XYT,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF944XYT-,ENCFF944XYT,ENCFF349JGI,ENCFF944XYT,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF417PPZ+,ENCFF417PPZ,ENCFF490PQX,ENCFF417PPZ,768,384,0.3,sum_sqrt,RNA:cardiac atrium fibroblast male child (2 years)
+ENCFF417PPZ-,ENCFF417PPZ,ENCFF490PQX,ENCFF417PPZ,768,384,0.3,sum_sqrt,RNA:cardiac atrium fibroblast male child (2 years)
+ENCFF122XJD+,ENCFF122XJD,ENCFF032FHV,ENCFF122XJD,768,384,0.3,sum_sqrt,"RNA:activated T-cell male adult (42 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF122XJD-,ENCFF122XJD,ENCFF032FHV,ENCFF122XJD,768,384,0.3,sum_sqrt,"RNA:activated T-cell male adult (42 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF823LKJ+,ENCFF823LKJ,ENCFF203XLE,ENCFF823LKJ,768,384,0.3,sum_sqrt,RNA:uterus tissue female adult (53 years)
+ENCFF823LKJ-,ENCFF823LKJ,ENCFF203XLE,ENCFF823LKJ,768,384,0.3,sum_sqrt,RNA:uterus tissue female adult (53 years)
+ENCFF385SAC,ENCFF385SAC,ENCFF464XFU,ENCFF385SAC,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Vorinostat for 4 hours
+ENCFF132EEP,ENCFF132EEP,ENCFF361SIG,ENCFF132EEP,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Chaetocin for 48 hours
+ENCFF767MLU+,ENCFF767MLU,ENCFF617FDC,ENCFF767MLU,768,384,0.3,sum_sqrt,RNA:epithelial cell of proximal tubule
+ENCFF767MLU-,ENCFF767MLU,ENCFF617FDC,ENCFF767MLU,768,384,0.3,sum_sqrt,RNA:epithelial cell of proximal tubule
+ENCFF195SMK,ENCFF195SMK,ENCFF885ONP,ENCFF195SMK,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female embryo (85 days)
+ENCFF996KKA,ENCFF996KKA,ENCFF288UDZ,ENCFF996KKA,768,384,0.3,sum_sqrt,RNA:stomach tissue male embryo (127 days)
+ENCFF642WCG,ENCFF642WCG,ENCFF858VUL,ENCFF642WCG,768,384,0.3,sum_sqrt,RNA:K562 treated with 25 uM Galeterone for 24 hours
+ENCFF669XAP,ENCFF669XAP,ENCFF113MLN,ENCFF669XAP,768,384,0.3,sum_sqrt,RNA:left renal cortex interstitium tissue male embryo (105 days)
+ENCFF962EZE+,ENCFF962EZE,ENCFF602HCV,ENCFF962EZE,768,384,0.3,sum_sqrt,RNA:Panc1
+ENCFF962EZE-,ENCFF962EZE,ENCFF602HCV,ENCFF962EZE,768,384,0.3,sum_sqrt,RNA:Panc1
+ENCFF310GNU+,ENCFF310GNU,ENCFF613FRB,ENCFF310GNU,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (30 years)
+ENCFF310GNU-,ENCFF310GNU,ENCFF613FRB,ENCFF310GNU,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (30 years)
+ENCFF849ELK+,ENCFF849ELK,ENCFF077ICY,ENCFF849ELK,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF849ELK-,ENCFF849ELK,ENCFF077ICY,ENCFF849ELK,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF568EVH+,ENCFF568EVH,ENCFF936VDJ,ENCFF568EVH,768,384,0.3,sum_sqrt,RNA:posterior vena cava tissue female adult (47 years)
+ENCFF568EVH-,ENCFF568EVH,ENCFF936VDJ,ENCFF568EVH,768,384,0.3,sum_sqrt,RNA:posterior vena cava tissue female adult (47 years)
+ENCFF198IBF+,ENCFF198IBF,ENCFF537RGH,ENCFF198IBF,768,384,0.3,sum_sqrt,RNA:Right ventricle myocardium superior tissue male adult (60 years)
+ENCFF198IBF-,ENCFF198IBF,ENCFF537RGH,ENCFF198IBF,768,384,0.3,sum_sqrt,RNA:Right ventricle myocardium superior tissue male adult (60 years)
+ENCFF565QRM+,ENCFF565QRM,ENCFF414AZQ,ENCFF565QRM,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (41 years)
+ENCFF565QRM-,ENCFF565QRM,ENCFF414AZQ,ENCFF565QRM,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (41 years)
+ENCFF117HUT+,ENCFF117HUT,ENCFF198SVA,ENCFF117HUT,768,384,0.3,sum_sqrt,RNA:SK-N-DZ treated with dimethyl sulfoxide for 72 hours
+ENCFF117HUT-,ENCFF117HUT,ENCFF198SVA,ENCFF117HUT,768,384,0.3,sum_sqrt,RNA:SK-N-DZ treated with dimethyl sulfoxide for 72 hours
+ENCFF105TXB+,ENCFF105TXB,ENCFF433FOV,ENCFF105TXB,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (46 years)
+ENCFF105TXB-,ENCFF105TXB,ENCFF433FOV,ENCFF105TXB,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (46 years)
+ENCFF688KBA,ENCFF688KBA,ENCFF702YOB,ENCFF688KBA,768,384,0.3,sum_sqrt,RNA:muscle of leg tissue male embryo (105 days)
+ENCFF477AQU+,ENCFF477AQU,ENCFF442JZU,ENCFF477AQU,768,384,0.3,sum_sqrt,RNA:vagina tissue female adult (53 years)
+ENCFF477AQU-,ENCFF477AQU,ENCFF442JZU,ENCFF477AQU,768,384,0.3,sum_sqrt,RNA:vagina tissue female adult (53 years)
+ENCFF561SVV+,ENCFF561SVV,ENCFF227KPV,ENCFF561SVV,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (30 years)
+ENCFF561SVV-,ENCFF561SVV,ENCFF227KPV,ENCFF561SVV,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (30 years)
+ENCFF769QDV+,ENCFF769QDV,ENCFF994ERY,ENCFF769QDV,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (59 years)
+ENCFF769QDV-,ENCFF769QDV,ENCFF994ERY,ENCFF769QDV,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (59 years)
+ENCFF908IDY+,ENCFF908IDY,ENCFF399AMH,ENCFF908IDY,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF908IDY-,ENCFF908IDY,ENCFF399AMH,ENCFF908IDY,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF261GFJ+,ENCFF261GFJ,ENCFF054JWH,ENCFF261GFJ,768,384,0.3,sum_sqrt,RNA:luminal epithelial cell of mammary gland female adult (22 years)
+ENCFF261GFJ-,ENCFF261GFJ,ENCFF054JWH,ENCFF261GFJ,768,384,0.3,sum_sqrt,RNA:luminal epithelial cell of mammary gland female adult (22 years)
+ENCFF509OMC+,ENCFF509OMC,ENCFF561ZTT,ENCFF509OMC,768,384,0.3,sum_sqrt,RNA:posterior vena cava tissue female adult (59 years)
+ENCFF509OMC-,ENCFF509OMC,ENCFF561ZTT,ENCFF509OMC,768,384,0.3,sum_sqrt,RNA:posterior vena cava tissue female adult (59 years)
+ENCFF246RCD,ENCFF246RCD,ENCFF986KFO,ENCFF246RCD,768,384,0.3,sum_sqrt,RNA:small intestine tissue female embryo (108 days)
+ENCFF359ATD+,ENCFF359ATD,ENCFF972YML,ENCFF359ATD,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue female adult (51 years)
+ENCFF359ATD-,ENCFF359ATD,ENCFF972YML,ENCFF359ATD,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue female adult (51 years)
+ENCFF535NFF+,ENCFF535NFF,ENCFF277YFP,ENCFF535NFF,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (21 years)"
+ENCFF535NFF-,ENCFF535NFF,ENCFF277YFP,ENCFF535NFF,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (21 years)"
+ENCFF782HFV+,ENCFF782HFV,ENCFF626GVO,ENCFF782HFV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF782HFV-,ENCFF782HFV,ENCFF626GVO,ENCFF782HFV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF259EXX,ENCFF259EXX,ENCFF900LJN,ENCFF259EXX,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF969VXC+,ENCFF969VXC,ENCFF449IHE,ENCFF969VXC,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF969VXC-,ENCFF969VXC,ENCFF449IHE,ENCFF969VXC,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF669TRH+,ENCFF669TRH,ENCFF656QCS,ENCFF669TRH,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue female adult (51 years)
+ENCFF669TRH-,ENCFF669TRH,ENCFF656QCS,ENCFF669TRH,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue female adult (51 years)
+ENCFF900MLZ,ENCFF900MLZ,ENCFF137XOQ,ENCFF900MLZ,768,384,0.3,sum_sqrt,RNA:thymus tissue female embryo (98 days)
+ENCFF664RDQ,ENCFF664RDQ,ENCFF112TZL,ENCFF664RDQ,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF881ITI,ENCFF881ITI,ENCFF866SDL,ENCFF881ITI,768,384,0.3,sum_sqrt,RNA:left renal pelvis tissue male embryo (105 days)
+ENCFF219KLR,ENCFF219KLR,ENCFF095ZWS,ENCFF219KLR,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM MB-3 for 24 hours
+ENCFF695GPR+,ENCFF695GPR,ENCFF303NBU,ENCFF695GPR,768,384,0.3,sum_sqrt,RNA:NCI-H460
+ENCFF695GPR-,ENCFF695GPR,ENCFF303NBU,ENCFF695GPR,768,384,0.3,sum_sqrt,RNA:NCI-H460
+ENCFF179DDD,ENCFF179DDD,ENCFF415RZK,ENCFF179DDD,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM MB-3 for 4 hours
+ENCFF013IKJ+,ENCFF013IKJ,ENCFF514LIV,ENCFF013IKJ,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (61 years)
+ENCFF013IKJ-,ENCFF013IKJ,ENCFF514LIV,ENCFF013IKJ,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (61 years)
+ENCFF681MQA,ENCFF681MQA,ENCFF020OPI,ENCFF681MQA,768,384,0.3,sum_sqrt,RNA:WTC11 genetically modified (insertion) using TALEN inserting M. musculus Neurog2
+ENCFF686YTX+,ENCFF686YTX,ENCFF269KFI,ENCFF686YTX,768,384,0.3,sum_sqrt,RNA:HT1080 cytosolic fraction
+ENCFF686YTX-,ENCFF686YTX,ENCFF269KFI,ENCFF686YTX,768,384,0.3,sum_sqrt,RNA:HT1080 cytosolic fraction
+ENCFF995NEF,ENCFF995NEF,ENCFF105LQK,ENCFF995NEF,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF992HAP+,ENCFF992HAP,ENCFF327EHB,ENCFF992HAP,768,384,0.3,sum_sqrt,RNA:mesothelial cell of epicardium
+ENCFF992HAP-,ENCFF992HAP,ENCFF327EHB,ENCFF992HAP,768,384,0.3,sum_sqrt,RNA:mesothelial cell of epicardium
+ENCFF154TLD,ENCFF154TLD,ENCFF116EXN,ENCFF154TLD,768,384,0.3,sum_sqrt,RNA:muscle of leg tissue male embryo (113 days)
+ENCFF199BDG,ENCFF199BDG,ENCFF550PKG,ENCFF199BDG,768,384,0.3,sum_sqrt,RNA:thymus tissue male embryo (97 days)
+ENCFF060EGL+,ENCFF060EGL,ENCFF469RIZ,ENCFF060EGL,768,384,0.3,sum_sqrt,RNA:trophoblast tissue male embryo (38 weeks)
+ENCFF060EGL-,ENCFF060EGL,ENCFF469RIZ,ENCFF060EGL,768,384,0.3,sum_sqrt,RNA:trophoblast tissue male embryo (38 weeks)
+ENCFF817FWU,ENCFF817FWU,ENCFF528BZB,ENCFF817FWU,768,384,0.3,sum_sqrt,RNA:right lung tissue male embryo (96 days)
+ENCFF014YFU+,ENCFF014YFU,ENCFF662WMN,ENCFF014YFU,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF014YFU-,ENCFF014YFU,ENCFF662WMN,ENCFF014YFU,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF581ZGH+,ENCFF581ZGH,ENCFF286SDY,ENCFF581ZGH,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF581ZGH-,ENCFF581ZGH,ENCFF286SDY,ENCFF581ZGH,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF741HPN+,ENCFF741HPN,ENCFF581EJT,ENCFF741HPN,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue male adult (37 years)
+ENCFF741HPN-,ENCFF741HPN,ENCFF581EJT,ENCFF741HPN,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue male adult (37 years)
+ENCFF837ZJA+,ENCFF837ZJA,ENCFF862VDV,ENCFF837ZJA,768,384,0.3,sum_sqrt,RNA:mucosa of descending colon tissue female adult (61 years)
+ENCFF837ZJA-,ENCFF837ZJA,ENCFF862VDV,ENCFF837ZJA,768,384,0.3,sum_sqrt,RNA:mucosa of descending colon tissue female adult (61 years)
+ENCFF542TGZ+,ENCFF542TGZ,ENCFF455BVP,ENCFF542TGZ,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (41 years)
+ENCFF542TGZ-,ENCFF542TGZ,ENCFF455BVP,ENCFF542TGZ,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (41 years)
+ENCFF046XIT+,ENCFF046XIT,ENCFF326WJK,ENCFF046XIT,768,384,0.3,sum_sqrt,RNA:fibroblast of breast female adult (17 years)
+ENCFF046XIT-,ENCFF046XIT,ENCFF326WJK,ENCFF046XIT,768,384,0.3,sum_sqrt,RNA:fibroblast of breast female adult (17 years)
+ENCFF371QSS+,ENCFF371QSS,ENCFF815CJE,ENCFF371QSS,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (51 years)
+ENCFF371QSS-,ENCFF371QSS,ENCFF815CJE,ENCFF371QSS,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (51 years)
+ENCFF574YPE,ENCFF574YPE,ENCFF736ASV,ENCFF574YPE,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM JQ1 for 12 hours
+ENCFF826YBE+,ENCFF826YBE,ENCFF748WKJ,ENCFF826YBE,768,384,0.3,sum_sqrt,RNA:fibroblast of breast female adult (26 years)
+ENCFF826YBE-,ENCFF826YBE,ENCFF748WKJ,ENCFF826YBE,768,384,0.3,sum_sqrt,RNA:fibroblast of breast female adult (26 years)
+ENCFF424DIT+,ENCFF424DIT,ENCFF553GKS,ENCFF424DIT,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF424DIT-,ENCFF424DIT,ENCFF553GKS,ENCFF424DIT,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF346QDJ+,ENCFF346QDJ,ENCFF347PMO,ENCFF346QDJ,768,384,0.3,sum_sqrt,RNA:mesangial cell NONE and female embryo (21 weeks)
+ENCFF346QDJ-,ENCFF346QDJ,ENCFF347PMO,ENCFF346QDJ,768,384,0.3,sum_sqrt,RNA:mesangial cell NONE and female embryo (21 weeks)
+ENCFF117JSP+,ENCFF117JSP,ENCFF507VWH,ENCFF117JSP,768,384,0.3,sum_sqrt,RNA:SK-MEL-5 nuclear fraction
+ENCFF117JSP-,ENCFF117JSP,ENCFF507VWH,ENCFF117JSP,768,384,0.3,sum_sqrt,RNA:SK-MEL-5 nuclear fraction
+ENCFF290PRJ+,ENCFF290PRJ,ENCFF268IFI,ENCFF290PRJ,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female child (16 years)
+ENCFF290PRJ-,ENCFF290PRJ,ENCFF268IFI,ENCFF290PRJ,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female child (16 years)
+ENCFF767NPP+,ENCFF767NPP,ENCFF297UZI,ENCFF767NPP,768,384,0.3,sum_sqrt,RNA:colonic mucosa tissue female adult (41 years)
+ENCFF767NPP-,ENCFF767NPP,ENCFF297UZI,ENCFF767NPP,768,384,0.3,sum_sqrt,RNA:colonic mucosa tissue female adult (41 years)
+ENCFF693TJD,ENCFF693TJD,ENCFF796QUF,ENCFF693TJD,768,384,0.3,sum_sqrt,RNA:renal pelvis tissue female embryo (105 days)
+ENCFF117CTU,ENCFF117CTU,ENCFF563CVU,ENCFF117CTU,768,384,0.3,sum_sqrt,RNA:K562 treated with 25 uM Galeterone for 4 hours
+ENCFF259TIE,ENCFF259TIE,ENCFF112KWD,ENCFF259TIE,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF064TTU,ENCFF064TTU,ENCFF221JFY,ENCFF064TTU,768,384,0.3,sum_sqrt,RNA:kidney tissue female embryo (105 days)
+ENCFF772RIQ,ENCFF772RIQ,ENCFF480GTA,ENCFF772RIQ,768,384,0.3,sum_sqrt,"RNA:CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF648RBX,ENCFF648RBX,ENCFF838THE,ENCFF648RBX,768,384,0.3,sum_sqrt,RNA:left lung tissue male embryo (96 days)
+ENCFF057IIF,ENCFF057IIF,ENCFF393NNN,ENCFF057IIF,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Bortezomib for 48 hours
+ENCFF470OCI+,ENCFF470OCI,ENCFF745FXG,ENCFF470OCI,768,384,0.3,sum_sqrt,RNA:myoepithelial cell of mammary gland female adult (22 years)
+ENCFF470OCI-,ENCFF470OCI,ENCFF745FXG,ENCFF470OCI,768,384,0.3,sum_sqrt,RNA:myoepithelial cell of mammary gland female adult (22 years)
+ENCFF103EZF+,ENCFF103EZF,ENCFF142RGB,ENCFF103EZF,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (53 years)
+ENCFF103EZF-,ENCFF103EZF,ENCFF142RGB,ENCFF103EZF,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (53 years)
+ENCFF128YXB+,ENCFF128YXB,ENCFF050ASS,ENCFF128YXB,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female child (16 years)
+ENCFF128YXB-,ENCFF128YXB,ENCFF050ASS,ENCFF128YXB,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female child (16 years)
+ENCFF401TVK,ENCFF401TVK,ENCFF161DSK,ENCFF401TVK,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF155PJH+,ENCFF155PJH,ENCFF205MGD,ENCFF155PJH,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF155PJH-,ENCFF155PJH,ENCFF205MGD,ENCFF155PJH,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF625DRX+,ENCFF625DRX,ENCFF991IPE,ENCFF625DRX,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue female adult (63 years)
+ENCFF625DRX-,ENCFF625DRX,ENCFF991IPE,ENCFF625DRX,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue female adult (63 years)
+ENCFF312VKB,ENCFF312VKB,ENCFF402LDH,ENCFF312VKB,768,384,0.3,sum_sqrt,RNA:smooth muscle cell originated from H9
+ENCFF837FLM+,ENCFF837FLM,ENCFF635OSX,ENCFF837FLM,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female adult (53 years)
+ENCFF837FLM-,ENCFF837FLM,ENCFF635OSX,ENCFF837FLM,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female adult (53 years)
+ENCFF641YCY,ENCFF641YCY,ENCFF031BVI,ENCFF641YCY,768,384,0.3,sum_sqrt,RNA:muscle of back tissue female embryo (85 days)
+ENCFF008UXK+,ENCFF008UXK,ENCFF787LGY,ENCFF008UXK,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF008UXK-,ENCFF008UXK,ENCFF787LGY,ENCFF008UXK,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF503NGO+,ENCFF503NGO,ENCFF891YDA,ENCFF503NGO,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF503NGO-,ENCFF503NGO,ENCFF891YDA,ENCFF503NGO,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF403DKN+,ENCFF403DKN,ENCFF056WDN,ENCFF403DKN,768,384,0.3,sum_sqrt,RNA:neural progenitor cell originated from H9
+ENCFF403DKN-,ENCFF403DKN,ENCFF056WDN,ENCFF403DKN,768,384,0.3,sum_sqrt,RNA:neural progenitor cell originated from H9
+ENCFF908VIH+,ENCFF908VIH,ENCFF660EXG,ENCFF908VIH,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF908VIH-,ENCFF908VIH,ENCFF660EXG,ENCFF908VIH,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF381OQK+,ENCFF381OQK,ENCFF504BTR,ENCFF381OQK,768,384,0.3,sum_sqrt,RNA:chorion tissue embryo (16 weeks)
+ENCFF381OQK-,ENCFF381OQK,ENCFF504BTR,ENCFF381OQK,768,384,0.3,sum_sqrt,RNA:chorion tissue embryo (16 weeks)
+ENCFF645AYP+,ENCFF645AYP,ENCFF989OVC,ENCFF645AYP,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue female adult (46 years)
+ENCFF645AYP-,ENCFF645AYP,ENCFF989OVC,ENCFF645AYP,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue female adult (46 years)
+ENCFF196LHX+,ENCFF196LHX,ENCFF431EBQ,ENCFF196LHX,768,384,0.3,sum_sqrt,RNA:Daoy
+ENCFF196LHX-,ENCFF196LHX,ENCFF431EBQ,ENCFF196LHX,768,384,0.3,sum_sqrt,RNA:Daoy
+ENCFF770TOE+,ENCFF770TOE,ENCFF192RRP,ENCFF770TOE,768,384,0.3,sum_sqrt,RNA:SK-N-DZ nuclear fraction
+ENCFF770TOE-,ENCFF770TOE,ENCFF192RRP,ENCFF770TOE,768,384,0.3,sum_sqrt,RNA:SK-N-DZ nuclear fraction
+ENCFF615IJV+,ENCFF615IJV,ENCFF432TWB,ENCFF615IJV,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from cortex
+ENCFF615IJV-,ENCFF615IJV,ENCFF432TWB,ENCFF615IJV,768,384,0.3,sum_sqrt,RNA:neurosphere embryo (15 weeks) originated from cortex
+ENCFF666KUJ+,ENCFF666KUJ,ENCFF346BRI,ENCFF666KUJ,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue male adult (54 years)
+ENCFF666KUJ-,ENCFF666KUJ,ENCFF346BRI,ENCFF666KUJ,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue male adult (54 years)
+ENCFF239BUM+,ENCFF239BUM,ENCFF780MVA,ENCFF239BUM,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (59 years)
+ENCFF239BUM-,ENCFF239BUM,ENCFF780MVA,ENCFF239BUM,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (59 years)
+ENCFF744TRY+,ENCFF744TRY,ENCFF897OSM,ENCFF744TRY,768,384,0.3,sum_sqrt,RNA:foreskin fibroblast male newborn
+ENCFF744TRY-,ENCFF744TRY,ENCFF897OSM,ENCFF744TRY,768,384,0.3,sum_sqrt,RNA:foreskin fibroblast male newborn
+ENCFF583FIC,ENCFF583FIC,ENCFF927OMA,ENCFF583FIC,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 uM AR-42 for 4 hours
+ENCFF946ZPT,ENCFF946ZPT,ENCFF220OHE,ENCFF946ZPT,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; CD14-positive monocyte
+ENCFF393ZMQ+,ENCFF393ZMQ,ENCFF959SOP,ENCFF393ZMQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta T cell male adult (21 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF393ZMQ-,ENCFF393ZMQ,ENCFF959SOP,ENCFF393ZMQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta T cell male adult (21 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF315BLU,ENCFF315BLU,ENCFF544WEX,ENCFF315BLU,768,384,0.3,sum_sqrt,RNA:spleen tissue embryo (112 days)
+ENCFF313KNT,ENCFF313KNT,ENCFF383IKA,ENCFF313KNT,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell"
+ENCFF474WFJ+,ENCFF474WFJ,ENCFF478OYU,ENCFF474WFJ,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue female adult (46 years)
+ENCFF474WFJ-,ENCFF474WFJ,ENCFF478OYU,ENCFF474WFJ,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue female adult (46 years)
+ENCFF864IDH+,ENCFF864IDH,ENCFF927DZC,ENCFF864IDH,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (21 years)
+ENCFF864IDH-,ENCFF864IDH,ENCFF927DZC,ENCFF864IDH,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (21 years)
+ENCFF506SFB+,ENCFF506SFB,ENCFF021RJG,ENCFF506SFB,768,384,0.3,sum_sqrt,RNA:keratinocyte female
+ENCFF506SFB-,ENCFF506SFB,ENCFF021RJG,ENCFF506SFB,768,384,0.3,sum_sqrt,RNA:keratinocyte female
+ENCFF533JTF+,ENCFF533JTF,ENCFF238TXN,ENCFF533JTF,768,384,0.3,sum_sqrt,RNA:endocrine pancreas tissue adult (59 years)
+ENCFF533JTF-,ENCFF533JTF,ENCFF238TXN,ENCFF533JTF,768,384,0.3,sum_sqrt,RNA:endocrine pancreas tissue adult (59 years)
+ENCFF281UGH+,ENCFF281UGH,ENCFF105UFI,ENCFF281UGH,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue female adult (51 years)
+ENCFF281UGH-,ENCFF281UGH,ENCFF105UFI,ENCFF281UGH,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue female adult (51 years)
+ENCFF637ZBG+,ENCFF637ZBG,ENCFF121DHE,ENCFF637ZBG,768,384,0.3,sum_sqrt,RNA:brain tissue female adult (66 years)
+ENCFF637ZBG-,ENCFF637ZBG,ENCFF121DHE,ENCFF637ZBG,768,384,0.3,sum_sqrt,RNA:brain tissue female adult (66 years)
+ENCFF587USA+,ENCFF587USA,ENCFF375SZI,ENCFF587USA,768,384,0.3,sum_sqrt,"RNA:with Alzheimer's disease, Cognitive impairment; middle frontal area 46 tissue male adult (73 years)"
+ENCFF587USA-,ENCFF587USA,ENCFF375SZI,ENCFF587USA,768,384,0.3,sum_sqrt,"RNA:with Alzheimer's disease, Cognitive impairment; middle frontal area 46 tissue male adult (73 years)"
+ENCFF392DAR+,ENCFF392DAR,ENCFF046TTE,ENCFF392DAR,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell originated from H1
+ENCFF392DAR-,ENCFF392DAR,ENCFF046TTE,ENCFF392DAR,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell originated from H1
+ENCFF037OMX+,ENCFF037OMX,ENCFF996QEJ,ENCFF037OMX,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (37 years)
+ENCFF037OMX-,ENCFF037OMX,ENCFF996QEJ,ENCFF037OMX,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (37 years)
+ENCFF565FPI+,ENCFF565FPI,ENCFF712DYB,ENCFF565FPI,768,384,0.3,sum_sqrt,RNA:lung tissue male child (3 years)
+ENCFF565FPI-,ENCFF565FPI,ENCFF712DYB,ENCFF565FPI,768,384,0.3,sum_sqrt,RNA:lung tissue male child (3 years)
+ENCFF496QEP,ENCFF496QEP,ENCFF065BDP,ENCFF496QEP,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell"
+ENCFF547YEW+,ENCFF547YEW,ENCFF421CJK,ENCFF547YEW,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD8-positive, alpha-beta T cell male adult (21 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF547YEW-,ENCFF547YEW,ENCFF421CJK,ENCFF547YEW,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD8-positive, alpha-beta T cell male adult (21 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF295JCA,ENCFF295JCA,ENCFF056EWU,ENCFF295JCA,768,384,0.3,sum_sqrt,RNA:large intestine tissue male embryo (115 days)
+ENCFF719RAL,ENCFF719RAL,ENCFF219MHK,ENCFF719RAL,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Bortezomib for 12 hours
+ENCFF189MNY+,ENCFF189MNY,ENCFF165GEP,ENCFF189MNY,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF189MNY-,ENCFF189MNY,ENCFF165GEP,ENCFF189MNY,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF634JRF+,ENCFF634JRF,ENCFF011DHD,ENCFF634JRF,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (79 years)
+ENCFF634JRF-,ENCFF634JRF,ENCFF011DHD,ENCFF634JRF,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (79 years)
+ENCFF960QLH+,ENCFF960QLH,ENCFF192GLO,ENCFF960QLH,768,384,0.3,sum_sqrt,RNA:SK-MEL-5 cytosolic fraction
+ENCFF960QLH-,ENCFF960QLH,ENCFF192GLO,ENCFF960QLH,768,384,0.3,sum_sqrt,RNA:SK-MEL-5 cytosolic fraction
+ENCFF185NBE+,ENCFF185NBE,ENCFF129TRI,ENCFF185NBE,768,384,0.3,sum_sqrt,RNA:endodermal cell
+ENCFF185NBE-,ENCFF185NBE,ENCFF129TRI,ENCFF185NBE,768,384,0.3,sum_sqrt,RNA:endodermal cell
+ENCFF986WTF+,ENCFF986WTF,ENCFF620CSI,ENCFF986WTF,768,384,0.3,sum_sqrt,RNA:neural cell originated from H1
+ENCFF986WTF-,ENCFF986WTF,ENCFF620CSI,ENCFF986WTF,768,384,0.3,sum_sqrt,RNA:neural cell originated from H1
+ENCFF030JXK+,ENCFF030JXK,ENCFF791RZL,ENCFF030JXK,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF030JXK-,ENCFF030JXK,ENCFF791RZL,ENCFF030JXK,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF713REM,ENCFF713REM,ENCFF859EDT,ENCFF713REM,768,384,0.3,sum_sqrt,RNA:cardiac muscle cell originated from RUES2
+ENCFF151AEP,ENCFF151AEP,ENCFF435CJK,ENCFF151AEP,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell"
+ENCFF145OAS+,ENCFF145OAS,ENCFF367ONF,ENCFF145OAS,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (54 years)
+ENCFF145OAS-,ENCFF145OAS,ENCFF367ONF,ENCFF145OAS,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (54 years)
+ENCFF430DVF+,ENCFF430DVF,ENCFF114UGO,ENCFF430DVF,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF430DVF-,ENCFF430DVF,ENCFF114UGO,ENCFF430DVF,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF047KOP+,ENCFF047KOP,ENCFF450ZKQ,ENCFF047KOP,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF047KOP-,ENCFF047KOP,ENCFF450ZKQ,ENCFF047KOP,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF557CLI,ENCFF557CLI,ENCFF858LMW,ENCFF557CLI,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Panobinostat for 48 hours
+ENCFF119XJG,ENCFF119XJG,ENCFF140KVK,ENCFF119XJG,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue male embryo (127 days)
+ENCFF624DSV+,ENCFF624DSV,ENCFF888OOZ,ENCFF624DSV,768,384,0.3,sum_sqrt,RNA:T-cell male adult (42 years)
+ENCFF624DSV-,ENCFF624DSV,ENCFF888OOZ,ENCFF624DSV,768,384,0.3,sum_sqrt,RNA:T-cell male adult (42 years)
+ENCFF560YUT,ENCFF560YUT,ENCFF297RZM,ENCFF560YUT,768,384,0.3,sum_sqrt,RNA:naive B cell
+ENCFF597XJZ+,ENCFF597XJZ,ENCFF265LJH,ENCFF597XJZ,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF597XJZ-,ENCFF597XJZ,ENCFF265LJH,ENCFF597XJZ,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF138GLV+,ENCFF138GLV,ENCFF425VKX,ENCFF138GLV,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (37 years)
+ENCFF138GLV-,ENCFF138GLV,ENCFF425VKX,ENCFF138GLV,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (37 years)
+ENCFF816BKU+,ENCFF816BKU,ENCFF800VST,ENCFF816BKU,768,384,0.3,sum_sqrt,RNA:peripheral blood mononuclear cell female adult (28 years)
+ENCFF816BKU-,ENCFF816BKU,ENCFF800VST,ENCFF816BKU,768,384,0.3,sum_sqrt,RNA:peripheral blood mononuclear cell female adult (28 years)
+ENCFF505JCK+,ENCFF505JCK,ENCFF325HWX,ENCFF505JCK,768,384,0.3,sum_sqrt,RNA:Karpas-422
+ENCFF505JCK-,ENCFF505JCK,ENCFF325HWX,ENCFF505JCK,768,384,0.3,sum_sqrt,RNA:Karpas-422
+ENCFF359ITR,ENCFF359ITR,ENCFF613JLQ,ENCFF359ITR,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue female embryo (98 days)
+ENCFF629XGV+,ENCFF629XGV,ENCFF486YAC,ENCFF629XGV,768,384,0.3,sum_sqrt,RNA:RPMI7951
+ENCFF629XGV-,ENCFF629XGV,ENCFF486YAC,ENCFF629XGV,768,384,0.3,sum_sqrt,RNA:RPMI7951
+ENCFF649MKX+,ENCFF649MKX,ENCFF177EPU,ENCFF649MKX,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (41 years)
+ENCFF649MKX-,ENCFF649MKX,ENCFF177EPU,ENCFF649MKX,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (41 years)
+ENCFF596HNR+,ENCFF596HNR,ENCFF938ZLJ,ENCFF596HNR,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue male adult (37 years)
+ENCFF596HNR-,ENCFF596HNR,ENCFF938ZLJ,ENCFF596HNR,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue male adult (37 years)
+ENCFF990MDC,ENCFF990MDC,ENCFF789BAL,ENCFF990MDC,768,384,0.3,sum_sqrt,RNA:left renal pelvis tissue male embryo (105 days)
+ENCFF119SVC+,ENCFF119SVC,ENCFF016TZA,ENCFF119SVC,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (47 years)
+ENCFF119SVC-,ENCFF119SVC,ENCFF016TZA,ENCFF119SVC,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (47 years)
+ENCFF206GMC,ENCFF206GMC,ENCFF190TYL,ENCFF206GMC,768,384,0.3,sum_sqrt,RNA:K562 treated with 25 uM Galeterone for 48 hours
+ENCFF724LSN,ENCFF724LSN,ENCFF191GFJ,ENCFF724LSN,768,384,0.3,sum_sqrt,RNA:renal cortex interstitium tissue male embryo (91 days)
+ENCFF801PRP+,ENCFF801PRP,ENCFF588KDY,ENCFF801PRP,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF801PRP-,ENCFF801PRP,ENCFF588KDY,ENCFF801PRP,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF575YIP+,ENCFF575YIP,ENCFF673ESC,ENCFF575YIP,768,384,0.3,sum_sqrt,RNA:trophoblast tissue female embryo (40 weeks)
+ENCFF575YIP-,ENCFF575YIP,ENCFF673ESC,ENCFF575YIP,768,384,0.3,sum_sqrt,RNA:trophoblast tissue female embryo (40 weeks)
+ENCFF643UKE+,ENCFF643UKE,ENCFF594JMI,ENCFF643UKE,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (37 years)
+ENCFF643UKE-,ENCFF643UKE,ENCFF594JMI,ENCFF643UKE,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (37 years)
+ENCFF197PAV+,ENCFF197PAV,ENCFF778VQU,ENCFF197PAV,768,384,0.3,sum_sqrt,RNA:LHCN-M2
+ENCFF197PAV-,ENCFF197PAV,ENCFF778VQU,ENCFF197PAV,768,384,0.3,sum_sqrt,RNA:LHCN-M2
+ENCFF080VEH,ENCFF080VEH,ENCFF296ZMF,ENCFF080VEH,768,384,0.3,sum_sqrt,RNA:spinal cord tissue male embryo (105 days)
+ENCFF319AAP,ENCFF319AAP,ENCFF605CNM,ENCFF319AAP,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male embryo (101 days)
+ENCFF994HKO+,ENCFF994HKO,ENCFF972WIL,ENCFF994HKO,768,384,0.3,sum_sqrt,RNA:T-cell female adult (33 years)
+ENCFF994HKO-,ENCFF994HKO,ENCFF972WIL,ENCFF994HKO,768,384,0.3,sum_sqrt,RNA:T-cell female adult (33 years)
+ENCFF702CEO+,ENCFF702CEO,ENCFF112KBZ,ENCFF702CEO,768,384,0.3,sum_sqrt,RNA:chorion tissue male embryo (38 weeks)
+ENCFF702CEO-,ENCFF702CEO,ENCFF112KBZ,ENCFF702CEO,768,384,0.3,sum_sqrt,RNA:chorion tissue male embryo (38 weeks)
+ENCFF010PER,ENCFF010PER,ENCFF052LZO,ENCFF010PER,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell"
+ENCFF629NUI+,ENCFF629NUI,ENCFF013HFB,ENCFF629NUI,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (89 years)
+ENCFF629NUI-,ENCFF629NUI,ENCFF013HFB,ENCFF629NUI,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (89 years)
+ENCFF893RLE,ENCFF893RLE,ENCFF798TOL,ENCFF893RLE,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 uM AR-42 for 12 hours
+ENCFF905ARA+,ENCFF905ARA,ENCFF549NPG,ENCFF905ARA,768,384,0.3,sum_sqrt,RNA:mucosa of gallbladder tissue female child (16 years)
+ENCFF905ARA-,ENCFF905ARA,ENCFF549NPG,ENCFF905ARA,768,384,0.3,sum_sqrt,RNA:mucosa of gallbladder tissue female child (16 years)
+ENCFF333KHL+,ENCFF333KHL,ENCFF620AGE,ENCFF333KHL,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (54 years)
+ENCFF333KHL-,ENCFF333KHL,ENCFF620AGE,ENCFF333KHL,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (54 years)
+ENCFF022QBF+,ENCFF022QBF,ENCFF778CUB,ENCFF022QBF,768,384,0.3,sum_sqrt,RNA:HUES64
+ENCFF022QBF-,ENCFF022QBF,ENCFF778CUB,ENCFF022QBF,768,384,0.3,sum_sqrt,RNA:HUES64
+ENCFF166OEV,ENCFF166OEV,ENCFF316KBH,ENCFF166OEV,768,384,0.3,sum_sqrt,RNA:IgD-negative memory B cell
+ENCFF766JPS+,ENCFF766JPS,ENCFF932XAV,ENCFF766JPS,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue female adult (53 years)
+ENCFF766JPS-,ENCFF766JPS,ENCFF932XAV,ENCFF766JPS,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue female adult (53 years)
+ENCFF679YQA,ENCFF679YQA,ENCFF523DOF,ENCFF679YQA,768,384,0.3,sum_sqrt,RNA:right renal pelvis tissue male embryo (105 days)
+ENCFF995AUL+,ENCFF995AUL,ENCFF758PQO,ENCFF995AUL,768,384,0.3,sum_sqrt,RNA:type B pancreatic cell
+ENCFF995AUL-,ENCFF995AUL,ENCFF758PQO,ENCFF995AUL,768,384,0.3,sum_sqrt,RNA:type B pancreatic cell
+ENCFF187QYU+,ENCFF187QYU,ENCFF736SRJ,ENCFF187QYU,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue male adult (37 years)
+ENCFF187QYU-,ENCFF187QYU,ENCFF736SRJ,ENCFF187QYU,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue male adult (37 years)
+ENCFF301XEH+,ENCFF301XEH,ENCFF136ANW,ENCFF301XEH,768,384,0.3,sum_sqrt,RNA:MCF-7
+ENCFF301XEH-,ENCFF301XEH,ENCFF136ANW,ENCFF301XEH,768,384,0.3,sum_sqrt,RNA:MCF-7
+ENCFF253SBE+,ENCFF253SBE,ENCFF784MDF,ENCFF253SBE,768,384,0.3,sum_sqrt,RNA:left lobe of liver tissue male adult (45 years)
+ENCFF253SBE-,ENCFF253SBE,ENCFF784MDF,ENCFF253SBE,768,384,0.3,sum_sqrt,RNA:left lobe of liver tissue male adult (45 years)
+ENCFF032EUU,ENCFF032EUU,ENCFF467DPQ,ENCFF032EUU,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of abdomen male embryo (97 days)
+ENCFF462KTY+,ENCFF462KTY,ENCFF253MOQ,ENCFF462KTY,768,384,0.3,sum_sqrt,RNA:pericardium fibroblast NONE and female embryo (20 weeks)
+ENCFF462KTY-,ENCFF462KTY,ENCFF253MOQ,ENCFF462KTY,768,384,0.3,sum_sqrt,RNA:pericardium fibroblast NONE and female embryo (20 weeks)
+ENCFF932VPS,ENCFF932VPS,ENCFF069HHK,ENCFF932VPS,768,384,0.3,sum_sqrt,RNA:large intestine tissue female embryo (105 days)
+ENCFF228OVL,ENCFF228OVL,ENCFF841HSM,ENCFF228OVL,768,384,0.3,sum_sqrt,RNA:naive B cell
+ENCFF144GMK,ENCFF144GMK,ENCFF456CLU,ENCFF144GMK,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue female embryo (120 days)
+ENCFF987VHA+,ENCFF987VHA,ENCFF509YNY,ENCFF987VHA,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF987VHA-,ENCFF987VHA,ENCFF509YNY,ENCFF987VHA,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF759YTG+,ENCFF759YTG,ENCFF079BOK,ENCFF759YTG,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (88 years)
+ENCFF759YTG-,ENCFF759YTG,ENCFF079BOK,ENCFF759YTG,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (88 years)
+ENCFF482YAE,ENCFF482YAE,ENCFF925TEU,ENCFF482YAE,768,384,0.3,sum_sqrt,RNA:thymus tissue male embryo (108 days)
+ENCFF119GRF+,ENCFF119GRF,ENCFF170KFV,ENCFF119GRF,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (61 years)
+ENCFF119GRF-,ENCFF119GRF,ENCFF170KFV,ENCFF119GRF,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (61 years)
+ENCFF856KPS,ENCFF856KPS,ENCFF458TDU,ENCFF856KPS,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM JQ1 for 4 hours
+ENCFF287LRZ+,ENCFF287LRZ,ENCFF899ITD,ENCFF287LRZ,768,384,0.3,sum_sqrt,RNA:cardiac ventricle fibroblast NONE and male adult (18 years)
+ENCFF287LRZ-,ENCFF287LRZ,ENCFF899ITD,ENCFF287LRZ,768,384,0.3,sum_sqrt,RNA:cardiac ventricle fibroblast NONE and male adult (18 years)
+ENCFF610DVT+,ENCFF610DVT,ENCFF142ERS,ENCFF610DVT,768,384,0.3,sum_sqrt,RNA:myometrial cell female adult (34 years)
+ENCFF610DVT-,ENCFF610DVT,ENCFF142ERS,ENCFF610DVT,768,384,0.3,sum_sqrt,RNA:myometrial cell female adult (34 years)
+ENCFF635XGR+,ENCFF635XGR,ENCFF731FVY,ENCFF635XGR,768,384,0.3,sum_sqrt,RNA:kidney epithelial cell male embryo (22 weeks) and male newborn
+ENCFF635XGR-,ENCFF635XGR,ENCFF731FVY,ENCFF635XGR,768,384,0.3,sum_sqrt,RNA:kidney epithelial cell male embryo (22 weeks) and male newborn
+ENCFF197PEN+,ENCFF197PEN,ENCFF769NNF,ENCFF197PEN,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (59 years)
+ENCFF197PEN-,ENCFF197PEN,ENCFF769NNF,ENCFF197PEN,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (59 years)
+ENCFF368ZGL,ENCFF368ZGL,ENCFF268TKE,ENCFF368ZGL,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, alpha-beta memory T cell"
+ENCFF290WID,ENCFF290WID,ENCFF545HYK,ENCFF290WID,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM MB-3 for 48 hours
+ENCFF527SQU+,ENCFF527SQU,ENCFF010XLY,ENCFF527SQU,768,384,0.3,sum_sqrt,RNA:GM23338
+ENCFF527SQU-,ENCFF527SQU,ENCFF010XLY,ENCFF527SQU,768,384,0.3,sum_sqrt,RNA:GM23338
+ENCFF205VDK+,ENCFF205VDK,ENCFF490IFU,ENCFF205VDK,768,384,0.3,sum_sqrt,RNA:cardiac muscle cell originated from RUES2
+ENCFF205VDK-,ENCFF205VDK,ENCFF490IFU,ENCFF205VDK,768,384,0.3,sum_sqrt,RNA:cardiac muscle cell originated from RUES2
+ENCFF358XLV+,ENCFF358XLV,ENCFF601VFS,ENCFF358XLV,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF358XLV-,ENCFF358XLV,ENCFF601VFS,ENCFF358XLV,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF081XYH+,ENCFF081XYH,ENCFF665ZEN,ENCFF081XYH,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF081XYH-,ENCFF081XYH,ENCFF665ZEN,ENCFF081XYH,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF853SNW,ENCFF853SNW,ENCFF244QEJ,ENCFF853SNW,768,384,0.3,sum_sqrt,RNA:CD14-positive monocyte
+ENCFF136ZVX+,ENCFF136ZVX,ENCFF350QYH,ENCFF136ZVX,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF136ZVX-,ENCFF136ZVX,ENCFF350QYH,ENCFF136ZVX,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF362PNM+,ENCFF362PNM,ENCFF721CKE,ENCFF362PNM,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta T cell male adult (20 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF362PNM-,ENCFF362PNM,ENCFF721CKE,ENCFF362PNM,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta T cell male adult (20 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF167XOI,ENCFF167XOI,ENCFF061GJD,ENCFF167XOI,768,384,0.3,sum_sqrt,RNA:liver tissue female child (4 years) and with nonobstructive coronary artery disease; liver tissue male adult (32 years)
+ENCFF248QVA+,ENCFF248QVA,ENCFF639TBN,ENCFF248QVA,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (53 years)
+ENCFF248QVA-,ENCFF248QVA,ENCFF639TBN,ENCFF248QVA,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (53 years)
+ENCFF733YEJ+,ENCFF733YEJ,ENCFF351KYE,ENCFF733YEJ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (87 years)
+ENCFF733YEJ-,ENCFF733YEJ,ENCFF351KYE,ENCFF733YEJ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (87 years)
+ENCFF939BQK+,ENCFF939BQK,ENCFF553VZK,ENCFF939BQK,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (87 years)
+ENCFF939BQK-,ENCFF939BQK,ENCFF553VZK,ENCFF939BQK,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue male adult (87 years)
+ENCFF123PSX+,ENCFF123PSX,ENCFF236PLH,ENCFF123PSX,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male child (3 years)
+ENCFF123PSX-,ENCFF123PSX,ENCFF236PLH,ENCFF123PSX,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male child (3 years)
+ENCFF367NBV,ENCFF367NBV,ENCFF014BZI,ENCFF367NBV,768,384,0.3,sum_sqrt,RNA:right renal cortex interstitium tissue male embryo (105 days)
+ENCFF330EUN+,ENCFF330EUN,ENCFF794QMR,ENCFF330EUN,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF330EUN-,ENCFF330EUN,ENCFF794QMR,ENCFF330EUN,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF807KQZ+,ENCFF807KQZ,ENCFF636PCD,ENCFF807KQZ,768,384,0.3,sum_sqrt,RNA:transverse colon tissue female adult (51 years)
+ENCFF807KQZ-,ENCFF807KQZ,ENCFF636PCD,ENCFF807KQZ,768,384,0.3,sum_sqrt,RNA:transverse colon tissue female adult (51 years)
+ENCFF493OET+,ENCFF493OET,ENCFF871BDW,ENCFF493OET,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (53 years)
+ENCFF493OET-,ENCFF493OET,ENCFF871BDW,ENCFF493OET,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (53 years)
+ENCFF309YCI,ENCFF309YCI,ENCFF750AQK,ENCFF309YCI,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue male embryo (91 days)
+ENCFF407ZDM+,ENCFF407ZDM,ENCFF366OLW,ENCFF407ZDM,768,384,0.3,sum_sqrt,RNA:peripheral blood mononuclear cell male adult (39 years)
+ENCFF407ZDM-,ENCFF407ZDM,ENCFF366OLW,ENCFF407ZDM,768,384,0.3,sum_sqrt,RNA:peripheral blood mononuclear cell male adult (39 years)
+ENCFF251CIC+,ENCFF251CIC,ENCFF586TED,ENCFF251CIC,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF251CIC-,ENCFF251CIC,ENCFF586TED,ENCFF251CIC,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF563MLL,ENCFF563MLL,ENCFF801GDG,ENCFF563MLL,768,384,0.3,sum_sqrt,RNA:left renal pelvis tissue male embryo (120 days)
+ENCFF808KRP+,ENCFF808KRP,ENCFF886GEY,ENCFF808KRP,768,384,0.3,sum_sqrt,RNA:left lung tissue female child (16 years)
+ENCFF808KRP-,ENCFF808KRP,ENCFF886GEY,ENCFF808KRP,768,384,0.3,sum_sqrt,RNA:left lung tissue female child (16 years)
+ENCFF515TIF+,ENCFF515TIF,ENCFF537ODI,ENCFF515TIF,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (20 years)"
+ENCFF515TIF-,ENCFF515TIF,ENCFF537ODI,ENCFF515TIF,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (20 years)"
+ENCFF251HQX,ENCFF251HQX,ENCFF639KIS,ENCFF251HQX,768,384,0.3,sum_sqrt,RNA:left renal cortex interstitium tissue male embryo (105 days)
+ENCFF092QIW+,ENCFF092QIW,ENCFF591MXM,ENCFF092QIW,768,384,0.3,sum_sqrt,RNA:osteocyte
+ENCFF092QIW-,ENCFF092QIW,ENCFF591MXM,ENCFF092QIW,768,384,0.3,sum_sqrt,RNA:osteocyte
+ENCFF474MDU+,ENCFF474MDU,ENCFF626WFF,ENCFF474MDU,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF474MDU-,ENCFF474MDU,ENCFF626WFF,ENCFF474MDU,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF743FLM,ENCFF743FLM,ENCFF207PTC,ENCFF743FLM,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; naive B cell
+ENCFF737SYB+,ENCFF737SYB,ENCFF634ZNK,ENCFF737SYB,768,384,0.3,sum_sqrt,RNA:PC-3
+ENCFF737SYB-,ENCFF737SYB,ENCFF634ZNK,ENCFF737SYB,768,384,0.3,sum_sqrt,RNA:PC-3
+ENCFF581PRF+,ENCFF581PRF,ENCFF517AWK,ENCFF581PRF,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF581PRF-,ENCFF581PRF,ENCFF517AWK,ENCFF581PRF,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF035NBN+,ENCFF035NBN,ENCFF307KUI,ENCFF035NBN,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF035NBN-,ENCFF035NBN,ENCFF307KUI,ENCFF035NBN,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF110RPH,ENCFF110RPH,ENCFF183NKR,ENCFF110RPH,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue male embryo (97 days)
+ENCFF188MTB+,ENCFF188MTB,ENCFF180UNN,ENCFF188MTB,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF188MTB-,ENCFF188MTB,ENCFF180UNN,ENCFF188MTB,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF391XHF,ENCFF391XHF,ENCFF388ARQ,ENCFF391XHF,768,384,0.3,sum_sqrt,RNA:renal pelvis tissue male embryo (91 days)
+ENCFF520NHF+,ENCFF520NHF,ENCFF682BYZ,ENCFF520NHF,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (51 years)
+ENCFF520NHF-,ENCFF520NHF,ENCFF682BYZ,ENCFF520NHF,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (51 years)
+ENCFF121ZPH+,ENCFF121ZPH,ENCFF977WIW,ENCFF121ZPH,768,384,0.3,sum_sqrt,RNA:endothelial cell
+ENCFF121ZPH-,ENCFF121ZPH,ENCFF977WIW,ENCFF121ZPH,768,384,0.3,sum_sqrt,RNA:endothelial cell
+ENCFF833YCY+,ENCFF833YCY,ENCFF684VAN,ENCFF833YCY,768,384,0.3,sum_sqrt,RNA:thoracic aorta tissue male adult (37 years)
+ENCFF833YCY-,ENCFF833YCY,ENCFF684VAN,ENCFF833YCY,768,384,0.3,sum_sqrt,RNA:thoracic aorta tissue male adult (37 years)
+ENCFF210MJF+,ENCFF210MJF,ENCFF664WLU,ENCFF210MJF,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (59 years)
+ENCFF210MJF-,ENCFF210MJF,ENCFF664WLU,ENCFF210MJF,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (59 years)
+ENCFF103NIX+,ENCFF103NIX,ENCFF754DFT,ENCFF103NIX,768,384,0.3,sum_sqrt,RNA:mesodermal cell originated from HUES64
+ENCFF103NIX-,ENCFF103NIX,ENCFF754DFT,ENCFF103NIX,768,384,0.3,sum_sqrt,RNA:mesodermal cell originated from HUES64
+ENCFF774PKK+,ENCFF774PKK,ENCFF071WUF,ENCFF774PKK,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male adult (34 years)
+ENCFF774PKK-,ENCFF774PKK,ENCFF071WUF,ENCFF774PKK,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male adult (34 years)
+ENCFF261LJW+,ENCFF261LJW,ENCFF409JJL,ENCFF261LJW,768,384,0.3,sum_sqrt,RNA:mammary stem cell female adult (22 years)
+ENCFF261LJW-,ENCFF261LJW,ENCFF409JJL,ENCFF261LJW,768,384,0.3,sum_sqrt,RNA:mammary stem cell female adult (22 years)
+ENCFF169FHE+,ENCFF169FHE,ENCFF308PAX,ENCFF169FHE,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue female adult (53 years)
+ENCFF169FHE-,ENCFF169FHE,ENCFF308PAX,ENCFF169FHE,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue female adult (53 years)
+ENCFF472LKR,ENCFF472LKR,ENCFF566TZW,ENCFF472LKR,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF671DKT+,ENCFF671DKT,ENCFF704OQQ,ENCFF671DKT,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (51 years)
+ENCFF671DKT-,ENCFF671DKT,ENCFF704OQQ,ENCFF671DKT,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (51 years)
+ENCFF957KMU,ENCFF957KMU,ENCFF463UYL,ENCFF957KMU,768,384,0.3,sum_sqrt,RNA:renal cortex interstitium tissue male embryo (97 days)
+ENCFF237QNH+,ENCFF237QNH,ENCFF894UNP,ENCFF237QNH,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF237QNH-,ENCFF237QNH,ENCFF894UNP,ENCFF237QNH,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF603PIL+,ENCFF603PIL,ENCFF164HRL,ENCFF603PIL,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue female adult (51 years)
+ENCFF603PIL-,ENCFF603PIL,ENCFF164HRL,ENCFF603PIL,768,384,0.3,sum_sqrt,RNA:breast epithelium tissue female adult (51 years)
+ENCFF841CUM+,ENCFF841CUM,ENCFF749LPZ,ENCFF841CUM,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male child (3 years)
+ENCFF841CUM-,ENCFF841CUM,ENCFF749LPZ,ENCFF841CUM,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male child (3 years)
+ENCFF121WXQ+,ENCFF121WXQ,ENCFF130XAM,ENCFF121WXQ,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue male embryo (38 weeks)
+ENCFF121WXQ-,ENCFF121WXQ,ENCFF130XAM,ENCFF121WXQ,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue male embryo (38 weeks)
+ENCFF030XBO+,ENCFF030XBO,ENCFF032LLH,ENCFF030XBO,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF030XBO-,ENCFF030XBO,ENCFF032LLH,ENCFF030XBO,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF224GPU,ENCFF224GPU,ENCFF410AMW,ENCFF224GPU,768,384,0.3,sum_sqrt,RNA:small intestine tissue male embryo (91 days)
+ENCFF327YQU+,ENCFF327YQU,ENCFF874MDG,ENCFF327YQU,768,384,0.3,sum_sqrt,RNA:lower lobe of left lung tissue male adult (60 years)
+ENCFF327YQU-,ENCFF327YQU,ENCFF874MDG,ENCFF327YQU,768,384,0.3,sum_sqrt,RNA:lower lobe of left lung tissue male adult (60 years)
+ENCFF214DTC+,ENCFF214DTC,ENCFF124OIZ,ENCFF214DTC,768,384,0.3,sum_sqrt,RNA:urinary bladder tissue male child (3 years)
+ENCFF214DTC-,ENCFF214DTC,ENCFF124OIZ,ENCFF214DTC,768,384,0.3,sum_sqrt,RNA:urinary bladder tissue male child (3 years)
+ENCFF804LUI+,ENCFF804LUI,ENCFF690TCE,ENCFF804LUI,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (30 years)
+ENCFF804LUI-,ENCFF804LUI,ENCFF690TCE,ENCFF804LUI,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (30 years)
+ENCFF542BVY+,ENCFF542BVY,ENCFF837QWO,ENCFF542BVY,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue female adult (51 years)
+ENCFF542BVY-,ENCFF542BVY,ENCFF837QWO,ENCFF542BVY,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue female adult (51 years)
+ENCFF498TQF+,ENCFF498TQF,ENCFF332DXT,ENCFF498TQF,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue female adult (53 years)
+ENCFF498TQF-,ENCFF498TQF,ENCFF332DXT,ENCFF498TQF,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue female adult (53 years)
+ENCFF634WOM+,ENCFF634WOM,ENCFF749KBP,ENCFF634WOM,768,384,0.3,sum_sqrt,RNA:WTC11
+ENCFF634WOM-,ENCFF634WOM,ENCFF749KBP,ENCFF634WOM,768,384,0.3,sum_sqrt,RNA:WTC11
+ENCFF436OWO,ENCFF436OWO,ENCFF434RYT,ENCFF436OWO,768,384,0.3,sum_sqrt,RNA:K562 treated with 50 uM C646 for 12 hours
+ENCFF283IQC+,ENCFF283IQC,ENCFF711RTC,ENCFF283IQC,768,384,0.3,sum_sqrt,RNA:foreskin keratinocyte male newborn
+ENCFF283IQC-,ENCFF283IQC,ENCFF711RTC,ENCFF283IQC,768,384,0.3,sum_sqrt,RNA:foreskin keratinocyte male newborn
+ENCFF263KEJ+,ENCFF263KEJ,ENCFF915KEU,ENCFF263KEJ,768,384,0.3,sum_sqrt,RNA:right atrium auricular region tissue female adult (51 years)
+ENCFF263KEJ-,ENCFF263KEJ,ENCFF915KEU,ENCFF263KEJ,768,384,0.3,sum_sqrt,RNA:right atrium auricular region tissue female adult (51 years)
+ENCFF286TKQ+,ENCFF286TKQ,ENCFF603VKW,ENCFF286TKQ,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF286TKQ-,ENCFF286TKQ,ENCFF603VKW,ENCFF286TKQ,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF318EJE+,ENCFF318EJE,ENCFF306WQW,ENCFF318EJE,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue male adult (54 years)
+ENCFF318EJE-,ENCFF318EJE,ENCFF306WQW,ENCFF318EJE,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue male adult (54 years)
+ENCFF223MUU,ENCFF223MUU,ENCFF747VOJ,ENCFF223MUU,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (37 years)"
+ENCFF992XOR+,ENCFF992XOR,ENCFF973GKK,ENCFF992XOR,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF992XOR-,ENCFF992XOR,ENCFF973GKK,ENCFF992XOR,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF064BKZ+,ENCFF064BKZ,ENCFF930ZEP,ENCFF064BKZ,768,384,0.3,sum_sqrt,RNA:chorion tissue female embryo (40 weeks)
+ENCFF064BKZ-,ENCFF064BKZ,ENCFF930ZEP,ENCFF064BKZ,768,384,0.3,sum_sqrt,RNA:chorion tissue female embryo (40 weeks)
+ENCFF735XXE,ENCFF735XXE,ENCFF913IDF,ENCFF735XXE,768,384,0.3,sum_sqrt,RNA:CD14-positive monocyte
+ENCFF884TVR,ENCFF884TVR,ENCFF423UFR,ENCFF884TVR,768,384,0.3,sum_sqrt,RNA:thymus tissue male embryo (113 days)
+ENCFF144BNP+,ENCFF144BNP,ENCFF298BEF,ENCFF144BNP,768,384,0.3,sum_sqrt,RNA:Caco-2
+ENCFF144BNP-,ENCFF144BNP,ENCFF298BEF,ENCFF144BNP,768,384,0.3,sum_sqrt,RNA:Caco-2
+ENCFF163BTT+,ENCFF163BTT,ENCFF716MCB,ENCFF163BTT,768,384,0.3,sum_sqrt,RNA:cerebellum tissue male embryo (20 weeks)
+ENCFF163BTT-,ENCFF163BTT,ENCFF716MCB,ENCFF163BTT,768,384,0.3,sum_sqrt,RNA:cerebellum tissue male embryo (20 weeks)
+ENCFF561TMR+,ENCFF561TMR,ENCFF857JQM,ENCFF561TMR,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (37 years)
+ENCFF561TMR-,ENCFF561TMR,ENCFF857JQM,ENCFF561TMR,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (37 years)
+ENCFF911JBW+,ENCFF911JBW,ENCFF462RXW,ENCFF911JBW,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from HUES64
+ENCFF911JBW-,ENCFF911JBW,ENCFF462RXW,ENCFF911JBW,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from HUES64
+ENCFF291GNY+,ENCFF291GNY,ENCFF799LEP,ENCFF291GNY,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF291GNY-,ENCFF291GNY,ENCFF799LEP,ENCFF291GNY,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF213LRI+,ENCFF213LRI,ENCFF569RLX,ENCFF213LRI,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue male adult (54 years)
+ENCFF213LRI-,ENCFF213LRI,ENCFF569RLX,ENCFF213LRI,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue male adult (54 years)
+ENCFF400CHK+,ENCFF400CHK,ENCFF346KED,ENCFF400CHK,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF400CHK-,ENCFF400CHK,ENCFF346KED,ENCFF400CHK,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF685FCX+,ENCFF685FCX,ENCFF781JKV,ENCFF685FCX,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue female adult (51 years)
+ENCFF685FCX-,ENCFF685FCX,ENCFF781JKV,ENCFF685FCX,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue female adult (51 years)
+ENCFF947KGU,ENCFF947KGU,ENCFF149EVF,ENCFF947KGU,768,384,0.3,sum_sqrt,RNA:small intestine tissue male embryo (108 days)
+ENCFF715SXQ+,ENCFF715SXQ,ENCFF083LBA,ENCFF715SXQ,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF715SXQ-,ENCFF715SXQ,ENCFF083LBA,ENCFF715SXQ,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF697OAU+,ENCFF697OAU,ENCFF104GYY,ENCFF697OAU,768,384,0.3,sum_sqrt,RNA:placenta tissue embryo
+ENCFF697OAU-,ENCFF697OAU,ENCFF104GYY,ENCFF697OAU,768,384,0.3,sum_sqrt,RNA:placenta tissue embryo
+ENCFF263ZRO+,ENCFF263ZRO,ENCFF988PCJ,ENCFF263ZRO,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue male adult (54 years)
+ENCFF263ZRO-,ENCFF263ZRO,ENCFF988PCJ,ENCFF263ZRO,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue male adult (54 years)
+ENCFF181QTI+,ENCFF181QTI,ENCFF007UXU,ENCFF181QTI,768,384,0.3,sum_sqrt,RNA:H7
+ENCFF181QTI-,ENCFF181QTI,ENCFF007UXU,ENCFF181QTI,768,384,0.3,sum_sqrt,RNA:H7
+ENCFF470HTA,ENCFF470HTA,ENCFF575MUZ,ENCFF470HTA,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD8-positive, alpha-beta memory T cell"
+ENCFF952UWM,ENCFF952UWM,ENCFF751UKE,ENCFF952UWM,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Chaetocin for 4 hours
+ENCFF535TIX+,ENCFF535TIX,ENCFF273EQI,ENCFF535TIX,768,384,0.3,sum_sqrt,RNA:prostate gland tissue male adult (37 years)
+ENCFF535TIX-,ENCFF535TIX,ENCFF273EQI,ENCFF535TIX,768,384,0.3,sum_sqrt,RNA:prostate gland tissue male adult (37 years)
+ENCFF143EWZ,ENCFF143EWZ,ENCFF995LYR,ENCFF143EWZ,768,384,0.3,sum_sqrt,RNA:kidney tissue female embryo (108 days)
+ENCFF089GUP,ENCFF089GUP,ENCFF692RMR,ENCFF089GUP,768,384,0.3,sum_sqrt,RNA:left lung tissue female embryo (105 days)
+ENCFF849BKN+,ENCFF849BKN,ENCFF171AXG,ENCFF849BKN,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (60 years)
+ENCFF849BKN-,ENCFF849BKN,ENCFF171AXG,ENCFF849BKN,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (60 years)
+ENCFF388QFN+,ENCFF388QFN,ENCFF400TSJ,ENCFF388QFN,768,384,0.3,sum_sqrt,RNA:mesodermal cell originated from HUES64
+ENCFF388QFN-,ENCFF388QFN,ENCFF400TSJ,ENCFF388QFN,768,384,0.3,sum_sqrt,RNA:mesodermal cell originated from HUES64
+ENCFF845DJW+,ENCFF845DJW,ENCFF175STH,ENCFF845DJW,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (21 years)"
+ENCFF845DJW-,ENCFF845DJW,ENCFF175STH,ENCFF845DJW,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (21 years)"
+ENCFF754ZRA+,ENCFF754ZRA,ENCFF330JFM,ENCFF754ZRA,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (30 years)
+ENCFF754ZRA-,ENCFF754ZRA,ENCFF330JFM,ENCFF754ZRA,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (30 years)
+ENCFF560FVE+,ENCFF560FVE,ENCFF125ERZ,ENCFF560FVE,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue female adult (53 years)
+ENCFF560FVE-,ENCFF560FVE,ENCFF125ERZ,ENCFF560FVE,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue female adult (53 years)
+ENCFF672AXQ+,ENCFF672AXQ,ENCFF144LMJ,ENCFF672AXQ,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (53 years)
+ENCFF672AXQ-,ENCFF672AXQ,ENCFF144LMJ,ENCFF672AXQ,768,384,0.3,sum_sqrt,RNA:right lobe of liver tissue female adult (53 years)
+ENCFF280YRS+,ENCFF280YRS,ENCFF041WVF,ENCFF280YRS,768,384,0.3,sum_sqrt,RNA:A375
+ENCFF280YRS-,ENCFF280YRS,ENCFF041WVF,ENCFF280YRS,768,384,0.3,sum_sqrt,RNA:A375
+ENCFF833QMT+,ENCFF833QMT,ENCFF282IAK,ENCFF833QMT,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue female adult (51 years)
+ENCFF833QMT-,ENCFF833QMT,ENCFF282IAK,ENCFF833QMT,768,384,0.3,sum_sqrt,RNA:esophagus squamous epithelium tissue female adult (51 years)
+ENCFF089SDX+,ENCFF089SDX,ENCFF822FJL,ENCFF089SDX,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (30 years)
+ENCFF089SDX-,ENCFF089SDX,ENCFF822FJL,ENCFF089SDX,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (30 years)
+ENCFF693XEN,ENCFF693XEN,ENCFF840FOM,ENCFF693XEN,768,384,0.3,sum_sqrt,RNA:GM23248
+ENCFF672RNN+,ENCFF672RNN,ENCFF139LFK,ENCFF672RNN,768,384,0.3,sum_sqrt,RNA:colonic mucosa tissue female child (16 years)
+ENCFF672RNN-,ENCFF672RNN,ENCFF139LFK,ENCFF672RNN,768,384,0.3,sum_sqrt,RNA:colonic mucosa tissue female child (16 years)
+ENCFF709QRA+,ENCFF709QRA,ENCFF464YAZ,ENCFF709QRA,768,384,0.3,sum_sqrt,RNA:left ventricle myocardium inferior tissue male adult (60 years)
+ENCFF709QRA-,ENCFF709QRA,ENCFF464YAZ,ENCFF709QRA,768,384,0.3,sum_sqrt,RNA:left ventricle myocardium inferior tissue male adult (60 years)
+ENCFF344YVW,ENCFF344YVW,ENCFF960KHZ,ENCFF344YVW,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 uM Crizotinib for 4 hours
+ENCFF849FLT,ENCFF849FLT,ENCFF707HGU,ENCFF849FLT,768,384,0.3,sum_sqrt,RNA:small intestine tissue female embryo (120 days)
+ENCFF901ATL+,ENCFF901ATL,ENCFF974GKV,ENCFF901ATL,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (47 years)
+ENCFF901ATL-,ENCFF901ATL,ENCFF974GKV,ENCFF901ATL,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (47 years)
+ENCFF069OIK+,ENCFF069OIK,ENCFF871GKI,ENCFF069OIK,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue male adult (37 years)
+ENCFF069OIK-,ENCFF069OIK,ENCFF871GKI,ENCFF069OIK,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue male adult (37 years)
+ENCFF113MGH+,ENCFF113MGH,ENCFF315VRZ,ENCFF113MGH,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF113MGH-,ENCFF113MGH,ENCFF315VRZ,ENCFF113MGH,768,384,0.3,sum_sqrt,RNA:K562 nuclear fraction
+ENCFF007LJG,ENCFF007LJG,ENCFF368STN,ENCFF007LJG,768,384,0.3,sum_sqrt,RNA:muscle of trunk tissue female embryo (120 days)
+ENCFF101SYV+,ENCFF101SYV,ENCFF687CCF,ENCFF101SYV,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue male adult (37 years)
+ENCFF101SYV-,ENCFF101SYV,ENCFF687CCF,ENCFF101SYV,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue male adult (37 years)
+ENCFF646ZZQ+,ENCFF646ZZQ,ENCFF741LDL,ENCFF646ZZQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta T cell male adult (21 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF646ZZQ-,ENCFF646ZZQ,ENCFF741LDL,ENCFF646ZZQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta T cell male adult (21 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF298CPL,ENCFF298CPL,ENCFF869NOC,ENCFF298CPL,768,384,0.3,sum_sqrt,RNA:small intestine tissue female embryo (98 days)
+ENCFF636BRP+,ENCFF636BRP,ENCFF206UJZ,ENCFF636BRP,768,384,0.3,sum_sqrt,RNA:amnion tissue female embryo (40 weeks)
+ENCFF636BRP-,ENCFF636BRP,ENCFF206UJZ,ENCFF636BRP,768,384,0.3,sum_sqrt,RNA:amnion tissue female embryo (40 weeks)
+ENCFF790DEA+,ENCFF790DEA,ENCFF729KWM,ENCFF790DEA,768,384,0.3,sum_sqrt,RNA:HT1080
+ENCFF790DEA-,ENCFF790DEA,ENCFF729KWM,ENCFF790DEA,768,384,0.3,sum_sqrt,RNA:HT1080
+ENCFF709BGZ,ENCFF709BGZ,ENCFF023CIG,ENCFF709BGZ,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; IgD-negative memory B cell
+ENCFF257QQB+,ENCFF257QQB,ENCFF473RTG,ENCFF257QQB,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF257QQB-,ENCFF257QQB,ENCFF473RTG,ENCFF257QQB,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF982JPV+,ENCFF982JPV,ENCFF619SBF,ENCFF982JPV,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF982JPV-,ENCFF982JPV,ENCFF619SBF,ENCFF982JPV,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF808EKP+,ENCFF808EKP,ENCFF318GOT,ENCFF808EKP,768,384,0.3,sum_sqrt,RNA:HepG2 membrane fraction
+ENCFF808EKP-,ENCFF808EKP,ENCFF318GOT,ENCFF808EKP,768,384,0.3,sum_sqrt,RNA:HepG2 membrane fraction
+ENCFF876MLB,ENCFF876MLB,ENCFF831FJE,ENCFF876MLB,768,384,0.3,sum_sqrt,RNA:right renal pelvis tissue male embryo (120 days)
+ENCFF684FER+,ENCFF684FER,ENCFF112DAY,ENCFF684FER,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue female adult (53 years)
+ENCFF684FER-,ENCFF684FER,ENCFF112DAY,ENCFF684FER,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue female adult (53 years)
+ENCFF089BOJ,ENCFF089BOJ,ENCFF844XOY,ENCFF089BOJ,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta T cell male adult (21 years)"
+ENCFF844CIZ,ENCFF844CIZ,ENCFF862OYJ,ENCFF844CIZ,768,384,0.3,sum_sqrt,RNA:muscle of leg tissue male embryo (97 days)
+ENCFF713ZMW,ENCFF713ZMW,ENCFF275GIO,ENCFF713ZMW,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue male embryo (96 days)
+ENCFF728QLF,ENCFF728QLF,ENCFF022TTZ,ENCFF728QLF,768,384,0.3,sum_sqrt,RNA:stomach tissue female embryo (108 days)
+ENCFF410QZX+,ENCFF410QZX,ENCFF483ZFP,ENCFF410QZX,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue female adult (51 years)
+ENCFF410QZX-,ENCFF410QZX,ENCFF483ZFP,ENCFF410QZX,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue female adult (51 years)
+ENCFF150UWD+,ENCFF150UWD,ENCFF781CJU,ENCFF150UWD,768,384,0.3,sum_sqrt,RNA:HeLa-S3
+ENCFF150UWD-,ENCFF150UWD,ENCFF781CJU,ENCFF150UWD,768,384,0.3,sum_sqrt,RNA:HeLa-S3
+ENCFF707WTD+,ENCFF707WTD,ENCFF736WER,ENCFF707WTD,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD8-positive, alpha-beta T cell male adult (21 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF707WTD-,ENCFF707WTD,ENCFF736WER,ENCFF707WTD,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD8-positive, alpha-beta T cell male adult (21 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF146DMX,ENCFF146DMX,ENCFF645UVR,ENCFF146DMX,768,384,0.3,sum_sqrt,RNA:right renal pelvis tissue male embryo (105 days)
+ENCFF085JXX,ENCFF085JXX,ENCFF332PZB,ENCFF085JXX,768,384,0.3,sum_sqrt,RNA:right lung tissue female embryo (108 days)
+ENCFF866JMO+,ENCFF866JMO,ENCFF834DDE,ENCFF866JMO,768,384,0.3,sum_sqrt,RNA:amnion tissue embryo (16 weeks)
+ENCFF866JMO-,ENCFF866JMO,ENCFF834DDE,ENCFF866JMO,768,384,0.3,sum_sqrt,RNA:amnion tissue embryo (16 weeks)
+ENCFF274TDF+,ENCFF274TDF,ENCFF460RWK,ENCFF274TDF,768,384,0.3,sum_sqrt,RNA:A673
+ENCFF274TDF-,ENCFF274TDF,ENCFF460RWK,ENCFF274TDF,768,384,0.3,sum_sqrt,RNA:A673
+ENCFF565XVW+,ENCFF565XVW,ENCFF529NEA,ENCFF565XVW,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from H1
+ENCFF565XVW-,ENCFF565XVW,ENCFF529NEA,ENCFF565XVW,768,384,0.3,sum_sqrt,RNA:endodermal cell originated from H1
+ENCFF744BTD+,ENCFF744BTD,ENCFF132MTE,ENCFF744BTD,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue male embryo (16 weeks)
+ENCFF744BTD-,ENCFF744BTD,ENCFF132MTE,ENCFF744BTD,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue male embryo (16 weeks)
+ENCFF488KNY,ENCFF488KNY,ENCFF403LSP,ENCFF488KNY,768,384,0.3,sum_sqrt,RNA:right lung tissue female embryo (105 days)
+ENCFF917RKL+,ENCFF917RKL,ENCFF761SPP,ENCSR561FEE,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF917RKL+,ENCFF917RKL,ENCFF740YZB,ENCFF917RKL,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF917RKL-,ENCFF917RKL,ENCFF761SPP,ENCSR561FEE,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF917RKL-,ENCFF917RKL,ENCFF740YZB,ENCFF917RKL,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF951UGT,ENCFF951UGT,ENCFF232IBG,ENCFF951UGT,768,384,0.3,sum_sqrt,RNA:muscle of leg tissue male embryo (97 days)
+ENCFF104NDB+,ENCFF104NDB,ENCFF349PBM,ENCFF104NDB,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF104NDB-,ENCFF104NDB,ENCFF349PBM,ENCFF104NDB,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF233HOM+,ENCFF233HOM,ENCFF223MRJ,ENCFF233HOM,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (61 years)
+ENCFF233HOM-,ENCFF233HOM,ENCFF223MRJ,ENCFF233HOM,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (61 years)
+ENCFF047ADC,ENCFF047ADC,ENCFF124RNM,ENCFF047ADC,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Bortezomib for 4 hours
+ENCFF637ANZ+,ENCFF637ANZ,ENCFF689EMS,ENCFF637ANZ,768,384,0.3,sum_sqrt,RNA:SJCRH30
+ENCFF637ANZ-,ENCFF637ANZ,ENCFF689EMS,ENCFF637ANZ,768,384,0.3,sum_sqrt,RNA:SJCRH30
+ENCFF218MMR+,ENCFF218MMR,ENCFF439UJD,ENCFF218MMR,768,384,0.3,sum_sqrt,RNA:SK-N-DZ cytosolic fraction
+ENCFF218MMR-,ENCFF218MMR,ENCFF439UJD,ENCFF218MMR,768,384,0.3,sum_sqrt,RNA:SK-N-DZ cytosolic fraction
+ENCFF898IHN+,ENCFF898IHN,ENCFF494KRC,ENCFF898IHN,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (30 years)
+ENCFF898IHN-,ENCFF898IHN,ENCFF494KRC,ENCFF898IHN,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (30 years)
+ENCFF212QRL,ENCFF212QRL,ENCFF263KMC,ENCFF212QRL,768,384,0.3,sum_sqrt,RNA:stomach tissue female embryo (110 days)
+ENCFF025THJ+,ENCFF025THJ,ENCFF951AHR,ENCFF025THJ,768,384,0.3,sum_sqrt,RNA:right atrium auricular region tissue female adult (53 years)
+ENCFF025THJ-,ENCFF025THJ,ENCFF951AHR,ENCFF025THJ,768,384,0.3,sum_sqrt,RNA:right atrium auricular region tissue female adult (53 years)
+ENCFF231VPQ+,ENCFF231VPQ,ENCFF958PFC,ENCFF231VPQ,768,384,0.3,sum_sqrt,RNA:neuronal stem cell originated from H1
+ENCFF231VPQ-,ENCFF231VPQ,ENCFF958PFC,ENCFF231VPQ,768,384,0.3,sum_sqrt,RNA:neuronal stem cell originated from H1
+ENCFF387SJN,ENCFF387SJN,ENCFF786QNE,ENCFF387SJN,768,384,0.3,sum_sqrt,RNA:left lung tissue male embryo (105 days)
+ENCFF462KBX+,ENCFF462KBX,ENCFF093TCK,ENCFF462KBX,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (41 years)
+ENCFF462KBX-,ENCFF462KBX,ENCFF093TCK,ENCFF462KBX,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue female adult (41 years)
+ENCFF254PWG,ENCFF254PWG,ENCFF811SRP,ENCFF254PWG,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue male embryo (120 days)
+ENCFF470VWE,ENCFF470VWE,ENCFF172JEE,ENCFF470VWE,768,384,0.3,sum_sqrt,RNA:muscle of back tissue male embryo (97 days)
+ENCFF788FRD+,ENCFF788FRD,ENCFF765XAK,ENCFF788FRD,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (41 years)
+ENCFF788FRD-,ENCFF788FRD,ENCFF765XAK,ENCFF788FRD,768,384,0.3,sum_sqrt,RNA:pancreas tissue female adult (41 years)
+ENCFF228AHT+,ENCFF228AHT,ENCFF572PHO,ENCFF228AHT,768,384,0.3,sum_sqrt,RNA:A172
+ENCFF228AHT-,ENCFF228AHT,ENCFF572PHO,ENCFF228AHT,768,384,0.3,sum_sqrt,RNA:A172
+ENCFF591XND+,ENCFF591XND,ENCFF403IZE,ENCFF591XND,768,384,0.3,sum_sqrt,RNA:Caki2
+ENCFF591XND-,ENCFF591XND,ENCFF403IZE,ENCFF591XND,768,384,0.3,sum_sqrt,RNA:Caki2
+ENCFF201RLE,ENCFF201RLE,ENCFF750OOP,ENCFF201RLE,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; naive thymus-derived CD8-positive, alpha-beta T cell"
+ENCFF304TWT+,ENCFF304TWT,ENCFF293WHV,ENCFF304TWT,768,384,0.3,sum_sqrt,RNA:NCI-H460 cytosolic fraction
+ENCFF304TWT-,ENCFF304TWT,ENCFF293WHV,ENCFF304TWT,768,384,0.3,sum_sqrt,RNA:NCI-H460 cytosolic fraction
+ENCFF731FYT+,ENCFF731FYT,ENCFF083EOC,ENCFF731FYT,768,384,0.3,sum_sqrt,RNA:body of pancreas tissue female adult (53 years)
+ENCFF731FYT-,ENCFF731FYT,ENCFF083EOC,ENCFF731FYT,768,384,0.3,sum_sqrt,RNA:body of pancreas tissue female adult (53 years)
+ENCFF568PWV,ENCFF568PWV,ENCFF556DGW,ENCFF568PWV,768,384,0.3,sum_sqrt,"RNA:CD4-positive, alpha-beta memory T cell"
+ENCFF034RBU+,ENCFF034RBU,ENCFF494BJO,ENCFF034RBU,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (61 years)
+ENCFF034RBU-,ENCFF034RBU,ENCFF494BJO,ENCFF034RBU,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue female adult (61 years)
+ENCFF426JDT,ENCFF426JDT,ENCFF178JTH,ENCFF426JDT,768,384,0.3,sum_sqrt,RNA:left lung tissue female embryo (98 days)
+ENCFF086SRN+,ENCFF086SRN,ENCFF087TPO,ENCFF086SRN,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF086SRN-,ENCFF086SRN,ENCFF087TPO,ENCFF086SRN,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF827UHC+,ENCFF827UHC,ENCFF254FOW,ENCFF827UHC,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD4-positive, alpha-beta T cell male adult (20 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF827UHC-,ENCFF827UHC,ENCFF254FOW,ENCFF827UHC,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD4-positive, alpha-beta T cell male adult (20 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF199MXA+,ENCFF199MXA,ENCFF342CXC,ENCFF199MXA,768,384,0.3,sum_sqrt,RNA:K562 insoluble cytoplasmic fraction
+ENCFF199MXA-,ENCFF199MXA,ENCFF342CXC,ENCFF199MXA,768,384,0.3,sum_sqrt,RNA:K562 insoluble cytoplasmic fraction
+ENCFF407ZDP+,ENCFF407ZDP,ENCFF648WGJ,ENCFF407ZDP,768,384,0.3,sum_sqrt,RNA:K562 membrane fraction
+ENCFF407ZDP-,ENCFF407ZDP,ENCFF648WGJ,ENCFF407ZDP,768,384,0.3,sum_sqrt,RNA:K562 membrane fraction
+ENCFF018NXB,ENCFF018NXB,ENCFF327AIS,ENCFF018NXB,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF455CDH+,ENCFF455CDH,ENCFF068AID,ENCFF455CDH,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF455CDH-,ENCFF455CDH,ENCFF068AID,ENCFF455CDH,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF297NQG+,ENCFF297NQG,ENCFF500TSS,ENCFF297NQG,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (34 years)
+ENCFF297NQG-,ENCFF297NQG,ENCFF500TSS,ENCFF297NQG,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (34 years)
+ENCFF065NBH,ENCFF065NBH,ENCFF986ZVF,ENCFF065NBH,768,384,0.3,sum_sqrt,RNA:K562 treated with 1% DMSO for 12 hours
+ENCFF007ZBY+,ENCFF007ZBY,ENCFF470QLH,ENCFF007ZBY,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue female adult (51 years)
+ENCFF007ZBY-,ENCFF007ZBY,ENCFF470QLH,ENCFF007ZBY,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue female adult (51 years)
+ENCFF097CWH+,ENCFF097CWH,ENCFF963QMF,ENCFF097CWH,768,384,0.3,sum_sqrt,RNA:small intestine tissue female adult (30 years)
+ENCFF097CWH-,ENCFF097CWH,ENCFF963QMF,ENCFF097CWH,768,384,0.3,sum_sqrt,RNA:small intestine tissue female adult (30 years)
+ENCFF585HTZ+,ENCFF585HTZ,ENCFF833WFD,ENCFF585HTZ,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF585HTZ-,ENCFF585HTZ,ENCFF833WFD,ENCFF585HTZ,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF458QQU+,ENCFF458QQU,ENCFF642CAM,ENCFF458QQU,768,384,0.3,sum_sqrt,RNA:small intestine tissue male child (3 years)
+ENCFF458QQU-,ENCFF458QQU,ENCFF642CAM,ENCFF458QQU,768,384,0.3,sum_sqrt,RNA:small intestine tissue male child (3 years)
+ENCFF973BSN+,ENCFF973BSN,ENCFF366NYN,ENCFF973BSN,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue female adult (51 years)
+ENCFF973BSN-,ENCFF973BSN,ENCFF366NYN,ENCFF973BSN,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue female adult (51 years)
+ENCFF383RPD+,ENCFF383RPD,ENCFF434HUT,ENCFF383RPD,768,384,0.3,sum_sqrt,RNA:bronchus fibroblast of lung
+ENCFF383RPD-,ENCFF383RPD,ENCFF434HUT,ENCFF383RPD,768,384,0.3,sum_sqrt,RNA:bronchus fibroblast of lung
+ENCFF824QUG,ENCFF824QUG,ENCFF273YOG,ENCFF824QUG,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue female embryo (105 days)
+ENCFF592XZA,ENCFF592XZA,ENCFF660RNB,ENCFF592XZA,768,384,0.3,sum_sqrt,RNA:small intestine tissue male embryo (115 days)
+ENCFF733JPK+,ENCFF733JPK,ENCFF434GPZ,ENCFF733JPK,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (41 years)
+ENCFF733JPK-,ENCFF733JPK,ENCFF434GPZ,ENCFF733JPK,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (41 years)
+ENCFF808SDN+,ENCFF808SDN,ENCFF736BIN,ENCFF808SDN,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue female adult (59 years)
+ENCFF808SDN-,ENCFF808SDN,ENCFF736BIN,ENCFF808SDN,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue female adult (59 years)
+ENCFF086IIB+,ENCFF086IIB,ENCFF921NQC,ENCFF086IIB,768,384,0.3,sum_sqrt,RNA:NCI-H460 nuclear fraction
+ENCFF086IIB-,ENCFF086IIB,ENCFF921NQC,ENCFF086IIB,768,384,0.3,sum_sqrt,RNA:NCI-H460 nuclear fraction
+ENCFF091AGW+,ENCFF091AGW,ENCFF828ZID,ENCFF091AGW,768,384,0.3,sum_sqrt,RNA:pancreas tissue male adult (34 years)
+ENCFF091AGW-,ENCFF091AGW,ENCFF828ZID,ENCFF091AGW,768,384,0.3,sum_sqrt,RNA:pancreas tissue male adult (34 years)
+ENCFF672VYQ+,ENCFF672VYQ,ENCFF329ENM,ENCFF672VYQ,768,384,0.3,sum_sqrt,RNA:transverse colon tissue male adult (54 years)
+ENCFF672VYQ-,ENCFF672VYQ,ENCFF329ENM,ENCFF672VYQ,768,384,0.3,sum_sqrt,RNA:transverse colon tissue male adult (54 years)
+ENCFF983RQU+,ENCFF983RQU,ENCFF033KAE,ENCFF983RQU,768,384,0.3,sum_sqrt,RNA:T-cell male adult (38 years)
+ENCFF983RQU-,ENCFF983RQU,ENCFF033KAE,ENCFF983RQU,768,384,0.3,sum_sqrt,RNA:T-cell male adult (38 years)
+ENCFF296HLN+,ENCFF296HLN,ENCFF932PGT,ENCFF296HLN,768,384,0.3,sum_sqrt,RNA:sciatic nerve tissue female adult (41 years)
+ENCFF296HLN-,ENCFF296HLN,ENCFF932PGT,ENCFF296HLN,768,384,0.3,sum_sqrt,RNA:sciatic nerve tissue female adult (41 years)
+ENCFF482BDQ+,ENCFF482BDQ,ENCFF416UGY,ENCFF482BDQ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF482BDQ-,ENCFF482BDQ,ENCFF416UGY,ENCFF482BDQ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (90 or above years)
+ENCFF814YUZ+,ENCFF814YUZ,ENCFF391HHX,ENCFF814YUZ,768,384,0.3,sum_sqrt,RNA:foreskin melanocyte male newborn
+ENCFF814YUZ-,ENCFF814YUZ,ENCFF391HHX,ENCFF814YUZ,768,384,0.3,sum_sqrt,RNA:foreskin melanocyte male newborn
+ENCFF045ZHZ+,ENCFF045ZHZ,ENCFF393JBM,ENCFF045ZHZ,768,384,0.3,sum_sqrt,RNA:heart tissue female adult (30 years)
+ENCFF045ZHZ-,ENCFF045ZHZ,ENCFF393JBM,ENCFF045ZHZ,768,384,0.3,sum_sqrt,RNA:heart tissue female adult (30 years)
+ENCFF275DKR+,ENCFF275DKR,ENCFF979GXG,ENCFF275DKR,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF275DKR-,ENCFF275DKR,ENCFF979GXG,ENCFF275DKR,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF365LTY,ENCFF365LTY,ENCFF754RSP,ENCFF365LTY,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of back male embryo (97 days)
+ENCFF544ZDA+,ENCFF544ZDA,ENCFF028IUE,ENCFF544ZDA,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF544ZDA-,ENCFF544ZDA,ENCFF028IUE,ENCFF544ZDA,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF848ZVQ,ENCFF848ZVQ,ENCFF993TGD,ENCFF848ZVQ,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; CD14-positive monocyte
+ENCFF368FFC+,ENCFF368FFC,ENCFF740XHN,ENCFF368FFC,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF368FFC-,ENCFF368FFC,ENCFF740XHN,ENCFF368FFC,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF889JRS+,ENCFF889JRS,ENCFF173SBL,ENCFF889JRS,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue female adult (53 years)
+ENCFF889JRS-,ENCFF889JRS,ENCFF173SBL,ENCFF889JRS,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue female adult (53 years)
+ENCFF857GII+,ENCFF857GII,ENCFF307MUN,ENCFF857GII,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF857GII-,ENCFF857GII,ENCFF307MUN,ENCFF857GII,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (90 or above years)
+ENCFF702XYL+,ENCFF702XYL,ENCFF874CFD,ENCFF702XYL,768,384,0.3,sum_sqrt,RNA:PC-3
+ENCFF702XYL-,ENCFF702XYL,ENCFF874CFD,ENCFF702XYL,768,384,0.3,sum_sqrt,RNA:PC-3
+ENCFF304ZAM+,ENCFF304ZAM,ENCFF869NRO,ENCFF304ZAM,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue male adult (54 years)
+ENCFF304ZAM-,ENCFF304ZAM,ENCFF869NRO,ENCFF304ZAM,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue male adult (54 years)
+ENCFF196UHI+,ENCFF196UHI,ENCFF570HXT,ENCFF196UHI,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF196UHI-,ENCFF196UHI,ENCFF570HXT,ENCFF196UHI,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF519CVR,ENCFF519CVR,ENCFF520VKI,ENCFF519CVR,768,384,0.3,sum_sqrt,RNA:muscle of back tissue male embryo (105 days)
+ENCFF185FBE+,ENCFF185FBE,ENCFF424STR,ENCFF185FBE,768,384,0.3,sum_sqrt,RNA:left cardiac atrium tissue female adult (59 years)
+ENCFF185FBE-,ENCFF185FBE,ENCFF424STR,ENCFF185FBE,768,384,0.3,sum_sqrt,RNA:left cardiac atrium tissue female adult (59 years)
+ENCFF125TVD+,ENCFF125TVD,ENCFF348EEJ,ENCFF125TVD,768,384,0.3,sum_sqrt,RNA:G401
+ENCFF125TVD-,ENCFF125TVD,ENCFF348EEJ,ENCFF125TVD,768,384,0.3,sum_sqrt,RNA:G401
+ENCFF844TIV+,ENCFF844TIV,ENCFF909YYJ,ENCFF844TIV,768,384,0.312421875,sum_sqrt,RNA:transverse colon tissue male adult (37 years)
+ENCFF844TIV-,ENCFF844TIV,ENCFF909YYJ,ENCFF844TIV,768,384,0.312421875,sum_sqrt,RNA:transverse colon tissue male adult (37 years)
+ENCFF443EQZ+,ENCFF443EQZ,ENCFF039WAK,ENCFF443EQZ,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein newborn
+ENCFF443EQZ-,ENCFF443EQZ,ENCFF039WAK,ENCFF443EQZ,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein newborn
+ENCFF893OBW,ENCFF893OBW,ENCFF452CER,ENCFF893OBW,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of back male embryo (97 days)
+ENCFF168WRO+,ENCFF168WRO,ENCFF754HOS,ENCFF168WRO,768,384,0.3,sum_sqrt,RNA:spleen tissue male child (3 years)
+ENCFF168WRO-,ENCFF168WRO,ENCFF754HOS,ENCFF168WRO,768,384,0.3,sum_sqrt,RNA:spleen tissue male child (3 years)
+ENCFF807FQZ+,ENCFF807FQZ,ENCFF909UQE,ENCFF807FQZ,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell originated from H1
+ENCFF807FQZ-,ENCFF807FQZ,ENCFF909UQE,ENCFF807FQZ,768,384,0.3,sum_sqrt,RNA:mesenchymal stem cell originated from H1
+ENCFF497DVM,ENCFF497DVM,ENCFF978LMC,ENCFF497DVM,768,384,0.3,sum_sqrt,"RNA:CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF492KPL+,ENCFF492KPL,ENCFF869JAO,ENCFF492KPL,768,384,0.3,sum_sqrt,RNA:SK-MEL-5
+ENCFF492KPL-,ENCFF492KPL,ENCFF869JAO,ENCFF492KPL,768,384,0.3,sum_sqrt,RNA:SK-MEL-5
+ENCFF190ZWO+,ENCFF190ZWO,ENCFF256NJU,ENCFF190ZWO,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF190ZWO-,ENCFF190ZWO,ENCFF256NJU,ENCFF190ZWO,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF784RHW+,ENCFF784RHW,ENCFF524SRR,ENCFF784RHW,768,384,0.3,sum_sqrt,RNA:body of pancreas tissue female adult (51 years)
+ENCFF784RHW-,ENCFF784RHW,ENCFF524SRR,ENCFF784RHW,768,384,0.3,sum_sqrt,RNA:body of pancreas tissue female adult (51 years)
+ENCFF402SEK+,ENCFF402SEK,ENCFF392JWL,ENCFF402SEK,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue male adult (54 years)
+ENCFF402SEK-,ENCFF402SEK,ENCFF392JWL,ENCFF402SEK,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue male adult (54 years)
+ENCFF851BGA+,ENCFF851BGA,ENCFF135TQB,ENCFF851BGA,768,384,0.3,sum_sqrt,RNA:foreskin keratinocyte male newborn
+ENCFF851BGA-,ENCFF851BGA,ENCFF135TQB,ENCFF851BGA,768,384,0.3,sum_sqrt,RNA:foreskin keratinocyte male newborn
+ENCFF940DUI,ENCFF940DUI,ENCFF454HPK,ENCFF940DUI,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Chaetocin for 12 hours
+ENCFF325GTZ,ENCFF325GTZ,ENCFF188LLF,ENCFF325GTZ,768,384,0.3,sum_sqrt,RNA:immature natural killer cell
+ENCFF248FOA,ENCFF248FOA,ENCFF863PGO,ENCFF248FOA,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, alpha-beta memory T cell"
+ENCFF985BPB+,ENCFF985BPB,ENCFF688QOM,ENCFF985BPB,768,384,0.3,sum_sqrt,RNA:mucosa of descending colon tissue male adult (40 years)
+ENCFF985BPB-,ENCFF985BPB,ENCFF688QOM,ENCFF985BPB,768,384,0.3,sum_sqrt,RNA:mucosa of descending colon tissue male adult (40 years)
+ENCFF643ZAD+,ENCFF643ZAD,ENCFF450ZEW,ENCFF643ZAD,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (34 years)
+ENCFF643ZAD-,ENCFF643ZAD,ENCFF450ZEW,ENCFF643ZAD,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (34 years)
+ENCFF565FOF,ENCFF565FOF,ENCFF156SVV,ENCFF565FOF,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue embryo (101 days)
+ENCFF532MCC,ENCFF532MCC,ENCFF477ENL,ENCFF532MCC,768,384,0.3,sum_sqrt,RNA:IgD-negative memory B cell
+ENCFF340TAG+,ENCFF340TAG,ENCFF118PSU,ENCFF340TAG,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue female adult (53 years)
+ENCFF340TAG-,ENCFF340TAG,ENCFF118PSU,ENCFF340TAG,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue female adult (53 years)
+ENCFF064KKA+,ENCFF064KKA,ENCFF322DJR,ENCFF064KKA,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (21 years)
+ENCFF064KKA-,ENCFF064KKA,ENCFF322DJR,ENCFF064KKA,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (21 years)
+ENCFF544MJM+,ENCFF544MJM,ENCFF015XFX,ENCFF544MJM,768,384,0.3,sum_sqrt,RNA:hair follicular keratinocyte male adult (55 years)
+ENCFF544MJM-,ENCFF544MJM,ENCFF015XFX,ENCFF544MJM,768,384,0.3,sum_sqrt,RNA:hair follicular keratinocyte male adult (55 years)
+ENCFF838WFU,ENCFF838WFU,ENCFF050LMR,ENCFF838WFU,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of abdomen male embryo (97 days)
+ENCFF267DQT+,ENCFF267DQT,ENCFF297LUV,ENCFF267DQT,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue female adult (30 years)
+ENCFF267DQT-,ENCFF267DQT,ENCFF297LUV,ENCFF267DQT,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue female adult (30 years)
+ENCFF166WWA+,ENCFF166WWA,ENCFF295QVP,ENCFF166WWA,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female adult (51 years)
+ENCFF166WWA-,ENCFF166WWA,ENCFF295QVP,ENCFF166WWA,768,384,0.3,sum_sqrt,RNA:thyroid gland tissue female adult (51 years)
+ENCFF662LZH,ENCFF662LZH,ENCFF588IFD,ENCFF662LZH,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male embryo (108 days)
+ENCFF082CYK,ENCFF082CYK,ENCFF619BDM,ENCFF082CYK,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 uM AR-42 for 24 hours
+ENCFF334KVA+,ENCFF334KVA,ENCFF917GNV,ENCFF334KVA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF334KVA-,ENCFF334KVA,ENCFF917GNV,ENCFF334KVA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF205MJV+,ENCFF205MJV,ENCFF845KUN,ENCFF205MJV,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male child (3 years)
+ENCFF205MJV-,ENCFF205MJV,ENCFF845KUN,ENCFF205MJV,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male child (3 years)
+ENCFF134ALH+,ENCFF134ALH,ENCFF160LHN,ENCFF134ALH,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (44 years)
+ENCFF134ALH-,ENCFF134ALH,ENCFF160LHN,ENCFF134ALH,768,384,0.3,sum_sqrt,RNA:testis tissue male adult (44 years)
+ENCFF652PJM,ENCFF652PJM,ENCFF081EIW,ENCFF652PJM,768,384,0.3,sum_sqrt,RNA:K562 treated with 100 nM GSK J4 for 24 hours
+ENCFF927ANS+,ENCFF927ANS,ENCFF702UDE,ENCFF927ANS,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (86 years)
+ENCFF927ANS-,ENCFF927ANS,ENCFF702UDE,ENCFF927ANS,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue female adult (86 years)
+ENCFF632MAZ+,ENCFF632MAZ,ENCFF331ZBL,ENCFF632MAZ,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF632MAZ-,ENCFF632MAZ,ENCFF331ZBL,ENCFF632MAZ,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF940PJY+,ENCFF940PJY,ENCFF600THC,ENCFF940PJY,768,384,0.3,sum_sqrt,RNA:M059J
+ENCFF940PJY-,ENCFF940PJY,ENCFF600THC,ENCFF940PJY,768,384,0.3,sum_sqrt,RNA:M059J
+ENCFF221JZR+,ENCFF221JZR,ENCFF024KOW,ENCFF221JZR,768,384,0.3,sum_sqrt,RNA:K562 insoluble cytoplasmic fraction
+ENCFF221JZR-,ENCFF221JZR,ENCFF024KOW,ENCFF221JZR,768,384,0.3,sum_sqrt,RNA:K562 insoluble cytoplasmic fraction
+ENCFF730BTN+,ENCFF730BTN,ENCFF963NNL,ENCFF730BTN,768,384,0.3,sum_sqrt,RNA:foreskin melanocyte male newborn
+ENCFF730BTN-,ENCFF730BTN,ENCFF963NNL,ENCFF730BTN,768,384,0.3,sum_sqrt,RNA:foreskin melanocyte male newborn
+ENCFF087ORU+,ENCFF087ORU,ENCFF766TYC,ENCFF087ORU,768,384,0.3,sum_sqrt,RNA:HCT116
+ENCFF087ORU-,ENCFF087ORU,ENCFF766TYC,ENCFF087ORU,768,384,0.3,sum_sqrt,RNA:HCT116
+ENCFF101ASV+,ENCFF101ASV,ENCFF461FQU,ENCFF101ASV,768,384,0.3,sum_sqrt,RNA:mesendoderm originated from H1
+ENCFF101ASV-,ENCFF101ASV,ENCFF461FQU,ENCFF101ASV,768,384,0.3,sum_sqrt,RNA:mesendoderm originated from H1
+ENCFF610OAY,ENCFF610OAY,ENCFF394QNK,ENCFF610OAY,768,384,0.3,sum_sqrt,RNA:spleen tissue male embryo (120 days)
+ENCFF930CLZ,ENCFF930CLZ,ENCFF709FXM,ENCFF930CLZ,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; immature natural killer cell
+ENCFF854EBH+,ENCFF854EBH,ENCFF651TEC,ENCFF854EBH,768,384,0.3,sum_sqrt,RNA:prostate gland tissue male adult (54 years)
+ENCFF854EBH-,ENCFF854EBH,ENCFF651TEC,ENCFF854EBH,768,384,0.3,sum_sqrt,RNA:prostate gland tissue male adult (54 years)
+ENCFF633OPC+,ENCFF633OPC,ENCFF903TQS,ENCFF633OPC,768,384,0.3,sum_sqrt,RNA:trophoblast tissue embryo (22 weeks)
+ENCFF633OPC-,ENCFF633OPC,ENCFF903TQS,ENCFF633OPC,768,384,0.3,sum_sqrt,RNA:trophoblast tissue embryo (22 weeks)
+ENCFF759QTQ,ENCFF759QTQ,ENCFF212BAZ,ENCFF759QTQ,768,384,0.3,sum_sqrt,RNA:stomach tissue female embryo (107 days)
+ENCFF629GCT,ENCFF629GCT,ENCFF650GXU,ENCFF629GCT,768,384,0.3,sum_sqrt,RNA:left kidney tissue male embryo (96 days)
+ENCFF777ZZR+,ENCFF777ZZR,ENCFF758MCH,ENCFF777ZZR,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue male embryo (16 weeks)
+ENCFF777ZZR-,ENCFF777ZZR,ENCFF758MCH,ENCFF777ZZR,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue male embryo (16 weeks)
+ENCFF911IWQ+,ENCFF911IWQ,ENCFF503KWI,ENCFF911IWQ,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue male adult (37 years)
+ENCFF911IWQ-,ENCFF911IWQ,ENCFF503KWI,ENCFF911IWQ,768,384,0.3,sum_sqrt,RNA:subcutaneous adipose tissue tissue male adult (37 years)
+ENCFF771JBV,ENCFF771JBV,ENCFF832TVV,ENCFF771JBV,768,384,0.3,sum_sqrt,RNA:forelimb muscle tissue female embryo (108 days)
+ENCFF920HIF+,ENCFF920HIF,ENCFF308FKQ,ENCFF920HIF,768,384,0.3,sum_sqrt,RNA:H9
+ENCFF920HIF-,ENCFF920HIF,ENCFF308FKQ,ENCFF920HIF,768,384,0.3,sum_sqrt,RNA:H9
+ENCFF811FXS+,ENCFF811FXS,ENCFF729LDK,ENCFF811FXS,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF811FXS-,ENCFF811FXS,ENCFF729LDK,ENCFF811FXS,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF970CQA,ENCFF970CQA,ENCFF812ADO,ENCFF970CQA,768,384,0.3,sum_sqrt,RNA:IgD-negative memory B cell
+ENCFF112IXW+,ENCFF112IXW,ENCFF381SDS,ENCFF112IXW,768,384,0.3,sum_sqrt,RNA:liver tissue male child (3 years)
+ENCFF112IXW-,ENCFF112IXW,ENCFF381SDS,ENCFF112IXW,768,384,0.3,sum_sqrt,RNA:liver tissue male child (3 years)
+ENCFF155PWD+,ENCFF155PWD,ENCFF496RMH,ENCFF155PWD,768,384,0.3,sum_sqrt,RNA:mole tissue female
+ENCFF155PWD-,ENCFF155PWD,ENCFF496RMH,ENCFF155PWD,768,384,0.3,sum_sqrt,RNA:mole tissue female
+ENCFF697OJB+,ENCFF697OJB,ENCFF431JUO,ENCFF697OJB,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue male child (3 years)
+ENCFF697OJB-,ENCFF697OJB,ENCFF431JUO,ENCFF697OJB,768,384,0.3,sum_sqrt,RNA:adipose tissue tissue male child (3 years)
+ENCFF350OVE+,ENCFF350OVE,ENCFF751CUI,ENCFF350OVE,768,384,0.3,sum_sqrt,RNA:lower lobe of left lung tissue female adult (59 years)
+ENCFF350OVE-,ENCFF350OVE,ENCFF751CUI,ENCFF350OVE,768,384,0.3,sum_sqrt,RNA:lower lobe of left lung tissue female adult (59 years)
+ENCFF481AMD+,ENCFF481AMD,ENCFF464VYE,ENCFF481AMD,768,384,0.6390034863451481,sum_sqrt,RNA:small intestine tissue male adult (34 years)
+ENCFF481AMD-,ENCFF481AMD,ENCFF464VYE,ENCFF481AMD,768,384,0.6390034863451481,sum_sqrt,RNA:small intestine tissue male adult (34 years)
+ENCFF597SVD+,ENCFF597SVD,ENCFF883VNR,ENCFF597SVD,768,384,0.3,sum_sqrt,RNA:ascending aorta tissue female adult (53 years)
+ENCFF597SVD-,ENCFF597SVD,ENCFF883VNR,ENCFF597SVD,768,384,0.3,sum_sqrt,RNA:ascending aorta tissue female adult (53 years)
+ENCFF504JQU+,ENCFF504JQU,ENCFF361XCF,ENCFF504JQU,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (34 years)
+ENCFF504JQU-,ENCFF504JQU,ENCFF361XCF,ENCFF504JQU,768,384,0.3,sum_sqrt,RNA:stomach tissue male adult (34 years)
+ENCFF751PQP+,ENCFF751PQP,ENCFF016ISI,ENCFF751PQP,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (30 years)
+ENCFF751PQP-,ENCFF751PQP,ENCFF016ISI,ENCFF751PQP,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (30 years)
+ENCFF753LZJ,ENCFF753LZJ,ENCFF429AJA,ENCFF753LZJ,768,384,0.3,sum_sqrt,RNA:ovary tissue female embryo
+ENCFF900XSJ+,ENCFF900XSJ,ENCFF051CMQ,ENCFF900XSJ,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue male adult (37 years)
+ENCFF900XSJ-,ENCFF900XSJ,ENCFF051CMQ,ENCFF900XSJ,768,384,0.3,sum_sqrt,RNA:omental fat pad tissue male adult (37 years)
+ENCFF590WBY,ENCFF590WBY,ENCFF597WFU,ENCFF590WBY,768,384,0.3,sum_sqrt,RNA:muscle of back tissue male embryo (91 days)
+ENCFF457QEG,ENCFF457QEG,ENCFF325WCG,ENCFF457QEG,768,384,0.3,sum_sqrt,RNA:left lung tissue male embryo (91 days)
+ENCFF817LFV,ENCFF817LFV,ENCFF572ROX,ENCFF817LFV,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Panobinostat for 24 hours
+ENCFF381OAF+,ENCFF381OAF,ENCFF929WCF,ENCFF381OAF,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF381OAF-,ENCFF381OAF,ENCFF929WCF,ENCFF381OAF,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF629VCP+,ENCFF629VCP,ENCFF999KLY,ENCFF629VCP,768,384,0.3,sum_sqrt,RNA:HUES64
+ENCFF629VCP-,ENCFF629VCP,ENCFF999KLY,ENCFF629VCP,768,384,0.3,sum_sqrt,RNA:HUES64
+ENCFF274KQB,ENCFF274KQB,ENCFF477IRF,ENCFF274KQB,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 uM Crizotinib for 12 hours
+ENCFF558ZAJ,ENCFF558ZAJ,ENCFF399SSG,ENCFF558ZAJ,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female embryo (108 days)
+ENCFF553LFH+,ENCFF553LFH,ENCFF342IWO,ENCFF553LFH,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue female adult (53 years)
+ENCFF553LFH-,ENCFF553LFH,ENCFF342IWO,ENCFF553LFH,768,384,0.3,sum_sqrt,RNA:gastroesophageal sphincter tissue female adult (53 years)
+ENCFF056UVT+,ENCFF056UVT,ENCFF075TVU,ENCFF056UVT,768,384,0.3,sum_sqrt,RNA:chorion tissue male embryo (16 weeks)
+ENCFF056UVT-,ENCFF056UVT,ENCFF075TVU,ENCFF056UVT,768,384,0.3,sum_sqrt,RNA:chorion tissue male embryo (16 weeks)
+ENCFF206OGU+,ENCFF206OGU,ENCFF876NLM,ENCFF206OGU,768,384,0.3480142405063291,sum_sqrt,RNA:adipose tissue tissue male adult (34 years)
+ENCFF206OGU-,ENCFF206OGU,ENCFF876NLM,ENCFF206OGU,768,384,0.3480142405063291,sum_sqrt,RNA:adipose tissue tissue male adult (34 years)
+ENCFF682NDW+,ENCFF682NDW,ENCFF816UQV,ENCFF682NDW,768,384,0.3,sum_sqrt,RNA:PC-9
+ENCFF682NDW-,ENCFF682NDW,ENCFF816UQV,ENCFF682NDW,768,384,0.3,sum_sqrt,RNA:PC-9
+ENCFF689BPI,ENCFF689BPI,ENCFF754VNA,ENCFF689BPI,768,384,0.3,sum_sqrt,RNA:GM23338 originated from GM23248
+ENCFF008POE+,ENCFF008POE,ENCFF947KLU,ENCFF008POE,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue male adult (54 years)
+ENCFF008POE-,ENCFF008POE,ENCFF947KLU,ENCFF008POE,768,384,0.3,sum_sqrt,RNA:esophagus muscularis mucosa tissue male adult (54 years)
+ENCFF056FRZ+,ENCFF056FRZ,ENCFF223PWH,ENCFF056FRZ,768,384,0.3,sum_sqrt,RNA:stomach tissue female adult (53 years)
+ENCFF056FRZ-,ENCFF056FRZ,ENCFF223PWH,ENCFF056FRZ,768,384,0.3,sum_sqrt,RNA:stomach tissue female adult (53 years)
+ENCFF349IKE+,ENCFF349IKE,ENCFF422QXZ,ENCFF349IKE,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (53 years)
+ENCFF349IKE-,ENCFF349IKE,ENCFF422QXZ,ENCFF349IKE,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (53 years)
+ENCFF012MMA,ENCFF012MMA,ENCFF533ZSU,ENCFF012MMA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell"
+ENCFF193HUI,ENCFF193HUI,ENCFF824XSK,ENCFF193HUI,768,384,0.3,sum_sqrt,RNA:testis tissue male embryo
+ENCFF988LZV,ENCFF988LZV,ENCFF503ORS,ENCFF988LZV,768,384,0.3,sum_sqrt,RNA:K562 treated with 50 uM C646 for 4 hours
+ENCFF541ZMB+,ENCFF541ZMB,ENCFF263CRG,ENCFF541ZMB,768,384,0.3,sum_sqrt,RNA:left colon tissue female adult (59 years)
+ENCFF541ZMB-,ENCFF541ZMB,ENCFF263CRG,ENCFF541ZMB,768,384,0.3,sum_sqrt,RNA:left colon tissue female adult (59 years)
+ENCFF099RCL,ENCFF099RCL,ENCFF507PUQ,ENCFF099RCL,768,384,0.3,sum_sqrt,RNA:left renal cortex interstitium tissue male embryo (120 days)
+ENCFF024MEB+,ENCFF024MEB,ENCFF069HBW,ENCFF024MEB,768,384,0.3,sum_sqrt,RNA:neural crest cell
+ENCFF024MEB-,ENCFF024MEB,ENCFF069HBW,ENCFF024MEB,768,384,0.3,sum_sqrt,RNA:neural crest cell
+ENCFF498CLL,ENCFF498CLL,ENCFF034BJH,ENCFF498CLL,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF382VRE+,ENCFF382VRE,ENCFF373DVQ,ENCFF382VRE,768,384,0.3,sum_sqrt,RNA:trophoblast cell originated from H1
+ENCFF382VRE-,ENCFF382VRE,ENCFF373DVQ,ENCFF382VRE,768,384,0.3,sum_sqrt,RNA:trophoblast cell originated from H1
+ENCFF386YGS+,ENCFF386YGS,ENCFF216XVM,ENCFF386YGS,768,384,0.4277421236872812,sum_sqrt,RNA:aorta tissue male adult (34 years)
+ENCFF386YGS-,ENCFF386YGS,ENCFF216XVM,ENCFF386YGS,768,384,0.4277421236872812,sum_sqrt,RNA:aorta tissue male adult (34 years)
+ENCFF133LYJ+,ENCFF133LYJ,ENCFF236XOK,ENCFF133LYJ,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (41 years)
+ENCFF133LYJ-,ENCFF133LYJ,ENCFF236XOK,ENCFF133LYJ,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (41 years)
+ENCFF343JCX,ENCFF343JCX,ENCFF823ABI,ENCFF343JCX,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD8-positive, alpha-beta memory T cell"
+ENCFF366WMR,ENCFF366WMR,ENCFF503ZRB,ENCFF366WMR,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; immature natural killer cell
+ENCFF851XAJ+,ENCFF851XAJ,ENCFF015GRH,ENCFF851XAJ,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male adult (34 years)
+ENCFF851XAJ-,ENCFF851XAJ,ENCFF015GRH,ENCFF851XAJ,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male adult (34 years)
+ENCFF270YAA+,ENCFF270YAA,ENCFF996NCW,ENCFF270YAA,768,384,0.3,sum_sqrt,RNA:left colon tissue female adult (46 years)
+ENCFF270YAA-,ENCFF270YAA,ENCFF996NCW,ENCFF270YAA,768,384,0.3,sum_sqrt,RNA:left colon tissue female adult (46 years)
+ENCFF958WEW+,ENCFF958WEW,ENCFF653DJK,ENCFF958WEW,768,384,0.3,sum_sqrt,RNA:chondrocyte
+ENCFF958WEW-,ENCFF958WEW,ENCFF653DJK,ENCFF958WEW,768,384,0.3,sum_sqrt,RNA:chondrocyte
+ENCFF295UWT,ENCFF295UWT,ENCFF336XCO,ENCFF295UWT,768,384,0.3,sum_sqrt,RNA:stomach tissue embryo (101 days)
+ENCFF502RUV+,ENCFF502RUV,ENCFF437BXM,ENCFF502RUV,768,384,0.3,sum_sqrt,RNA:thymus tissue male child (3 years)
+ENCFF502RUV-,ENCFF502RUV,ENCFF437BXM,ENCFF502RUV,768,384,0.3,sum_sqrt,RNA:thymus tissue male child (3 years)
+ENCFF259EZH,ENCFF259EZH,ENCFF517DMU,ENCFF259EZH,768,384,0.3,sum_sqrt,RNA:large intestine tissue male embryo (91 days)
+ENCFF462CKY+,ENCFF462CKY,ENCFF499ZFI,ENCFF462CKY,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF462CKY-,ENCFF462CKY,ENCFF499ZFI,ENCFF462CKY,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF813JFQ+,ENCFF813JFQ,ENCFF778QGB,ENCFF813JFQ,768,384,0.3,sum_sqrt,RNA:trophoblast tissue male embryo (16 weeks)
+ENCFF813JFQ-,ENCFF813JFQ,ENCFF778QGB,ENCFF813JFQ,768,384,0.3,sum_sqrt,RNA:trophoblast tissue male embryo (16 weeks)
+ENCFF333ENA,ENCFF333ENA,ENCFF514FND,ENCFF333ENA,768,384,0.3,sum_sqrt,RNA:stomach tissue female embryo (98 days)
+ENCFF924CJI,ENCFF924CJI,ENCFF022GUW,ENCFF924CJI,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; naive B cell
+ENCFF734UPN+,ENCFF734UPN,ENCFF114LDR,ENCFF734UPN,768,384,0.3,sum_sqrt,RNA:amnion tissue male embryo (16 weeks)
+ENCFF734UPN-,ENCFF734UPN,ENCFF114LDR,ENCFF734UPN,768,384,0.3,sum_sqrt,RNA:amnion tissue male embryo (16 weeks)
+ENCFF050ROK,ENCFF050ROK,ENCFF030ORH,ENCFF050ROK,768,384,0.3,sum_sqrt,RNA:muscle of arm tissue female embryo (85 days)
+ENCFF312ZLI+,ENCFF312ZLI,ENCFF932MJL,ENCFF312ZLI,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF312ZLI-,ENCFF312ZLI,ENCFF932MJL,ENCFF312ZLI,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF794ZUR+,ENCFF794ZUR,ENCFF795UGM,ENCFF794ZUR,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue male embryo (38 weeks)
+ENCFF794ZUR-,ENCFF794ZUR,ENCFF795UGM,ENCFF794ZUR,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue male embryo (38 weeks)
+ENCFF145JTX+,ENCFF145JTX,ENCFF899AKM,ENCFF145JTX,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (85 years)
+ENCFF145JTX-,ENCFF145JTX,ENCFF899AKM,ENCFF145JTX,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (85 years)
+ENCFF532KPO+,ENCFF532KPO,ENCFF589ZCF,ENCFF532KPO,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue male adult (37 years)
+ENCFF532KPO-,ENCFF532KPO,ENCFF589ZCF,ENCFF532KPO,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue male adult (37 years)
+ENCFF321EHO+,ENCFF321EHO,ENCFF674NHA,ENCFF321EHO,768,384,0.3,sum_sqrt,RNA:GM23248
+ENCFF321EHO-,ENCFF321EHO,ENCFF674NHA,ENCFF321EHO,768,384,0.3,sum_sqrt,RNA:GM23248
+ENCFF722TDX+,ENCFF722TDX,ENCFF027FUC,ENCFF722TDX,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF722TDX-,ENCFF722TDX,ENCFF027FUC,ENCFF722TDX,768,384,0.3,sum_sqrt,RNA:IMR-90
+ENCFF542OVF+,ENCFF542OVF,ENCFF895OOC,ENCFF542OVF,768,384,0.3,sum_sqrt,RNA:transverse colon tissue female adult (53 years)
+ENCFF542OVF-,ENCFF542OVF,ENCFF895OOC,ENCFF542OVF,768,384,0.3,sum_sqrt,RNA:transverse colon tissue female adult (53 years)
+ENCFF718DUW+,ENCFF718DUW,ENCFF402HRB,ENCFF718DUW,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (51 years)
+ENCFF718DUW-,ENCFF718DUW,ENCFF402HRB,ENCFF718DUW,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue female adult (51 years)
+ENCFF980FZG+,ENCFF980FZG,ENCFF990XSZ,ENCFF980FZG,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue male adult (37 years)
+ENCFF980FZG-,ENCFF980FZG,ENCFF990XSZ,ENCFF980FZG,768,384,0.3,sum_sqrt,RNA:Peyer's patch tissue male adult (37 years)
+ENCFF875RMF,ENCFF875RMF,ENCFF729UTH,ENCFF875RMF,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; naive B cell
+ENCFF483IQJ,ENCFF483IQJ,ENCFF945GRJ,ENCFF483IQJ,768,384,0.3,sum_sqrt,RNA:muscle of back tissue female embryo (98 days)
+ENCFF466NAU,ENCFF466NAU,ENCFF572UZE,ENCFF466NAU,768,384,0.3,sum_sqrt,RNA:K562 treated with 100 nM GSK J4 for 12 hours
+ENCFF347OLB,ENCFF347OLB,ENCFF818YGY,ENCFF347OLB,768,384,0.3,sum_sqrt,RNA:K562 treated with 5 uM JQ1 for 24 hours
+ENCFF372DGR+,ENCFF372DGR,ENCFF171EQY,ENCFF372DGR,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (54 years)
+ENCFF372DGR-,ENCFF372DGR,ENCFF171EQY,ENCFF372DGR,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (54 years)
+ENCFF495AAX+,ENCFF495AAX,ENCFF161XMM,ENCFF495AAX,768,384,0.3,sum_sqrt,RNA:HepG2 insoluble cytoplasmic fraction
+ENCFF495AAX-,ENCFF495AAX,ENCFF161XMM,ENCFF495AAX,768,384,0.3,sum_sqrt,RNA:HepG2 insoluble cytoplasmic fraction
+ENCFF458ASG+,ENCFF458ASG,ENCFF290MLG,ENCFF458ASG,768,384,0.3,sum_sqrt,RNA:MCF 10A
+ENCFF458ASG-,ENCFF458ASG,ENCFF290MLG,ENCFF458ASG,768,384,0.3,sum_sqrt,RNA:MCF 10A
+ENCFF818BRP+,ENCFF818BRP,ENCFF015QYZ,ENCFF818BRP,768,384,0.3,sum_sqrt,RNA:mammary microvascular endothelial cell female adult (26 years)
+ENCFF818BRP-,ENCFF818BRP,ENCFF015QYZ,ENCFF818BRP,768,384,0.3,sum_sqrt,RNA:mammary microvascular endothelial cell female adult (26 years)
+ENCFF573JBK+,ENCFF573JBK,ENCFF533BDU,ENCFF573JBK,768,384,0.3,sum_sqrt,RNA:left lung tissue male adult (40 years)
+ENCFF573JBK-,ENCFF573JBK,ENCFF533BDU,ENCFF573JBK,768,384,0.3,sum_sqrt,RNA:left lung tissue male adult (40 years)
+ENCFF740HBZ+,ENCFF740HBZ,ENCFF118YUM,ENCFF740HBZ,768,384,0.3,sum_sqrt,RNA:upper lobe of right lung tissue male adult (60 years)
+ENCFF740HBZ-,ENCFF740HBZ,ENCFF118YUM,ENCFF740HBZ,768,384,0.3,sum_sqrt,RNA:upper lobe of right lung tissue male adult (60 years)
+ENCFF903PTH,ENCFF903PTH,ENCFF068EDD,ENCFF903PTH,768,384,0.3,sum_sqrt,"RNA:CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF711RSC+,ENCFF711RSC,ENCFF709WUU,ENCFF711RSC,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue male child (3 years)
+ENCFF711RSC-,ENCFF711RSC,ENCFF709WUU,ENCFF711RSC,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue male child (3 years)
+ENCFF840DDQ+,ENCFF840DDQ,ENCFF142EIF,ENCFF840DDQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF840DDQ-,ENCFF840DDQ,ENCFF142EIF,ENCFF840DDQ,768,384,0.3,sum_sqrt,"RNA:activated CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF403PZE+,ENCFF403PZE,ENCFF608CTI,ENCFF403PZE,768,384,0.3,sum_sqrt,RNA:cardiac septum tissue female adult (41 years)
+ENCFF403PZE-,ENCFF403PZE,ENCFF608CTI,ENCFF403PZE,768,384,0.3,sum_sqrt,RNA:cardiac septum tissue female adult (41 years)
+ENCFF045JED+,ENCFF045JED,ENCFF471RGW,ENCFF045JED,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF045JED-,ENCFF045JED,ENCFF471RGW,ENCFF045JED,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF509KPQ+,ENCFF509KPQ,ENCFF800HIP,ENCFF509KPQ,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF509KPQ-,ENCFF509KPQ,ENCFF800HIP,ENCFF509KPQ,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF745TWT,ENCFF745TWT,ENCFF711AJY,ENCFF745TWT,768,384,0.3,sum_sqrt,RNA:right renal cortex interstitium tissue male embryo (105 days)
+ENCFF595CZA+,ENCFF595CZA,ENCFF268FYN,ENCFF595CZA,768,384,0.3,sum_sqrt,RNA:airway epithelial cell
+ENCFF595CZA-,ENCFF595CZA,ENCFF268FYN,ENCFF595CZA,768,384,0.3,sum_sqrt,RNA:airway epithelial cell
+ENCFF929RPC+,ENCFF929RPC,ENCFF989WGG,ENCFF929RPC,768,384,2.003142076502732,sum_sqrt,RNA:sigmoid colon tissue female adult (30 years)
+ENCFF929RPC-,ENCFF929RPC,ENCFF989WGG,ENCFF929RPC,768,384,2.003142076502732,sum_sqrt,RNA:sigmoid colon tissue female adult (30 years)
+ENCFF577ZXA+,ENCFF577ZXA,ENCFF201DYZ,ENCFF577ZXA,768,384,0.3,sum_sqrt,RNA:lower lobe of right lung tissue male adult (60 years)
+ENCFF577ZXA-,ENCFF577ZXA,ENCFF201DYZ,ENCFF577ZXA,768,384,0.3,sum_sqrt,RNA:lower lobe of right lung tissue male adult (60 years)
+ENCFF118XUB+,ENCFF118XUB,ENCFF577LGC,ENCFF118XUB,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue female adult (51 years)
+ENCFF118XUB-,ENCFF118XUB,ENCFF577LGC,ENCFF118XUB,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue female adult (51 years)
+ENCFF589DYO+,ENCFF589DYO,ENCFF766RZP,ENCFF589DYO,768,384,0.3,sum_sqrt,RNA:myotube originated from skeletal muscle myoblast
+ENCFF589DYO-,ENCFF589DYO,ENCFF766RZP,ENCFF589DYO,768,384,0.3,sum_sqrt,RNA:myotube originated from skeletal muscle myoblast
+ENCFF333QAU,ENCFF333QAU,ENCFF947ZLB,ENCFF333QAU,768,384,0.3,sum_sqrt,"RNA:common myeloid progenitor, CD34-positive female adult (33 years)"
+ENCFF553FQR+,ENCFF553FQR,ENCFF347RJG,ENCFF553FQR,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (46 years)
+ENCFF553FQR-,ENCFF553FQR,ENCFF347RJG,ENCFF553FQR,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (46 years)
+ENCFF512AIP+,ENCFF512AIP,ENCFF835HKJ,ENCFF512AIP,768,384,0.3,sum_sqrt,RNA:thoracic aorta tissue male adult (54 years)
+ENCFF512AIP-,ENCFF512AIP,ENCFF835HKJ,ENCFF512AIP,768,384,0.3,sum_sqrt,RNA:thoracic aorta tissue male adult (54 years)
+ENCFF668DGV+,ENCFF668DGV,ENCFF589IWR,ENCFF668DGV,768,384,0.3,sum_sqrt,RNA:mesenteric fat pad tissue female adult (59 years)
+ENCFF668DGV-,ENCFF668DGV,ENCFF589IWR,ENCFF668DGV,768,384,0.3,sum_sqrt,RNA:mesenteric fat pad tissue female adult (59 years)
+ENCFF237XXC+,ENCFF237XXC,ENCFF774EMQ,ENCFF237XXC,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (54 years)
+ENCFF237XXC-,ENCFF237XXC,ENCFF774EMQ,ENCFF237XXC,768,384,0.3,sum_sqrt,RNA:upper lobe of left lung tissue male adult (54 years)
+ENCFF368TTD+,ENCFF368TTD,ENCFF364ACD,ENCFF368TTD,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (53 years)
+ENCFF368TTD-,ENCFF368TTD,ENCFF364ACD,ENCFF368TTD,768,384,0.3,sum_sqrt,RNA:ovary tissue female adult (53 years)
+ENCFF863HRX+,ENCFF863HRX,ENCFF031DLO,ENCFF863HRX,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF863HRX-,ENCFF863HRX,ENCFF031DLO,ENCFF863HRX,768,384,0.3,sum_sqrt,RNA:HFFc6
+ENCFF999ARF+,ENCFF999ARF,ENCFF859XYK,ENCFF999ARF,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue male adult (34 years)
+ENCFF999ARF-,ENCFF999ARF,ENCFF859XYK,ENCFF999ARF,768,384,0.3,sum_sqrt,RNA:psoas muscle tissue male adult (34 years)
+ENCFF463TDW,ENCFF463TDW,ENCFF057NDA,ENCFF463TDW,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF685VLN,ENCFF685VLN,ENCFF307EFI,ENCFF685VLN,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Vorinostat for 24 hours
+ENCFF203UBD+,ENCFF203UBD,ENCFF368KFI,ENCFF203UBD,768,384,0.3,sum_sqrt,"RNA:activated T-cell male adult (38 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF203UBD-,ENCFF203UBD,ENCFF368KFI,ENCFF203UBD,768,384,0.3,sum_sqrt,"RNA:activated T-cell male adult (38 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF918AOG,ENCFF918AOG,ENCFF537SFY,ENCFF918AOG,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD8-positive, alpha-beta memory T cell"
+ENCFF255CRM+,ENCFF255CRM,ENCFF174WLB,ENCFF255CRM,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF255CRM-,ENCFF255CRM,ENCFF174WLB,ENCFF255CRM,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF734OLC+,ENCFF734OLC,ENCFF859KDV,ENCFF734OLC,768,384,0.3,sum_sqrt,RNA:foreskin fibroblast male newborn
+ENCFF734OLC-,ENCFF734OLC,ENCFF859KDV,ENCFF734OLC,768,384,0.3,sum_sqrt,RNA:foreskin fibroblast male newborn
+ENCFF563AJC+,ENCFF563AJC,ENCFF202OLF,ENCFF563AJC,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue male adult (37 years)
+ENCFF563AJC-,ENCFF563AJC,ENCFF202OLF,ENCFF563AJC,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue male adult (37 years)
+ENCFF756IDW+,ENCFF756IDW,ENCFF413URT,ENCFF756IDW,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (60 years)
+ENCFF756IDW-,ENCFF756IDW,ENCFF413URT,ENCFF756IDW,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (60 years)
+ENCFF818TKM+,ENCFF818TKM,ENCFF357GHN,ENCFF818TKM,768,384,0.3,sum_sqrt,RNA:stomach tissue female adult (51 years)
+ENCFF818TKM-,ENCFF818TKM,ENCFF357GHN,ENCFF818TKM,768,384,0.3,sum_sqrt,RNA:stomach tissue female adult (51 years)
+ENCFF918QTH+,ENCFF918QTH,ENCFF981VRR,ENCFF918QTH,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF918QTH-,ENCFF918QTH,ENCFF981VRR,ENCFF918QTH,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta memory T cell male adult (43 years)"
+ENCFF444MUM,ENCFF444MUM,ENCFF074LKL,ENCFF444MUM,768,384,0.3,sum_sqrt,RNA:large intestine tissue female embryo (98 days)
+ENCFF593EJA+,ENCFF593EJA,ENCFF888ASC,ENCFF593EJA,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (37 years)
+ENCFF593EJA-,ENCFF593EJA,ENCFF888ASC,ENCFF593EJA,768,384,0.3,sum_sqrt,RNA:sigmoid colon tissue male adult (37 years)
+ENCFF108RDF+,ENCFF108RDF,ENCFF502SIL,ENCFF108RDF,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue female adult (53 years)
+ENCFF108RDF-,ENCFF108RDF,ENCFF502SIL,ENCFF108RDF,768,384,0.3,sum_sqrt,RNA:tibial nerve tissue female adult (53 years)
+ENCFF238NVT,ENCFF238NVT,ENCFF627KXO,ENCFF238NVT,768,384,0.3,sum_sqrt,RNA:hepatocyte originated from H9
+ENCFF946QQD,ENCFF946QQD,ENCFF016NWL,ENCFF946QQD,768,384,0.3,sum_sqrt,RNA:large intestine tissue female embryo (85 days)
+ENCFF490SYS,ENCFF490SYS,ENCFF607HBH,ENCFF490SYS,768,384,0.3,sum_sqrt,RNA:muscle of leg tissue male embryo (96 days)
+ENCFF837YDW+,ENCFF837YDW,ENCFF593OHC,ENCFF837YDW,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF837YDW-,ENCFF837YDW,ENCFF593OHC,ENCFF837YDW,768,384,0.3,sum_sqrt,RNA:K562 cytosolic fraction
+ENCFF300QBN+,ENCFF300QBN,ENCFF548QRY,ENCFF300QBN,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female adult (17 years)
+ENCFF300QBN-,ENCFF300QBN,ENCFF548QRY,ENCFF300QBN,768,384,0.3,sum_sqrt,RNA:mammary epithelial cell female adult (17 years)
+ENCFF104DTS,ENCFF104DTS,ENCFF493JUC,ENCFF104DTS,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (37 years)"
+ENCFF551UCO,ENCFF551UCO,ENCFF087TLW,ENCFF551UCO,768,384,0.3,sum_sqrt,RNA:left lung tissue female embryo (108 days)
+ENCFF853VJV+,ENCFF853VJV,ENCFF376ALQ,ENCFF853VJV,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF853VJV-,ENCFF853VJV,ENCFF376ALQ,ENCFF853VJV,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF726WTR+,ENCFF726WTR,ENCFF012XRF,ENCFF726WTR,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue male adult (37 years)
+ENCFF726WTR-,ENCFF726WTR,ENCFF012XRF,ENCFF726WTR,768,384,0.3,sum_sqrt,RNA:suprapubic skin tissue male adult (37 years)
+ENCFF458XQS,ENCFF458XQS,ENCFF583MKM,ENCFF458XQS,768,384,0.3,sum_sqrt,RNA:heart tissue female embryo (91 days)
+ENCFF193HXZ+,ENCFF193HXZ,ENCFF635SRJ,ENCFF193HXZ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (88 years)
+ENCFF193HXZ-,ENCFF193HXZ,ENCFF635SRJ,ENCFF193HXZ,768,384,0.3,sum_sqrt,RNA:middle frontal area 46 tissue female adult (88 years)
+ENCFF289VET,ENCFF289VET,ENCFF598QLB,ENCFF289VET,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Panobinostat for 4 hours
+ENCFF858QRQ+,ENCFF858QRQ,ENCFF545SNN,ENCFF858QRQ,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (40 years)
+ENCFF858QRQ-,ENCFF858QRQ,ENCFF545SNN,ENCFF858QRQ,768,384,0.3,sum_sqrt,RNA:right cardiac atrium tissue male adult (40 years)
+ENCFF096CZT+,ENCFF096CZT,ENCFF458YKY,ENCFF096CZT,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF096CZT-,ENCFF096CZT,ENCFF458YKY,ENCFF096CZT,768,384,0.3,sum_sqrt,RNA:ectodermal cell originated from HUES64
+ENCFF701JUX+,ENCFF701JUX,ENCFF808UYE,ENCFF701JUX,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue male adult (90 or above years)
+ENCFF701JUX-,ENCFF701JUX,ENCFF808UYE,ENCFF701JUX,768,384,0.3,sum_sqrt,RNA:with Alzheimer's disease; middle frontal area 46 tissue male adult (90 or above years)
+ENCFF571AFR+,ENCFF571AFR,ENCFF210MFP,ENCFF571AFR,768,384,0.3,sum_sqrt,RNA:left ventricle myocardium superior tissue male adult (60 years)
+ENCFF571AFR-,ENCFF571AFR,ENCFF210MFP,ENCFF571AFR,768,384,0.3,sum_sqrt,RNA:left ventricle myocardium superior tissue male adult (60 years)
+ENCFF163AGZ+,ENCFF163AGZ,ENCFF659DTI,ENCFF163AGZ,768,384,0.3,sum_sqrt,RNA:excitatory neuron
+ENCFF163AGZ-,ENCFF163AGZ,ENCFF659DTI,ENCFF163AGZ,768,384,0.3,sum_sqrt,RNA:excitatory neuron
+ENCFF318MTJ+,ENCFF318MTJ,ENCFF325DUK,ENCFF318MTJ,768,384,0.3,sum_sqrt,RNA:SJSA1
+ENCFF318MTJ-,ENCFF318MTJ,ENCFF325DUK,ENCFF318MTJ,768,384,0.3,sum_sqrt,RNA:SJSA1
+ENCFF432UNL,ENCFF432UNL,ENCFF471MIL,ENCFF432UNL,768,384,0.3,sum_sqrt,RNA:K562 treated with 50 uM C646 for 24 hours
+ENCFF717QBH,ENCFF717QBH,ENCFF921KHI,ENCFF717QBH,768,384,0.3,sum_sqrt,RNA:right renal cortex interstitium tissue male embryo (120 days)
+ENCFF278EZT+,ENCFF278EZT,ENCFF992CSK,ENCFF278EZT,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF278EZT-,ENCFF278EZT,ENCFF992CSK,ENCFF278EZT,768,384,0.3,sum_sqrt,RNA:K562
+ENCFF990JTR+,ENCFF990JTR,ENCFF036PUS,ENCFF990JTR,768,384,0.3,sum_sqrt,RNA:HepG2 membrane fraction
+ENCFF990JTR-,ENCFF990JTR,ENCFF036PUS,ENCFF990JTR,768,384,0.3,sum_sqrt,RNA:HepG2 membrane fraction
+ENCFF279MVV,ENCFF279MVV,ENCFF053HTJ,ENCFF279MVV,768,384,0.3,sum_sqrt,RNA:GM12878
+ENCFF343WYY,ENCFF343WYY,ENCFF970LTI,ENCFF343WYY,768,384,0.3,sum_sqrt,RNA:muscle of back tissue male embryo (127 days)
+ENCFF649RYB+,ENCFF649RYB,ENCFF123KIW,ENCFF649RYB,768,384,0.3,sum_sqrt,RNA:kidney tissue female adult (47 years)
+ENCFF649RYB-,ENCFF649RYB,ENCFF123KIW,ENCFF649RYB,768,384,0.3,sum_sqrt,RNA:kidney tissue female adult (47 years)
+ENCFF982WYX+,ENCFF982WYX,ENCFF807EUQ,ENCFF982WYX,768,384,0.3,sum_sqrt,RNA:myocyte originated from LHCN-M2
+ENCFF982WYX-,ENCFF982WYX,ENCFF807EUQ,ENCFF982WYX,768,384,0.3,sum_sqrt,RNA:myocyte originated from LHCN-M2
+ENCFF031QGE+,ENCFF031QGE,ENCFF379NOY,ENCFF031QGE,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF031QGE-,ENCFF031QGE,ENCFF379NOY,ENCFF031QGE,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF168RPD,ENCFF168RPD,ENCFF839YOI,ENCFF168RPD,768,384,0.3,sum_sqrt,RNA:kidney tissue female embryo (85 days)
+ENCFF873UUS+,ENCFF873UUS,ENCFF264PUE,ENCFF873UUS,768,384,0.3,sum_sqrt,RNA:Calu3
+ENCFF873UUS-,ENCFF873UUS,ENCFF264PUE,ENCFF873UUS,768,384,0.3,sum_sqrt,RNA:Calu3
+ENCFF734VZN+,ENCFF734VZN,ENCFF403CJU,ENCFF734VZN,768,384,0.3,sum_sqrt,RNA:epithelial cell of alveolus of lung NONE and female embryo (21 weeks)
+ENCFF734VZN-,ENCFF734VZN,ENCFF403CJU,ENCFF734VZN,768,384,0.3,sum_sqrt,RNA:epithelial cell of alveolus of lung NONE and female embryo (21 weeks)
+ENCFF801IUE+,ENCFF801IUE,ENCFF794ZMP,ENCFF801IUE,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD4-positive, alpha-beta T cell male adult (20 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF801IUE-,ENCFF801IUE,ENCFF794ZMP,ENCFF801IUE,768,384,0.3,sum_sqrt,"RNA:stimulated activated CD4-positive, alpha-beta T cell male adult (20 years) treated with 10 ng/mL Interleukin-2, anti-CD3 and anti-CD28 coated beads"
+ENCFF473FLK,ENCFF473FLK,ENCFF705GQQ,ENCFF473FLK,768,384,0.3,sum_sqrt,RNA:spinal cord tissue male embryo (96 days)
+ENCFF297UUV+,ENCFF297UUV,ENCFF007QAS,ENCFF297UUV,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF297UUV-,ENCFF297UUV,ENCFF007QAS,ENCFF297UUV,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF860TYK,ENCFF860TYK,ENCFF003KHL,ENCFF860TYK,768,384,0.3,sum_sqrt,RNA:renal cortex interstitium tissue female embryo (120 days)
+ENCFF544TFG+,ENCFF544TFG,ENCFF485UZF,ENCFF544TFG,768,384,0.3,sum_sqrt,"RNA:activated T-cell female adult (33 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF544TFG-,ENCFF544TFG,ENCFF485UZF,ENCFF544TFG,768,384,0.3,sum_sqrt,"RNA:activated T-cell female adult (33 years) treated with 50 U/mL Interleukin-2 for 4 hours, anti-CD3 and anti-CD28 coated beads for 4 hours"
+ENCFF353PFR+,ENCFF353PFR,ENCFF426WCQ,ENCFF353PFR,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (59 years)
+ENCFF353PFR-,ENCFF353PFR,ENCFF426WCQ,ENCFF353PFR,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue female adult (59 years)
+ENCFF496TSR,ENCFF496TSR,ENCFF630BFB,ENCFF496TSR,768,384,0.3,sum_sqrt,RNA:K562 treated with 10 nM Bortezomib for 24 hours
+ENCFF726SGF,ENCFF726SGF,ENCFF413SRE,ENCFF726SGF,768,384,0.3,sum_sqrt,RNA:Purkinje cell male child (6 years)
+ENCFF359MDK+,ENCFF359MDK,ENCFF171ROO,ENCFF359MDK,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (53 years)
+ENCFF359MDK-,ENCFF359MDK,ENCFF171ROO,ENCFF359MDK,768,384,0.3,sum_sqrt,RNA:spleen tissue female adult (53 years)
+ENCFF430NYX+,ENCFF430NYX,ENCFF109HYO,ENCFF430NYX,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF430NYX-,ENCFF430NYX,ENCFF109HYO,ENCFF430NYX,768,384,0.3,sum_sqrt,RNA:placenta tissue female embryo
+ENCFF318UAJ,ENCFF318UAJ,ENCFF639PCM,ENCFF318UAJ,768,384,0.3,sum_sqrt,RNA:muscle of trunk tissue female embryo (113 days)
+ENCFF880GSS,ENCFF880GSS,ENCFF336DIW,ENCFF880GSS,768,384,0.3,sum_sqrt,RNA:kidney tissue male embryo (87 days)
+ENCFF358IQV+,ENCFF358IQV,ENCFF058RCR,ENCFF358IQV,768,384,0.3,sum_sqrt,RNA:hepatocyte originated from H9
+ENCFF358IQV-,ENCFF358IQV,ENCFF058RCR,ENCFF358IQV,768,384,0.3,sum_sqrt,RNA:hepatocyte originated from H9
+ENCFF426XDX+,ENCFF426XDX,ENCFF724FPA,ENCFF426XDX,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (34 years)
+ENCFF426XDX-,ENCFF426XDX,ENCFF724FPA,ENCFF426XDX,768,384,0.3,sum_sqrt,RNA:spleen tissue male adult (34 years)
+ENCFF107LSA+,ENCFF107LSA,ENCFF929VCO,ENCFF107LSA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF107LSA-,ENCFF107LSA,ENCFF929VCO,ENCFF107LSA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF043VUO+,ENCFF043VUO,ENCFF327HID,ENCFF043VUO,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male adult (40 years)
+ENCFF043VUO-,ENCFF043VUO,ENCFF327HID,ENCFF043VUO,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue male adult (40 years)
+ENCFF124RPC+,ENCFF124RPC,ENCFF608PXO,ENCFF124RPC,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (30 years)
+ENCFF124RPC-,ENCFF124RPC,ENCFF608PXO,ENCFF124RPC,768,384,0.3,sum_sqrt,RNA:lung tissue female adult (30 years)
+ENCFF403HKJ+,ENCFF403HKJ,ENCFF146RKB,ENCFF403HKJ,768,384,0.3,sum_sqrt,RNA:endometrial microvascular endothelial cells female adult (34 years)
+ENCFF403HKJ-,ENCFF403HKJ,ENCFF146RKB,ENCFF403HKJ,768,384,0.3,sum_sqrt,RNA:endometrial microvascular endothelial cells female adult (34 years)
+ENCFF965MBA+,ENCFF965MBA,ENCFF068XDC,ENCFF965MBA,768,384,0.3,sum_sqrt,RNA:H4
+ENCFF965MBA-,ENCFF965MBA,ENCFF068XDC,ENCFF965MBA,768,384,0.3,sum_sqrt,RNA:H4
+ENCFF123BBC+,ENCFF123BBC,ENCFF385HGM,ENCFF123BBC,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF123BBC-,ENCFF123BBC,ENCFF385HGM,ENCFF123BBC,768,384,0.3,sum_sqrt,RNA:astrocyte
+ENCFF891ALA+,ENCFF891ALA,ENCFF300UEL,ENCFF891ALA,768,384,0.3,sum_sqrt,RNA:stomach tissue male child (3 years)
+ENCFF891ALA-,ENCFF891ALA,ENCFF300UEL,ENCFF891ALA,768,384,0.3,sum_sqrt,RNA:stomach tissue male child (3 years)
+ENCFF974VUT+,ENCFF974VUT,ENCFF149ZCL,ENCFF974VUT,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male adult (40 years)
+ENCFF974VUT-,ENCFF974VUT,ENCFF149ZCL,ENCFF974VUT,768,384,0.3,sum_sqrt,RNA:heart left ventricle tissue male adult (40 years)
+ENCFF150XAC+,ENCFF150XAC,ENCFF305GBQ,ENCFF150XAC,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta T cell male adult (20 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF150XAC-,ENCFF150XAC,ENCFF305GBQ,ENCFF150XAC,768,384,0.3,sum_sqrt,"RNA:activated CD4-positive, alpha-beta T cell male adult (20 years) treated with anti-CD3 and anti-CD28 coated beads"
+ENCFF046NXJ,ENCFF046NXJ,ENCFF754GOU,ENCFF046NXJ,768,384,0.3,sum_sqrt,RNA:right renal pelvis tissue male embryo (105 days)
+ENCFF688MII,ENCFF688MII,ENCFF282HGY,ENCFF688MII,768,384,0.3,sum_sqrt,RNA:renal pelvis tissue male embryo (97 days)
+ENCFF604EYK,ENCFF604EYK,ENCFF593UAU,ENCFF604EYK,768,384,0.3,sum_sqrt,RNA:large intestine tissue female embryo (120 days)
+ENCFF831HGM+,ENCFF831HGM,ENCFF938SSN,ENCFF831HGM,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF831HGM-,ENCFF831HGM,ENCFF938SSN,ENCFF831HGM,768,384,0.3,sum_sqrt,RNA:HepG2 cytosolic fraction
+ENCFF484JKA,ENCFF484JKA,ENCFF867XTN,ENCFF484JKA,768,384,0.3,sum_sqrt,RNA:naive B cell
+ENCFF850SIL+,ENCFF850SIL,ENCFF556PRT,ENCFF850SIL,768,384,0.3,sum_sqrt,RNA:GM23338 originated from GM23248
+ENCFF850SIL-,ENCFF850SIL,ENCFF556PRT,ENCFF850SIL,768,384,0.3,sum_sqrt,RNA:GM23338 originated from GM23248
+ENCFF956EIE,ENCFF956EIE,ENCFF647OOT,ENCFF956EIE,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, CD25-positive, alpha-beta regulatory T cell"
+ENCFF413WXI+,ENCFF413WXI,ENCFF734HKW,ENCFF413WXI,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF413WXI-,ENCFF413WXI,ENCFF734HKW,ENCFF413WXI,768,384,0.3,sum_sqrt,RNA:placenta tissue male embryo
+ENCFF315ODV,ENCFF315ODV,ENCFF865RLR,ENCFF315ODV,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta T cell male adult (21 years)"
+ENCFF526ILL+,ENCFF526ILL,ENCFF844BKK,ENCFF526ILL,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF526ILL-,ENCFF526ILL,ENCFF844BKK,ENCFF526ILL,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF346AHI,ENCFF346AHI,ENCFF878VKZ,ENCFF346AHI,768,384,0.3,sum_sqrt,RNA:K562 treated with 25 uM Galeterone for 12 hours
+ENCFF568QQJ+,ENCFF568QQJ,ENCFF540JTZ,ENCFF568QQJ,768,384,0.3,sum_sqrt,RNA:with mild cognitive impairment; middle frontal area 46 tissue female adult (83 years)
+ENCFF568QQJ-,ENCFF568QQJ,ENCFF540JTZ,ENCFF568QQJ,768,384,0.3,sum_sqrt,RNA:with mild cognitive impairment; middle frontal area 46 tissue female adult (83 years)
+ENCFF333PSK,ENCFF333PSK,ENCFF364SJR,ENCFF333PSK,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Vorinostat for 48 hours
+ENCFF480XQC,ENCFF480XQC,ENCFF209KLC,ENCFF480XQC,768,384,0.3,sum_sqrt,RNA:stomach tissue female embryo (105 days)
+ENCFF496YJK+,ENCFF496YJK,ENCFF260TWU,ENCFF496YJK,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (54 years)
+ENCFF496YJK-,ENCFF496YJK,ENCFF260TWU,ENCFF496YJK,768,384,0.3,sum_sqrt,RNA:adrenal gland tissue male adult (54 years)
+ENCFF095UOA+,ENCFF095UOA,ENCFF146AHC,ENCFF095UOA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF095UOA-,ENCFF095UOA,ENCFF146AHC,ENCFF095UOA,768,384,0.3,sum_sqrt,"RNA:naive thymus-derived CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF366NWQ,ENCFF366NWQ,ENCFF923JKS,ENCFF366NWQ,768,384,0.3,sum_sqrt,RNA:K562 treated with 7.5 nM Panobinostat for 12 hours
+ENCFF995SOX+,ENCFF995SOX,ENCFF149IIB,ENCFF995SOX,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF995SOX-,ENCFF995SOX,ENCFF149IIB,ENCFF995SOX,768,384,0.3,sum_sqrt,"RNA:activated naive CD8-positive, alpha-beta T cell male adult (30 years)"
+ENCFF238RLU,ENCFF238RLU,ENCFF634BHM,ENCFF238RLU,768,384,0.3,sum_sqrt,RNA:H1
+ENCFF882KEH,ENCFF882KEH,ENCFF085STG,ENCFF882KEH,768,384,0.3,sum_sqrt,RNA:immature natural killer cell
+ENCFF314QAJ+,ENCFF314QAJ,ENCFF048JQQ,ENCFF314QAJ,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue embryo (16 weeks)
+ENCFF314QAJ-,ENCFF314QAJ,ENCFF048JQQ,ENCFF314QAJ,768,384,0.3,sum_sqrt,RNA:chorionic villus tissue embryo (16 weeks)
+ENCFF497QCQ+,ENCFF497QCQ,ENCFF728GIC,ENCFF497QCQ,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue male adult (54 years)
+ENCFF497QCQ-,ENCFF497QCQ,ENCFF728GIC,ENCFF497QCQ,768,384,0.3,sum_sqrt,RNA:gastrocnemius medialis tissue male adult (54 years)
+ENCFF623LHV,ENCFF623LHV,ENCFF135UJT,ENCFF623LHV,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; CD14-positive monocyte
+ENCFF825QDH+,ENCFF825QDH,ENCFF131NXJ,ENCFF825QDH,768,384,0.3,sum_sqrt,RNA:bipolar neuron originated from GM23338 treated with 0.5 ug/mL doxycycline hyclate for 4 days
+ENCFF825QDH-,ENCFF825QDH,ENCFF131NXJ,ENCFF825QDH,768,384,0.3,sum_sqrt,RNA:bipolar neuron originated from GM23338 treated with 0.5 ug/mL doxycycline hyclate for 4 days
+ENCFF874FQG,ENCFF874FQG,ENCFF412NFZ,ENCFF874FQG,768,384,0.3,sum_sqrt,"RNA:with multiple sclerosis; CD4-positive, alpha-beta memory T cell"
+ENCFF045DIU+,ENCFF045DIU,ENCFF928EJA,ENCFF045DIU,768,384,0.3,sum_sqrt,RNA:HT-29
+ENCFF045DIU-,ENCFF045DIU,ENCFF928EJA,ENCFF045DIU,768,384,0.3,sum_sqrt,RNA:HT-29
+ENCFF974CXF+,ENCFF974CXF,ENCFF010UKB,ENCFF974CXF,768,384,0.3,sum_sqrt,RNA:MG63
+ENCFF974CXF-,ENCFF974CXF,ENCFF010UKB,ENCFF974CXF,768,384,0.3,sum_sqrt,RNA:MG63
+ENCFF937GHU,ENCFF937GHU,ENCFF197IPB,ENCFF937GHU,768,384,0.3,sum_sqrt,RNA:immature natural killer cell
+ENCFF050OBT,ENCFF050OBT,ENCFF068ZME,ENCFF050OBT,768,384,0.3,sum_sqrt,RNA:with multiple sclerosis; IgD-negative memory B cell
+ENCFF373WQE+,ENCFF373WQE,ENCFF544VDM,ENCFF373WQE,768,384,0.3,sum_sqrt,RNA:mesendoderm originated from H1
+ENCFF373WQE-,ENCFF373WQE,ENCFF544VDM,ENCFF373WQE,768,384,0.3,sum_sqrt,RNA:mesendoderm originated from H1
+ENCFF599BTC+,ENCFF599BTC,ENCFF572SPV,ENCFF599BTC,768,384,0.3,sum_sqrt,RNA:neuronal stem cell originated from H1
+ENCFF599BTC-,ENCFF599BTC,ENCFF572SPV,ENCFF599BTC,768,384,0.3,sum_sqrt,RNA:neuronal stem cell originated from H1
+ENCFF301WLH,ENCFF301WLH,ENCFF254JJT,ENCFF301WLH,768,384,0.3,sum_sqrt,RNA:fibroblast of skin of scalp male embryo (97 days)
+ENCFF696GRP+,ENCFF696GRP,ENCFF302OVH,ENCFF696GRP,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF696GRP-,ENCFF696GRP,ENCFF302OVH,ENCFF696GRP,768,384,0.3,sum_sqrt,RNA:HepG2
+ENCFF684CHN+,ENCFF684CHN,ENCFF196UDY,ENCFF684CHN,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF684CHN-,ENCFF684CHN,ENCFF196UDY,ENCFF684CHN,768,384,0.3,sum_sqrt,"RNA:CD8-positive, alpha-beta memory T cell male adult (30 years)"
+ENCFF057TXE+,ENCFF057TXE,ENCFF562IGK,ENCFF057TXE,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue female adult (53 years)
+ENCFF057TXE-,ENCFF057TXE,ENCFF562IGK,ENCFF057TXE,768,384,0.3,sum_sqrt,RNA:lower leg skin tissue female adult (53 years)
+ENCFF004DOF,ENCFF004DOF,ENCFF513XTK,ENCFF004DOF,768,384,0.3,sum_sqrt,RNA:CD14-positive monocyte
+ENCFF573WTP+,ENCFF573WTP,ENCFF823TJX,ENCFF573WTP,768,384,0.3,sum_sqrt,RNA:left cardiac atrium tissue male adult (60 years)
+ENCFF573WTP-,ENCFF573WTP,ENCFF823TJX,ENCFF573WTP,768,384,0.3,sum_sqrt,RNA:left cardiac atrium tissue male adult (60 years)
+ENCFF118SVL+,ENCFF118SVL,ENCFF948VKA,ENCFF118SVL,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein newborn
+ENCFF118SVL-,ENCFF118SVL,ENCFF948VKA,ENCFF118SVL,768,384,0.3,sum_sqrt,RNA:endothelial cell of umbilical vein newborn
+ENCFF915WBG+,ENCFF915WBG,ENCFF860LWY,ENCFF915WBG,768,384,0.3,sum_sqrt,RNA:esophagus tissue female adult (30 years)
+ENCFF915WBG-,ENCFF915WBG,ENCFF860LWY,ENCFF915WBG,768,384,0.3,sum_sqrt,RNA:esophagus tissue female adult (30 years)
+ENCFF137BCU+,ENCFF137BCU,ENCFF273RBB,ENCFF137BCU,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (30 years)
+ENCFF137BCU-,ENCFF137BCU,ENCFF273RBB,ENCFF137BCU,768,384,0.3,sum_sqrt,RNA:aorta tissue female adult (30 years)
+ENCFF630CTN,ENCFF630CTN,ENCFF835PJC,ENCFF630CTN,768,384,0.3,sum_sqrt,RNA:muscle of back tissue female embryo (105 days)
+ENCFF098OUC+,ENCFF098OUC,ENCFF932OLF,ENCFF098OUC,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF098OUC-,ENCFF098OUC,ENCFF932OLF,ENCFF098OUC,768,384,0.3,sum_sqrt,"RNA:activated naive CD4-positive, alpha-beta T cell male adult (43 years)"
+ENCFF895JFS+,ENCFF895JFS,ENCFF954DUN,ENCFF895JFS,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue female adult (59 years)
+ENCFF895JFS-,ENCFF895JFS,ENCFF954DUN,ENCFF895JFS,768,384,0.3,sum_sqrt,RNA:heart right ventricle tissue female adult (59 years)
+ENCFF487HBP+,ENCFF487HBP,ENCFF993FIL,ENCFF487HBP,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue female embryo (40 weeks)
+ENCFF487HBP-,ENCFF487HBP,ENCFF993FIL,ENCFF487HBP,768,384,0.3,sum_sqrt,RNA:placental basal plate tissue female embryo (40 weeks)
+ENCFF304GQR+,ENCFF304GQR,ENCFF652AXF,ENCFF304GQR,768,384,0.7307142857142858,sum_sqrt,RNA:sigmoid colon tissue male adult (34 years)
+ENCFF304GQR-,ENCFF304GQR,ENCFF652AXF,ENCFF304GQR,768,384,0.7307142857142858,sum_sqrt,RNA:sigmoid colon tissue male adult (34 years)
