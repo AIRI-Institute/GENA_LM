@@ -24,18 +24,13 @@ Note: this will download model from aws; if you don't have access to aws, ask fo
 
 ```bash
 model_dir=$HOME/DNALM/GENA_LM/models/
-mkdir -p $model_dir/full_model/
-aws s3 cp s3://genalm/expr/runs/aspeedok/final/model_expression/20260105-202619/model_40000 $model_dir/full_model/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
+timestamp="20260526"
+mkdir -p $model_dir/${timestamp}_full_model/
+aws s3 cp s3://genalm/expr/runs/aspeedok/final/20260510-034804/ $model_dir/${timestamp}_full_model/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
 
 mkdir -p $model_dir/decoder/
 aws s3 cp s3://genalm/runs/moderngena-expression/decoders/moderngena-expression-decoder-L3H1024I1024h8dp0.1/ $model_dir/decoder/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
 
 mkdir -p $model_dir/modernbert_large/
 aws s3 cp s3://genalm/runs/moderngena-large-pretrain-promoters_multi_v2_all_checkpoints/ep36-ba108400-hf $model_dir/modernbert_large/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
-
-# included in github repository, keep for reference
-# data_dir=$HOME/DNALM/GENA_LM/downstream_tasks/expression_prediction/inference_example/data/
-# mkdir -p $data_dir
-# aws s3 cp s3://genalm/expr/datasets/minja/metadata/ENCFF578UUD.json $data_dir/ --profile airi --endpoint-url https://s3.cloud.ru
-# aws s3 cp s3://genalm/expr/datasets/minja/metadata/ENCFF588KDY.json $data_dir/ --profile airi --endpoint-url https://s3.cloud.ru
 ```
