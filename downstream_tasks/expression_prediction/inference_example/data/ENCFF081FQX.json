@@ -1,0 +1,11 @@
+{
+    "assay_term_name": "polyA plus RNA-seq",
+    "description": "The libraries contained in this experiment come from the whole cell fraction of independent growths of the human embryonic stem cell line H1-hESC. They are stranded PE76 Illumina GAIIx RNA-Seq libraries from rRNA-depleted Poly-A+ RNA > 200 nucleotides in size.",
+    "biosample_summary": "Homo sapiens H1",
+    "perturbed": false,
+    "strand_specificity": "reverse",
+    "genome_annotation": "V29",
+    "mapped_run_type": "paired-ended",
+    "id": "ENCFF081FQX",
+    "genome": "GRCh38"
+}
