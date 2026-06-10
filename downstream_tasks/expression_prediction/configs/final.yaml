@@ -496,8 +496,7 @@ train_dataset_human_tf_5:
     coefficient: 3
 
 
-#3 datasets
-
+#5 datasets
 train_dataset_snRNA_MAT_artem:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -506,7 +505,7 @@ train_dataset_snRNA_MAT_artem:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings_qnorm2.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm39/mm39.fa"
 
@@ -524,7 +523,7 @@ train_dataset_snRNA_Plant_artem:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings_qnorm2.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm39/mm39.fa"
 
@@ -542,7 +541,7 @@ train_dataset_snRNA_scRNA_artem:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_scRNA_artem/file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_scRNA_artem/file_mappings_qnorm2.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
@@ -552,27 +551,7 @@ train_dataset_snRNA_scRNA_artem:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
-
-#borzoi_full
-train_dataset_human_full_csv:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_csv_file_mappings_qnorm.csv"
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
-
-  tpm: csv
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
-
-train_dataset_human_full_borzoi:
+train_dataset_recount3_gtex:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
 
@@ -580,17 +559,17 @@ train_dataset_human_full_borzoi:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_human_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/recount3_gtex_median/file_mappings.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
-  tpm: csv
+  tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
-train_dataset_human_full_CPM:
+train_dataset_RNAseq_homebrew:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
 
@@ -598,69 +577,16 @@ train_dataset_human_full_CPM:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_CPM_file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/RNAseq_homebrew/file_mappings.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
-  tpm: CPM
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
-
-train_dataset_mouse_full_csv:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_mm10_csv_file_mappings_qnorm.csv"
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
-  
-  tpm: csv
+  tpm: tpm
   num_before: 512 
   transform_targets_tpm:   
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
   
-train_dataset_mouse_full_borzoi:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_mouse_qnorm.csv"
- 
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
-
-  tpm: csv
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
-
-train_dataset_mouse_full_CPM:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_mm10_CPM_file_mappings_qnorm.csv"
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm10/mm10.fa"
-  
-  tpm: CPM
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
 
 # cellxgene
 train_dataset_human_cellxgene:
