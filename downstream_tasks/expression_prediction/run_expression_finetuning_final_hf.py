@@ -357,16 +357,38 @@ class ExpressionTrainer(Trainer):
     def _flatten_python_values(values):
         flattened = []
         for value in values:
-            if isinstance(value, list):
-                flattened.extend(value)
+            if isinstance(value, (list, tuple)):
+                flattened.extend(ExpressionTrainer._flatten_python_values(value))
             else:
                 flattened.append(value)
         return flattened
 
     @staticmethod
     def _merge_gathered_metric_data(values):
+        values = ExpressionTrainer._flatten_python_values(values)
         if len(values) == 0:
             return []
+
+        scalar_types = (int, float, np.integer, np.floating, np.bool_)
+        if all(
+            (isinstance(value, torch.Tensor) and value.ndim == 0) or isinstance(value, scalar_types)
+            for value in values
+        ):
+            return torch.tensor(
+                [
+                    value.detach().cpu().float().item() if isinstance(value, torch.Tensor)
+                    else float(value)
+                    for value in values
+                ],
+                dtype=torch.float32,
+            )
+
+        if any(isinstance(value, torch.Tensor) for value in values):
+            if not all(isinstance(value, torch.Tensor) for value in values):
+                mixed_types = sorted({type(value).__name__ for value in values})
+                raise TypeError(f"Unsupported mixed metric value types after gather_object: {mixed_types}")
+
+            values = [value.detach().cpu() for value in values]
 
         sample = values[0]
         if isinstance(sample, torch.Tensor):
@@ -383,11 +405,38 @@ class ExpressionTrainer(Trainer):
             storage[key].append(value.detach().cpu() if isinstance(value, torch.Tensor) else value)
 
     def _collect_metrics_from_storage(self, storage):
-        collected = {}
-        for key, values in storage.items():
-            gathered = accelerate.utils.gather_object(values)
-            collected[key] = self._merge_gathered_metric_data(gathered)
-        return collected
+        # Gather the whole metrics payload in one collective call.
+        # With mixed RNA/ATAC batches some ranks may not observe the same
+        # set of metric keys (e.g. cls_loss can be absent for ATAC-only
+        # windows). Gathering each key independently can therefore desync
+        # collectives across ranks and corrupt subsequent payloads.
+        #
+        # `accelerate.utils.gather_object` internally flattens the gathered
+        # payload one level deep. Passing a plain dict here therefore produces
+        # a flat list of dict keys (strings) instead of a list of per-rank
+        # dicts. Wrap the payload in a list so the flattening step yields the
+        # expected `[rank0_storage, rank1_storage, ...]` structure.
+        gathered_storages = accelerate.utils.gather_object([dict(storage)])
+
+        merged = defaultdict(list)
+        for proc_storage in gathered_storages:
+            if not proc_storage:
+                continue
+            if not isinstance(proc_storage, dict):
+                raise TypeError(
+                    "Unexpected gathered metrics payload type: "
+                    f"{type(proc_storage).__name__}. Expected per-rank dict."
+                )
+            for key, values in proc_storage.items():
+                if isinstance(values, (list, tuple)):
+                    merged[key].extend(values)
+                else:
+                    merged[key].append(values)
+
+        return {
+            key: self._merge_gathered_metric_data(values)
+            for key, values in merged.items()
+        }
 
     def _reset_train_metrics_data(self):
         self.train_metrics_data = defaultdict(list)
@@ -767,7 +816,9 @@ def main():
         
         for k in ["cls_loss", "other_loss", "multinomial_loss", "deviation_loss"]:
             if k in output and output[k] is not None:
-                data[k] = output[k].detach().cpu()
+                # Keep scalar losses as plain floats so mixed ATAC/RNA batches
+                # cannot break distributed metric aggregation.
+                data[k] = float(output[k].detach().cpu().float().item())
 
         # `gene_id` and `selected_keys` are already compacted in the dataset to contain
         # only entries with valid TPM targets. In contrast, `mask` lives in the full
@@ -800,9 +851,17 @@ def main():
     def make_metrics_fn(model_path, save_predictions=False):
         def metrics_fn(data):
             metrics = {}
+            numeric_scalar_types = (int, float, np.integer, np.floating, bool, np.bool_)
             for k in ["cls_loss", "other_loss", "multinomial_loss", "deviation_loss"]:
                 if k in data and data[k] is not None:
-                    metrics[k] = torch.mean(data[k]).item()
+                    value = data[k]
+                    if isinstance(value, torch.Tensor):
+                        metrics[k] = value.float().mean().item()
+                    elif len(value) > 0:
+                        if not all(isinstance(v, numeric_scalar_types) for v in value):
+                            bad_types = sorted({type(v).__name__ for v in value})
+                            raise TypeError(f"Metric '{k}' contains non-numeric values: {bad_types}")
+                        metrics[k] = float(np.mean(value))
             tpm_true = data['tpm_true']
             tpm_preds = data['tpm_preds']
             gene_id = data['gene_id']
@@ -940,10 +999,7 @@ def main():
         raise RuntimeError("lr drop is based on validation metrics, but validation set is not set")
 
     evaluation_strategy = "steps" if valid_dataset is not None else "no"
-    if args.save_best and valid_dataset is not None:
-        save_strategy = "steps"
-        save_steps = args.valid_interval
-    elif args.save_interval is not None:
+    if args.save_interval is not None and valid_dataset is not None:
         save_strategy = "steps"
         save_steps = args.save_interval
     else:
@@ -955,7 +1011,7 @@ def main():
         overwrite_output_dir=False,
         do_train=True,
         do_eval=valid_dataset is not None,
-        evaluation_strategy=evaluation_strategy,
+        eval_strategy=evaluation_strategy,
         eval_steps=args.valid_interval if valid_dataset is not None else None,
         save_strategy=save_strategy,
         save_steps=save_steps,

@@ -1,4 +1,5 @@
-TASK_NAME: expression/v1_gradlog
+TASK_NAME: expression/final
+
 HOME_PATH: ${oc.env:GENALM_HOME}
 
 MODEL_PATH_ROOT: ${HOME_PATH}/runs/${TASK_NAME}
@@ -8,13 +9,13 @@ args_params:
 
   _target_: builtins.dict
   
-  # init_checkpoint: "/home/jovyan/shares/SR003.nfs2/aspeedok/runs/expression/loss_test_baseline_bs210/20260218-025532/model_3000/pytorch_model.bin"
+  # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
 
-  resume: #"/20251127-022624/model_25000/pytorch_model.bin" 
+  resume: #"/20251127-022624/model_25000/pytorch_model.bin"
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
-  model_cls: "downstream_tasks.expression_prediction.expression_model_final_gradlog:ExpressionCounts"
+  model_cls: "downstream_tasks.expression_prediction.expression_model_final:ExpressionCounts"
 
   model_path: ${MODEL_PATH_ROOT}
 
@@ -28,23 +29,23 @@ args_params:
 
   seed: 45
 
-  num_warmup_steps: 10000
+  num_warmup_steps: 1000
 
-  log_interval: 20
+  log_interval: 50
 
-  valid_interval: 20
+  valid_interval: 50
 
   save_best: True
 
-  save_interval: 1000
+  save_interval: 2500
 
-  optimize_metric: "score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
+  optimize_metric: "score_predictions_Expression_dataset_v1_mm10_CPM dataset"
 
   optimize_mode: "max"
 
   data_n_workers: 7
 
-  lr: 1e-5
+  lr: 1e-4
 
   lr_scheduler: "constant_with_warmup"
 
@@ -69,7 +70,7 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
   _target_: builtins.dict 
   hf: True
-  hf_model_name: "${HOME_PATH}/models/modernbert_large"
+  hf_model_name: "AIRI-Institute/moderngena-large"
   hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   
@@ -78,10 +79,12 @@ model_kwargs:
     reduction: 'none'
 
   activation:
-    _target_:  downstream_tasks.expression_prediction.expression_model_final.ExpActivation
+    _target_: torch.nn.Identity
 
   config:
     _target_: builtins.dict
+
+  weight: 8
 
 # shared dataset parameters
 shared_dataset_params:
@@ -94,7 +97,6 @@ shared_dataset_params:
     "level": "DEBUG"
   seed: "${args_params.seed}"
 
-#train
 train_dataset_mouse:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse.train.forward.csv"
@@ -105,19 +107,6 @@ train_dataset_mouse:
   num_before: 512
   transform_targets_tpm: 
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
-    pseudocount: 1
-
-
-train_dataset_human:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
-  tpm: csv
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
     pseudocount: 1
 
 #valid
@@ -132,17 +121,3 @@ valid_dataset_mouse:
   transform_targets_tpm: 
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform      
     pseudocount: 1
-
-
-valid_dataset_human:
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
-  tpm: csv
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform        
-    pseudocount: 1
-

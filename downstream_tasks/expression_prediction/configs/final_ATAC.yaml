@@ -1,4 +1,4 @@
-TASK_NAME: expression/final5
+TASK_NAME: expression/final_ATAC
 
 HOME_PATH: ${oc.env:GENALM_HOME}
 
@@ -11,7 +11,7 @@ args_params:
   
   # init_checkpoint: "/workspace-SR003.nfs2/aspeedok/runs/expression/qnorm/qnorm_v1_mouse_large_2seg/20250820-151948/model_best/pytorch_model.bin"
 
-  resume: #"/20251127-022624/model_25000/pytorch_model.bin"
+  resume: "/external/nfs/01-home/avaspidova/runs/expression/final_ATAC/20260530-112924/checkpoint-92500/pytorch_model.bin"
 
   model_cfg: "./data/configs/L12-H768-A12-V32k-preln.json"
 
@@ -29,21 +29,21 @@ args_params:
 
   seed: 45
 
-  num_warmup_steps: 1000
+  num_warmup_steps: 10000
 
-  log_interval: 50
+  log_interval: 500
 
-  valid_interval: 50
+  valid_interval: 500
 
   save_best: True
 
   save_interval: 2500
 
-  optimize_metric: "score_predictions_Expression_dataset_v1_mm10_CPM dataset"
+  optimize_metric: "score_predictions_Expression_dataset_v1_GRCh38_csv dataset"
 
   optimize_mode: "max"
 
-  data_n_workers: 7
+  data_n_workers: 8
 
   lr: 1e-4
 
@@ -55,9 +55,9 @@ args_params:
 
   reset_iteration: True
 
-  early_stopping_patience: 500000
+  early_stopping_patience: 10000000
 
-  iters: 350000
+  iters: 3500000
 
   gen_tokenizer: "AIRI-Institute/gena-lm-bert-base-t2t"
 
@@ -70,7 +70,7 @@ selected_targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_predict
 model_kwargs:
   _target_: builtins.dict 
   hf: True
-  hf_model_name: "AIRI-Institute/moderngena-large"
+  hf_model_name: "${HOME_PATH}/models/moderngena_large"
   hf_model_name_decoder: "${HOME_PATH}/models/decoderdp0.1"
   desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
   
@@ -84,7 +84,7 @@ model_kwargs:
   config:
     _target_: builtins.dict
 
-  weight: 8
+  weight: 0.05
 
 # shared dataset parameters
 shared_dataset_params:
@@ -96,6 +96,1793 @@ shared_dataset_params:
     "_target_": "logging.getLevelName"
     "level": "DEBUG"
   seed: "${args_params.seed}"
+
+#ATAC-multispecies
+train_dataset_ATACseq_Egor_Multispecies_Abramis_brama:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Abramis_brama/Abramis_brama_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Abramis_brama/Abramis_brama_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Abramis_brama_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Abramis_brama/Abramis_brama.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Ambystoma_mexicanum:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Ambystoma_mexicanum/Ambystoma_mexicanum_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Ambystoma_mexicanum/Ambystoma_mexicanum_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Ambystoma_mexicanum_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Ambystoma_mexicanum/Ambystoma_mexicanum.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Amia_calva:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Amia_calva/Amia_calva_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Amia_calva/Amia_calva_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Amia_calva_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Amia_calva/Amia_calva.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Anas_platyrhynchos:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Anas_platyrhynchos/Anas_platyrhynchos_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Anas_platyrhynchos/Anas_platyrhynchos_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Anas_platyrhynchos_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Anas_platyrhynchos/Anas_platyrhynchos.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Anser_cygnoides:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Anser_cygnoides/Anser_cygnoides_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Anser_cygnoides/Anser_cygnoides_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Anser_cygnoides_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Anser_cygnoides/Anser_cygnoides.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Artibeus_jamaicensis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Artibeus_jamaicensis/Artibeus_jamaicensis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Artibeus_jamaicensis/Artibeus_jamaicensis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Artibeus_jamaicensis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_021234435.1/GCF_021234435.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Astur_gentilis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Astur_gentilis/Astur_gentilis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Astur_gentilis/Astur_gentilis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Astur_gentilis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Astur_gentilis/Astur_gentilis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Astyanax_mexicanus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Astyanax_mexicanus/Astyanax_mexicanus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Astyanax_mexicanus/Astyanax_mexicanus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Astyanax_mexicanus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Astyanax_mexicanus/Astyanax_mexicanus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Austrofundulus_limnaeus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Austrofundulus_limnaeus/Austrofundulus_limnaeus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Austrofundulus_limnaeus/Austrofundulus_limnaeus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Austrofundulus_limnaeus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Austrofundulus_limnaeus/Austrofundulus_limnaeus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Barbus_barbus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Barbus_barbus/Barbus_barbus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Barbus_barbus/Barbus_barbus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Barbus_barbus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Barbus_barbus/Barbus_barbus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Bombina_variegata:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bombina_variegata/Bombina_variegata_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bombina_variegata/Bombina_variegata_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Bombina_variegata_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Bombina_variegata/Bombina_variegata.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Bos_indicus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bos_indicus/Bos_indicus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bos_indicus/Bos_indicus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Bos_indicus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_029378745.1/GCF_029378745.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Bos_taurus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bos_taurus/Bos_taurus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bos_taurus/Bos_taurus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Bos_taurus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_002263795.3/GCF_002263795.3.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Bubalus_bubalis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bubalus_bubalis/Bubalus_bubalis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Bubalus_bubalis/Bubalus_bubalis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Bubalus_bubalis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_019923935.1/GCF_019923935.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Cairina_moschata:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cairina_moschata/Cairina_moschata_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cairina_moschata/Cairina_moschata_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Cairina_moschata_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Cairina_moschata/Cairina_moschata.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Calonectris_borealis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Calonectris_borealis/Calonectris_borealis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Calonectris_borealis/Calonectris_borealis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Calonectris_borealis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Calonectris_borealis/Calonectris_borealis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Carassius_auratus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Carassius_auratus/Carassius_auratus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Carassius_auratus/Carassius_auratus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Carassius_auratus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Carassius_auratus/Carassius_auratus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Carassius_carassius:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Carassius_carassius/Carassius_carassius_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Carassius_carassius/Carassius_carassius_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Carassius_carassius_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Carassius_carassius/Carassius_carassius.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Cavia_porcellus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cavia_porcellus/Cavia_porcellus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cavia_porcellus/Cavia_porcellus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Cavia_porcellus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_034190915.1/GCF_034190915.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Cercopithecus_nictitans:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cercopithecus_nictitans/Cercopithecus_nictitans_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cercopithecus_nictitans/Cercopithecus_nictitans_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Cercopithecus_nictitans_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Cercopithecus_nictitans/Cercopithecus_nictitans.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_pygerythrus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Chlorocebus_pygerythrus/Chlorocebus_pygerythrus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Chlorocebus_pygerythrus/Chlorocebus_pygerythrus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Chlorocebus_pygerythrus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Chlorocebus_pygerythrus/Chlorocebus_pygerythrus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_sabaeus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Chlorocebus_sabaeus/Chlorocebus_sabaeus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Chlorocebus_sabaeus/Chlorocebus_sabaeus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Chlorocebus_sabaeus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_047675955.1/GCF_047675955.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Crotalus_adamanteus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Crotalus_adamanteus/Crotalus_adamanteus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Crotalus_adamanteus/Crotalus_adamanteus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Crotalus_adamanteus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Crotalus_adamanteus/Crotalus_adamanteus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Crotalus_tigris:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Crotalus_tigris/Crotalus_tigris_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Crotalus_tigris/Crotalus_tigris_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Crotalus_tigris_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Crotalus_tigris/Crotalus_tigris.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Culter_alburnus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Culter_alburnus/Culter_alburnus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Culter_alburnus/Culter_alburnus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Culter_alburnus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Culter_alburnus/Culter_alburnus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Cynopterus_sphinx:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cynopterus_sphinx/Cynopterus_sphinx_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Cynopterus_sphinx/Cynopterus_sphinx_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Cynopterus_sphinx_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Cynopterus_sphinx/Cynopterus_sphinx.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Danio_rerio:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Danio_rerio/Danio_rerio_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Danio_rerio/Danio_rerio_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Danio_rerio_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Danio_rerio/Danio_rerio.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+# train_dataset_ATACseq_Egor_Multispecies_Dendrolagus_matschiei:
+#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dendrolagus_matschiei/Dendrolagus_matschiei_forward.sort.csv"
+#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dendrolagus_matschiei/Dendrolagus_matschiei_reverse.sort.csv"
+
+#   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Dendrolagus_matschiei_file_mappings_qnorm.csv"
+#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Dendrolagus_matschiei/Dendrolagus_matschiei.fasta"
+
+#   bw: bw
+#   num_before: 0
+#   token_len_for_fetch: 15
+
+#   transform_targets_bw:
+#     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+#     pseudocount: 1
+
+train_dataset_ATACseq_Egor_Multispecies_Dermanura_phaeotis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dermanura_phaeotis/Dermanura_phaeotis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dermanura_phaeotis/Dermanura_phaeotis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Dermanura_phaeotis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Dermanura_phaeotis/Dermanura_phaeotis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Dicentrarchus_labrax:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dicentrarchus_labrax/Dicentrarchus_labrax_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Dicentrarchus_labrax/Dicentrarchus_labrax_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Dicentrarchus_labrax_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Dicentrarchus_labrax/Dicentrarchus_labrax.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Eptatretus_burgeri:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eptatretus_burgeri/Eptatretus_burgeri_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eptatretus_burgeri/Eptatretus_burgeri_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Eptatretus_burgeri_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Eptatretus_burgeri/Eptatretus_burgeri.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Eptesicus_fuscus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eptesicus_fuscus/Eptesicus_fuscus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eptesicus_fuscus/Eptesicus_fuscus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Eptesicus_fuscus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_027574615.1/GCF_027574615.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Equus_caballus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Equus_caballus/Equus_caballus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Equus_caballus/Equus_caballus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Equus_caballus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_041296265.1/GCF_041296265.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Erinaceus_europaeus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Erinaceus_europaeus/Erinaceus_europaeus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Erinaceus_europaeus/Erinaceus_europaeus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Erinaceus_europaeus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Erinaceus_europaeus/Erinaceus_europaeus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Eulemur_rufus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eulemur_rufus/Eulemur_rufus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Eulemur_rufus/Eulemur_rufus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Eulemur_rufus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Eulemur_rufus/Eulemur_rufus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Felis_catus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Felis_catus/Felis_catus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Felis_catus/Felis_catus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Felis_catus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_018350175.1/GCF_018350175.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Felis_nigripes:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Felis_nigripes/Felis_nigripes_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Felis_nigripes/Felis_nigripes_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Felis_nigripes_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Felis_nigripes/Felis_nigripes.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Fukomys_damarensis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Fukomys_damarensis/Fukomys_damarensis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Fukomys_damarensis/Fukomys_damarensis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Fukomys_damarensis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_012274545.1/GCF_012274545.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Gallus_gallus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gallus_gallus/Gallus_gallus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gallus_gallus/Gallus_gallus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Gallus_gallus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Gallus_gallus/Gallus_gallus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Gasterosteus_aculeatus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gasterosteus_aculeatus/Gasterosteus_aculeatus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gasterosteus_aculeatus/Gasterosteus_aculeatus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Gasterosteus_aculeatus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Gasterosteus_aculeatus/Gasterosteus_aculeatus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Gorilla_gorilla:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gorilla_gorilla/Gorilla_gorilla_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Gorilla_gorilla/Gorilla_gorilla_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Gorilla_gorilla_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_029281585.2/GCF_029281585.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Hyperoplus_immaculatus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Hyperoplus_immaculatus/Hyperoplus_immaculatus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Hyperoplus_immaculatus/Hyperoplus_immaculatus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Hyperoplus_immaculatus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Hyperoplus_immaculatus/Hyperoplus_immaculatus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Lampetra_fluviatilis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Lampetra_fluviatilis/Lampetra_fluviatilis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Lampetra_fluviatilis/Lampetra_fluviatilis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Lampetra_fluviatilis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Lampetra_fluviatilis/Lampetra_fluviatilis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Larimichthys_crocea:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Larimichthys_crocea/Larimichthys_crocea_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Larimichthys_crocea/Larimichthys_crocea_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Larimichthys_crocea_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Larimichthys_crocea/Larimichthys_crocea.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Larus_michahellis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Larus_michahellis/Larus_michahellis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Larus_michahellis/Larus_michahellis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Larus_michahellis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Larus_michahellis/Larus_michahellis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+# train_dataset_ATACseq_Egor_Multispecies_Leopardus_tigrinus:
+#   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+#   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Leopardus_tigrinus/Leopardus_tigrinus_forward.sort.csv"
+#   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Leopardus_tigrinus/Leopardus_tigrinus_reverse.sort.csv"
+
+#   targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Leopardus_tigrinus_file_mappings_qnorm.csv"
+#   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Leopardus_tigrinus/Leopardus_tigrinus.fasta"
+
+#   bw: bw
+#   num_before: 0
+#   token_len_for_fetch: 15
+
+#   transform_targets_bw:
+#     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
+#     pseudocount: 1
+
+train_dataset_ATACseq_Egor_Multispecies_Leucoraja_erinaceus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Leucoraja_erinaceus/Leucoraja_erinaceus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Leucoraja_erinaceus/Leucoraja_erinaceus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Leucoraja_erinaceus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Leucoraja_erinaceus/Leucoraja_erinaceus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Lipophrys_pholis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Lipophrys_pholis/Lipophrys_pholis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Lipophrys_pholis/Lipophrys_pholis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Lipophrys_pholis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Lipophrys_pholis/Lipophrys_pholis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Macaca_fascicularis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_fascicularis/Macaca_fascicularis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_fascicularis/Macaca_fascicularis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Macaca_fascicularis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_037993035.2/GCF_037993035.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Macaca_mulatta:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_mulatta/Macaca_mulatta_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_mulatta/Macaca_mulatta_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Macaca_mulatta_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_003339765.1/GCF_003339765.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Macaca_nemestrina:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_nemestrina/Macaca_nemestrina_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Macaca_nemestrina/Macaca_nemestrina_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Macaca_nemestrina_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_043159975.1/GCF_043159975.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Martes_martes:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Martes_martes/Martes_martes_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Martes_martes/Martes_martes_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Martes_martes_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Martes_martes/Martes_martes.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Megalobrama_amblycephala:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Megalobrama_amblycephala/Megalobrama_amblycephala_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Megalobrama_amblycephala/Megalobrama_amblycephala_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Megalobrama_amblycephala_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Megalobrama_amblycephala/Megalobrama_amblycephala.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Meles_meles:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Meles_meles/Meles_meles_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Meles_meles/Meles_meles_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Meles_meles_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Meles_meles/Meles_meles.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Meriones_unguiculatus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Meriones_unguiculatus/Meriones_unguiculatus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Meriones_unguiculatus/Meriones_unguiculatus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Meriones_unguiculatus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_030254825.1/GCF_030254825.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Mesocricetus_auratus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Mesocricetus_auratus/Mesocricetus_auratus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Mesocricetus_auratus/Mesocricetus_auratus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Mesocricetus_auratus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_017639785.1/GCF_017639785.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Micromesistius_poutassou:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Micromesistius_poutassou/Micromesistius_poutassou_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Micromesistius_poutassou/Micromesistius_poutassou_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Micromesistius_poutassou_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Micromesistius_poutassou/Micromesistius_poutassou.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Micropterus_salmoides:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Micropterus_salmoides/Micropterus_salmoides_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Micropterus_salmoides/Micropterus_salmoides_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Micropterus_salmoides_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Micropterus_salmoides/Micropterus_salmoides.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Miniopterus_fuliginosus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Miniopterus_fuliginosus/Miniopterus_fuliginosus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Miniopterus_fuliginosus/Miniopterus_fuliginosus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Miniopterus_fuliginosus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Miniopterus_fuliginosus/Miniopterus_fuliginosus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Monodelphis_domestica:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Monodelphis_domestica/Monodelphis_domestica_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Monodelphis_domestica/Monodelphis_domestica_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Monodelphis_domestica_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_027887165.1/GCF_027887165.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Monopterus_albus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Monopterus_albus/Monopterus_albus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Monopterus_albus/Monopterus_albus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Monopterus_albus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Monopterus_albus/Monopterus_albus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Moschus_berezovskii:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Moschus_berezovskii/Moschus_berezovskii_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Moschus_berezovskii/Moschus_berezovskii_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Moschus_berezovskii_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_022376915.1/GCF_022376915.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Mustelus_asterias:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Mustelus_asterias/Mustelus_asterias_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Mustelus_asterias/Mustelus_asterias_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Mustelus_asterias_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Mustelus_asterias/Mustelus_asterias.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Myotis_daubentonii:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myotis_daubentonii/Myotis_daubentonii_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myotis_daubentonii/Myotis_daubentonii_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Myotis_daubentonii_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_963259705.1/GCF_963259705.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Myotis_nattereri:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myotis_nattereri/Myotis_nattereri_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myotis_nattereri/Myotis_nattereri_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Myotis_nattereri_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Myotis_nattereri/Myotis_nattereri.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Myxine_glutinosa:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myxine_glutinosa/Myxine_glutinosa_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Myxine_glutinosa/Myxine_glutinosa_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Myxine_glutinosa_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Myxine_glutinosa/Myxine_glutinosa.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Neogobius_melanostomus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Neogobius_melanostomus/Neogobius_melanostomus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Neogobius_melanostomus/Neogobius_melanostomus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Neogobius_melanostomus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Neogobius_melanostomus/Neogobius_melanostomus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Nibea_albiflora:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nibea_albiflora/Nibea_albiflora_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nibea_albiflora/Nibea_albiflora_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Nibea_albiflora_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Nibea_albiflora/Nibea_albiflora.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Nothobranchius_furzeri:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nothobranchius_furzeri/Nothobranchius_furzeri_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nothobranchius_furzeri/Nothobranchius_furzeri_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Nothobranchius_furzeri_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Nothobranchius_furzeri/Nothobranchius_furzeri.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Nyctalus_leisleri:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nyctalus_leisleri/Nyctalus_leisleri_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Nyctalus_leisleri/Nyctalus_leisleri_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Nyctalus_leisleri_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Nyctalus_leisleri/Nyctalus_leisleri.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Oncorhynchus_mykiss:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oncorhynchus_mykiss/Oncorhynchus_mykiss_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oncorhynchus_mykiss/Oncorhynchus_mykiss_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Oncorhynchus_mykiss_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Oncorhynchus_mykiss/Oncorhynchus_mykiss.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Onychomys_leucogaster:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Onychomys_leucogaster/Onychomys_leucogaster_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Onychomys_leucogaster/Onychomys_leucogaster_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Onychomys_leucogaster_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Onychomys_leucogaster/Onychomys_leucogaster.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Oreochromis_niloticus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oreochromis_niloticus/Oreochromis_niloticus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oreochromis_niloticus/Oreochromis_niloticus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Oreochromis_niloticus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Oreochromis_niloticus/Oreochromis_niloticus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Oryctolagus_cuniculus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oryctolagus_cuniculus/Oryctolagus_cuniculus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oryctolagus_cuniculus/Oryctolagus_cuniculus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Oryctolagus_cuniculus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_964237555.1/GCF_964237555.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Oryzias_latipes:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oryzias_latipes/Oryzias_latipes_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Oryzias_latipes/Oryzias_latipes_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Oryzias_latipes_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Oryzias_latipes/Oryzias_latipes.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Ovis_aries:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Ovis_aries/Ovis_aries_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Ovis_aries/Ovis_aries_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Ovis_aries_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_016772045.2/GCF_016772045.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Pan_paniscus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pan_paniscus/Pan_paniscus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pan_paniscus/Pan_paniscus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Pan_paniscus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_029289425.2/GCF_029289425.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Pan_troglodytes:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pan_troglodytes/Pan_troglodytes_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pan_troglodytes/Pan_troglodytes_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Pan_troglodytes_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_028858775.2/GCF_028858775.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Papio_anubis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Papio_anubis/Papio_anubis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Papio_anubis/Papio_anubis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Papio_anubis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_008728515.1/GCF_008728515.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Papio_papio:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Papio_papio/Papio_papio_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Papio_papio/Papio_papio_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Papio_papio_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Papio_papio/Papio_papio.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Petaurus_breviceps:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Petaurus_breviceps/Petaurus_breviceps_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Petaurus_breviceps/Petaurus_breviceps_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Petaurus_breviceps_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Petaurus_breviceps/Petaurus_breviceps.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Phalacrocorax_aristotelis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Phalacrocorax_aristotelis/Phalacrocorax_aristotelis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Phalacrocorax_aristotelis/Phalacrocorax_aristotelis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Phalacrocorax_aristotelis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Phalacrocorax_aristotelis/Phalacrocorax_aristotelis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Phoxinus_phoxinus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Phoxinus_phoxinus/Phoxinus_phoxinus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Phoxinus_phoxinus/Phoxinus_phoxinus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Phoxinus_phoxinus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Phoxinus_phoxinus/Phoxinus_phoxinus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Pipistrellus_pygmaeus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pipistrellus_pygmaeus/Pipistrellus_pygmaeus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pipistrellus_pygmaeus/Pipistrellus_pygmaeus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Pipistrellus_pygmaeus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Pipistrellus_pygmaeus/Pipistrellus_pygmaeus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Plecotus_auritus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Plecotus_auritus/Plecotus_auritus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Plecotus_auritus/Plecotus_auritus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Plecotus_auritus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Plecotus_auritus/Plecotus_auritus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Pongo_abelii:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pongo_abelii/Pongo_abelii_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pongo_abelii/Pongo_abelii_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Pongo_abelii_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_028885655.2/GCF_028885655.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Pongo_pygmaeus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pongo_pygmaeus/Pongo_pygmaeus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Pongo_pygmaeus/Pongo_pygmaeus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Pongo_pygmaeus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_028885625.2/GCF_028885625.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Rattus_norvegicus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rattus_norvegicus/Rattus_norvegicus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rattus_norvegicus/Rattus_norvegicus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Rattus_norvegicus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_036323735.1/GCF_036323735.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_hipposideros:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rhinolophus_hipposideros/Rhinolophus_hipposideros_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rhinolophus_hipposideros/Rhinolophus_hipposideros_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Rhinolophus_hipposideros_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Rhinolophus_hipposideros/Rhinolophus_hipposideros.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_sinicus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rhinolophus_sinicus/Rhinolophus_sinicus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rhinolophus_sinicus/Rhinolophus_sinicus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Rhinolophus_sinicus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_036562045.2/GCF_036562045.2.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Rousettus_aegyptiacus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rousettus_aegyptiacus/Rousettus_aegyptiacus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rousettus_aegyptiacus/Rousettus_aegyptiacus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Rousettus_aegyptiacus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_014176215.1/GCF_014176215.1.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Rutilus_rutilus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rutilus_rutilus/Rutilus_rutilus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Rutilus_rutilus/Rutilus_rutilus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Rutilus_rutilus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Rutilus_rutilus/Rutilus_rutilus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Salmo_salar:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Salmo_salar/Salmo_salar_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Salmo_salar/Salmo_salar_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Salmo_salar_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Salmo_salar/Salmo_salar.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Scardinius_erythrophthalmus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scardinius_erythrophthalmus/Scardinius_erythrophthalmus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scardinius_erythrophthalmus/Scardinius_erythrophthalmus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Scardinius_erythrophthalmus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Scardinius_erythrophthalmus/Scardinius_erythrophthalmus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Scomber_scombrus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scomber_scombrus/Scomber_scombrus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scomber_scombrus/Scomber_scombrus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Scomber_scombrus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Scomber_scombrus/Scomber_scombrus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Scophthalmus_maximus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scophthalmus_maximus/Scophthalmus_maximus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Scophthalmus_maximus/Scophthalmus_maximus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Scophthalmus_maximus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Scophthalmus_maximus/Scophthalmus_maximus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Siniperca_chuatsi:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Siniperca_chuatsi/Siniperca_chuatsi_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Siniperca_chuatsi/Siniperca_chuatsi_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Siniperca_chuatsi_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Siniperca_chuatsi/Siniperca_chuatsi.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Siniperca_scherzeri:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Siniperca_scherzeri/Siniperca_scherzeri_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Siniperca_scherzeri/Siniperca_scherzeri_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Siniperca_scherzeri_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Siniperca_scherzeri/Siniperca_scherzeri.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Sparus_aurata:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Sparus_aurata/Sparus_aurata_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Sparus_aurata/Sparus_aurata_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Sparus_aurata_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Sparus_aurata/Sparus_aurata.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Sus_scrofa:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Sus_scrofa/Sus_scrofa_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Sus_scrofa/Sus_scrofa_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Sus_scrofa_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/GCF_000003025.6/GCF_000003025.6.fa"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Trachypithecus_obscurus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Trachypithecus_obscurus/Trachypithecus_obscurus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Trachypithecus_obscurus/Trachypithecus_obscurus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Trachypithecus_obscurus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Trachypithecus_obscurus/Trachypithecus_obscurus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+ 
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Vespertilio_murinus:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Vespertilio_murinus/Vespertilio_murinus_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Vespertilio_murinus/Vespertilio_murinus_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Vespertilio_murinus_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Vespertilio_murinus/Vespertilio_murinus.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Xenopus_laevis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Xenopus_laevis/Xenopus_laevis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Xenopus_laevis/Xenopus_laevis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Xenopus_laevis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Xenopus_laevis/Xenopus_laevis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Xenopus_tropicalis:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Xenopus_tropicalis/Xenopus_tropicalis_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Xenopus_tropicalis/Xenopus_tropicalis_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Xenopus_tropicalis_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Xenopus_tropicalis/Xenopus_tropicalis.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
+train_dataset_ATACseq_Egor_Multispecies_Zootoca_vivipara:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
+
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Zootoca_vivipara/Zootoca_vivipara_forward.sort.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/Zootoca_vivipara/Zootoca_vivipara_reverse.sort.csv"
+
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/ATACseq_Egor_Multispecies/Zootoca_vivipara_file_mappings_qnorm.csv"
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/Zootoca_vivipara/Zootoca_vivipara.fasta"
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 0.5
+
 
 #ATAC-seq
 train_dataset_ATAC_mouse:
@@ -304,11 +2091,7 @@ train_dataset_ATACseq_mouse_neocortex_CATlas_biophysinf:
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
     coefficient: 20
-<<<<<<< Updated upstream
-
-=======
     
->>>>>>> Stashed changes
 # DNASE-seq
 train_dataset_DNASEseq_human_encode_biophysinf:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -499,12 +2282,7 @@ train_dataset_human_tf_5:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
     coefficient: 3
 
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 #3 datasets
-
 train_dataset_snRNA_MAT_artem:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -513,7 +2291,7 @@ train_dataset_snRNA_MAT_artem:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_MAT_artem/file_mappings_qnorm2.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm39/mm39.fa"
 
@@ -531,27 +2309,9 @@ train_dataset_snRNA_Plant_artem:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/mouse_mm39.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_Plant_artem/file_mappings_qnorm2.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/mm39/mm39.fa"
-
-  tpm: CPM
-  num_before: 512 
-  transform_targets_tpm:   
-    _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
-    pseudocount: 1
-
-train_dataset_snRNA_scRNA_artem:
-
-  _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
-
-  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.forward.csv"
-
-  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
-
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/snRNA_scRNA_artem/file_mappings_qnorm.csv"
-  
-  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
   tpm: CPM
   num_before: 512 
@@ -569,7 +2329,7 @@ train_dataset_human_full_csv:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_csv_file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_csv_file_mappings_qnorm_backup.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
@@ -587,7 +2347,7 @@ train_dataset_human_full_borzoi:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_human_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/file_mappings_borzoi_human_qnorm_backup.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
@@ -605,7 +2365,7 @@ train_dataset_human_full_CPM:
 
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.csv"
 
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_CPM_file_mappings_qnorm.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/full_GRCh38_CPM_file_mappings_qnorm_backup.csv"
   
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa"
 
@@ -615,6 +2375,7 @@ train_dataset_human_full_CPM:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.logtransform
     pseudocount: 1
 
+    
 train_dataset_mouse_full_csv:
 
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -2055,7 +3816,7 @@ valid_dataset_human:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
   forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.forward.csv"
   reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.valid.reverse.csv"
-  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm.csv" 
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/file_mappings/Expression_dataset_v1_csv_file_mappings_qnorm_backup.csv" 
   genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
   tpm: csv
   num_before: 512 

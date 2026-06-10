@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from transformers.modeling_outputs import TokenClassifierOutput
-# from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
+from src.gena_lm.modeling_bert import BertPreTrainedModel, BertModel
 from typing import Optional
 from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
@@ -367,6 +367,21 @@ class ExpressionCounts(nn.Module):
         device = next(self.bert.parameters()).device
 
         self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
+        self.decoder_hidden_size = self.decoder.config.hidden_size
+        if self.gen_hidden_size == self.decoder_hidden_size:
+            self.gen_to_decoder_proj = nn.Identity()
+        else:
+            if _is_main_process():
+                print(
+                    f"Adding projection GENA->decoder: "
+                    f"{self.gen_hidden_size} -> {self.decoder_hidden_size}"
+                )
+            self.gen_to_decoder_proj = nn.Linear(
+                self.gen_hidden_size,
+                self.decoder_hidden_size,
+                device=device,
+                dtype=dtype,
+            )
 
         # 5) Classifier
         self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
@@ -501,6 +516,7 @@ class ExpressionCounts(nn.Module):
 
 
         # 4) Decoder
+        sequence_output = self.gen_to_decoder_proj(sequence_output)
         dec_out = self.decoder(
             inputs_embeds=sequence_output,        # (B*N, L, H)
             attention_mask=attention_mask,        # (B*N, L)

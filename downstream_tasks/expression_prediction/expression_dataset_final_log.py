@@ -265,15 +265,22 @@ class ExpressionDataset(Dataset):
     def get_signals_hash_path(self):
         m = hashlib.blake2b(digest_size=8)
         m.update(str('signals').encode("utf-8"))
+        print('signals')
         m.update(str(self.intervals_hash).encode("utf-8"))
+        print(self.intervals_hash)
         m.update(self._name_and_size(self.targets_path).encode("utf-8"))
+        print(self._name_and_size(self.targets_path))
         m.update(self._name_and_size(self.genome).encode("utf-8"))
+        print(self._name_and_size(self.genome))
         m.update(str(self.num_before).encode("utf-8"))
+        print(self.num_before)
         m.update(str(self.gen_max_seq_len).encode("utf-8"))
+        print(self.gen_max_seq_len)
         if self.norm_bw:
             m.update(str("norm_bw").encode("utf-8"))
         target_ids = "".join(sorted(list(self.paths.keys())))
         m.update(str(target_ids).encode("utf-8"))
+        print(target_ids)
         hash_suffix = m.hexdigest()
         return str(self.hash_prefix) + ".signal." + hash_suffix
     

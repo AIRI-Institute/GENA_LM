@@ -91,7 +91,7 @@ shared_dataset_params:
   gen_tokenizer: ${args_params.gen_tokenizer}
   gen_max_seq_len: ${args_params.input_seq_len}
   text_tokenizer: ${args_params.text_tokenizer}
-  text_max_seq_len: 510
+  text_max_seq_len: 512
   loglevel: 
     "_target_": "logging.getLevelName"
     "level": "DEBUG"
@@ -112,7 +112,7 @@ train_dataset_ATACseq_Egor_Multispecies_Abramis_brama:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Ambystoma_mexicanum:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -129,7 +129,7 @@ train_dataset_ATACseq_Egor_Multispecies_Ambystoma_mexicanum:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Amia_calva:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -146,7 +146,7 @@ train_dataset_ATACseq_Egor_Multispecies_Amia_calva:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Anas_platyrhynchos:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -163,7 +163,7 @@ train_dataset_ATACseq_Egor_Multispecies_Anas_platyrhynchos:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Anser_cygnoides:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -180,7 +180,7 @@ train_dataset_ATACseq_Egor_Multispecies_Anser_cygnoides:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Artibeus_jamaicensis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -197,7 +197,7 @@ train_dataset_ATACseq_Egor_Multispecies_Artibeus_jamaicensis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Astur_gentilis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -214,7 +214,7 @@ train_dataset_ATACseq_Egor_Multispecies_Astur_gentilis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Astyanax_mexicanus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -231,7 +231,7 @@ train_dataset_ATACseq_Egor_Multispecies_Astyanax_mexicanus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Austrofundulus_limnaeus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -248,7 +248,7 @@ train_dataset_ATACseq_Egor_Multispecies_Austrofundulus_limnaeus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Barbus_barbus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -265,7 +265,7 @@ train_dataset_ATACseq_Egor_Multispecies_Barbus_barbus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Bombina_variegata:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -282,7 +282,7 @@ train_dataset_ATACseq_Egor_Multispecies_Bombina_variegata:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Bos_indicus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -299,7 +299,7 @@ train_dataset_ATACseq_Egor_Multispecies_Bos_indicus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Bos_taurus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -316,7 +316,7 @@ train_dataset_ATACseq_Egor_Multispecies_Bos_taurus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Bubalus_bubalis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -333,7 +333,7 @@ train_dataset_ATACseq_Egor_Multispecies_Bubalus_bubalis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Cairina_moschata:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -350,7 +350,7 @@ train_dataset_ATACseq_Egor_Multispecies_Cairina_moschata:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Calonectris_borealis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -367,7 +367,7 @@ train_dataset_ATACseq_Egor_Multispecies_Calonectris_borealis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Carassius_auratus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -384,7 +384,7 @@ train_dataset_ATACseq_Egor_Multispecies_Carassius_auratus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Carassius_carassius:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -401,7 +401,7 @@ train_dataset_ATACseq_Egor_Multispecies_Carassius_carassius:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Cavia_porcellus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -418,7 +418,7 @@ train_dataset_ATACseq_Egor_Multispecies_Cavia_porcellus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Cercopithecus_nictitans:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -435,7 +435,7 @@ train_dataset_ATACseq_Egor_Multispecies_Cercopithecus_nictitans:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_pygerythrus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -452,7 +452,7 @@ train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_pygerythrus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_sabaeus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -469,7 +469,7 @@ train_dataset_ATACseq_Egor_Multispecies_Chlorocebus_sabaeus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Crotalus_adamanteus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -486,7 +486,7 @@ train_dataset_ATACseq_Egor_Multispecies_Crotalus_adamanteus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Crotalus_tigris:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -503,7 +503,7 @@ train_dataset_ATACseq_Egor_Multispecies_Crotalus_tigris:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Culter_alburnus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -520,7 +520,7 @@ train_dataset_ATACseq_Egor_Multispecies_Culter_alburnus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Cynopterus_sphinx:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -537,7 +537,7 @@ train_dataset_ATACseq_Egor_Multispecies_Cynopterus_sphinx:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Danio_rerio:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -554,7 +554,7 @@ train_dataset_ATACseq_Egor_Multispecies_Danio_rerio:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 # train_dataset_ATACseq_Egor_Multispecies_Dendrolagus_matschiei:
 #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -588,7 +588,7 @@ train_dataset_ATACseq_Egor_Multispecies_Dermanura_phaeotis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Dicentrarchus_labrax:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -605,7 +605,7 @@ train_dataset_ATACseq_Egor_Multispecies_Dicentrarchus_labrax:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Eptatretus_burgeri:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -622,7 +622,7 @@ train_dataset_ATACseq_Egor_Multispecies_Eptatretus_burgeri:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Eptesicus_fuscus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -639,7 +639,7 @@ train_dataset_ATACseq_Egor_Multispecies_Eptesicus_fuscus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Equus_caballus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -656,7 +656,7 @@ train_dataset_ATACseq_Egor_Multispecies_Equus_caballus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Erinaceus_europaeus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -673,7 +673,7 @@ train_dataset_ATACseq_Egor_Multispecies_Erinaceus_europaeus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Eulemur_rufus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -690,7 +690,7 @@ train_dataset_ATACseq_Egor_Multispecies_Eulemur_rufus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Felis_catus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -707,7 +707,7 @@ train_dataset_ATACseq_Egor_Multispecies_Felis_catus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Felis_nigripes:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -724,7 +724,7 @@ train_dataset_ATACseq_Egor_Multispecies_Felis_nigripes:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Fukomys_damarensis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -741,7 +741,7 @@ train_dataset_ATACseq_Egor_Multispecies_Fukomys_damarensis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Gallus_gallus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -758,7 +758,7 @@ train_dataset_ATACseq_Egor_Multispecies_Gallus_gallus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Gasterosteus_aculeatus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -775,7 +775,7 @@ train_dataset_ATACseq_Egor_Multispecies_Gasterosteus_aculeatus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Gorilla_gorilla:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -792,7 +792,7 @@ train_dataset_ATACseq_Egor_Multispecies_Gorilla_gorilla:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Hyperoplus_immaculatus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -809,7 +809,7 @@ train_dataset_ATACseq_Egor_Multispecies_Hyperoplus_immaculatus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Lampetra_fluviatilis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -826,7 +826,7 @@ train_dataset_ATACseq_Egor_Multispecies_Lampetra_fluviatilis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Larimichthys_crocea:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -843,7 +843,7 @@ train_dataset_ATACseq_Egor_Multispecies_Larimichthys_crocea:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Larus_michahellis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -860,7 +860,7 @@ train_dataset_ATACseq_Egor_Multispecies_Larus_michahellis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 # train_dataset_ATACseq_Egor_Multispecies_Leopardus_tigrinus:
 #   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -894,7 +894,7 @@ train_dataset_ATACseq_Egor_Multispecies_Leucoraja_erinaceus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Lipophrys_pholis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -911,7 +911,7 @@ train_dataset_ATACseq_Egor_Multispecies_Lipophrys_pholis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Macaca_fascicularis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -928,7 +928,7 @@ train_dataset_ATACseq_Egor_Multispecies_Macaca_fascicularis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Macaca_mulatta:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -945,7 +945,7 @@ train_dataset_ATACseq_Egor_Multispecies_Macaca_mulatta:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Macaca_nemestrina:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -962,7 +962,7 @@ train_dataset_ATACseq_Egor_Multispecies_Macaca_nemestrina:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Martes_martes:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -979,7 +979,7 @@ train_dataset_ATACseq_Egor_Multispecies_Martes_martes:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Megalobrama_amblycephala:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -996,7 +996,7 @@ train_dataset_ATACseq_Egor_Multispecies_Megalobrama_amblycephala:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Meles_meles:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1013,7 +1013,7 @@ train_dataset_ATACseq_Egor_Multispecies_Meles_meles:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Meriones_unguiculatus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1030,7 +1030,7 @@ train_dataset_ATACseq_Egor_Multispecies_Meriones_unguiculatus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Mesocricetus_auratus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1047,7 +1047,7 @@ train_dataset_ATACseq_Egor_Multispecies_Mesocricetus_auratus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Micromesistius_poutassou:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1064,7 +1064,7 @@ train_dataset_ATACseq_Egor_Multispecies_Micromesistius_poutassou:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Micropterus_salmoides:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1081,7 +1081,7 @@ train_dataset_ATACseq_Egor_Multispecies_Micropterus_salmoides:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Miniopterus_fuliginosus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1098,7 +1098,7 @@ train_dataset_ATACseq_Egor_Multispecies_Miniopterus_fuliginosus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Monodelphis_domestica:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1115,7 +1115,7 @@ train_dataset_ATACseq_Egor_Multispecies_Monodelphis_domestica:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Monopterus_albus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1132,7 +1132,7 @@ train_dataset_ATACseq_Egor_Multispecies_Monopterus_albus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Moschus_berezovskii:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1149,7 +1149,7 @@ train_dataset_ATACseq_Egor_Multispecies_Moschus_berezovskii:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Mustelus_asterias:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1166,7 +1166,7 @@ train_dataset_ATACseq_Egor_Multispecies_Mustelus_asterias:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Myotis_daubentonii:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1183,7 +1183,7 @@ train_dataset_ATACseq_Egor_Multispecies_Myotis_daubentonii:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Myotis_nattereri:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1200,7 +1200,7 @@ train_dataset_ATACseq_Egor_Multispecies_Myotis_nattereri:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Myxine_glutinosa:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1217,7 +1217,7 @@ train_dataset_ATACseq_Egor_Multispecies_Myxine_glutinosa:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Neogobius_melanostomus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1234,7 +1234,7 @@ train_dataset_ATACseq_Egor_Multispecies_Neogobius_melanostomus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Nibea_albiflora:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1251,7 +1251,7 @@ train_dataset_ATACseq_Egor_Multispecies_Nibea_albiflora:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Nothobranchius_furzeri:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1268,7 +1268,7 @@ train_dataset_ATACseq_Egor_Multispecies_Nothobranchius_furzeri:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Nyctalus_leisleri:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1285,7 +1285,7 @@ train_dataset_ATACseq_Egor_Multispecies_Nyctalus_leisleri:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Oncorhynchus_mykiss:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1302,7 +1302,7 @@ train_dataset_ATACseq_Egor_Multispecies_Oncorhynchus_mykiss:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Onychomys_leucogaster:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1319,7 +1319,7 @@ train_dataset_ATACseq_Egor_Multispecies_Onychomys_leucogaster:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Oreochromis_niloticus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1336,7 +1336,7 @@ train_dataset_ATACseq_Egor_Multispecies_Oreochromis_niloticus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Oryctolagus_cuniculus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1353,7 +1353,7 @@ train_dataset_ATACseq_Egor_Multispecies_Oryctolagus_cuniculus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Oryzias_latipes:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1370,7 +1370,7 @@ train_dataset_ATACseq_Egor_Multispecies_Oryzias_latipes:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Ovis_aries:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1387,7 +1387,7 @@ train_dataset_ATACseq_Egor_Multispecies_Ovis_aries:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Pan_paniscus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1404,7 +1404,7 @@ train_dataset_ATACseq_Egor_Multispecies_Pan_paniscus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Pan_troglodytes:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1421,7 +1421,7 @@ train_dataset_ATACseq_Egor_Multispecies_Pan_troglodytes:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Papio_anubis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1438,7 +1438,7 @@ train_dataset_ATACseq_Egor_Multispecies_Papio_anubis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Papio_papio:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1455,7 +1455,7 @@ train_dataset_ATACseq_Egor_Multispecies_Papio_papio:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Petaurus_breviceps:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1472,7 +1472,7 @@ train_dataset_ATACseq_Egor_Multispecies_Petaurus_breviceps:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Phalacrocorax_aristotelis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1489,7 +1489,7 @@ train_dataset_ATACseq_Egor_Multispecies_Phalacrocorax_aristotelis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Phoxinus_phoxinus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1506,7 +1506,7 @@ train_dataset_ATACseq_Egor_Multispecies_Phoxinus_phoxinus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Pipistrellus_pygmaeus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1523,7 +1523,7 @@ train_dataset_ATACseq_Egor_Multispecies_Pipistrellus_pygmaeus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Plecotus_auritus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1540,7 +1540,7 @@ train_dataset_ATACseq_Egor_Multispecies_Plecotus_auritus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Pongo_abelii:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1557,7 +1557,7 @@ train_dataset_ATACseq_Egor_Multispecies_Pongo_abelii:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Pongo_pygmaeus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1574,7 +1574,7 @@ train_dataset_ATACseq_Egor_Multispecies_Pongo_pygmaeus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Rattus_norvegicus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1591,7 +1591,7 @@ train_dataset_ATACseq_Egor_Multispecies_Rattus_norvegicus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_hipposideros:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1608,7 +1608,7 @@ train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_hipposideros:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_sinicus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1625,7 +1625,7 @@ train_dataset_ATACseq_Egor_Multispecies_Rhinolophus_sinicus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Rousettus_aegyptiacus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1642,7 +1642,7 @@ train_dataset_ATACseq_Egor_Multispecies_Rousettus_aegyptiacus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Rutilus_rutilus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1659,7 +1659,7 @@ train_dataset_ATACseq_Egor_Multispecies_Rutilus_rutilus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Salmo_salar:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1676,7 +1676,7 @@ train_dataset_ATACseq_Egor_Multispecies_Salmo_salar:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Scardinius_erythrophthalmus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1693,7 +1693,7 @@ train_dataset_ATACseq_Egor_Multispecies_Scardinius_erythrophthalmus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Scomber_scombrus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1710,7 +1710,7 @@ train_dataset_ATACseq_Egor_Multispecies_Scomber_scombrus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Scophthalmus_maximus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1727,7 +1727,7 @@ train_dataset_ATACseq_Egor_Multispecies_Scophthalmus_maximus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Siniperca_chuatsi:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1744,7 +1744,7 @@ train_dataset_ATACseq_Egor_Multispecies_Siniperca_chuatsi:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Siniperca_scherzeri:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1761,7 +1761,7 @@ train_dataset_ATACseq_Egor_Multispecies_Siniperca_scherzeri:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Sparus_aurata:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1778,7 +1778,7 @@ train_dataset_ATACseq_Egor_Multispecies_Sparus_aurata:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Sus_scrofa:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1795,7 +1795,7 @@ train_dataset_ATACseq_Egor_Multispecies_Sus_scrofa:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Trachypithecus_obscurus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1812,7 +1812,7 @@ train_dataset_ATACseq_Egor_Multispecies_Trachypithecus_obscurus:
  
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Vespertilio_murinus:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1829,7 +1829,7 @@ train_dataset_ATACseq_Egor_Multispecies_Vespertilio_murinus:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Xenopus_laevis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1846,7 +1846,7 @@ train_dataset_ATACseq_Egor_Multispecies_Xenopus_laevis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Xenopus_tropicalis:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDataset
@@ -1863,7 +1863,7 @@ train_dataset_ATACseq_Egor_Multispecies_Xenopus_tropicalis:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5
 
 train_dataset_ATACseq_Egor_Multispecies_Zootoca_vivipara:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetMode2
@@ -1880,4 +1880,4 @@ train_dataset_ATACseq_Egor_Multispecies_Zootoca_vivipara:
 
   transform_targets_bw:
     _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
-    coefficient: 1
+    coefficient: 0.5

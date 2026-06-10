@@ -60,6 +60,7 @@ class ExpressionDataset(Dataset):
             self.gen_tokenizer = gen_tokenizer
 
         self.token_len_for_fetch = token_len_for_fetch
+        self.text_tokenizer_name = text_tokenizer
 
         self.gen_max_seq_len = gen_max_seq_len
         self.genome = genome
@@ -118,8 +119,10 @@ class ExpressionDataset(Dataset):
         self.files_opened = False
         self.sequences = None
         self.h5_cache_path = self.get_hash_path() + ".h5"
+        token_hash_inputs = self._get_token_hash_inputs()
+        token_cache_name_regex = self._get_token_cache_name_regex()
 
-        if os.path.exists(self.h5_cache_path):
+        if self._log_hash_cache_lookup("token cache", self.h5_cache_path, token_hash_inputs, token_cache_name_regex):
             self.h5_cache = h5py.File(self.h5_cache_path, "r")
         else:
             self._ensure_sequences_open("token cache precomputation")
@@ -128,7 +131,9 @@ class ExpressionDataset(Dataset):
 
         if self.bw:
             self.signals_cache_path = self.get_signals_hash_path() + ".h5"
-            if os.path.exists(self.signals_cache_path):
+            signals_hash_inputs = self._get_signals_hash_inputs()
+            signals_cache_name_regex = self._get_signals_cache_name_regex()
+            if self._log_hash_cache_lookup("signals cache", self.signals_cache_path, signals_hash_inputs, signals_cache_name_regex):
                 self.signals_cache = h5py.File(self.signals_cache_path, "r")
             else:
                 self.precompute_signals()
@@ -136,7 +141,15 @@ class ExpressionDataset(Dataset):
         if self.tpm:
             assert all(self.paths[k][1] is not None for k in self.paths), "TPM paths are not set for some of the keys"
             tpm_hash_path = self.get_tpm_hash_path()
-            if os.path.exists(tpm_hash_path):
+            tpm_hash_inputs = self._get_tpm_hash_inputs()
+            tpm_cache_name_regex = self._get_tpm_cache_name_regex()
+            if self._log_hash_cache_lookup(
+                "tpm cache",
+                tpm_hash_path,
+                tpm_hash_inputs,
+                tpm_cache_name_regex,
+                note="TPM cache reuses the same hash suffix as signals cache.",
+            ):
                 self.logger.debug(f"Loading tpm cache from {tpm_hash_path}")
                 self.tpm_lookup = pickle.load(open(tpm_hash_path, "rb"))
                 assert len(self.tpm_lookup) == len(self.paths), "Number of tpm cache and paths are not the same"
@@ -153,6 +166,7 @@ class ExpressionDataset(Dataset):
                 for key, tpm_df in self.tpm_cache.items():
                     self.tpm_lookup[key] = tpm_df.T.set_index(tpm_df.columns)
                 pickle.dump(self.tpm_lookup, open(tpm_hash_path, "wb"))
+                self._write_hash_debug_metadata("tpm cache", tpm_hash_path, tpm_hash_inputs, note="TPM cache reuses the same hash suffix as signals cache.")
 
         self.valid_indices = []
         if self.bw and not self.tpm: 
@@ -170,16 +184,15 @@ class ExpressionDataset(Dataset):
         tokenizer_tag = text_tokenizer.replace("/", "_")
         descriptions_dir = Path(__file__).resolve().parent / "descriptions"
         descriptions_dir.mkdir(parents=True, exist_ok=True)
-        targets_tag = hashlib.blake2b(
-            self._name_and_size(targets_path).encode("utf-8"),
-            digest_size=8,
-        ).hexdigest()
+        description_hash_inputs = self._get_description_cache_inputs(targets_path, text_tokenizer, text_max_seq_len)
+        description_cache_name_regex = self._get_description_cache_name_regex(tokenizer_tag, text_max_seq_len, targets_path)
+        targets_tag = self._build_hash_suffix("description cache tag", self._get_description_tag_hash_inputs(targets_path))
         desc_cache_name = (
             f"{Path(targets_path).name}.{targets_tag}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
         )
         self.desc_h5_cache_path = str(descriptions_dir / desc_cache_name)
 
-        if os.path.exists(self.desc_h5_cache_path):
+        if self._log_hash_cache_lookup("description cache", self.desc_h5_cache_path, description_hash_inputs, description_cache_name_regex):
             self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
         else:
             self.load_descriptions_from_json(targets_path)
@@ -201,8 +214,204 @@ class ExpressionDataset(Dataset):
                 genome_size = self._genome_sizes_map.get(str(genome_path.resolve()))
                 if genome_size is not None:
                     return f"{name}|{genome_size}"
+            self.logger.error(f"Unable to resolve file metadata for hashing: path={path}")
             raise FileNotFoundError(f"File not found for hashing: {path}")
         return f"{name}|{size}"
+
+    def _get_token_hash_inputs(self) -> List[Tuple[str, str]]:
+        hash_inputs = [
+            ("cache_kind", "tokens"),
+            ("intervals_hash", self.intervals_hash),
+            ("genome", self._name_and_size(self.genome)),
+            ("num_before", str(self.num_before)),
+        ]
+        if self.token_len_for_fetch != 10:  # 10 is the historical default.
+            hash_inputs.append(("token_len_for_fetch", str(self.token_len_for_fetch)))
+        return hash_inputs
+
+    def _get_signals_hash_inputs(self) -> List[Tuple[str, str]]:
+        hash_inputs = [
+            ("cache_kind", "signals"),
+            ("intervals_hash", self.intervals_hash),
+            ("targets_path", self._name_and_size(self.targets_path)),
+            ("genome", self._name_and_size(self.genome)),
+            ("num_before", str(self.num_before)),
+            ("gen_max_seq_len", str(self.gen_max_seq_len)),
+        ]
+        if self.norm_bw:
+            hash_inputs.append(("norm_bw", "norm_bw"))
+        target_ids = "".join(sorted(list(self.paths.keys())))
+        hash_inputs.append(("target_ids", target_ids))
+        return hash_inputs
+
+    def _get_tpm_hash_inputs(self) -> List[Tuple[str, str]]:
+        return self._get_signals_hash_inputs()
+
+    def _get_description_tag_hash_inputs(self, targets_path: str) -> List[Tuple[str, str]]:
+        return [("targets_path", self._name_and_size(targets_path))]
+
+    def _get_description_cache_inputs(self, targets_path: str, text_tokenizer: str, text_max_seq_len: int) -> List[Tuple[str, str]]:
+        return [
+            ("targets_path", self._name_and_size(targets_path)),
+            ("text_tokenizer", text_tokenizer),
+            ("text_max_seq_len", str(text_max_seq_len)),
+        ]
+
+    def _build_hash_suffix(self, cache_name: str, hash_inputs: List[Tuple[str, str]]) -> str:
+        m = hashlib.blake2b(digest_size=8)
+        for _, value in hash_inputs:
+            m.update(str(value).encode("utf-8"))
+        hash_suffix = m.hexdigest()
+        self.logger.debug(
+            f"{cache_name} hash suffix={hash_suffix}; inputs={self._format_hash_inputs(hash_inputs)}"
+        )
+        return hash_suffix
+
+    def _format_hash_inputs(self, hash_inputs: List[Tuple[str, str]]) -> str:
+        return ", ".join(f"{name}={value}" for name, value in hash_inputs)
+
+    def _hash_metadata_path(self, cache_path: str) -> str:
+        return f"{cache_path}.hash.json"
+
+    def _hash_inputs_to_dict(self, hash_inputs: List[Tuple[str, str]]) -> Dict[str, str]:
+        return {name: str(value) for name, value in hash_inputs}
+
+    def _write_hash_debug_metadata(
+        self,
+        cache_name: str,
+        cache_path: str,
+        hash_inputs: List[Tuple[str, str]],
+        note: Optional[str] = None,
+    ):
+        payload = {
+            "cache_name": cache_name,
+            "cache_path": cache_path,
+            "hash_inputs": [{"name": name, "value": str(value)} for name, value in hash_inputs],
+            "written_at_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        }
+        if note is not None:
+            payload["note"] = note
+        metadata_path = self._hash_metadata_path(cache_path)
+        try:
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            self.logger.warning(f"Failed to write hash metadata {metadata_path}: {exc}")
+
+    def _read_hash_debug_metadata(self, cache_path: str) -> Optional[Dict[str, Any]]:
+        metadata_path = self._hash_metadata_path(cache_path)
+        if not os.path.exists(metadata_path):
+            return None
+        try:
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as exc:
+            self.logger.warning(f"Failed to read hash metadata {metadata_path}: {exc}")
+            return None
+
+    def _compare_hash_inputs(
+        self,
+        current_hash_inputs: List[Tuple[str, str]],
+        other_hash_inputs: List[Dict[str, str]],
+    ) -> List[str]:
+        current_inputs = self._hash_inputs_to_dict(current_hash_inputs)
+        other_inputs = {
+            str(item.get("name")): str(item.get("value"))
+            for item in other_hash_inputs
+            if item.get("name") is not None
+        }
+        differences = []
+        for key in sorted(set(current_inputs) | set(other_inputs)):
+            current_value = current_inputs.get(key)
+            other_value = other_inputs.get(key)
+            if current_value != other_value:
+                differences.append(f"{key}: current={current_value}, existing={other_value}")
+        return differences
+
+    def _list_related_cache_files(self, cache_path: str, cache_name_regex: str) -> List[str]:
+        cache_dir = Path(cache_path).parent
+        if not cache_dir.exists():
+            return []
+        pattern = re.compile(cache_name_regex)
+        return sorted(
+            str(path)
+            for path in cache_dir.iterdir()
+            if path.is_file() and pattern.match(path.name)
+        )
+
+    def _get_token_cache_name_regex(self) -> str:
+        return rf"^{re.escape(Path(self.hash_prefix).name)}\.[0-9a-f]{{16}}\.h5$"
+
+    def _get_signals_cache_name_regex(self) -> str:
+        return rf"^{re.escape(Path(self.hash_prefix).name)}\.signal\.[0-9a-f]{{16}}\.h5$"
+
+    def _get_tpm_cache_name_regex(self) -> str:
+        return rf"^{re.escape(Path(self.hash_prefix).name)}\.tpm\.[0-9a-f]{{16}}$"
+
+    def _get_description_cache_name_regex(self, tokenizer_tag: str, text_max_seq_len: int, targets_path: str) -> str:
+        return (
+            rf"^{re.escape(Path(targets_path).name)}\.[0-9a-f]{{16}}"
+            rf"\.{re.escape(tokenizer_tag)}\.{re.escape(str(text_max_seq_len))}\.description\.h5$"
+        )
+
+    def _log_hash_cache_lookup(
+        self,
+        cache_name: str,
+        cache_path: str,
+        hash_inputs: List[Tuple[str, str]],
+        cache_name_regex: str,
+        note: Optional[str] = None,
+    ) -> bool:
+        exists = os.path.exists(cache_path)
+        inputs_text = self._format_hash_inputs(hash_inputs)
+        if exists:
+            self.logger.debug(f"Found {cache_name}: path={cache_path}; inputs={inputs_text}")
+            self._write_hash_debug_metadata(cache_name, cache_path, hash_inputs, note=note)
+            return True
+
+        self.logger.warning(f"Missing {cache_name}: path={cache_path}")
+        self.logger.warning(f"{cache_name} hash inputs: {inputs_text}")
+        if note is not None:
+            self.logger.warning(note)
+
+        related_cache_files = [
+            path for path in self._list_related_cache_files(cache_path, cache_name_regex)
+            if path != cache_path
+        ]
+        if not related_cache_files:
+            self.logger.warning(
+                f"No nearby {cache_name} files matched regex '{cache_name_regex}' in {Path(cache_path).parent}"
+            )
+            return False
+
+        preview = related_cache_files[:3]
+        self.logger.warning(f"Nearby {cache_name} candidates: {preview}")
+
+        found_comparable_metadata = False
+        for existing_cache_path in preview:
+            metadata = self._read_hash_debug_metadata(existing_cache_path)
+            if metadata is None:
+                self.logger.warning(
+                    f"Missing hash metadata for existing {cache_name}: {existing_cache_path}"
+                )
+                continue
+            found_comparable_metadata = True
+            differences = self._compare_hash_inputs(hash_inputs, metadata.get("hash_inputs", []))
+            if differences:
+                self.logger.warning(
+                    f"Hash mismatch vs {existing_cache_path}: {'; '.join(differences)}"
+                )
+            else:
+                self.logger.warning(
+                    f"Hash inputs fully match metadata for {existing_cache_path}; "
+                    "check hash_prefix/path configuration."
+                )
+
+        if not found_comparable_metadata:
+            self.logger.warning(
+                f"Nearby {cache_name} files exist, but none has a readable .hash.json sidecar yet."
+            )
+        return False
 
     def _compute_valid_indices(self):
         self.logger.debug("Computing valid indices...")
@@ -232,49 +441,12 @@ class ExpressionDataset(Dataset):
         self.sequences = FastaFile(self.genome)
         
     def get_hash_path(self):
-        m = hashlib.blake2b(digest_size=8)
-        input_strings = []
-        
-        input_str = str('tokens')
-        m.update(input_str.encode("utf-8"))
-        input_strings.append(input_str)
-        
-        input_str = str(self.intervals_hash)
-        m.update(input_str.encode("utf-8"))
-        input_strings.append(input_str)
-        
-        input_str = self._name_and_size(self.genome)
-        m.update(input_str.encode("utf-8"))
-        input_strings.append(input_str)
-        
-        input_str = str(self.num_before)
-        m.update(input_str.encode("utf-8"))
-        input_strings.append(input_str)
-        
-        if self.token_len_for_fetch != 10: # 8 was default in first version of the dataset; TODO: remove at some point
-            input_str = str(self.token_len_for_fetch)
-            m.update(input_str.encode("utf-8"))
-            input_strings.append(input_str)
-            
-        self.logger.debug(f"Hash inputs: {input_strings}")
-        self.logger.debug(f"constructed hash suffix: {m.hexdigest()}")
-        hash_suffix = m.hexdigest()
+        hash_suffix = self._build_hash_suffix("token cache", self._get_token_hash_inputs())
         hash_path = str(self.hash_prefix) + "." + hash_suffix
         return hash_path
 
     def get_signals_hash_path(self):
-        m = hashlib.blake2b(digest_size=8)
-        m.update(str('signals').encode("utf-8"))
-        m.update(str(self.intervals_hash).encode("utf-8"))
-        m.update(self._name_and_size(self.targets_path).encode("utf-8"))
-        m.update(self._name_and_size(self.genome).encode("utf-8"))
-        m.update(str(self.num_before).encode("utf-8"))
-        m.update(str(self.gen_max_seq_len).encode("utf-8"))
-        if self.norm_bw:
-            m.update(str("norm_bw").encode("utf-8"))
-        target_ids = "".join(sorted(list(self.paths.keys())))
-        m.update(str(target_ids).encode("utf-8"))
-        hash_suffix = m.hexdigest()
+        hash_suffix = self._build_hash_suffix("signals cache", self._get_signals_hash_inputs())
         return str(self.hash_prefix) + ".signal." + hash_suffix
     
     def get_tpm_hash_path(self):
@@ -384,6 +556,7 @@ class ExpressionDataset(Dataset):
             
             os.rename(temp_path, self.h5_cache_path)
             self.h5_cache = h5py.File(self.h5_cache_path, "r")
+            self._write_hash_debug_metadata("token cache", self.h5_cache_path, self._get_token_hash_inputs())
             
         except Exception as e:
             self.logger.error(f"Error creating cache: {e}")
@@ -637,6 +810,7 @@ class ExpressionDataset(Dataset):
             
             os.rename(temp_path, self.signals_cache_path)
             self.signals_cache = h5py.File(self.signals_cache_path, "r")
+            self._write_hash_debug_metadata("signals cache", self.signals_cache_path, self._get_signals_hash_inputs())
             
         except Exception as e:
             self.logger.error(f"Error creating signals cache: {e}")
@@ -695,6 +869,11 @@ class ExpressionDataset(Dataset):
                 grp.create_dataset("attention_mask", data=encoding["attention_mask"][0])
             h5f.flush()
         os.rename(temp_path, self.desc_h5_cache_path)
+        self._write_hash_debug_metadata(
+            "description cache",
+            self.desc_h5_cache_path,
+            self._get_description_cache_inputs(self.targets_path, self.text_tokenizer_name, self.text_max_seq_len),
+        )
 
     def __len__(self):
         return len(self.valid_indices) * self.n_cell_chunks
@@ -829,7 +1008,7 @@ class ExpressionDataset(Dataset):
             "labels_mask": labels_mask,                    
             "selected_keys": filtered_keys,      
             "gene_id": [gene_id] * len(filtered_keys),       
-            "name": self.genes.iloc[original_idx]['gene_name'],
+            # "name": self.genes.iloc[original_idx]['gene_name'],
             "chrom": chrom,
             "reverse": reverse,
             "start": start_coord,
@@ -1019,7 +1198,8 @@ class ExpressionDatasetMode2(ExpressionDataset):
         labels_list, masks_list = [], []
         tpm_list = []
 
-        names, gene_ids, chroms = [], [], []
+        # names, gene_ids, chroms = [], [], []
+        gene_ids, chroms = [], []
         reverses, starts_meta, ends_meta = [], [], []
         lengths = []
 
@@ -1079,7 +1259,7 @@ class ExpressionDatasetMode2(ExpressionDataset):
                 end_coord   = int(ends[0])
 
             gene_ids.append(gene_id)
-            names.append(row["gene_name"])
+            # names.append(row["gene_name"])
             chroms.append(chrom)
             reverses.append(int(reverse))
             starts_meta.append(start_coord)
@@ -1140,7 +1320,7 @@ class ExpressionDatasetMode2(ExpressionDataset):
             "labels_mask": batch_mask,
             "selected_keys": [cell_id] * len(features_gene_id),
             "gene_id": features_gene_id,
-            "name": names,
+            # "name": names,
             "chrom": chroms,
             "reverse": reverses,
             "start": starts_meta,
