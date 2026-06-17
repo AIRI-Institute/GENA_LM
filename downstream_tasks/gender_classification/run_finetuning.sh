@@ -1,7 +1,6 @@
 #!/bin/bash
 
-
-# TODO add cuda_visible_devices as the parameter is not used in the script !!
+# Usage: CUDA_VISIBLE_DEVICES=0,1,2,3 NP=4 bash run_finetuning.sh
 
 # Define arguments for the script
 N_CHUNKS=16
@@ -43,11 +42,14 @@ export TMPDIR=$TMP_DIR
 export TEMP=$TMP_DIR
 export TMP=$TMP_DIR
 
+export CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
+
 # conda activate dna-lm 
 # Execute the script using accelerate for parallel processing
 accelerate launch \
   --main_process_port $((29500+N_CHUNKS*100+CHUNK_SIZE+TBS+N+1)) \
   --num_processes $NP \
+  --multi_gpu \
   --mixed_precision bf16 \
   --config_file default_config.yaml \
   ./train.py \

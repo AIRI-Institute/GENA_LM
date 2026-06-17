@@ -93,7 +93,15 @@ class GenderChunkedClassifier(torch.nn.Module):
         # Compute loss if labels are provided
         if labels is not None:
             labels = labels.float().unsqueeze(1)  # Ensure labels have the correct shape
-            loss = self.loss_fn(logits, labels).mean()
-            return {'loss': loss, 'predictions': predictions}
+            per_sample_loss = nn.functional.binary_cross_entropy_with_logits(
+                logits, labels, reduction="none"
+            )
+            loss = per_sample_loss.mean()
+            return {
+                "loss": loss,
+                "per_sample_loss": per_sample_loss,
+                "predictions": predictions,
+                "attention_scores": attention_scores,
+            }
 
-        return {'predictions': predictions, 'attention_scores': attention_scores}
+        return {"predictions": predictions, "attention_scores": attention_scores}
