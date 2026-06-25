@@ -1,3 +1,6 @@
 [submodule "downstream_tasks/expression_prediction/datasets"]
 	path = downstream_tasks/expression_prediction/datasets
 	url = https://github.com/minjaf/ExpressionPredict
+[submodule "downstream_tasks/expression_prediction/CAGI5_benchmark/soft/MPRA-MNIST"]
+	path = downstream_tasks/expression_prediction/CAGI5_benchmark/soft/MPRA-MNIST
+	url = https://github.com/tsoiegor/MPRA-MNIST.git
