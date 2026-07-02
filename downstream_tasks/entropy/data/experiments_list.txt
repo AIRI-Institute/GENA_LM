@@ -21,3 +21,7 @@ NTv3-600M-512kb,MLM-1bp
 evo2,NTP-1bp
 modgena-largeMLM-ep100-ba294600,MLM-genBPE
 modgena-largeMLM-ep40-ba119400,MLM-genBPE
+modgena-baseAdaMLM-ep33-ba67400,MLM-genBPE
+modgena-baseAdaMLM-ep11-ba26900,MLM-genBPE
+modgena-baseAdaMLM-ep189-ba323800,MLM-genBPE
+modgena-baseAdaMLM-ep101-ba179500,MLM-genBPE

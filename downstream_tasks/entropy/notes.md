@@ -24,6 +24,13 @@ cat data/experiments_list.txt | grep 1bp | cut -d "," -f1 | sed 's|^|data/|' | s
 
 ```
 
+or add new models: put their names into experiments_list_tmp.txt and run:
+```
+cat data/experiments_list_tmp.txt | grep -v 1bp | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21|' | while read -r line; do echo "processing $line"; python is_correct2base-pair-resolution.py --prefix $line --genome ../expression_prediction/datasets/data/genomes/hg38/hg38.fa; done
+
+cat data/experiments_list_tmp.txt | grep 1bp | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct|' | while read -r line; do cat $line.bedgraph | gzip > ${line}_bp.bedgraph.gz; done
+```
+
 2. Create accessible regions file (intersection of all predictions)
 
 ```bash
@@ -34,6 +41,10 @@ python create_accessible_intervals.py data/modgena-base-ep30-ba90700_chr21_is_co
 # for all experiments from experiments_list.txt:
 
 python create_accessible_intervals.py $(cat data/experiments_list.txt | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') data/accessible_regions.bed
+
+# for all experiments from experiments_list_tmp.txt:
+
+python create_accessible_intervals.py $(cat data/experiments_list_tmp.txt | sed 's|^|data/|' | sed 's|$|_chr21_is_correct.bedgraph|' | tr '\n' ' ') data/accessible_regions.bed
 ```
 
 3. Create annotatons
@@ -55,6 +66,18 @@ python score_model.py --annotation_beds data/annotations/exons.bed data/annotati
 # same for bp-resolution predictions:
 python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct_bp.bedgraph.gz|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/all_models_30shuf_bp.csv --n_shuffles 30
 
+# same but for _tmp experiments list:
+
+python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs $(cat data/experiments_list_tmp.txt | cut -d "," -f1 | sed 's|^|data/|' | sed 's|$|_chr21_is_correct_bp.bedgraph.gz|' | tr '\n' ' ') --accessible_regions data/accessible_regions.bed --output data/all_models_tmp_30shuf_bp.csv --n_shuffles 30
+
+# check the results:
+head data/all_models_tmp_30shuf_bp.csv
+
+# then combine with all data: simply concatenate, but skip the header of the tmp file:
+tail -n +2 data/all_models_tmp_30shuf_bp.csv >> data/all_models_30shuf_bp.csv
+
+# and add new models to experment_list.txt:
+cat data/experiments_list_tmp.txt >> data/experiments_list.txt
 
 # example for 2 files:
 python score_model.py --annotation_beds data/annotations/exons.bed data/annotations/introns.bed data/annotations/nestedRepeats.bed data/annotations/promoters.bed data/annotations/simpleRepeats.bed --prediction_bedgraphs data/gena-lm_chr21_is_correct.bedgraph data/modgena-base-ep30-ba90700_chr21_is_correct.bedgraph --accessible_regions data/accessible_regions.bed --output data/gena_and_moderngena.csv --n_shuffles 4
