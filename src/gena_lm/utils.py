@@ -115,8 +115,8 @@ def symmetric_pad_and_truncate_context(
 
         return left_encoding, right_encoding, mid_encoding, padding
 
-    assert mid_encoding["input_ids"].shape[1] > 0, """Mid part of encoding has 0 length. 
-    This may happen if input sequence was an empty string."""
+    assert (mid_encoding is None) or (mid_encoding["input_ids"].shape[1] > 0), """Mid part of encoding has 0 length. 
+    This may happen if input sequence was an empty string. If you don't need a middle encoding, set mid_encoding to None"""
 
     # initialize default empty padding (=no padding)
     empty_array = {
@@ -134,6 +134,8 @@ def symmetric_pad_and_truncate_context(
         left_encoding = copy.deepcopy(empty_array)
     if right_encoding is None:
         right_encoding = copy.deepcopy(empty_array)
+    if mid_encoding is None:
+        mid_encoding = copy.deepcopy(empty_array)
 
     L_mid = len(mid_encoding["input_ids"][0])
     L_left = len(left_encoding["input_ids"][0])
