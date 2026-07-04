@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human LNCaP, an androgen-sensitive prostate adenocarcinoma cell line established from a lymph node metastasis of a 50-year-old male with metastatic prostate cancer; epithelial prostate cancer model used for androgen receptor signaling.",
+  "biosample_summary": "Homo sapiens LNCaP metastatic prostate adenocarcinoma cell line",
+  "life_stage_age": "adult 50 years",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC8A5C3LP",
+  "genome": "GRCh38"
+}

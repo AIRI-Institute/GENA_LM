@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human patient-derived glioblastoma neurosphere culture",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on SF7996 cells, a patient-derived early-passage glioblastoma/glioma neurosphere model reported as IDH1-wild-type and TERT-promoter-mutant, useful for brain tumor and glioma-propagating regulatory states.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from glioblastoma neurosphere cultures: nuclei are prepared from the pooled tumor-cell population and Tn5 transposase inserts adapters into accessible chromatin for sequencing-library generation.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "SF7996",
+  "Characteristics [Tissue]": "brain glioblastoma",
+  "id": "BulkATAC_72ac5f93d481"
+}

@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on mouse NIH-3T3, a spontaneously immortalized fibroblast cell line established from NIH Swiss mouse embryo fibroblasts using the 3T3 serial-transfer protocol; non-cancer fibroblast model used for proliferation, transformation, and stromal gene expression studies.",
+  "biosample_summary": "Mus musculus NIH-3T3 embryonic fibroblast cell line",
+  "life_stage_age": "embryonic",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "M25",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC1F7S4N3",
+  "genome": "mm10"
+}

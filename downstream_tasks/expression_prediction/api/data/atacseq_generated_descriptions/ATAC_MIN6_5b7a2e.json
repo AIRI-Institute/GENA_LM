@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a mouse pancreatic beta-cell insulinoma cell line",
+  "Chracteristics [Species]": "Mouse (Mus musculus)",
+  "Characteristics [Sex]": "NaN",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on MIN6 cells, a mouse pancreatic beta-cell insulinoma line derived from SV40 large T antigen-driven islet tumors and retaining glucose-responsive insulin secretion features relevant to endocrine pancreas regulation.",
+  "Comment [organism]": "Mus musculus",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from cultured mouse endocrine tumor cells: nuclei are isolated from the sample, open chromatin is tagmented with Tn5 transposase, and pooled libraries profile beta-cell regulatory accessibility.",
+  "genome": "mm10",
+  "Characteristics [Cell type]": "MIN6",
+  "Characteristics [Tissue]": "pancreatic islet beta cell",
+  "id": "BulkATAC_5b7a2e940f3d"
+}

@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human HEL92.1.7, an erythroblast-like erythroleukemia cell line derived from bone marrow/peripheral blood of a 30-year-old male with acute erythroid leukemia; hematopoietic cancer model with erythroid and myeloid leukemia features.",
+  "biosample_summary": "Homo sapiens HEL92.1.7 erythroleukemia cell line",
+  "life_stage_age": "adult 30 years",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC4B8X1HT",
+  "genome": "GRCh38"
+}

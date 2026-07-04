@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human SK-MEL-28, a lightly pigmented melanoma cell line from skin of a 51-year-old male with cutaneous malignant melanoma; melanocyte-derived cancer model included in NCI-60, CCLE, and DepMap resources.",
+  "biosample_summary": "Homo sapiens SK-MEL-28 cutaneous melanoma cell line",
+  "life_stage_age": "adult 51 years",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC6P8D4SM",
+  "genome": "GRCh38"
+}

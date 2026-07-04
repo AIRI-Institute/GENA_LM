@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gena_expression"
+version = "0.1.0"
+description = "API for sequence prediction, variant effects, and annotated genomic contexts."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = []
+dependencies = [
+    "torch==2.4.0",
+    "transformers==4.55.2",
+    "hydra-core",
+    "safetensors==0.4.4",
+    "pysam",
+    "pandas==3.0.1",
+    "polars==1.38.1",
+    "matplotlib==3.10.8",
+    "seaborn==0.13.2",
+    "joblib==1.5.3",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gena_expression*"]

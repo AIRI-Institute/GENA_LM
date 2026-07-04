@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human HepG2, an epithelial-like liver tumor cell line from a 15-year-old male with hepatocellular carcinoma/hepatoblastoma-like features; hepatocyte-like cancer model used for liver metabolism, toxicology, and hepatic gene expression studies.",
+  "biosample_summary": "Homo sapiens HepG2 liver carcinoma cell line",
+  "life_stage_age": "child 15 years",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC5R1V7HG",
+  "genome": "GRCh38"
+}

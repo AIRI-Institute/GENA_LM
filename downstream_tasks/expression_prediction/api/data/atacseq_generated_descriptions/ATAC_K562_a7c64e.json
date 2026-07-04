@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human chronic myelogenous leukemia cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "female",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on K562 cells, a suspension erythroleukemia line from pleural effusion of a 53-year-old female with chronic myelogenous leukemia in blast crisis, BCR-ABL-positive and broadly used for hematopoietic regulatory genomics.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from suspension leukemia cells: a pooled cell population is lysed to isolate nuclei, then accessible DNA is tagged and fragmented by Tn5 transposase before sequencing-library amplification.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "K562",
+  "Characteristics [Tissue]": "blood",
+  "id": "BulkATAC_a7c64e51b92f"
+}
