@@ -1,4 +1,24 @@
-# Setup environment
+# Inference для предсказания экспрессии генов
+
+Этот ноутбук помогает предсказать экспрессию генов по двум источникам информации:
+
+1. По участку ДНК вокруг гена.
+2. По текстовому описанию эксперимента.
+
+## Что понадобится
+
+Перед запуском нужно подготовить:
+
+- репозиторий `GENA_LM`;
+- файл конфига модели `yaml`;
+- чекпойнт модели `pytorch_model.bin`;
+- genome fasta-файл, например `hg38.fa`;
+- папку с `json`-описаниями клеток;
+- файл с `forward`-интервалами;
+- при необходимости файл с `reverse`-интервалами.
+
+## Как установить окружение
+
 ```bash
 conda env create -f environment.yaml -n expression_flash
 conda activate expression_flash
@@ -18,24 +38,289 @@ python -m ipykernel install --user --name expression_flash --display-name "Pytho
 pip install hydra-core --upgrade
 ```
 
-# Download models and data
+## Где запускать инференс
 
-Note: this will download model from aws; if you don't have access to aws, ask for gdrive folders with the model and input files
+Основной файл для работы: `inference.ipynb`.
 
-```bash
-model_dir=$HOME/DNALM/GENA_LM/models/
-mkdir -p $model_dir/full_model/
-aws s3 cp s3://genalm/expr/runs/aspeedok/final/model_expression/20260105-202619/model_40000 $model_dir/full_model/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
+В ноутбуке есть верхняя ячейка `# user-configurable variables`. Именно туда нужно вписать свои пути и настройки.
 
-mkdir -p $model_dir/decoder/
-aws s3 cp s3://genalm/runs/moderngena-expression/decoders/moderngena-expression-decoder-L3H1024I1024h8dp0.1/ $model_dir/decoder/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
+## Что нужно указать в верхней ячейке ноутбука
 
-mkdir -p $model_dir/modernbert_large/
-aws s3 cp s3://genalm/runs/moderngena-large-pretrain-promoters_multi_v2_all_checkpoints/ep36-ba108400-hf $model_dir/modernbert_large/ --recursive --profile airi --endpoint-url https://s3.cloud.ru
+### Обязательные переменные
 
-# included in github repository, keep for reference
-# data_dir=$HOME/DNALM/GENA_LM/downstream_tasks/expression_prediction/inference_example/data/
-# mkdir -p $data_dir
-# aws s3 cp s3://genalm/expr/datasets/minja/metadata/ENCFF578UUD.json $data_dir/ --profile airi --endpoint-url https://s3.cloud.ru
-# aws s3 cp s3://genalm/expr/datasets/minja/metadata/ENCFF588KDY.json $data_dir/ --profile airi --endpoint-url https://s3.cloud.ru
+- `GENA_HOME`  
+  Путь до корня репозитория `GENA_LM`.
+
+- `EXPERIMENT_CONFIG`  
+  Путь до `yaml`-конфига, из которого берутся параметры модели.
+
+- `CHECKPOINT_PATH`  
+  Путь до весов модели, обычно это файл `pytorch_model.bin`.
+
+- `JSON_DIR`  
+  Путь до папки с описаниями клеток в формате `json`.
+
+- `FORWARD_INTERVALS_PATH`  
+  Путь до файла с интервалами для `forward`-цепи.
+
+- `GENOME_PATH`  
+  Путь до референсного генома в формате `fasta`.
+
+- `NUM_BEFORE`  
+  Сколько токенов брать до центральной точки при извлечении последовательности. 
+
+- `TOKEN_LEN_FOR_FETCH`  
+  Служебный параметр для подготовки последовательности из генома. 
+
+### Необязательные переменные
+
+- `INFERENCE_DIR`  
+  Рабочая папка для инференса.  
+  Если `None`, используется папка `downstream_tasks/expression_prediction/inference_example` внутри `GENA_HOME`.
+
+- `REVERSE_INTERVALS_PATH`  
+  Путь до файла с интервалами для `reverse`-цепи.  
+  Если у вас есть только `forward`, оставьте `None`.
+
+- `DNA_TOKENIZER`  
+  Можно явно указать DNA-токенизатор.  
+  Если `None`, он возьмётся из конфига.
+
+- `TEXT_TOKENIZER`  
+  Можно явно указать текстовый токенизатор.  
+  Если `None`, он возьмётся из конфига.
+
+- `DNA_MAX_SEQ_LEN`  
+  Максимальная длина DNA-последовательности после токенизации.  
+  Если `None`, значение берётся из конфига.
+
+- `TEXT_MAX_SEQ_LEN`  
+  Максимальная длина текстового описания после токенизации.  
+  Если `None`, значение берётся из конфига.
+
+- `PREDICTION_MATRIX_CSV`  
+  Имя выходного `.csv` файла с таблицей `gene x cell type`.
+
+## Важное правило про пути
+
+Если путь абсолютный, он используется как есть.
+
+Если путь относительный, он считается относительно `INFERENCE_DIR`.
+
+Например:
+
+```python
+JSON_DIR = "data/descriptions"
 ```
+
+значит, что папка будет искаться внутри `INFERENCE_DIR`.
+
+## Каким должен быть файл с интервалами
+
+Можно подавать:
+
+- только `forward`-интервалы;
+- `forward` и `reverse` вместе.
+
+Файл читается через `pandas`, поэтому подойдут обычные `csv` и `tsv`.
+
+### Обязательные колонки
+
+- `gene_id`  
+  Уникальный идентификатор гена.
+
+- `chromosome`  
+  Хромосома, например `chr1`.
+
+- `TSS`  
+  Координата начала транскрипции.
+
+- `TES`  
+  Координата конца транскрипции.
+
+### Необязательная колонка
+
+- `gene_name`  
+  Красивое читаемое имя гена. Если её нет, будет использоваться `gene_id`.
+
+### Важные ограничения
+
+- `gene_id` должны быть уникальными.
+- Если вы подаёте и `forward`, и `reverse`, один и тот же `gene_id` не должен встретиться дважды в объединённом наборе.
+- `strand` в этих файлах указывать не нужно: для `forward` он автоматически считается `"+"`, а для `reverse` автоматически считается `"-"`.
+
+### Пример файла интервалов
+
+```csv
+gene_id,gene_name,chromosome,TSS,TES
+ENSG00000163631,ALB,chr4,73440227,73456844
+ENSG00000206172,HBA1,chr16,176680,177522
+```
+
+## Какими должны быть описания в JSON
+
+Ноутбук ожидает папку, в которой лежит один или несколько файлов `.json`.
+
+Можно хранить:
+
+- все `json` в одной папке;
+- `json` во вложенных подпапках.
+
+Все найденные `.json` будут автоматически прочитаны.
+
+### Что обязательно
+
+Каждый файл должен быть:
+
+- валидным `json`;
+- непустым;
+- именно объектом-словарём, то есть начинаться с `{ ... }`.
+
+### Как это превращается в текст
+
+Код проходит по всем парам `ключ: значение` и собирает из них текст вида:
+
+```text
+cell type is adipocyte. organism is Mus musculus. tissue is inguinal fat pad.
+```
+
+То есть специальных обязательных полей вроде `cell_type` или `organism` строго не требуется, но файл должен быть осмысленным словарём.
+
+### Что лучше использовать на практике
+
+Лучше всего делать плоский словарь из простых полей:
+
+- `cell_type`
+- `organism`
+- `genome`
+- `tissue`
+- `assay`
+
+и любых других полезных описаний.
+
+### Пример хорошего JSON
+
+```json
+{
+  "cell_type": "adipocyte",
+  "organism": "Mus musculus",
+  "tissue": "inguinal fat pad",
+  "disease": "normal",
+  "sex": "female",
+  "assay": "10x 3' v3",
+  "development_stage": "19-week-old stage"
+}
+```
+
+### Как называются эксперименты
+
+Имя эксперимента строится из имени файла.
+
+Например:
+
+- `adipocyte.json` -> `adipocyte`
+- `mouse/fat/adipocyte.json` -> `mouse__fat__adipocyte`
+
+## Что происходит при запуске ноутбука
+
+После заполнения верхней ячейки ноутбук делает следующее:
+
+1. Загружает конфиг и модель.
+2. Загружает чекпойнт.
+3. Загружает токенизаторы.
+4. Читает все `json`-описания.
+5. Достаёт DNA-последовательности по интервалам из генома.
+6. Токенизирует DNA так же, как это делалось в датасете.
+7. Токенизирует текстовые описания.
+8. Подаёт DNA и описание в модель.
+9. Строит таблицу предсказаний и сохраняет матрицу в `.csv`.
+
+## Что будет на выходе
+
+На выходе вы получите:
+
+- таблицу с колонками `Cell Type`, `Gene`, `Predicted Expression`;
+- матрицу `gene x cell type`;
+- `.csv` файл, имя которого задаётся в `PREDICTION_MATRIX_CSV`;
+
+## Как работают кэши
+
+Чтобы не токенизировать всё заново при каждом запуске, ноутбук сохраняет промежуточные файлы рядом с инференсом.
+
+### DNA-кэши
+
+Для DNA создаются отдельные кэши:
+
+- для `forward`;
+- для `reverse`.
+
+Это удобно: если вы сначала запускали только `forward`, а потом добавили `reverse`, `forward` не придётся пересчитывать заново.
+
+На хэш DNA-кэша влияют:
+
+- тип цепи: `forward` или `reverse`;
+- имя, размер и время изменения interval-файла;
+- имя, размер и время изменения genome-файла;
+- выбранный DNA-токенизатор;
+- `NUM_BEFORE`;
+- `TOKEN_LEN_FOR_FETCH`.
+
+### Кэш описаний
+
+Для текстовых описаний тоже создаётся отдельный кэш.
+
+На его хэш влияют:
+
+- имя папки с `json`;
+- количество `json`-файлов;
+- суммарный размер `json`-файлов;
+- выбранный текстовый токенизатор;
+- `TEXT_MAX_SEQ_LEN`.
+
+## Частые ошибки
+
+### Ошибка: не найден файл
+
+Проверьте:
+
+- правильность пути;
+- абсолютный это путь или относительный;
+- правильно ли задан `INFERENCE_DIR`.
+
+### Ошибка: duplicate gene_id
+
+Это значит, что один и тот же `gene_id` встретился больше одного раза.  
+Нужно оставить каждый `gene_id` только один раз.
+
+### Ошибка: intervals file is missing required columns
+
+Проверьте, что в файле есть:
+
+- `gene_id`
+- `chromosome`
+- `TSS`
+- `TES`
+
+### Ошибка: пустой JSON или некорректный JSON
+
+Проверьте, что:
+
+- файл открывается как обычный JSON;
+- внутри лежит объект `{ ... }`;
+- в нём есть хотя бы одно поле.
+
+## Коротко: что нужно сделать школьнику
+
+Если совсем коротко, то порядок такой:
+
+1. Открыть `inference.ipynb`.
+2. Заполнить верхнюю ячейку с путями.
+3. Убедиться, что есть папка с `json` и файл с интервалами.
+4. Запустить ячейки сверху вниз.
+5. Получить таблицу предсказаний и `csv` с матрицей.
+
+Если что-то не работает, почти всегда проблема в одном из трёх мест:
+
+- неверный путь;
+- неправильный формат `json`;
+- неправильные колонки в файле интервалов.
