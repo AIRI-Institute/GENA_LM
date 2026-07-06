@@ -1,23 +1,23 @@
-# Inference для предсказания экспрессии генов
+# Inference for Gene Expression Prediction
 
-Этот ноутбук помогает предсказать экспрессию генов по двум источникам информации:
+This notebook helps predict gene expression using two sources of information:
 
-1. По участку ДНК вокруг гена.
-2. По текстовому описанию эксперимента.
+1. A DNA region around the gene.
+2. A text description of the experiment.
 
-## Что понадобится
+## What you need
 
-Перед запуском нужно подготовить:
+Before running the notebook, prepare:
 
-- репозиторий `GENA_LM`;
-- файл конфига модели `yaml`;
-- чекпойнт модели `pytorch_model.bin`;
-- genome fasta-файл, например `hg38.fa`;
-- папку с `json`-описаниями клеток;
-- файл с `forward`-интервалами;
-- при необходимости файл с `reverse`-интервалами.
+- the `GENA_LM` repository;
+- a model config file in `yaml` format;
+- a model checkpoint file such as `pytorch_model.bin`;
+- a genome fasta file, for example `hg38.fa`;
+- a folder with cell descriptions in `json` format;
+- a file with `forward` intervals;
+- optionally, a file with `reverse` intervals.
 
-## Как установить окружение
+## How to set up the environment
 
 ```bash
 conda env create -f environment.yaml -n expression_flash
@@ -38,118 +38,118 @@ python -m ipykernel install --user --name expression_flash --display-name "Pytho
 pip install hydra-core --upgrade
 ```
 
-## Где запускать инференс
+## Where to run inference
 
-Основной файл для работы: `inference.ipynb`.
+The main file is `inference.ipynb`.
 
-В ноутбуке есть верхняя ячейка `# user-configurable variables`. Именно туда нужно вписать свои пути и настройки.
+The notebook has a top cell called `# user-configurable variables`. This is where you should put your own paths and settings.
 
-## Что нужно указать в верхней ячейке ноутбука
+## What to fill in at the top of the notebook
 
-### Обязательные переменные
+### Required variables
 
 - `GENA_HOME`  
-  Путь до корня репозитория `GENA_LM`.
+  Path to the root of the `GENA_LM` repository.
 
 - `EXPERIMENT_CONFIG`  
-  Путь до `yaml`-конфига, из которого берутся параметры модели.
+  Path to the `yaml` config file that contains model parameters.
 
 - `CHECKPOINT_PATH`  
-  Путь до весов модели, обычно это файл `pytorch_model.bin`.
+  Path to the model weights, usually a file like `pytorch_model.bin`.
 
 - `JSON_DIR`  
-  Путь до папки с описаниями клеток в формате `json`.
+  Path to the folder with cell descriptions in `json` format.
 
 - `FORWARD_INTERVALS_PATH`  
-  Путь до файла с интервалами для `forward`-цепи.
+  Path to the interval file for the `forward` strand.
 
 - `GENOME_PATH`  
-  Путь до референсного генома в формате `fasta`.
+  Path to the reference genome in `fasta` format.
 
 - `NUM_BEFORE`  
-  Сколько токенов берется до tss.
+  How many tokens are taken before the TSS.
 
 - `TOKEN_LEN_FOR_FETCH`  
-  Сколько букв нужно брать на 1 токен. Лучше ставьте по умолчанию = 15. Самостоятельно менять не рекомендуется.
+  How many letters are used per token when extracting the sequence. It is best to keep the default value `15`. Changing it is not recommended unless you know exactly why you need it.
 
-### Необязательные переменные
+### Optional variables
 
 - `INFERENCE_DIR`  
-  Рабочая папка для инференса.  
-  Если `None`, используется папка `downstream_tasks/expression_prediction/inference_example` внутри `GENA_HOME`.
+  Working directory for inference.  
+  If `None`, the notebook uses `downstream_tasks/expression_prediction/inference_example` inside `GENA_HOME`.
 
 - `REVERSE_INTERVALS_PATH`  
-  Путь до файла с интервалами для `reverse`-цепи.  
-  Если у вас есть только `forward`, оставьте `None`.
+  Path to the interval file for the `reverse` strand.  
+  If you only have `forward` intervals, leave it as `None`.
 
 - `DNA_TOKENIZER`  
-  Можно явно указать DNA-токенизатор.  
-  Если `None`, он возьмётся из конфига.
+  You can explicitly specify the DNA tokenizer.  
+  If `None`, it will be taken from the config.
 
 - `TEXT_TOKENIZER`  
-  Можно явно указать текстовый токенизатор.  
-  Если `None`, он возьмётся из конфига.
+  You can explicitly specify the text tokenizer.  
+  If `None`, it will be taken from the config.
 
 - `DNA_MAX_SEQ_LEN`  
-  Максимальная длина DNA-последовательности после токенизации.  
-  Если `None`, значение берётся из конфига.
+  Maximum DNA sequence length after tokenization.  
+  If `None`, the value will be taken from the config.
 
 - `TEXT_MAX_SEQ_LEN`  
-  Максимальная длина текстового описания после токенизации.  
-  Если `None`, значение берётся из конфига.
+  Maximum text description length after tokenization.  
+  If `None`, the value will be taken from the config.
 
 - `PREDICTION_MATRIX_CSV`  
-  Имя выходного `.csv` файла с таблицей `gene x cell type`.
+  Name of the output `.csv` file with the `gene x cell type` table.
 
-## Важное правило про пути
+## Important rule about paths
 
-Если путь абсолютный, он используется как есть.
+If a path is absolute, it is used as is.
 
-Если путь относительный, он считается относительно `INFERENCE_DIR`.
+If a path is relative, it is interpreted relative to `INFERENCE_DIR`.
 
-Например:
+For example:
 
 ```python
 JSON_DIR = "data/descriptions"
 ```
 
-значит, что папка будет искаться внутри `INFERENCE_DIR`.
+means that the folder will be searched for inside `INFERENCE_DIR`.
 
-## Каким должен быть файл с интервалами
+## What the interval file should look like
 
-Можно подавать:
+You can provide:
 
-- только `forward`-интервалы;
-- `forward` и `reverse` вместе.
+- only `forward` intervals;
+- both `forward` and `reverse` intervals.
 
-Файл читается через `pandas`, поэтому подойдут обычные `csv` и `tsv`.
+The file is read with `pandas`, so ordinary `csv` and `tsv` files are fine.
 
-### Обязательные колонки
+### Required columns
 
 - `gene_id`  
-  Уникальный идентификатор гена.
+  A unique gene identifier.
 
 - `chromosome`  
-  Хромосома, например `chr1`.
+  Chromosome name, for example `chr1`.
 
 - `TSS`  
-  Координата начала транскрипции.
+  Transcription start site coordinate.
 
 - `TES`  
-  Координата конца транскрипции.
+  Transcription end site coordinate.
 
-### Необязательная колонка
+### Optional column
 
 - `gene_name`  
-  Красивое читаемое имя гена. Если её нет, будет использоваться `gene_id`.
+  A human-readable gene name. If it is missing, `gene_id` will be used instead.
 
-### Важные ограничения
+### Important restrictions
 
-- `gene_id` должны быть уникальными.
-- Если вы подаёте и `forward`, и `reverse`, один и тот же `gene_id` не должен встретиться дважды в объединённом наборе.
-- `strand` в этих файлах указывать не нужно: для `forward` он автоматически считается `"+"`, а для `reverse` автоматически считается `"-"`.
+- `gene_id` values must be unique.
+- If you provide both `forward` and `reverse`, the same `gene_id` must not appear twice in the merged set.
+- You do not need to include a `strand` column in these files: the notebook automatically treats the `forward` file as `"+"` and the `reverse` file as `"-"`.
 
-### Пример файла интервалов
+### Example interval file
 
 ```csv
 gene_id,gene_name,chromosome,TSS,TES
@@ -157,38 +157,38 @@ ENSG00000163631,ALB,chr4,73440227,73456844
 ENSG00000206172,HBA1,chr16,176680,177522
 ```
 
-## Какими должны быть описания в JSON
+## What the JSON descriptions should look like
 
-Ноутбук ожидает папку, в которой лежит один или несколько файлов `.json`.
+The notebook expects a folder containing one or more `.json` files.
 
-Можно хранить:
+You can store:
 
-- все `json` в одной папке;
-- `json` во вложенных подпапках.
+- all `json` files in one folder;
+- `json` files inside nested subfolders.
 
-Все найденные `.json` будут автоматически прочитаны.
+All `.json` files found there will be read automatically.
 
-### Что обязательно
+### What is required
 
-Каждый файл должен быть:
+Each file must be:
 
-- валидным `json`;
-- непустым;
-- именно объектом-словарём, то есть начинаться с `{ ... }`.
+- valid `json`;
+- non-empty;
+- a dictionary-like object, meaning it should start with `{ ... }`.
 
-### Как это превращается в текст
+### How it is turned into text
 
-Код проходит по всем парам `ключ: значение` и собирает из них текст вида:
+The code goes through all `key: value` pairs and builds a text like this:
 
 ```text
 cell type is adipocyte. organism is Mus musculus. tissue is inguinal fat pad.
 ```
 
-То есть специальных обязательных полей вроде `cell_type` или `organism` строго не требуется, но файл должен быть осмысленным словарём.
+So there are no strictly required special fields such as `cell_type` or `organism`, but the file must be a meaningful dictionary.
 
-### Что лучше использовать на практике
+### What is best in practice
 
-Лучше всего делать плоский словарь из простых полей:
+The best option is to use a flat dictionary with simple fields such as:
 
 - `cell_type`
 - `organism`
@@ -196,9 +196,9 @@ cell type is adipocyte. organism is Mus musculus. tissue is inguinal fat pad.
 - `tissue`
 - `assay`
 
-и любых других полезных описаний.
+and any other useful description fields.
 
-### Пример хорошего JSON
+### Example of a good JSON file
 
 ```json
 {
@@ -212,115 +212,115 @@ cell type is adipocyte. organism is Mus musculus. tissue is inguinal fat pad.
 }
 ```
 
-### Как называются эксперименты
+### How experiment names are created
 
-Имя эксперимента строится из имени файла.
+The experiment name is built from the file name.
 
-Например:
+For example:
 
 - `adipocyte.json` -> `adipocyte`
 - `mouse/fat/adipocyte.json` -> `mouse__fat__adipocyte`
 
-## Что происходит при запуске ноутбука
+## What happens when you run the notebook
 
-После заполнения верхней ячейки ноутбук делает следующее:
+After you fill in the top cell, the notebook does the following:
 
-1. Загружает конфиг и модель.
-2. Загружает чекпойнт.
-3. Загружает токенизаторы.
-4. Читает все `json`-описания.
-5. Достаёт DNA-последовательности по интервалам из генома.
-6. Токенизирует DNA так же, как это делалось в датасете.
-7. Токенизирует текстовые описания.
-8. Подаёт DNA и описание в модель.
-9. Строит таблицу предсказаний и сохраняет матрицу в `.csv`.
+1. Loads the config and the model.
+2. Loads the checkpoint.
+3. Loads the tokenizers.
+4. Reads all `json` descriptions.
+5. Extracts DNA sequences from the genome using the interval files.
+6. Tokenizes DNA in the same way as in the dataset.
+7. Tokenizes the text descriptions.
+8. Feeds both DNA and the description into the model.
+9. Builds a prediction table and saves the matrix as `.csv`.
 
-## Что будет на выходе
+## What you get as output
 
-На выходе вы получите:
+The output includes:
 
-- таблицу с колонками `Cell Type`, `Gene`, `Predicted Expression`;
-- матрицу `gene x cell type`;
-- `.csv` файл, имя которого задаётся в `PREDICTION_MATRIX_CSV`;
+- a table with columns `Cell Type`, `Gene`, `Predicted Expression`;
+- a `gene x cell type` matrix;
+- a `.csv` file whose name is set by `PREDICTION_MATRIX_CSV`.
 
-## Как работают кэши
+## How caching works
 
-Чтобы не токенизировать всё заново при каждом запуске, ноутбук сохраняет промежуточные файлы рядом с инференсом.
+To avoid tokenizing everything from scratch every time, the notebook saves intermediate files next to the inference run.
 
-### DNA-кэши
+### DNA caches
 
-Для DNA создаются отдельные кэши:
+Separate DNA caches are created:
 
-- для `forward`;
-- для `reverse`.
+- for `forward`;
+- for `reverse`.
 
-Это удобно: если вы сначала запускали только `forward`, а потом добавили `reverse`, `forward` не придётся пересчитывать заново.
+This is useful because if you first ran only `forward` and later added `reverse`, the `forward` part does not need to be recomputed.
 
-На хэш DNA-кэша влияют:
+The DNA cache hash depends on:
 
-- тип цепи: `forward` или `reverse`;
-- имя, размер и время изменения interval-файла;
-- имя, размер и время изменения genome-файла;
-- выбранный DNA-токенизатор;
+- the strand type: `forward` or `reverse`;
+- the name, size, and modification time of the interval file;
+- the name, size, and modification time of the genome file;
+- the selected DNA tokenizer;
 - `NUM_BEFORE`;
 - `TOKEN_LEN_FOR_FETCH`.
 
-### Кэш описаний
+### Description cache
 
-Для текстовых описаний тоже создаётся отдельный кэш.
+Text descriptions also have a separate cache.
 
-На его хэш влияют:
+Its hash depends on:
 
-- имя папки с `json`;
-- количество `json`-файлов;
-- суммарный размер `json`-файлов;
-- выбранный текстовый токенизатор;
+- the name of the folder with `json` files;
+- the number of `json` files;
+- the total size of the `json` files;
+- the selected text tokenizer;
 - `TEXT_MAX_SEQ_LEN`.
 
-## Частые ошибки
+## Common errors
 
-### Ошибка: не найден файл
+### Error: file not found
 
-Проверьте:
+Check:
 
-- правильность пути;
-- абсолютный это путь или относительный;
-- правильно ли задан `INFERENCE_DIR`.
+- whether the path is correct;
+- whether it is absolute or relative;
+- whether `INFERENCE_DIR` is set correctly.
 
-### Ошибка: duplicate gene_id
+### Error: duplicate gene_id
 
-Это значит, что один и тот же `gene_id` встретился больше одного раза.  
-Нужно оставить каждый `gene_id` только один раз.
+This means the same `gene_id` appears more than once.  
+Each `gene_id` must appear only once.
 
-### Ошибка: intervals file is missing required columns
+### Error: intervals file is missing required columns
 
-Проверьте, что в файле есть:
+Check that the file contains:
 
 - `gene_id`
 - `chromosome`
 - `TSS`
 - `TES`
 
-### Ошибка: пустой JSON или некорректный JSON
+### Error: empty JSON or invalid JSON
 
-Проверьте, что:
+Check that:
 
-- файл открывается как обычный JSON;
-- внутри лежит объект `{ ... }`;
-- в нём есть хотя бы одно поле.
+- the file opens as normal JSON;
+- it contains an object like `{ ... }`;
+- it has at least one field.
 
-## Коротко: что нужно сделать школьнику
+## Short version: what a student should do
 
-Если совсем коротко, то порядок такой:
+If you want the shortest possible version, the workflow is:
 
-1. Открыть `inference.ipynb`.
-2. Заполнить верхнюю ячейку с путями.
-3. Убедиться, что есть папка с `json` и файл с интервалами.
-4. Запустить ячейки сверху вниз.
-5. Получить таблицу предсказаний и `csv` с матрицей.
+1. Open `inference.ipynb`.
+2. Fill in the top cell with your paths.
+3. Make sure you have a folder with `json` files and an interval file.
+4. Run the cells from top to bottom.
+5. Get the prediction table and the `.csv` matrix.
 
-Если что-то не работает, почти всегда проблема в одном из трёх мест:
+If something does not work, the problem is usually one of these three:
 
-- неверный путь;
-- неправильный формат `json`;
-- неправильные колонки в файле интервалов.
+- an incorrect path;
+- an invalid `json` format;
+- wrong columns in the interval file.
