@@ -54,6 +54,7 @@ class Prediction:
     logits: Any
     outputs: Mapping[str, Any]
     tokens: TokenizedSequence | None = None
+    tokens_desc: dict[str, Any] | None = None
     provenance: Mapping[str, Any] | None = None
 
     def scalar(self, name: str = "expression") -> float | list[float]:
