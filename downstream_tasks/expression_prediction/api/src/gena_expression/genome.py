@@ -12,7 +12,7 @@ from typing import ClassVar, Literal
 from .sequences import AnnotatedSequence, CoordinateMap, CoordinateSegment, Feature
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _GtfRecord:
     """One parsed GTF row in internal 0-based half-open coordinates."""
 
@@ -27,11 +27,136 @@ class _GtfRecord:
     attributes: Mapping[str, str]
 
 
+class _InMemoryAnnotation:
+    """Small chromosome-indexed annotation backend for preloaded records."""
+
+    def __init__(self, records_by_chrom: Mapping[str, Sequence[_GtfRecord]]) -> None:
+        self.records_by_chrom = {
+            str(chrom): sorted(list(records), key=lambda record: (record.start, record.end))
+            for chrom, records in records_by_chrom.items()
+        }
+
+    def __bool__(self) -> bool:
+        return bool(self.records_by_chrom)
+
+    def has_chrom(self, chrom: str) -> bool:
+        """Return whether the annotation has records for ``chrom``."""
+
+        return chrom in self.records_by_chrom
+
+    def records(self, chrom: str, start: int, end: int) -> list[_GtfRecord]:
+        """Return preloaded records overlapping ``chrom:start-end``."""
+
+        if end <= start:
+            return []
+
+        overlapping = []
+        for record in self.records_by_chrom.get(chrom, []):
+            if record.end <= start:
+                continue
+            if record.start >= end:
+                break
+            overlapping.append(record)
+        return overlapping
+
+
+class _TabixGtfAnnotation:
+    """Lazy GTF/GFF reader backed by a bgzipped and tabix-indexed file."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._tabix = None
+        self._contigs: set[str] | None = None
+
+    def __bool__(self) -> bool:
+        return True
+
+    def _handle(self):
+        """Open the tabix handle on first use."""
+
+        try:
+            import pysam
+        except ImportError as exc:
+            raise ImportError(
+                "Tabix-backed GTF/GFF annotations require pysam. "
+                f"debug={{'path': {str(self.path)!r}}}"
+            ) from exc
+
+        if self._tabix is None:
+            try:
+                self._tabix = pysam.TabixFile(str(self.path))
+            except Exception as exc:
+                raise OSError(
+                    "Could not open tabix-indexed annotation. "
+                    f"debug={{'path': {str(self.path)!r}, "
+                    f"'expected_tbi': {str(self.path) + '.tbi'!r}, "
+                    f"'expected_csi': {str(self.path) + '.csi'!r}}}"
+                ) from exc
+        return self._tabix
+
+    def close(self) -> None:
+        """Close the tabix handle, if it was opened."""
+
+        if self._tabix is not None:
+            self._tabix.close()
+            self._tabix = None
+
+    def has_chrom(self, chrom: str) -> bool:
+        """Return whether the tabix index contains ``chrom``."""
+
+        if self._contigs is None:
+            self._contigs = set(self._handle().contigs)
+        return chrom in self._contigs
+
+    def records(self, chrom: str, start: int, end: int) -> list[_GtfRecord]:
+        """Fetch and parse records overlapping ``chrom:start-end``."""
+
+        if end <= start or end <= 0:
+            return []
+        if not self.has_chrom(chrom):
+            return []
+
+        query_start = max(0, int(start))
+        query_end = max(query_start, int(end))
+        if query_end <= query_start:
+            return []
+
+        try:
+            rows = self._handle().fetch(chrom, query_start, query_end)
+        except Exception as exc:
+            raise ValueError(
+                "Could not fetch annotation records from tabix index. "
+                f"debug={{'path': {str(self.path)!r}, 'chrom': {chrom!r}, "
+                f"'start': {start}, 'end': {end}, "
+                f"'query_start': {query_start}, 'query_end': {query_end}}}"
+            ) from exc
+
+        records = []
+        for raw_line in rows:
+            try:
+                record = Genome._parse_gtf_line(
+                    raw_line,
+                    path=self.path,
+                    context=f"tabix query {chrom}:{query_start}-{query_end}",
+                )
+            except Exception as exc:
+                raise ValueError(
+                    "Could not parse a tabix-fetched annotation line. "
+                    f"debug={{'path': {str(self.path)!r}, 'chrom': {chrom!r}, "
+                    f"'start': {start}, 'end': {end}, 'line': {raw_line[:240]!r}}}"
+                ) from exc
+            if record is not None:
+                records.append(record)
+        return records
+
+
 class Genome:
     """FASTA-backed genome object with chromosome-name normalization.
 
     ``annotation`` may be a GTF path. GTF coordinates are converted from
-    1-based inclusive to internal 0-based half-open coordinates.
+    1-based inclusive to internal 0-based half-open coordinates. Plain GTF/GFF
+    files are bgzipped and tabix-indexed on first use; indexed files are read
+    lazily by genomic interval.
     """
 
     def __init__(
@@ -48,12 +173,16 @@ class Genome:
         self.chrom_style = chrom_style
         self.cache = cache
         self._fasta = None
-        self._annotation_by_chrom: dict[str, list[_GtfRecord]] = {}
-        if annotation is not None:
-            self._annotation_by_chrom = self._load_annotation(annotation)
+        self._annotation = self._load_annotation(annotation) if annotation is not None else None
 
     def _handle(self):
-        import pysam
+        try:
+            import pysam
+        except ImportError as exc:
+            raise ImportError(
+                "FASTA-backed genome access requires pysam. "
+                f"debug={{'fasta_path': {str(self.fasta_path)!r}}}"
+            ) from exc
 
         if not self.cache:
             return pysam.FastaFile(str(self.fasta_path))
@@ -168,19 +297,15 @@ class Genome:
         :class:`AnnotatedSequence`.
         """
 
-        if not self._annotation_by_chrom:
+        if self._annotation is None:
             return []
 
         normalized = self._normalize_annotation_chrom(chrom)
-        records = self._annotation_by_chrom.get(normalized, [])
+        records = self._annotation.records(normalized, start, end)
         type_filter = {value.lower() for value in types} if types is not None else None
         features: list[Feature] = []
 
         for record in records:
-            if record.end <= start:
-                continue
-            if record.start >= end:
-                break
             if type_filter is not None and record.feature_type.lower() not in type_filter:
                 continue
             if strand is not None and strand != record.strand:
@@ -261,90 +386,311 @@ class Genome:
     def _normalize_annotation_chrom(self, chrom: str) -> str:
         """Map a chromosome label to one present in the GTF annotation index."""
 
-        if chrom in self._annotation_by_chrom:
+        if self._annotation is None:
+            return chrom
+        if self._annotation.has_chrom(chrom):
             return chrom
         raw = chrom.removeprefix("chr")
         candidates = [chrom, raw, f"chr{raw}"]
         if raw in {"M", "MT"}:
             candidates.extend(["M", "MT", "chrM", "chrMT"])
         for candidate in dict.fromkeys(candidates):
-            if candidate in self._annotation_by_chrom:
+            if self._annotation.has_chrom(candidate):
                 return candidate
         return chrom
 
     @classmethod
-    def _load_annotation(cls, annotation: str | Path | object) -> dict[str, list[_GtfRecord]]:
-        """Load a supported annotation object into a chromosome-indexed table."""
+    def _load_annotation(cls, annotation: str | Path | object):
+        """Load a supported annotation source."""
 
         if isinstance(annotation, (str, Path)):
             path = Path(annotation)
-            if path.suffix.lower() not in {".gtf", ".gff", ".gff3"}:
-                raise ValueError(f"Only GTF-like annotation files are supported, got: {path}")
+            if not cls._is_gtf_like_path(path):
+                raise ValueError(
+                    "Only GTF/GFF/GFF3 annotations are supported. "
+                    f"debug={{'path': {str(path)!r}, 'suffixes': {[suffix.lower() for suffix in path.suffixes]!r}, "
+                    "'supported': ['.gtf', '.gff', '.gff3', '.gtf.gz', '.gff.gz', '.gff3.gz']}}"
+                )
             return cls._load_gtf(path)
         if isinstance(annotation, Mapping):
-            return {
-                str(chrom): sorted(list(records), key=lambda record: (record.start, record.end))
-                for chrom, records in annotation.items()
-            }
+            return _InMemoryAnnotation(annotation)
         raise TypeError("annotation must be a GTF path or a chromosome-to-record mapping.")
 
     @classmethod
-    def _load_gtf(cls, path: Path) -> dict[str, list[_GtfRecord]]:
-        """Parse a GTF file into records grouped by chromosome."""
+    def _load_gtf(cls, path: Path) -> _TabixGtfAnnotation:
+        """Prepare a GTF/GFF file for lazy tabix-backed queries."""
 
-        by_chrom: dict[str, list[_GtfRecord]] = {}
-        with path.open("r", encoding="utf-8") as handle:
-            for line_number, raw_line in enumerate(handle, start=1):
-                line = raw_line.rstrip("\n")
-                if not line or line.startswith("#"):
-                    continue
-                fields = line.split("\t")
-                if len(fields) != 9:
-                    raise ValueError(f"Invalid GTF line {line_number} in {path}: expected 9 columns")
+        return _TabixGtfAnnotation(cls._ensure_tabix_gtf(path))
 
-                chrom, source, feature_type, start_text, end_text, score, strand, frame, attrs_text = fields
-                start0 = int(start_text) - 1
-                end0 = int(end_text)
-                if start0 < 0 or end0 < start0:
-                    raise ValueError(f"Invalid GTF coordinates on line {line_number}: {start_text}-{end_text}")
+    @classmethod
+    def _ensure_tabix_gtf(cls, path: Path) -> Path:
+        """Return a bgzipped, tabix-indexed annotation path."""
 
-                record = _GtfRecord(
-                    chrom=chrom,
-                    source=source,
-                    feature_type=feature_type,
-                    start=start0,
-                    end=end0,
-                    score=score,
-                    strand=strand,
-                    frame=frame,
-                    attributes=cls._parse_gtf_attributes(attrs_text),
+        try:
+            import pysam
+        except ImportError as exc:
+            raise ImportError(
+                "Preparing GTF/GFF annotations for fast interval queries requires pysam. "
+                f"debug={{'path': {str(path)!r}, 'suffixes': {[suffix.lower() for suffix in path.suffixes]!r}}}"
+            ) from exc
+
+        if cls._is_compressed_gtf_path(path):
+            gz_path = path
+        elif cls._is_plain_gtf_path(path):
+            gz_path = Path(str(path) + ".gz")
+            if gz_path.exists():
+                warnings.warn(
+                    "Plain GTF/GFF annotations are not supported directly for fast interval queries; "
+                    f"using existing compressed annotation {gz_path}. "
+                    f"debug={{'plain_path': {str(path)!r}, 'compressed_path': {str(gz_path)!r}}}",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
-                by_chrom.setdefault(chrom, []).append(record)
+            else:
+                warnings.warn(
+                    "Plain GTF/GFF annotations are not supported directly for fast interval queries; "
+                    f"creating bgzipped annotation {gz_path}. "
+                    f"debug={{'plain_path': {str(path)!r}, 'compressed_path': {str(gz_path)!r}}}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                try:
+                    pysam.tabix_compress(str(path), str(gz_path), force=False)
+                except Exception as exc:
+                    raise OSError(
+                        "Could not bgzip annotation file. "
+                        f"debug={{'plain_path': {str(path)!r}, 'compressed_path': {str(gz_path)!r}, "
+                        f"'exists_plain': {path.exists()}, 'exists_compressed': {gz_path.exists()}}}"
+                    ) from exc
+        else:
+            raise ValueError(
+                "Only GTF/GFF/GFF3 annotations are supported. "
+                f"debug={{'path': {str(path)!r}, 'suffixes': {[suffix.lower() for suffix in path.suffixes]!r}}}"
+            )
 
-        for records in by_chrom.values():
-            records.sort(key=lambda record: (record.start, record.end))
-        return by_chrom
+        tbi_path = Path(str(gz_path) + ".tbi")
+        csi_path = Path(str(gz_path) + ".csi")
+        if not tbi_path.exists() and not csi_path.exists():
+            sorted_gz_path = cls._sorted_gtf_path(gz_path)
+            if sorted_gz_path.exists():
+                return cls._sort_and_index_gtf(
+                    gz_path,
+                    pysam,
+                    original_error=RuntimeError("original annotation has no tabix index and a sorted copy already exists"),
+                )
+            warnings.warn(
+                f"Creating tabix index for annotation {gz_path}. "
+                f"debug={{'compressed_path': {str(gz_path)!r}, 'tbi_path': {str(tbi_path)!r}, "
+                f"'csi_path': {str(csi_path)!r}}}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            try:
+                pysam.tabix_index(str(gz_path), preset="gff", force=False)
+            except Exception as exc:
+                return cls._sort_and_index_gtf(gz_path, pysam, original_error=exc)
+
+        return gz_path
+
+    @classmethod
+    def _sort_and_index_gtf(cls, gz_path: Path, pysam, *, original_error: Exception) -> Path:
+        """Sort an unindexed annotation with Polars, bgzip it, and tabix-index it."""
+
+        sorted_gz_path = cls._sorted_gtf_path(gz_path)
+        if sorted_gz_path.exists():
+            warnings.warn(
+                "Could not index the provided annotation; using existing sorted annotation. "
+                f"debug={{'compressed_path': {str(gz_path)!r}, 'sorted_path': {str(sorted_gz_path)!r}, "
+                f"'original_error': {str(original_error)!r}}}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            warnings.warn(
+                "Could not index the provided annotation, likely because it is unsorted; "
+                "sorting with Polars and writing a sorted bgzipped copy. "
+                f"debug={{'compressed_path': {str(gz_path)!r}, 'sorted_path': {str(sorted_gz_path)!r}, "
+                f"'original_error': {str(original_error)!r}}}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            cls._write_sorted_gtf(gz_path, sorted_gz_path, pysam)
+
+        sorted_tbi_path = Path(str(sorted_gz_path) + ".tbi")
+        sorted_csi_path = Path(str(sorted_gz_path) + ".csi")
+        if not sorted_tbi_path.exists() and not sorted_csi_path.exists():
+            try:
+                pysam.tabix_index(str(sorted_gz_path), preset="gff", force=False)
+            except Exception as exc:
+                raise OSError(
+                    "Could not create tabix index for sorted annotation. The original file may have invalid "
+                    "GTF/GFF rows, unsupported coordinates, or chromosome ordering that tabix cannot index. "
+                    f"debug={{'compressed_path': {str(gz_path)!r}, 'sorted_path': {str(sorted_gz_path)!r}, "
+                    f"'sorted_tbi_path': {str(sorted_tbi_path)!r}, 'sorted_csi_path': {str(sorted_csi_path)!r}, "
+                    f"'exists_sorted': {sorted_gz_path.exists()}, 'exists_sorted_tbi': {sorted_tbi_path.exists()}, "
+                    f"'exists_sorted_csi': {sorted_csi_path.exists()}, "
+                    f"'original_index_error': {str(original_error)!r}, 'sorted_index_error': {str(exc)!r}}}"
+                ) from exc
+
+        return sorted_gz_path
+
+    @classmethod
+    def _write_sorted_gtf(cls, gz_path: Path, sorted_gz_path: Path, pysam) -> None:
+        """Sort GTF/GFF rows by chromosome and coordinates using Polars."""
+
+        try:
+            import polars as pl
+        except ImportError as exc:
+            raise ImportError(
+                "Sorting an unindexed GTF/GFF annotation requires polars. "
+                f"debug={{'compressed_path': {str(gz_path)!r}, 'sorted_path': {str(sorted_gz_path)!r}}}"
+            ) from exc
+
+        columns = ["chrom", "source", "feature_type", "start", "end", "score", "strand", "frame", "attributes"]
+        plain_sorted_path = cls._plain_path_for_compressed_gtf(sorted_gz_path)
+        try:
+            df = pl.read_csv(
+                str(gz_path),
+                separator="\t",
+                has_header=False,
+                comment_prefix="#",
+                new_columns=columns,
+                quote_char=None,
+            )
+            if df.width != len(columns):
+                raise ValueError(
+                    "Expected 9 columns while reading GTF/GFF annotation with Polars. "
+                    f"debug={{'compressed_path': {str(gz_path)!r}, 'observed_columns': {df.width}, "
+                    f"'expected_columns': {len(columns)}}}"
+                )
+            df = df.with_columns(
+                pl.col("start").cast(pl.Int64),
+                pl.col("end").cast(pl.Int64),
+            ).sort(["chrom", "start", "end"])
+            df.write_csv(str(plain_sorted_path), separator="\t", include_header=False)
+            pysam.tabix_compress(str(plain_sorted_path), str(sorted_gz_path), force=False)
+        except Exception as exc:
+            raise OSError(
+                "Could not sort and bgzip annotation. "
+                f"debug={{'compressed_path': {str(gz_path)!r}, 'plain_sorted_path': {str(plain_sorted_path)!r}, "
+                f"'sorted_path': {str(sorted_gz_path)!r}, 'exists_input': {gz_path.exists()}, "
+                f"'exists_plain_sorted': {plain_sorted_path.exists()}, 'exists_sorted': {sorted_gz_path.exists()}, "
+                f"'error': {str(exc)!r}}}"
+            ) from exc
+        finally:
+            if plain_sorted_path.exists():
+                plain_sorted_path.unlink()
+
+    @staticmethod
+    def _sorted_gtf_path(path: Path) -> Path:
+        """Return the sibling sorted annotation path for a compressed GTF/GFF."""
+
+        lower_name = path.name.lower()
+        for suffix in (".gtf.gz", ".gff.gz", ".gff3.gz"):
+            if lower_name.endswith(suffix):
+                return path.with_name(path.name[: -len(suffix)] + f".sorted{suffix}")
+        return path.with_name(path.name + ".sorted.gtf.gz")
+
+    @staticmethod
+    def _plain_path_for_compressed_gtf(path: Path) -> Path:
+        """Return the temporary plain path used before bgzip compression."""
+
+        if path.name.lower().endswith(".gz"):
+            return path.with_name(path.name[:-3] + ".tmp")
+        return path.with_suffix(path.suffix + ".plain")
+
+    @staticmethod
+    def _is_plain_gtf_path(path: Path) -> bool:
+        """Return whether ``path`` looks like a plain GTF/GFF file."""
+
+        return path.suffix.lower() in {".gtf", ".gff", ".gff3"}
+
+    @staticmethod
+    def _is_compressed_gtf_path(path: Path) -> bool:
+        """Return whether ``path`` looks like a compressed GTF/GFF file."""
+
+        return path.name.lower().endswith((".gtf.gz", ".gff.gz", ".gff3.gz"))
+
+    @classmethod
+    def _is_gtf_like_path(cls, path: Path) -> bool:
+        """Return whether ``path`` has a supported annotation extension."""
+
+        return cls._is_plain_gtf_path(path) or cls._is_compressed_gtf_path(path)
+
+    @classmethod
+    def _parse_gtf_line(
+        cls,
+        raw_line: str,
+        *,
+        path: Path | None = None,
+        line_number: int | None = None,
+        context: str | None = None,
+    ) -> _GtfRecord | None:
+        """Parse one GTF/GFF row into internal coordinates."""
+
+        line = raw_line.rstrip("\n")
+        if not line or line.startswith("#"):
+            return None
+
+        fields = line.split("\t", 8)
+        if len(fields) != 9:
+            raise ValueError(
+                "Invalid GTF/GFF row: expected 9 tab-separated columns. "
+                f"debug={{'path': {str(path) if path is not None else None!r}, "
+                f"'line_number': {line_number}, 'context': {context!r}, "
+                f"'observed_columns': {len(fields)}, 'line': {line[:240]!r}}}"
+            )
+
+        chrom, source, feature_type, start_text, end_text, score, strand, frame, attrs_text = fields
+        try:
+            start0 = int(start_text) - 1
+            end0 = int(end_text)
+        except ValueError as exc:
+            raise ValueError(
+                "Invalid GTF/GFF coordinates: start and end must be integers. "
+                f"debug={{'path': {str(path) if path is not None else None!r}, "
+                f"'line_number': {line_number}, 'context': {context!r}, "
+                f"'chrom': {chrom!r}, 'start_text': {start_text!r}, 'end_text': {end_text!r}, "
+                f"'line': {line[:240]!r}}}"
+            ) from exc
+        if start0 < 0 or end0 < start0:
+            raise ValueError(
+                "Invalid GTF/GFF coordinates after conversion to 0-based half-open coordinates. "
+                f"debug={{'path': {str(path) if path is not None else None!r}, "
+                f"'line_number': {line_number}, 'context': {context!r}, "
+                f"'chrom': {chrom!r}, 'start_text': {start_text!r}, 'end_text': {end_text!r}, "
+                f"'start0': {start0}, 'end0': {end0}, 'line': {line[:240]!r}}}"
+            )
+
+        return _GtfRecord(
+            chrom=chrom,
+            source=source,
+            feature_type=feature_type,
+            start=start0,
+            end=end0,
+            score=score,
+            strand=strand,
+            frame=frame,
+            attributes=cls._parse_gtf_attributes(attrs_text),
+        )
 
     @staticmethod
     def _parse_gtf_attributes(text: str) -> dict[str, str]:
         """Parse the ninth GTF column into a simple string dictionary."""
 
         attributes: dict[str, str] = {}
-        for match in re.finditer(r'(\S+)\s+"([^"]*)"', text):
-            attributes[match.group(1)] = match.group(2)
-
-        # Numeric and unquoted fields occur in some GTF-like files.
-        parsed_spans = [match.span() for match in re.finditer(r'(\S+)\s+"([^"]*)"', text)]
-        leftovers = text
-        for start, end in reversed(parsed_spans):
-            leftovers = leftovers[:start] + leftovers[end:]
-        for chunk in leftovers.split(";"):
+        for chunk in text.split(";"):
             chunk = chunk.strip()
             if not chunk:
                 continue
-            parts = chunk.split(None, 1)
-            if len(parts) == 2:
-                attributes.setdefault(parts[0], parts[1].strip().strip('"'))
+            if "=" in chunk and (" " not in chunk or chunk.index("=") < chunk.index(" ")):
+                key, value = chunk.split("=", 1)
+            else:
+                parts = chunk.split(None, 1)
+                if len(parts) != 2:
+                    continue
+                key, value = parts
+            attributes[key] = value.strip().strip('"')
         return attributes
 
     def chrom_length(self, chrom: str) -> int:
@@ -353,11 +699,13 @@ class Genome:
         return self._handle().get_reference_length(self.normalize_chrom(chrom))
 
     def close(self) -> None:
-        """Close the cached FASTA handle, if one is open."""
+        """Close cached FASTA and annotation handles, if open."""
 
         if self._fasta is not None:
             self._fasta.close()
             self._fasta = None
+        if self._annotation is not None and hasattr(self._annotation, "close"):
+            self._annotation.close()
 
 
 @dataclass(frozen=True)

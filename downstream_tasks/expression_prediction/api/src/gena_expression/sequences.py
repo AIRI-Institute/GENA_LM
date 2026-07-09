@@ -35,6 +35,11 @@ class Feature:
 
         return self.end - self.start
 
+    def copy(self, **changes: Any) -> "Feature":
+        """Return a copy with selected fields changed."""
+
+        return replace(self, **changes)
+
     def shift(self, offset: int) -> "Feature":
         """Return the same feature shifted by ``offset`` bases."""
 
@@ -306,6 +311,136 @@ class AnnotatedSequence:
 
         return [feature for feature in self.features if feature.overlaps(start, end)]
 
+    def update_feature(self, feature: str | Feature, **changes: Any) -> "AnnotatedSequence":
+        """Return a copy with one resolved feature changed.
+
+        String queries use the same unique substring matching as ``select()``.
+        Use ``update_features()`` when multiple features should be changed.
+        """
+
+        feature_index = self._resolve_unique_feature_index(feature)
+        features = tuple(
+            item.copy(**changes) if index == feature_index else item
+            for index, item in enumerate(self.features)
+        )
+        return replace(self, features=features)
+
+    def update_features(
+        self,
+        where: Callable[[Feature], bool],
+        **changes: Any,
+    ) -> "AnnotatedSequence":
+        """Return a copy with every matching feature changed."""
+
+        features = tuple(item.copy(**changes) if where(item) else item for item in self.features)
+        return replace(self, features=features)
+
+    def remove_feature(self, feature: str | Feature) -> "AnnotatedSequence":
+        """Return a copy with one resolved feature removed."""
+
+        feature_index = self._resolve_unique_feature_index(feature)
+        features = tuple(item for index, item in enumerate(self.features) if index != feature_index)
+        return replace(self, features=features)
+
+    def remove_features(
+        self,
+        where: Callable[[Feature], bool] | None = None,
+        *,
+        name: str | None = None,
+        type: str | None = None,
+        source: str | None = None,
+    ) -> "AnnotatedSequence":
+        """Return a copy with every matching feature removed."""
+
+        self._require_feature_filter(where, name=name, type=type, source=source)
+        features = tuple(
+            item
+            for item in self.features
+            if not self._matches_feature_filter(
+                item,
+                where,
+                name=name,
+                type=type,
+                source=source,
+            )
+        )
+        return replace(self, features=features)
+
+    def keep_features(
+        self,
+        where: Callable[[Feature], bool] | None = None,
+        *,
+        name: str | None = None,
+        type: str | None = None,
+        source: str | None = None,
+    ) -> "AnnotatedSequence":
+        """Return a copy containing only matching features."""
+
+        self._require_feature_filter(where, name=name, type=type, source=source)
+        features = tuple(
+            item
+            for item in self.features
+            if self._matches_feature_filter(
+                item,
+                where,
+                name=name,
+                type=type,
+                source=source,
+            )
+        )
+        return replace(self, features=features)
+
+    def map_features(self, fn: Callable[[Feature], Feature | None]) -> "AnnotatedSequence":
+        """Return a copy after applying ``fn`` to every feature.
+
+        The callable may return a changed :class:`Feature`, the original
+        feature, or ``None`` to drop that annotation.
+        """
+
+        features: list[Feature] = []
+        for feature in self.features:
+            mapped = fn(feature)
+            if mapped is None:
+                continue
+            if not isinstance(mapped, Feature):
+                raise TypeError("map_features() callable must return Feature or None.")
+            features.append(mapped)
+        return replace(self, features=tuple(features))
+
+    @staticmethod
+    def _require_feature_filter(
+        where: Callable[[Feature], bool] | None,
+        *,
+        name: str | None,
+        type: str | None,
+        source: str | None,
+    ) -> None:
+        """Require at least one feature filter for bulk keep/remove calls."""
+
+        if where is None and name is None and type is None and source is None:
+            raise ValueError("Provide where, name, type, or source.")
+
+    @staticmethod
+    def _matches_feature_filter(
+        feature: Feature,
+        where: Callable[[Feature], bool] | None = None,
+        *,
+        name: str | None = None,
+        type: str | None = None,
+        source: str | None = None,
+    ) -> bool:
+        """Return whether ``feature`` matches all requested filters."""
+
+        if where is not None and not where(feature):
+            return False
+        if name is not None and feature.name != name:
+            return False
+        if type is not None and feature.type != type:
+            return False
+        if source is not None and feature.source != source:
+            return False
+        return True
+
     def select(
         self,
         start: int | str | Feature | Sequence[str | Feature] | None = None,
@@ -410,6 +545,23 @@ class AnnotatedSequence:
             summary = ", ".join(f"{item.name}({item.start}:{item.end}, type={item.type})" for item in matches)
             raise ValueError(f"Feature query {feature!r} matched multiple features: {summary}")
         return matches[0]
+
+    def _resolve_unique_feature_index(self, feature: str | Feature) -> int:
+        """Resolve a feature query to exactly one index in ``self.features``."""
+
+        if isinstance(feature, Feature):
+            matches = [index for index, item in enumerate(self.features) if item == feature]
+            if not matches:
+                raise KeyError(f"Feature {feature!r} is not present on sequence {self.name!r}.")
+            if len(matches) > 1:
+                raise ValueError(f"Feature object matched multiple identical features on sequence {self.name!r}.")
+            return matches[0]
+
+        resolved = self._resolve_unique_feature(feature)
+        for index, item in enumerate(self.features):
+            if item is resolved:
+                return index
+        raise RuntimeError("Resolved feature was not found in the sequence feature list.")
 
     @staticmethod
     def _validate_selection_strand(strand: str | None) -> str | None:
