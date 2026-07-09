@@ -20,6 +20,7 @@ dependencies = [
     "matplotlib==3.10.8",
     "seaborn==0.13.2",
     "joblib==1.5.3",
+    "pybigwig==0.3.25"
 ]
 
 [tool.setuptools.packages.find]

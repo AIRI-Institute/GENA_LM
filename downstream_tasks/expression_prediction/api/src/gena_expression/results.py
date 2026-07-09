@@ -124,7 +124,7 @@ class ScoringResult:
         """Plot annotations on the reference or alternative input sequence."""
 
         sequence = self.input_ref if which == "ref" else self.input_alt
-        return sequence.plot_annotations(save_path=save_path, **kwargs)
+        return sequence.plot_annotations(save_path=save_path, figsize=(12, 4), **kwargs)
 
     def plot_variant(
         self,
@@ -263,16 +263,22 @@ class ScoringResult:
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
         paths = []
-        variant_path = directory / f"{self.name}.variant.png"
+        stem = self._safe_filename(self.name)
+        variant_path = directory / f"{stem}.variant.png"
         self.plot_variant(save_path=variant_path)
         paths.append(variant_path)
         if self.ref_track is not None and self.alt_track is not None and self.delta_track is not None:
-            tracks_path = directory / f"{self.name}.tracks.png"
-            delta_path = directory / f"{self.name}.delta.png"
+            tracks_path = directory / f"{stem}.tracks.png"
+            delta_path = directory / f"{stem}.delta.png"
             self.plot_tracks(save_path=tracks_path)
             self.plot_delta_track(save_path=delta_path)
             paths.extend([tracks_path, delta_path])
         return paths
+
+    @staticmethod
+    def _safe_filename(value: str) -> str:
+        stem = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in str(value))
+        return stem.strip("._") or "result"
 
     def _require_tracks(self) -> None:
         if self.ref_track is None or self.alt_track is None or self.delta_track is None:

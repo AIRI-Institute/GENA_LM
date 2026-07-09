@@ -306,6 +306,127 @@ class AnnotatedSequence:
 
         return [feature for feature in self.features if feature.overlaps(start, end)]
 
+    def select(
+        self,
+        start: int | str | Feature | Sequence[str | Feature] | None = None,
+        end: int | None = None,
+        strand: str | None = None,
+        *,
+        feature: str | Feature | None = None,
+        features: Sequence[str | Feature] | None = None,
+        name: str | None = None,
+    ) -> "AnnotatedSequence":
+        """Return an annotated subsequence selected by coordinates or features.
+
+        Supported modes are:
+
+        - ``select(start, end, strand="+")`` for a coordinate interval.
+        - ``select(feature="promoter")`` or ``select("promoter")`` for one
+          feature. Strings are resolved by substring matching against feature
+          name or type; ambiguous matches raise an error.
+        - ``select(features=["exon1", "exon2"])`` or ``select([...])`` to
+          concatenate feature intervals in the input order.
+        """
+
+        requested_strand = self._validate_selection_strand(strand)
+
+        if feature is not None and features is not None:
+            raise ValueError("Pass only one of feature= or features=.")
+
+        if feature is None and features is None and start is not None and not isinstance(start, int):
+            if end is not None:
+                raise ValueError("end can only be used with integer start coordinates.")
+            if isinstance(start, (str, Feature)):
+                feature = start
+            else:
+                features = start
+
+        if features is not None:
+            feature_items = (features,) if isinstance(features, (str, Feature)) else tuple(features)
+            parts = []
+            resolved_features = []
+            for item in feature_items:
+                resolved = self._resolve_unique_feature(item)
+                resolved_features.append(resolved)
+                part_strand = requested_strand or self._feature_selection_strand(resolved)
+                parts.append(self._select_interval(resolved.start, resolved.end, part_strand, name=resolved.name))
+            selected = AnnotatedSequence.concat(*parts, name=name or self.name)
+            return selected.with_metadata(
+                selected_from=self.name,
+                selection_mode="features",
+                selected_features=[feature.to_dict() for feature in resolved_features],
+                selection_strand=requested_strand or "feature",
+            )
+
+        if feature is not None:
+            resolved = self._resolve_unique_feature(feature)
+            selected_strand = requested_strand or self._feature_selection_strand(resolved)
+            selected = self._select_interval(
+                resolved.start,
+                resolved.end,
+                selected_strand,
+                name=name or resolved.name,
+            )
+            return selected.with_metadata(
+                selected_from=self.name,
+                selection_mode="feature",
+                selected_feature=resolved.to_dict(),
+                selection_strand=selected_strand,
+            )
+
+        if not isinstance(start, int) or end is None:
+            raise ValueError("Pass start and end coordinates, feature=, or features=.")
+
+        selected_strand = requested_strand or "+"
+        return self._select_interval(start, end, selected_strand, name=name or self.name).with_metadata(
+            selected_from=self.name,
+            selection_mode="coordinates",
+            selection_start=start,
+            selection_end=end,
+            selection_strand=selected_strand,
+        )
+
+    def _select_interval(self, start: int, end: int, strand: str, *, name: str | None = None) -> "AnnotatedSequence":
+        """Return one validated interval, reverse-complementing when requested."""
+
+        if start < 0 or end < start or end > len(self):
+            raise ValueError(f"Invalid selection interval {start}:{end} for sequence length {len(self)}.")
+        selected = self[start:end]
+        assert isinstance(selected, AnnotatedSequence)
+        selected = replace(selected, name=name or selected.name)
+        if strand == "-":
+            selected = selected.reverse_complement(name=name or selected.name)
+        return selected
+
+    def _resolve_unique_feature(self, feature: str | Feature) -> Feature:
+        """Resolve a feature object or unique name/type substring."""
+
+        if isinstance(feature, Feature):
+            return feature
+        matches = [item for item in self.features if feature in item.name or feature in item.type]
+        if not matches:
+            raise KeyError(f"Feature containing {feature!r} was not found on sequence {self.name!r}.")
+        if len(matches) > 1:
+            summary = ", ".join(f"{item.name}({item.start}:{item.end}, type={item.type})" for item in matches)
+            raise ValueError(f"Feature query {feature!r} matched multiple features: {summary}")
+        return matches[0]
+
+    @staticmethod
+    def _validate_selection_strand(strand: str | None) -> str | None:
+        """Validate an optional selection strand."""
+
+        if strand is None:
+            return None
+        if strand not in {"+", "-"}:
+            raise ValueError("strand must be '+', '-', or None.")
+        return strand
+
+    @staticmethod
+    def _feature_selection_strand(feature: Feature) -> str:
+        """Return the strand to use when selecting a feature by annotation."""
+
+        return feature.strand if feature.strand in {"+", "-"} else "+"
+
     def resolve_center(self, center: int | str | Feature) -> int:
         """Resolve an integer, feature name, or feature object to a sequence coordinate."""
 
@@ -641,7 +762,6 @@ class AnnotatedSequence:
         if save_path is not None:
             fig.savefig(save_path, dpi=180, bbox_inches="tight")
         return fig, ax
-
 
 @dataclass(frozen=True)
 class SequencePair:

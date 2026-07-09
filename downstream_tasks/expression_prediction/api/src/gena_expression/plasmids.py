@@ -9,6 +9,13 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
+import http.client
+import random
+import socket
+import ssl
+import time
+import urllib.error
+import urllib.request
 
 from .sequences import AnnotatedSequence, Feature
 
@@ -123,12 +130,219 @@ class PlasmidRecord:
         return accession
 
     @staticmethod
-    def _download_text(url: str) -> str:
-        """Download a text record from NCBI."""
+    def _download_text(
+        url: str,
+        *,
+        timeout: float = 30.0,
+        retries: int = 4,
+        backoff: float = 1.0,
+    ) -> str:
+        """Download a text record from NCBI using multiple HTTP backends."""
 
-        req = urllib.request.Request(url, headers={"User-Agent": "variant-api-plasmid-context/1.0"})
-        with urllib.request.urlopen(req) as response:
-            return response.read().decode("utf-8")
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        class PermanentDownloadError(RuntimeError):
+            pass
+
+        headers = {
+            "User-Agent": "plasmid_context_helpers/0.1",
+            "Accept": "text/plain, */*",
+            "Connection": "close",
+        }
+
+        transient_http_codes = {408, 429, 500, 502, 503, 504}
+        errors: list[str] = []
+
+        def ncbi_url_candidates(original_url: str) -> list[str]:
+            candidates = [original_url]
+
+            parsed = urllib.parse.urlparse(original_url)
+            if parsed.netloc == "www.ncbi.nlm.nih.gov" and parsed.path.endswith("/sviewer/viewer.cgi"):
+                query = urllib.parse.parse_qs(parsed.query)
+                accession = query.get("id", [""])[0]
+                report = query.get("report", [""])[0]
+
+                rettype_by_report = {
+                    "genbank": "gbwithparts",
+                    "fasta": "fasta",
+                }
+                rettype = rettype_by_report.get(report)
+
+                if accession and rettype:
+                    efetch_query = urllib.parse.urlencode(
+                        {
+                            "db": "nuccore",
+                            "id": accession,
+                            "rettype": rettype,
+                            "retmode": "text",
+                        }
+                    )
+                    candidates.append(
+                        f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?{efetch_query}"
+                    )
+
+            return candidates
+
+        def decode_bytes(raw: bytes, encoding: str | None = None) -> str:
+            return raw.decode(encoding or "utf-8", errors="replace")
+
+        backends = []
+
+        try:
+            import requests
+
+            def fetch_with_requests(fetch_url: str) -> str:
+                response = requests.get(fetch_url, headers=headers, timeout=timeout)
+                if response.status_code >= 400:
+                    if response.status_code not in transient_http_codes:
+                        raise PermanentDownloadError(f"HTTP {response.status_code}")
+                    response.raise_for_status()
+                response.encoding = response.encoding or "utf-8"
+                return response.text
+
+            backends.append(("requests", fetch_with_requests))
+        except ImportError:
+            errors.append("requests: not installed")
+            logger.info("NCBI download backend unavailable: requests is not installed")
+
+        try:
+            import urllib3
+
+            http = urllib3.PoolManager(
+                timeout=urllib3.Timeout(connect=timeout, read=timeout),
+                retries=False,
+            )
+
+            def fetch_with_urllib3(fetch_url: str) -> str:
+                response = http.request("GET", fetch_url, headers=headers)
+                try:
+                    if response.status >= 400:
+                        if response.status not in transient_http_codes:
+                            raise PermanentDownloadError(f"HTTP {response.status}")
+                        raise RuntimeError(f"HTTP {response.status}")
+                    return decode_bytes(response.data)
+                finally:
+                    response.release_conn()
+
+            backends.append(("urllib3", fetch_with_urllib3))
+        except ImportError:
+            errors.append("urllib3: not installed")
+            logger.info("NCBI download backend unavailable: urllib3 is not installed")
+
+        def fetch_with_urllib(fetch_url: str) -> str:
+            req = urllib.request.Request(fetch_url, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as response:
+                    encoding = response.headers.get_content_charset() or "utf-8"
+                    return decode_bytes(response.read(), encoding)
+            except urllib.error.HTTPError as exc:
+                if exc.code not in transient_http_codes:
+                    raise PermanentDownloadError(f"HTTP {exc.code}") from exc
+                raise
+
+        backends.append(("urllib", fetch_with_urllib))
+
+        urls = ncbi_url_candidates(url)
+        last_error: BaseException | None = None
+
+        logger.info(
+            "Starting NCBI download: url=%r retries=%d timeout=%s backends=%s",
+            url,
+            retries,
+            timeout,
+            ", ".join(name for name, _ in backends),
+        )
+
+        for attempt in range(retries + 1):
+            attempt_number = attempt + 1
+            saw_transient_error = False
+
+            logger.info(
+                "NCBI download attempt %d/%d for %r",
+                attempt_number,
+                retries + 1,
+                url,
+            )
+
+            for fetch_url in urls:
+                for backend_name, backend in backends:
+                    logger.info(
+                        "Trying NCBI download backend=%s attempt=%d/%d url=%r",
+                        backend_name,
+                        attempt_number,
+                        retries + 1,
+                        fetch_url,
+                    )
+
+                    try:
+                        text = backend(fetch_url)
+                        logger.info(
+                            "NCBI download succeeded backend=%s attempt=%d/%d url=%r bytes=%d",
+                            backend_name,
+                            attempt_number,
+                            retries + 1,
+                            fetch_url,
+                            len(text.encode("utf-8", errors="replace")),
+                        )
+                        return text
+
+                    except PermanentDownloadError as exc:
+                        last_error = exc
+                        message = f"{backend_name} {fetch_url}: {exc}"
+                        errors.append(message)
+                        logger.error(
+                            "NCBI download permanent failure backend=%s attempt=%d/%d url=%r error=%s",
+                            backend_name,
+                            attempt_number,
+                            retries + 1,
+                            fetch_url,
+                            exc,
+                            exc_info=True,
+                        )
+
+                    except Exception as exc:
+                        last_error = exc
+                        saw_transient_error = True
+                        message = f"{backend_name} {fetch_url}: {type(exc).__name__}: {exc}"
+                        errors.append(message)
+                        logger.warning(
+                            "NCBI download transient failure backend=%s attempt=%d/%d url=%r error_type=%s error=%s",
+                            backend_name,
+                            attempt_number,
+                            retries + 1,
+                            fetch_url,
+                            type(exc).__name__,
+                            exc,
+                            exc_info=True,
+                        )
+
+            if not saw_transient_error:
+                logger.error("NCBI download stopped because only permanent failures were seen")
+                break
+
+            if attempt < retries:
+                delay = backoff * (2 ** attempt) + random.uniform(0, 0.5)
+                logger.info(
+                    "Retrying NCBI download after %.2f seconds: next_attempt=%d/%d",
+                    delay,
+                    attempt_number + 1,
+                    retries + 1,
+                )
+                time.sleep(delay)
+
+        logger.error(
+            "NCBI download failed after %d attempts for %r. Last errors:\n%s",
+            retries + 1,
+            url,
+            "\n".join(errors[-12:]),
+        )
+
+        raise RuntimeError(
+            f"Failed to download text from {url!r} after {retries + 1} attempts.\n"
+            + "\n".join(errors[-12:])
+        ) from last_error
 
     @staticmethod
     def _ncbi_sviewer_url(accession: str, report: str) -> str:

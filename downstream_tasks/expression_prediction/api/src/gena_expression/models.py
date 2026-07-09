@@ -12,6 +12,7 @@ from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from .conditions import Condition, metadata_to_description
 from .predictions import ExpressionPrediction, PairPrediction, Prediction
+from .results import ScoringResult, VariantReport
 from .sequences import AnnotatedSequence, Feature, SequencePair
 from .tokenization import CenteredTokenizer, TokenizedSequence
 from .variants import Variant
@@ -741,7 +742,7 @@ class SequenceModel:
                         group_key_kind="condition_identity",
                         group_key=f"{condition_key[0]}:{condition_key[1]}",
                         dataset_flag_shape=(len(chunk), 1),
-                        dataset_flag_meaning="B=len(rows for one condition), N=1",
+                        dataset_flag_meaning="notebook-compatible layout; B=len(rows for one condition), N=1",
                     )
         elif resolved_grouping == "condition":
             for condition_key, indices in condition_groups.items():
@@ -877,7 +878,12 @@ class SequenceModel:
     ) -> PairPrediction:
         """Predict reference and alternative sequences for a sequence pair."""
 
-        return self.predict_multiple_pairs([pair], condition=condition, center=center, grouping=grouping)[0]
+        return self.predict_multiple_pairs(
+            [pair],
+            condition=condition,
+            center=center,
+            grouping=grouping,
+        )[0]
 
     def _predict_multiple_pairs_one_condition(
         self,
@@ -993,35 +999,27 @@ class SequenceModel:
         include_features: bool = True,
         center_feature_name: str = "tss",
         grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        preprocessing_workers: int = 0,
+        max_records_per_forward: int | None = None,
         return_sequence: bool = True,
     ) -> ExpressionPrediction:
         """Predict expression directly from a genome and TSS coordinate."""
 
         tss0 = int(tss) - 1 if coordinate_system == "1-based" else int(tss)
-        if context_bp is None:
-            context_bp = 2 * self.token_len_for_fetch * max(
-                self.num_before,
-                self.dna_max_seq_tokens - self.num_before,
-            )
-        sequence = genome.sequence_around(
-            chrom,
-            tss0,
-            int(context_bp),
-            strand=strand,
+        record = {"chrom": chrom, "tss": tss, "strand": strand, "name": f"{chrom}:{tss0}:{strand}"}
+        return self.predict_multiple_tss(
+            [record],
+            condition=condition,
+            genome=genome,
+            context_bp=context_bp,
+            coordinate_system=coordinate_system,
             include_features=include_features,
             center_feature_name=center_feature_name,
-            name=f"{chrom}:{tss0}:{strand}",
-        )
-        prediction = self.predict_sequence(
-            sequence,
-            condition=condition,
-            center=center_feature_name,
-            strand="+",
             grouping=grouping,
-        )
-        if not return_sequence:
-            prediction.sequence = None
-        return prediction
+            preprocessing_workers=preprocessing_workers,
+            max_records_per_forward=max_records_per_forward,
+            return_sequence=return_sequence,
+        )[0]
 
     @staticmethod
     def _record_field(record: Any, field: str, default: Any = None) -> Any:
@@ -1211,48 +1209,123 @@ class SequenceModel:
 
 
 class VariantInterpreter:
-    """High-level object for building contexts, predicting variants, and scoring effects."""
+    """High-level object for scoring variant and sequence-pair effects."""
 
     def __init__(self, model: SequenceModel) -> None:
         self.model = model
 
-    def predict_variant(
-        self,
-        variant: Variant,
-        *,
-        context: Any,
-        condition: Condition | str | Mapping[str, Any],
-        genome: Any | None = None,
-        center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-    ) -> PairPrediction:
-        """Build a sequence pair for ``variant`` and run the model."""
-
-        pair = context.build(variant, genome=genome)
-        return self.model.predict_pair(pair, condition=condition, center=center, grouping=grouping)
-
     def score_variant(
         self,
-        variant: Variant,
+        variant: Any,
         *,
-        context: Any,
+        context: Any | None = None,
         condition: Condition | str | Mapping[str, Any],
         scorer: Any,
         genome: Any | None = None,
         center: int | str | Feature = "tss",
         grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-    ):
-        """Predict and score one variant."""
+        coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
+        **sequence_pair_kwargs: Any,
+    ) -> ScoringResult | VariantReport:
+        """Build one sequence pair with :meth:`Variant.to_sequence_pair` and score it."""
 
-        prediction = self.predict_variant(
+        pair, label = self._pair_from_variant_record(
             variant,
             context=context,
-            condition=condition,
             genome=genome,
+            coordinate_system=coordinate_system,
+            fallback="variant",
+            **sequence_pair_kwargs,
+        )
+        return self.score_sequence_pair(
+            pair,
+            condition=condition,
+            scorer=scorer,
             center=center,
             grouping=grouping,
+            label=label,
         )
-        return scorer.score(prediction)
+
+    def score_variants(
+        self,
+        variants: Iterable[Any],
+        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
+        *,
+        context: Any | None = None,
+        condition: Condition | str | Mapping[str, Any] | None = None,
+        scorer: Any,
+        genome: Any | None = None,
+        center: int | str | Feature = "tss",
+        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        preprocessing_workers: int = 0,
+        max_records_per_forward: int | None = None,
+        coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
+        on_error: Literal["raise", "warn", "skip", "exit"] = "raise",
+        **sequence_pair_kwargs: Any,
+    ) -> list[ScoringResult | VariantReport]:
+        """Score variant records with one broadcast condition or row-wise conditions."""
+
+        record_list = list(variants)
+        if not record_list:
+            return []
+        condition_list = self.model._broadcast_conditions(len(record_list), conditions, condition)
+        self._validate_on_error(on_error)
+
+        if on_error in {"warn", "skip"}:
+            results: list[ScoringResult | VariantReport] = []
+            for idx, (record, row_condition) in enumerate(zip(record_list, condition_list)):
+                try:
+                    pair, label = self._pair_from_variant_record(
+                        record,
+                        context=context,
+                        genome=genome,
+                        coordinate_system=coordinate_system,
+                        fallback=f"variant_{idx}",
+                        **sequence_pair_kwargs,
+                    )
+                    results.extend(
+                        self._score_pairs(
+                            [pair],
+                            [row_condition],
+                            [label],
+                            scorer=scorer,
+                            center=center,
+                            grouping=grouping,
+                            preprocessing_workers=preprocessing_workers,
+                            max_records_per_forward=max_records_per_forward,
+                        )
+                    )
+                except Exception as exc:
+                    self._handle_scoring_error(exc, item=record, on_error=on_error)
+            return results
+
+        try:
+            pairs: list[SequencePair] = []
+            labels: list[str] = []
+            for idx, record in enumerate(record_list):
+                pair, label = self._pair_from_variant_record(
+                    record,
+                    context=context,
+                    genome=genome,
+                    coordinate_system=coordinate_system,
+                    fallback=f"variant_{idx}",
+                    **sequence_pair_kwargs,
+                )
+                pairs.append(pair)
+                labels.append(label)
+            return self._score_pairs(
+                pairs,
+                condition_list,
+                labels,
+                scorer=scorer,
+                center=center,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                max_records_per_forward=max_records_per_forward,
+            )
+        except Exception as exc:
+            self._handle_scoring_error(exc, item="variant batch", on_error=on_error)
+            return []
 
     def score_sequence_pair(
         self,
@@ -1262,69 +1335,128 @@ class VariantInterpreter:
         scorer: Any,
         center: int | str | Feature = "tss",
         grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-    ):
+        label: str | None = None,
+    ) -> ScoringResult | VariantReport:
         """Predict and score an already materialized sequence pair."""
 
-        prediction = self.model.predict_pair(
-            pair,
-            condition=condition,
+        return self._score_pairs(
+            [pair],
+            [self.model._as_condition(condition)],
+            [label or self._pair_label(pair, 0)],
+            scorer=scorer,
             center=center,
             grouping=grouping,
-        )
-        return scorer.score(prediction)
+        )[0]
 
-    def predict_sequence_pairs_many(
+    def score_sequence_pairs(
         self,
         pairs: Iterable[SequencePair],
-        conditions: Iterable[Condition | str | Mapping[str, Any]],
+        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
         *,
-        center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-        max_records_per_forward: int | None = None,
-    ) -> list[PairPrediction]:
-        """Predict paired sequence pairs and conditions with internal grouping.
-
-        ``pairs`` and ``conditions`` are paired row-wise and must have equal
-        length.
-        """
-
-        pair_list = list(pairs)
-        condition_list = [self.model._as_condition(condition) for condition in conditions]
-        if len(pair_list) != len(condition_list):
-            raise ValueError("pairs and conditions must have the same length.")
-        return self.model.predict_multiple_pairs(
-            pair_list,
-            conditions=condition_list,
-            center=center,
-            grouping=grouping,
-            max_records_per_forward=max_records_per_forward,
-        )
-
-    def score_sequence_pairs_many(
-        self,
-        pairs: Iterable[SequencePair],
-        conditions: Iterable[Condition | str | Mapping[str, Any]],
-        *,
+        condition: Condition | str | Mapping[str, Any] | None = None,
         scorer: Any,
         center: int | str | Feature = "tss",
         grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
-    ) -> list[Any]:
-        """Predict and score paired sequence pairs and conditions."""
+        on_error: Literal["raise", "warn", "skip", "exit"] = "raise",
+    ) -> list[ScoringResult | VariantReport]:
+        """Score sequence pairs with one broadcast condition or row-wise conditions."""
 
-        predictions = self.predict_sequence_pairs_many(
+        pair_list = list(pairs)
+        if not pair_list:
+            return []
+        condition_list = self.model._broadcast_conditions(len(pair_list), conditions, condition)
+        labels = [self._pair_label(pair, idx) for idx, pair in enumerate(pair_list)]
+        self._validate_on_error(on_error)
+
+        if on_error in {"warn", "skip"}:
+            results: list[ScoringResult | VariantReport] = []
+            for pair, row_condition, label in zip(pair_list, condition_list, labels):
+                try:
+                    results.extend(
+                        self._score_pairs(
+                            [pair],
+                            [row_condition],
+                            [label],
+                            scorer=scorer,
+                            center=center,
+                            grouping=grouping,
+                            preprocessing_workers=preprocessing_workers,
+                            max_records_per_forward=max_records_per_forward,
+                        )
+                    )
+                except Exception as exc:
+                    self._handle_scoring_error(exc, item=label, on_error=on_error)
+            return results
+
+        try:
+            return self._score_pairs(
+                pair_list,
+                condition_list,
+                labels,
+                scorer=scorer,
+                center=center,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                max_records_per_forward=max_records_per_forward,
+            )
+        except Exception as exc:
+            self._handle_scoring_error(exc, item="sequence-pair batch", on_error=on_error)
+            return []
+
+    def _score_pairs(
+        self,
+        pairs: Sequence[SequencePair],
+        conditions: Sequence[Condition],
+        labels: Sequence[str],
+        *,
+        scorer: Any,
+        center: int | str | Feature,
+        grouping: Literal["no_grouping", "condition", "sequence", "auto"],
+        preprocessing_workers: int = 0,
+        max_records_per_forward: int | None = None,
+    ) -> list[ScoringResult | VariantReport]:
+        predictions = self.model.predict_multiple_pairs(
             pairs,
-            conditions,
+            conditions=conditions,
             center=center,
             grouping=grouping,
+            preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
         )
-        return [scorer.score(prediction) for prediction in predictions]
+        return [
+            self._name_scoring_output(scorer.score(prediction), label=label)
+            for prediction, label in zip(predictions, labels)
+        ]
+
+    def _pair_from_variant_record(
+        self,
+        record: Any,
+        *,
+        context: Any | None,
+        genome: Any | None,
+        coordinate_system: Literal["auto", "0-based", "1-based"],
+        fallback: str,
+        **sequence_pair_kwargs: Any,
+    ) -> tuple[SequencePair, str]:
+        variant = self._variant_from_record(record, genome=genome, coordinate_system=coordinate_system)
+        explicit_name = sequence_pair_kwargs.pop("name", None)
+        label = str(explicit_name or self._variant_record_name(record, variant=variant, fallback=fallback))
+        pair = variant.to_sequence_pair(
+            context=context,
+            genome=genome,
+            name=label,
+            **sequence_pair_kwargs,
+        )
+        return pair, label
 
     @staticmethod
-    def _variant_record_name(record: Any, fallback: str) -> str:
-        """Return a display name for a variant record."""
+    def _variant_record_name(record: Any, *, variant: Variant, fallback: str) -> str:
+        """Return a stable label for a variant record."""
 
+        if variant.id:
+            return str(variant.id)
         if isinstance(record, Mapping):
             return str(record.get("name") or record.get("id") or record.get("variant") or fallback)
         return str(getattr(record, "name", getattr(record, "id", fallback)) or fallback)
@@ -1382,113 +1514,43 @@ class VariantInterpreter:
             return variant
         raise TypeError("Variant records must be Variant objects, strings, or rows with variant/chrom/pos/ref/alt fields.")
 
-    def predict_variants_many(
-        self,
-        records: Iterable[Any],
-        conditions: Iterable[Condition | str | Mapping[str, Any]],
-        *,
-        context: Any | None = None,
-        genome: Any | None = None,
-        center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-        max_records_per_forward: int | None = None,
-        coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
-        **sequence_pair_kwargs: Any,
-    ) -> list[PairPrediction]:
-        """Predict paired variant records and conditions with internal grouping.
+    @staticmethod
+    def _pair_label(pair: SequencePair, index: int) -> str:
+        variant = pair.variant
+        if hasattr(variant, "id") and variant.id:
+            return str(variant.id)
+        metadata = dict(pair.metadata or {})
+        for key in ("name", "id", "variant_id"):
+            if metadata.get(key):
+                return str(metadata[key])
+        if pair.ref.name and pair.ref.name == pair.alt.name:
+            return pair.ref.name
+        return f"pair_{index}"
 
-        ``records`` and ``conditions`` are paired row-wise and must have equal
-        length.
-        """
+    @staticmethod
+    def _name_scoring_output(output: ScoringResult | VariantReport, *, label: str) -> ScoringResult | VariantReport:
+        if isinstance(output, ScoringResult):
+            output.name = f"{label}:{output.name}"
+            return output
+        if isinstance(output, VariantReport):
+            for key, result in output.results.items():
+                scorer_name = result.name or key
+                result.name = f"{label}:{scorer_name}"
+            return output
+        raise TypeError("scorer.score(...) must return ScoringResult or VariantReport.")
 
-        record_list = list(records)
-        condition_list = [self.model._as_condition(condition) for condition in conditions]
-        if len(record_list) != len(condition_list):
-            raise ValueError("records and conditions must have the same length.")
-        if not record_list:
-            return []
+    @staticmethod
+    def _validate_on_error(on_error: str) -> None:
+        if on_error not in {"raise", "warn", "skip", "exit"}:
+            raise ValueError("on_error must be 'raise', 'warn', 'skip', or 'exit'.")
 
-        pairs: list[SequencePair] = []
-        for idx, record in enumerate(record_list):
-            variant = self._variant_from_record(record, genome=genome, coordinate_system=coordinate_system)
-            name = self._variant_record_name(record, fallback=variant.id or f"variant_{idx}")
-            pairs.append(
-                variant.to_sequence_pair(
-                    context=context,
-                    genome=genome,
-                    name=name,
-                    **sequence_pair_kwargs,
-                )
-            )
+    @staticmethod
+    def _handle_scoring_error(exc: Exception, *, item: Any, on_error: str) -> None:
+        if on_error == "raise":
+            raise exc
+        if on_error == "exit":
+            raise SystemExit(f"Scoring failed for {item}: {exc}") from exc
+        if on_error == "warn":
+            import warnings
 
-        return self.predict_sequence_pairs_many(
-            pairs,
-            condition_list,
-            center=center,
-            grouping=grouping,
-            max_records_per_forward=max_records_per_forward,
-        )
-
-    def score_variants_many(
-        self,
-        records: Iterable[Any],
-        conditions: Iterable[Condition | str | Mapping[str, Any]],
-        *,
-        context: Any | None = None,
-        scorer: Any,
-        genome: Any | None = None,
-        center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
-        max_records_per_forward: int | None = None,
-        coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
-        **sequence_pair_kwargs: Any,
-    ) -> list[Any]:
-        """Predict and score paired variant records and conditions."""
-
-        predictions = self.predict_variants_many(
-            records,
-            conditions,
-            context=context,
-            genome=genome,
-            center=center,
-            grouping=grouping,
-            max_records_per_forward=max_records_per_forward,
-            coordinate_system=coordinate_system,
-            **sequence_pair_kwargs,
-        )
-        return [scorer.score(prediction) for prediction in predictions]
-
-    def score_variants(
-        self,
-        variants: Any,
-        *,
-        context: Any,
-        condition: Condition | str | Mapping[str, Any],
-        scorer: Any,
-        genome: Any | None = None,
-        center: int | str | Feature = "tss",
-        on_error: Literal["raise", "warn", "skip"] = "raise",
-    ) -> list[Any]:
-        """Score many variants, with optional warning/skip behavior on failures."""
-
-        import warnings
-
-        results = []
-        for variant in variants:
-            try:
-                results.append(
-                    self.score_variant(
-                        variant,
-                        context=context,
-                        condition=condition,
-                        scorer=scorer,
-                        genome=genome,
-                        center=center,
-                    )
-                )
-            except Exception as exc:
-                if on_error == "raise":
-                    raise
-                if on_error == "warn":
-                    warnings.warn(f"Skipping variant {variant}: {exc}", RuntimeWarning, stacklevel=2)
-        return results
+            warnings.warn(f"Skipping {item}: {exc}", RuntimeWarning, stacklevel=2)
