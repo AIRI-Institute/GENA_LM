@@ -7,6 +7,7 @@ import importlib.util
 import logging
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
@@ -20,6 +21,38 @@ from .variants import Variant
 
 _TSS_WORKER_GENOME = None
 _TSS_WORKER_TOKENIZER = None
+
+GroupingMode = Literal["serial", "no_grouping", "condition", "sequence", "auto"]
+
+
+@dataclass(frozen=True)
+class _ForwardBatch:
+    """One model forward call and the rows it produces."""
+
+    indices: tuple[int, ...]
+    grouping: str
+    group_key_kind: str
+    group_key: str
+    dataset_flag_shape: tuple[int, int]
+    dataset_flag_meaning: str
+
+
+def _progress(
+    items: Iterable[Any],
+    *,
+    total: int,
+    description: str,
+    enabled: bool,
+    unit: str,
+) -> Iterable[Any]:
+    """Wrap meaningful multi-item work in a tqdm progress bar."""
+
+    if not enabled or total < 2:
+        return items
+
+    from tqdm.auto import tqdm
+
+    return tqdm(items, total=total, desc=description, unit=unit)
 
 
 def _tss_worker_init(genome_config: Mapping[str, Any], tokenizer_config: Mapping[str, Any]) -> None:
@@ -337,16 +370,44 @@ class SequenceModel:
         return device_type, device_type == "cuda"
 
     @staticmethod
-    def _map_preprocessing(func: Any, items: Sequence[Any], preprocessing_workers: int) -> list[Any]:
+    def _map_preprocessing(
+        func: Any,
+        items: Sequence[Any],
+        preprocessing_workers: int,
+        *,
+        show_progress: bool = False,
+        progress_description: str = "Preprocessing",
+    ) -> list[Any]:
+        """Map CPU preprocessing while preserving input order."""
+
         if preprocessing_workers < 0:
             raise ValueError("preprocessing_workers must be non-negative.")
+        item_list = list(items)
         if preprocessing_workers <= 1 or len(items) < 2:
-            return [func(item) for item in items]
+            iterator = _progress(
+                item_list,
+                total=len(item_list),
+                description=progress_description,
+                enabled=show_progress,
+                unit="item",
+            )
+            return [func(item) for item in iterator]
 
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
         with ThreadPoolExecutor(max_workers=int(preprocessing_workers)) as executor:
-            return list(executor.map(func, items))
+            futures = {executor.submit(func, item): idx for idx, item in enumerate(item_list)}
+            output: list[Any] = [None] * len(item_list)
+            completed = _progress(
+                as_completed(futures),
+                total=len(futures),
+                description=progress_description,
+                enabled=show_progress,
+                unit="item",
+            )
+            for future in completed:
+                output[futures[future]] = future.result()
+            return output
 
     @staticmethod
     def _as_sequence_list(sequences: AnnotatedSequence | str | Iterable[AnnotatedSequence | str]) -> list[AnnotatedSequence | str]:
@@ -409,7 +470,11 @@ class SequenceModel:
         tasks: Sequence[tuple[AnnotatedSequence | str, int | str | Feature, str]],
         *,
         preprocessing_workers: int = 0,
+        show_progress: bool = False,
+        progress_description: str = "Tokenizing DNA",
     ) -> list[TokenizedSequence]:
+        """Tokenize unique DNA tasks and restore the original row order."""
+
         task_list = list(tasks)
         unique_tasks: list[tuple[AnnotatedSequence | str, int | str | Feature, str]] = []
         unique_keys: list[tuple[Any, ...]] = []
@@ -427,7 +492,14 @@ class SequenceModel:
             sequence, center, strand = task
             return self.tokenize_sequence(sequence, center=center, strand=strand)
 
-        tokenized_unique = self._map_preprocessing(tokenize, unique_tasks, preprocessing_workers)
+        self.logger.info("%s: %d unique sequence(s)", progress_description, len(unique_tasks))
+        tokenized_unique = self._map_preprocessing(
+            tokenize,
+            unique_tasks,
+            preprocessing_workers,
+            show_progress=show_progress,
+            progress_description=progress_description,
+        )
         tokenized_by_key = dict(zip(unique_keys, tokenized_unique))
         return [tokenized_by_key[key] for key in row_keys]
 
@@ -436,7 +508,11 @@ class SequenceModel:
         conditions: Sequence[Condition],
         *,
         preprocessing_workers: int = 0,
+        show_progress: bool = False,
+        progress_description: str = "Tokenizing descriptions",
     ) -> list[dict[str, Any]]:
+        """Tokenize unique descriptions and restore the original row order."""
+
         unique_conditions: list[Condition] = []
         unique_keys: list[str] = []
         seen: set[str] = set()
@@ -448,7 +524,14 @@ class SequenceModel:
                 seen.add(key)
                 unique_keys.append(key)
                 unique_conditions.append(condition)
-        encoded_unique = self._map_preprocessing(self.tokenize_description, unique_conditions, preprocessing_workers)
+        self.logger.info("%s: %d unique description(s)", progress_description, len(unique_conditions))
+        encoded_unique = self._map_preprocessing(
+            self.tokenize_description,
+            unique_conditions,
+            preprocessing_workers,
+            show_progress=show_progress,
+            progress_description=progress_description,
+        )
         encoded_by_key = dict(zip(unique_keys, encoded_unique))
         return [encoded_by_key[key] for key in row_keys]
 
@@ -491,7 +574,7 @@ class SequenceModel:
         tokenized_sequences: Sequence[TokenizedSequence],
         desc_encodings: Sequence[dict[str, Any]],
     ):
-        """Run row-wise pairs with ``B=len(rows), N=1`` and no duplicate shortcut."""
+        """Run batched row-wise pairs with ``B=len(rows), N=1`` and no shortcut."""
 
         import torch
 
@@ -591,6 +674,24 @@ class SequenceModel:
             )
 
     @staticmethod
+    def _logits_to_cpu(model_output: Any) -> Any:
+        """Detach model logits and move them off CUDA as soon as possible."""
+
+        return model_output.logits.detach().cpu()
+
+    @staticmethod
+    def clear_cuda_cache() -> None:
+        """Release unused CUDA cache after model outputs have been copied to CPU."""
+
+        import gc
+        import torch
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
+    @staticmethod
     def _expression_from_logits(logits: Any) -> Any:
         """Extract expression output using the attached first-token convention."""
 
@@ -601,7 +702,7 @@ class SequenceModel:
         tokenized: TokenizedSequence,
         condition_obj: Condition,
         *,
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         return_tokens: bool = True,
     ) -> ExpressionPrediction:
         """Run one already-tokenized sequence/condition row."""
@@ -610,6 +711,8 @@ class SequenceModel:
             [tokenized],
             [condition_obj],
             grouping=grouping,
+            prefetch_batches=0,
+            show_progress=False,
             batch_method="predict_sequence",
             return_tokens=return_tokens,
         )[0]
@@ -622,7 +725,7 @@ class SequenceModel:
         condition: Condition | str | Mapping[str, Any],
         center: int | str | Feature = "tss",
         strand: str = "+",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         return_tokens: bool = True,
     ) -> ExpressionPrediction:
         """Predict expression for one sequence under one condition."""
@@ -636,27 +739,103 @@ class SequenceModel:
             return_tokens=return_tokens,
         )
 
-    def _predict_many_tokenized_sequences(
+    def _predict_sequence_tasks(
         self,
-        tokenized_sequences: Sequence[TokenizedSequence],
+        tasks: Sequence[tuple[AnnotatedSequence | str, int | str | Feature, str]],
         conditions: Sequence[Condition],
         *,
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode,
+        preprocessing_workers: int,
+        max_records_per_forward: int | None,
+        prefetch_batches: int,
+        show_progress: bool,
+        batch_method: str,
+        progress_description: str,
+        return_tokens: bool = True,
+        description_cache: dict[str, dict[str, Any]] | None = None,
+    ) -> list[Prediction]:
+        """Predict raw sequence tasks, pipelining DNA when grouping permits it."""
+
+        task_list = list(tasks)
+        sequence_tasks = None
+        if grouping in {"sequence", "auto"}:
+            dna_stage = {
+                "many_pair_refs": "Tokenizing references",
+                "many_pair_alts": "Tokenizing alternatives",
+            }.get(batch_method, "Tokenizing DNA")
+            tokenized: list[TokenizedSequence | None] = list(
+                self._tokenize_sequence_tasks(
+                    task_list,
+                    preprocessing_workers=preprocessing_workers,
+                    show_progress=show_progress,
+                    progress_description=dna_stage,
+                )
+            )
+        else:
+            # These modes can plan batches without seeing DNA token IDs first.
+            tokenized = [None] * len(task_list)
+            sequence_tasks = task_list
+
+        return self._predict_many_tokenized_sequences(
+            tokenized,
+            conditions,
+            grouping=grouping,
+            preprocessing_workers=preprocessing_workers,
+            max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
+            batch_method=batch_method,
+            progress_description=progress_description,
+            return_tokens=return_tokens,
+            description_cache=description_cache,
+            sequence_tasks=sequence_tasks,
+        )
+
+    def _predict_many_tokenized_sequences(
+        self,
+        tokenized_sequences: Sequence[TokenizedSequence | None],
+        conditions: Sequence[Condition],
+        *,
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         batch_method: str,
+        progress_description: str | None = None,
         return_tokens: bool = True,
         extra_provenance: Mapping[str, Any] | None = None,
+        description_cache: dict[str, dict[str, Any]] | None = None,
+        sequence_tasks: Sequence[tuple[AnnotatedSequence | str, int | str | Feature, str]] | None = None,
     ) -> list[Prediction]:
-        """Core row-wise prediction implementation for already-tokenized sequences."""
+        """Core row-wise prediction implementation for already-tokenized sequences.
+
+        ``serial`` runs one independent pair per forward. ``no_grouping`` keeps
+        the same no-shortcut model semantics but batches independent pairs.
+        DNA and description tokenization are prefetched while the GPU runs the
+        current batch when grouping permits it. ``prefetch_batches=0`` disables
+        look-ahead.
+        """
+
+        from collections import deque
+        from concurrent.futures import Future, ThreadPoolExecutor
 
         tokenized_list = list(tokenized_sequences)
         condition_list = list(conditions)
         if len(tokenized_list) != len(condition_list):
             raise ValueError("tokenized_sequences and conditions must have the same length.")
+        task_list = list(sequence_tasks) if sequence_tasks is not None else None
+        if task_list is not None and len(task_list) != len(condition_list):
+            raise ValueError("sequence_tasks and conditions must have the same length.")
+        if task_list is None and any(tokenized is None for tokenized in tokenized_list):
+            raise ValueError("Missing tokenized sequences without sequence_tasks to prepare them.")
         if not tokenized_list:
             return []
-        valid_grouping = {"no_grouping", "condition", "sequence", "auto"}
+        if preprocessing_workers < 0:
+            raise ValueError("preprocessing_workers must be non-negative.")
+        if prefetch_batches < 0:
+            raise ValueError("prefetch_batches must be non-negative.")
+        valid_grouping = {"serial", "no_grouping", "condition", "sequence", "auto"}
         if grouping not in valid_grouping:
             raise ValueError(f"grouping must be one of {sorted(valid_grouping)}, got {grouping!r}.")
 
@@ -664,15 +843,12 @@ class SequenceModel:
         for idx, condition in enumerate(condition_list):
             condition_groups.setdefault(self._grouping_key_for_condition(condition), []).append(idx)
 
-        no_shortcut_condition_groups: dict[tuple[str, str], list[int]] = {}
-        for idx, condition in enumerate(condition_list):
-            no_shortcut_condition_groups.setdefault(self._forward_grouping_key_for_condition(condition), []).append(idx)
-
         sequence_groups: dict[tuple[int, ...], list[int]] = {}
-        for idx, tokenized in enumerate(tokenized_list):
-            sequence_groups.setdefault(self._tokenized_sequence_key(tokenized), []).append(idx)
-
-        desc_encoded_list = self._tokenize_descriptions(condition_list, preprocessing_workers=preprocessing_workers)
+        if grouping in {"sequence", "auto"}:
+            for idx, tokenized in enumerate(tokenized_list):
+                if tokenized is None:
+                    raise RuntimeError("sequence and auto grouping require tokenized DNA before batch planning.")
+                sequence_groups.setdefault(self._tokenized_sequence_key(tokenized), []).append(idx)
 
         resolved_grouping = grouping
         if grouping == "auto":
@@ -685,102 +861,217 @@ class SequenceModel:
             else:
                 resolved_grouping = "condition"
 
+        batches: list[_ForwardBatch] = []
+        if resolved_grouping == "serial":
+            for idx in range(len(tokenized_list)):
+                batches.append(
+                    _ForwardBatch(
+                        indices=(idx,),
+                        grouping="serial",
+                        group_key_kind="row_index",
+                        group_key=str(idx),
+                        dataset_flag_shape=(1, 1),
+                        dataset_flag_meaning="serial execution; one independent pair per forward",
+                    )
+                )
+        elif resolved_grouping == "no_grouping":
+            for chunk in self._chunks(list(range(len(tokenized_list))), max_records_per_forward):
+                batches.append(
+                    _ForwardBatch(
+                        indices=tuple(chunk),
+                        grouping="no_grouping",
+                        group_key_kind="row_batch",
+                        group_key=f"{chunk[0]}:{chunk[-1]}",
+                        dataset_flag_shape=(len(chunk), 1),
+                        dataset_flag_meaning="batched independent pairs; no sequence or condition shortcut",
+                    )
+                )
+        elif resolved_grouping == "condition":
+            for condition_key, indices in condition_groups.items():
+                for chunk in self._chunks(indices, max_records_per_forward):
+                    batches.append(
+                        _ForwardBatch(
+                            indices=tuple(chunk),
+                            grouping="condition",
+                            group_key_kind="condition_text",
+                            group_key=condition_key,
+                            dataset_flag_shape=(1, len(chunk)),
+                            dataset_flag_meaning="condition repeated; encode description once and reuse for DNA rows",
+                        )
+                    )
+        elif resolved_grouping == "sequence":
+            for indices in sequence_groups.values():
+                first_tokenized = tokenized_list[indices[0]]
+                assert first_tokenized is not None
+                sequence_name = first_tokenized.source.name or f"sequence_index:{indices[0]}"
+                for chunk in self._chunks(indices, max_records_per_forward):
+                    batches.append(
+                        _ForwardBatch(
+                            indices=tuple(chunk),
+                            grouping="sequence",
+                            group_key_kind="tokenized_sequence",
+                            group_key=str(sequence_name),
+                            dataset_flag_shape=(1, len(chunk)),
+                            dataset_flag_meaning="DNA repeated; encode sequence once and reuse for descriptions",
+                        )
+                    )
+        else:
+            raise RuntimeError(f"Unexpected resolved grouping: {resolved_grouping!r}")
+
         output: list[Prediction | None] = [None] * len(tokenized_list)
         forward_group_id = 0
         extra = dict(extra_provenance or {})
+        encoded_by_key = description_cache if description_cache is not None else {}
 
         def store_predictions(
-            indices: Sequence[int],
+            batch: _ForwardBatch,
             logits: Any,
-            *,
-            grouping_used: str,
-            group_key_kind: str,
-            group_key: str,
-            dataset_flag_shape: tuple[int, int],
-            dataset_flag_meaning: str,
+            desc_encodings: Sequence[dict[str, Any]],
         ) -> None:
             nonlocal forward_group_id
-            for row_pos, idx in enumerate(indices):
+            for row_pos, (idx, desc_encoded) in enumerate(zip(batch.indices, desc_encodings)):
+                tokenized = tokenized_list[idx]
+                assert tokenized is not None
                 row_logits = logits[row_pos : row_pos + 1]
                 expression = self._expression_from_logits(row_logits)
                 prediction = Prediction(
-                    sequence=tokenized_list[idx].source,
+                    sequence=tokenized.source,
                     condition=condition_list[idx],
                     logits=row_logits,
                     outputs={"expression": expression, "logits": row_logits},
-                    tokens=tokenized_list[idx] if return_tokens else None,
+                    tokens=tokenized if return_tokens else None,
                     provenance={
                         **self.provenance,
                         **extra,
                         "batch_method": batch_method,
                         "grouping": grouping,
-                        "resolved_grouping": grouping_used,
-                        "group_key_kind": group_key_kind,
-                        "group_key": group_key,
+                        "resolved_grouping": batch.grouping,
+                        "group_key_kind": batch.group_key_kind,
+                        "group_key": batch.group_key,
                         "forward_group_id": forward_group_id,
-                        "group_size": len(indices),
-                        "dataset_flag_shape": dataset_flag_shape,
-                        "dataset_flag_meaning": dataset_flag_meaning,
+                        "group_size": len(batch.indices),
+                        "dataset_flag_shape": batch.dataset_flag_shape,
+                        "dataset_flag_meaning": batch.dataset_flag_meaning,
                         "max_records_per_forward": max_records_per_forward,
+                        "prefetch_batches": prefetch_batches,
+                        "preprocessing_workers": preprocessing_workers,
                         "record_index": idx,
                     },
                 )
-                output[idx] = self._attach_description_tokens(prediction, desc_encoded_list[idx])
+                output[idx] = self._attach_description_tokens(prediction, desc_encoded)
             forward_group_id += 1
 
-        if resolved_grouping == "no_grouping":
-            for condition_key, indices in no_shortcut_condition_groups.items():
-                for chunk in self._chunks(indices, max_records_per_forward):
-                    model_output = self._run_tokenized_no_grouping(
-                        [tokenized_list[idx] for idx in chunk],
-                        [desc_encoded_list[idx] for idx in chunk],
-                    )
-                    store_predictions(
-                        chunk,
-                        model_output.logits.detach().cpu(),
-                        grouping_used="no_grouping",
-                        group_key_kind="condition_identity",
-                        group_key=f"{condition_key[0]}:{condition_key[1]}",
-                        dataset_flag_shape=(len(chunk), 1),
-                        dataset_flag_meaning="notebook-compatible layout; B=len(rows for one condition), N=1",
-                    )
-        elif resolved_grouping == "condition":
-            for condition_key, indices in condition_groups.items():
-                desc_encoded = desc_encoded_list[indices[0]]
-                for chunk in self._chunks(indices, max_records_per_forward):
-                    model_output = self._run_tokenized_repeated_condition(
-                        [tokenized_list[idx] for idx in chunk],
-                        desc_encoded,
-                    )
-                    store_predictions(
-                        chunk,
-                        model_output.logits.detach().cpu(),
-                        grouping_used="condition",
-                        group_key_kind="condition_text",
-                        group_key=condition_key,
-                        dataset_flag_shape=(1, len(chunk)),
-                        dataset_flag_meaning="condition repeated; encode description once and reuse for DNA rows",
-                    )
-        elif resolved_grouping == "sequence":
-            for sequence_key, indices in sequence_groups.items():
-                sequence_name = tokenized_list[indices[0]].source.name or f"sequence_index:{indices[0]}"
-                for chunk in self._chunks(indices, max_records_per_forward):
-                    model_output = self._run_tokenized_same_sequence(
-                        tokenized_list[chunk[0]],
-                        [desc_encoded_list[idx] for idx in chunk],
-                    )
-                    store_predictions(
-                        chunk,
-                        model_output.logits.detach().cpu(),
-                        grouping_used="sequence",
-                        group_key_kind="tokenized_sequence",
-                        group_key=str(sequence_name),
-                        dataset_flag_shape=(1, len(chunk)),
-                        dataset_flag_meaning="DNA repeated; encode sequence once and reuse for descriptions",
-                    )
-        else:
-            raise RuntimeError(f"Unexpected resolved grouping: {resolved_grouping!r}")
+        def prefetched_batches():
+            """Yield batches while CPU threads prepare future DNA and descriptions."""
 
+            if not batches:
+                return
+
+            pending: deque[Any] = deque()
+            desc_in_flight: dict[str, Future[Any]] = {}
+            sequence_by_key: dict[tuple[Any, ...], TokenizedSequence] = {}
+            sequence_in_flight: dict[tuple[Any, ...], Future[Any]] = {}
+            next_batch = 0
+
+            with ThreadPoolExecutor(max_workers=max(1, int(preprocessing_workers))) as executor:
+
+                def submit(batch: _ForwardBatch) -> None:
+                    sequence_work = []
+                    description_work = []
+                    for idx in batch.indices:
+                        sequence_key = None
+                        sequence_future = None
+                        if tokenized_list[idx] is None:
+                            assert task_list is not None
+                            task = task_list[idx]
+                            sequence_key = self._sequence_task_key(*task)
+                            sequence_future = sequence_in_flight.get(sequence_key)
+                            if sequence_key not in sequence_by_key and sequence_future is None:
+                                sequence_future = executor.submit(
+                                    self.tokenize_sequence,
+                                    task[0],
+                                    center=task[1],
+                                    strand=task[2],
+                                )
+                                sequence_in_flight[sequence_key] = sequence_future
+                        sequence_work.append((sequence_key, sequence_future))
+
+                        desc_key = self._grouping_key_for_condition(condition_list[idx])
+                        desc_future = None
+                        if desc_key not in encoded_by_key:
+                            desc_future = desc_in_flight.get(desc_key)
+                            if desc_future is None:
+                                desc_future = executor.submit(self.tokenize_description, condition_list[idx])
+                                desc_in_flight[desc_key] = desc_future
+                        description_work.append((desc_key, desc_future))
+                    pending.append((batch, sequence_work, description_work))
+
+                initial_count = min(len(batches), prefetch_batches + 1)
+                for _ in range(initial_count):
+                    submit(batches[next_batch])
+                    next_batch += 1
+
+                while pending:
+                    batch, sequence_work, description_work = pending.popleft()
+                    tokenized_batch: list[TokenizedSequence] = []
+                    for idx, (key, future) in zip(batch.indices, sequence_work):
+                        if tokenized_list[idx] is None:
+                            assert key is not None
+                            if key not in sequence_by_key:
+                                assert future is not None
+                                sequence_by_key[key] = future.result()
+                                sequence_in_flight.pop(key, None)
+                            tokenized_list[idx] = sequence_by_key[key]
+                        tokenized = tokenized_list[idx]
+                        assert tokenized is not None
+                        tokenized_batch.append(tokenized)
+
+                    desc_encodings = []
+                    for key, future in description_work:
+                        if key not in encoded_by_key:
+                            assert future is not None
+                            encoded_by_key[key] = future.result()
+                            desc_in_flight.pop(key, None)
+                        desc_encodings.append(encoded_by_key[key])
+
+                    yield batch, tokenized_batch, desc_encodings
+
+                    # Refill only after the current GPU forward has finished.
+                    if next_batch < len(batches):
+                        submit(batches[next_batch])
+                        next_batch += 1
+
+        stage = progress_description or batch_method.replace("_", " ").title()
+        self.logger.info(
+            "%s: %d row(s), %d forward batch(es), grouping=%s, prefetch=%d",
+            stage,
+            len(tokenized_list),
+            len(batches),
+            resolved_grouping,
+            prefetch_batches,
+        )
+        try:
+            prepared = prefetched_batches()
+            for batch, tokenized_batch, desc_encodings in _progress(
+                prepared,
+                total=len(batches),
+                description=stage,
+                enabled=show_progress,
+                unit="batch",
+            ):
+                if batch.grouping in {"serial", "no_grouping"}:
+                    model_output = self._run_tokenized_no_grouping(tokenized_batch, desc_encodings)
+                elif batch.grouping == "condition":
+                    model_output = self._run_tokenized_repeated_condition(tokenized_batch, desc_encodings[0])
+                elif batch.grouping == "sequence":
+                    model_output = self._run_tokenized_same_sequence(tokenized_batch[0], desc_encodings)
+                else:
+                    raise RuntimeError(f"Unexpected forward grouping: {batch.grouping!r}")
+                store_predictions(batch, self._logits_to_cpu(model_output), desc_encodings)
+        finally:
+            self.clear_cuda_cache()
+
+        self.logger.info("%s complete", stage)
         return [prediction for prediction in output if prediction is not None]
 
     def predict_multiple_sequences(
@@ -791,29 +1082,31 @@ class SequenceModel:
         condition: Condition | str | Mapping[str, Any] | None = None,
         center: int | str | Feature = "tss",
         strand: str = "+",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         return_tokens: bool = True,
     ) -> list[ExpressionPrediction]:
         """Predict expression for sequence/condition rows.
 
         Accepts many sequences with one condition, one sequence with many
-        conditions, or paired sequence/condition rows.
+        conditions, or paired sequence/condition rows. Future CPU batches are
+        prepared by worker threads while the GPU runs.
         """
 
         sequence_list, condition_list = self._sequence_condition_rows(sequences, conditions, condition)
-        tokenized = self._tokenize_sequence_tasks(
+        predictions = self._predict_sequence_tasks(
             [(sequence, center, strand) for sequence in sequence_list],
-            preprocessing_workers=preprocessing_workers,
-        )
-        predictions = self._predict_many_tokenized_sequences(
-            tokenized,
             condition_list,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             batch_method="predict_multiple_sequences",
+            progress_description="Predicting sequences",
             return_tokens=return_tokens,
         )
         return [self._to_expression_prediction(prediction) for prediction in predictions]
@@ -825,9 +1118,11 @@ class SequenceModel:
         condition: Condition | str | Mapping[str, Any],
         center: int | str | Feature = "tss",
         strand: str = "+",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         return_tokens: bool = True,
     ) -> list[ExpressionPrediction]:
         """Predict many sequences under one condition."""
@@ -840,6 +1135,8 @@ class SequenceModel:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             return_tokens=return_tokens,
         )
 
@@ -850,9 +1147,11 @@ class SequenceModel:
         *,
         center: int | str | Feature = "tss",
         strand: str = "+",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         return_tokens: bool = True,
     ) -> list[ExpressionPrediction]:
         """Predict one sequence under many conditions."""
@@ -865,6 +1164,8 @@ class SequenceModel:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             return_tokens=return_tokens,
         )
 
@@ -874,7 +1175,7 @@ class SequenceModel:
         *,
         condition: Condition | str | Mapping[str, Any],
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
     ) -> PairPrediction:
         """Predict reference and alternative sequences for a sequence pair."""
 
@@ -883,6 +1184,8 @@ class SequenceModel:
             condition=condition,
             center=center,
             grouping=grouping,
+            prefetch_batches=0,
+            show_progress=False,
         )[0]
 
     def _predict_multiple_pairs_one_condition(
@@ -891,9 +1194,11 @@ class SequenceModel:
         *,
         condition: Condition | str | Mapping[str, Any],
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
     ) -> list[PairPrediction]:
         """Predict many reference/alternative pairs under one condition."""
 
@@ -904,6 +1209,8 @@ class SequenceModel:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
         )
 
     def predict_multiple_pairs(
@@ -913,11 +1220,13 @@ class SequenceModel:
         *,
         condition: Condition | str | Mapping[str, Any] | None = None,
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
     ) -> list[PairPrediction]:
-        """Predict row-wise sequence-pair/condition batches."""
+        """Predict row-wise pairs with bounded CPU preprocessing look-ahead."""
 
         pair_list = list(pairs)
         condition_list = self._broadcast_conditions(len(pair_list), conditions, condition)
@@ -925,32 +1234,35 @@ class SequenceModel:
             return []
 
         centers = [self._pair_center_or_variant(pair, center) for pair in pair_list]
-        ref_tokenized = self._tokenize_sequence_tasks(
-            [(pair.ref, pair_center, "+") for pair, pair_center in zip(pair_list, centers)],
-            preprocessing_workers=preprocessing_workers,
-        )
-        alt_tokenized = self._tokenize_sequence_tasks(
-            [(pair.alt, pair_center, "+") for pair, pair_center in zip(pair_list, centers)],
-            preprocessing_workers=preprocessing_workers,
-        )
+        ref_tasks = [(pair.ref, pair_center, "+") for pair, pair_center in zip(pair_list, centers)]
+        alt_tasks = [(pair.alt, pair_center, "+") for pair, pair_center in zip(pair_list, centers)]
 
-        ref_predictions = self._predict_many_tokenized_sequences(
-            ref_tokenized,
+        description_cache: dict[str, dict[str, Any]] = {}
+        ref_predictions = self._predict_sequence_tasks(
+            ref_tasks,
             condition_list,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             batch_method="many_pair_refs",
+            progress_description="Predicting references",
             return_tokens=True,
+            description_cache=description_cache,
         )
-        alt_predictions = self._predict_many_tokenized_sequences(
-            alt_tokenized,
+        alt_predictions = self._predict_sequence_tasks(
+            alt_tasks,
             condition_list,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             batch_method="many_pair_alts",
+            progress_description="Predicting alternatives",
             return_tokens=True,
+            description_cache=description_cache,
         )
         return [
             PairPrediction(
@@ -998,7 +1310,7 @@ class SequenceModel:
         coordinate_system: Literal["0-based", "1-based"] = "0-based",
         include_features: bool = True,
         center_feature_name: str = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
         return_sequence: bool = True,
@@ -1018,6 +1330,8 @@ class SequenceModel:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=0,
+            show_progress=False,
             return_sequence=return_sequence,
         )[0]
 
@@ -1046,10 +1360,6 @@ class SequenceModel:
     @staticmethod
     def _grouping_key_for_condition(condition: Condition) -> str:
         return condition.text()
-
-    @staticmethod
-    def _forward_grouping_key_for_condition(condition: Condition) -> tuple[str, str]:
-        return condition.name, condition.text()
 
     @staticmethod
     def _worker_genome_config(genome: Any) -> dict[str, Any]:
@@ -1095,6 +1405,7 @@ class SequenceModel:
         include_features: bool,
         center_feature_name: str,
         preprocessing_workers: int,
+        show_progress: bool,
     ) -> list[TokenizedSequence]:
         """Build and tokenize TSS-centered sequences, optionally in worker processes."""
 
@@ -1128,8 +1439,16 @@ class SequenceModel:
             )
 
         output: list[TokenizedSequence | None] = [None] * len(tasks)
+        self.logger.info("Building and tokenizing %d TSS record(s)", len(tasks))
         if preprocessing_workers <= 0:
-            for task in tasks:
+            task_iterator = _progress(
+                tasks,
+                total=len(tasks),
+                description="Preparing TSS records",
+                enabled=show_progress,
+                unit="record",
+            )
+            for task in task_iterator:
                 sequence = genome.sequence_around(
                     task["chrom"],
                     task["tss0"],
@@ -1150,7 +1469,15 @@ class SequenceModel:
                 initializer=_tss_worker_init,
                 initargs=(self._worker_genome_config(genome), self._worker_tokenizer_config()),
             ) as pool:
-                for idx, tokenized in pool.imap_unordered(_tss_worker_tokenize, tasks, chunksize=chunksize):
+                completed = pool.imap_unordered(_tss_worker_tokenize, tasks, chunksize=chunksize)
+                completed = _progress(
+                    completed,
+                    total=len(tasks),
+                    description="Preparing TSS records",
+                    enabled=show_progress,
+                    unit="record",
+                )
+                for idx, tokenized in completed:
                     output[idx] = tokenized
 
         return [tokenized for tokenized in output if tokenized is not None]
@@ -1166,9 +1493,11 @@ class SequenceModel:
         coordinate_system: Literal["0-based", "1-based"] = "0-based",
         include_features: bool = True,
         center_feature_name: str = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         return_sequence: bool = True,
     ) -> list[ExpressionPrediction]:
         """Predict expression for paired TSS records and conditions.
@@ -1191,6 +1520,7 @@ class SequenceModel:
             include_features=include_features,
             center_feature_name=center_feature_name,
             preprocessing_workers=preprocessing_workers,
+            show_progress=show_progress,
         )
         if len(tokenized_list) != len(record_list):
             raise RuntimeError("TSS preprocessing did not return one tokenized sequence per record.")
@@ -1201,9 +1531,15 @@ class SequenceModel:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
             batch_method="predict_multiple_tss",
+            progress_description="Predicting TSS records",
             return_tokens=True,
-            extra_provenance={"preprocessing_workers": preprocessing_workers},
+            extra_provenance={
+                "preprocessing_workers": preprocessing_workers,
+                "prefetch_batches": prefetch_batches,
+            },
         )
         return [self._to_expression_prediction(prediction, return_sequence=return_sequence) for prediction in predictions]
 
@@ -1213,6 +1549,7 @@ class VariantInterpreter:
 
     def __init__(self, model: SequenceModel) -> None:
         self.model = model
+        self.logger = logging.getLogger(__name__)
 
     def score_variant(
         self,
@@ -1223,7 +1560,7 @@ class VariantInterpreter:
         scorer: Any,
         genome: Any | None = None,
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
         **sequence_pair_kwargs: Any,
     ) -> ScoringResult | VariantReport:
@@ -1256,9 +1593,11 @@ class VariantInterpreter:
         scorer: Any,
         genome: Any | None = None,
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         coordinate_system: Literal["auto", "0-based", "1-based"] = "auto",
         on_error: Literal["raise", "warn", "skip", "exit"] = "raise",
         **sequence_pair_kwargs: Any,
@@ -1273,7 +1612,15 @@ class VariantInterpreter:
 
         if on_error in {"warn", "skip"}:
             results: list[ScoringResult | VariantReport] = []
-            for idx, (record, row_condition) in enumerate(zip(record_list, condition_list)):
+            rows = enumerate(zip(record_list, condition_list))
+            rows = _progress(
+                rows,
+                total=len(record_list),
+                description="Scoring variants",
+                enabled=show_progress,
+                unit="variant",
+            )
+            for idx, (record, row_condition) in rows:
                 try:
                     pair, label = self._pair_from_variant_record(
                         record,
@@ -1293,6 +1640,8 @@ class VariantInterpreter:
                             grouping=grouping,
                             preprocessing_workers=preprocessing_workers,
                             max_records_per_forward=max_records_per_forward,
+                            prefetch_batches=prefetch_batches,
+                            show_progress=False,
                         )
                     )
                 except Exception as exc:
@@ -1302,7 +1651,14 @@ class VariantInterpreter:
         try:
             pairs: list[SequencePair] = []
             labels: list[str] = []
-            for idx, record in enumerate(record_list):
+            records_with_index = _progress(
+                enumerate(record_list),
+                total=len(record_list),
+                description="Building variant pairs",
+                enabled=show_progress,
+                unit="variant",
+            )
+            for idx, record in records_with_index:
                 pair, label = self._pair_from_variant_record(
                     record,
                     context=context,
@@ -1322,6 +1678,8 @@ class VariantInterpreter:
                 grouping=grouping,
                 preprocessing_workers=preprocessing_workers,
                 max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
             )
         except Exception as exc:
             self._handle_scoring_error(exc, item="variant batch", on_error=on_error)
@@ -1334,7 +1692,7 @@ class VariantInterpreter:
         condition: Condition | str | Mapping[str, Any],
         scorer: Any,
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         label: str | None = None,
     ) -> ScoringResult | VariantReport:
         """Predict and score an already materialized sequence pair."""
@@ -1346,6 +1704,8 @@ class VariantInterpreter:
             scorer=scorer,
             center=center,
             grouping=grouping,
+            prefetch_batches=0,
+            show_progress=False,
         )[0]
 
     def score_sequence_pairs(
@@ -1356,9 +1716,11 @@ class VariantInterpreter:
         condition: Condition | str | Mapping[str, Any] | None = None,
         scorer: Any,
         center: int | str | Feature = "tss",
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"] = "no_grouping",
+        grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
         on_error: Literal["raise", "warn", "skip", "exit"] = "raise",
     ) -> list[ScoringResult | VariantReport]:
         """Score sequence pairs with one broadcast condition or row-wise conditions."""
@@ -1372,7 +1734,15 @@ class VariantInterpreter:
 
         if on_error in {"warn", "skip"}:
             results: list[ScoringResult | VariantReport] = []
-            for pair, row_condition, label in zip(pair_list, condition_list, labels):
+            rows = zip(pair_list, condition_list, labels)
+            rows = _progress(
+                rows,
+                total=len(pair_list),
+                description="Scoring pairs",
+                enabled=show_progress,
+                unit="pair",
+            )
+            for pair, row_condition, label in rows:
                 try:
                     results.extend(
                         self._score_pairs(
@@ -1384,6 +1754,8 @@ class VariantInterpreter:
                             grouping=grouping,
                             preprocessing_workers=preprocessing_workers,
                             max_records_per_forward=max_records_per_forward,
+                            prefetch_batches=prefetch_batches,
+                            show_progress=False,
                         )
                     )
                 except Exception as exc:
@@ -1400,6 +1772,8 @@ class VariantInterpreter:
                 grouping=grouping,
                 preprocessing_workers=preprocessing_workers,
                 max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
             )
         except Exception as exc:
             self._handle_scoring_error(exc, item="sequence-pair batch", on_error=on_error)
@@ -1413,10 +1787,14 @@ class VariantInterpreter:
         *,
         scorer: Any,
         center: int | str | Feature,
-        grouping: Literal["no_grouping", "condition", "sequence", "auto"],
+        grouping: GroupingMode,
         preprocessing_workers: int = 0,
         max_records_per_forward: int | None = None,
+        prefetch_batches: int = 1,
+        show_progress: bool = True,
     ) -> list[ScoringResult | VariantReport]:
+        """Predict a batch, then score its CPU predictions in order."""
+
         predictions = self.model.predict_multiple_pairs(
             pairs,
             conditions=conditions,
@@ -1424,11 +1802,19 @@ class VariantInterpreter:
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
             max_records_per_forward=max_records_per_forward,
+            prefetch_batches=prefetch_batches,
+            show_progress=show_progress,
         )
-        return [
-            self._name_scoring_output(scorer.score(prediction), label=label)
-            for prediction, label in zip(predictions, labels)
-        ]
+        scorer_name = getattr(scorer, "name", type(scorer).__name__)
+        self.logger.info("Scoring %d pair(s) with %s", len(predictions), scorer_name)
+        rows = _progress(
+            zip(predictions, labels),
+            total=len(predictions),
+            description=f"Scoring {scorer_name}",
+            enabled=show_progress,
+            unit="pair",
+        )
+        return [self._name_scoring_output(scorer.score(prediction), label=label) for prediction, label in rows]
 
     def _pair_from_variant_record(
         self,

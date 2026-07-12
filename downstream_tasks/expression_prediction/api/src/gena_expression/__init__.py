@@ -11,13 +11,14 @@ from .plasmids import (
     PlasmidRecord,
     infer_table18_primer_tails,
 )
-from .predictions import ExpressionPrediction, PairPrediction, Prediction, TrackPrediction
-from .results import ScoringResult, ScoreWindow, VariantReport
+from .predictions import ExpressionPrediction, PairPrediction, Prediction, Track, TrackPrediction
+from .results import DisplayWindow, ScoringResult, ScoreWindow, VariantReport
 from .scorers import (
     ExpressionDeltaScorer,
     RegressionScorer,
     ScorerSet,
     TokenWindowScorer,
+    TrackAllFeaturesScorer,
     TrackFeatureBuilder,
     TrackFeatureScorer,
     TrackWindowScorer,
@@ -41,6 +42,7 @@ __all__ = [
     "CoordinateMap",
     "CoordinateSegment",
     "DescriptionLookup",
+    "DisplayWindow",
     "ExpressionDeltaScorer",
     "ExpressionPrediction",
     "Feature",
@@ -65,6 +67,8 @@ __all__ = [
     "SourceCoordinate",
     "TokenWindowScorer",
     "TokenizedSequence",
+    "Track",
+    "TrackAllFeaturesScorer",
     "TrackFeatureBuilder",
     "TrackFeatureScorer",
     "TrackPrediction",

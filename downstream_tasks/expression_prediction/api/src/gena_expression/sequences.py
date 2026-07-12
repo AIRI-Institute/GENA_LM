@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Literal, Mapping, Sequence
 
 
 _COMPLEMENT = str.maketrans("ACGTNacgtn", "TGCANtgcan")
@@ -916,6 +916,88 @@ class AnnotatedSequence:
         return fig, ax
 
 @dataclass(frozen=True)
+class _PairCoordinateMapper:
+    """Cached coordinate transform for one reference/alternative replacement."""
+
+    ref_start: int
+    ref_end: int
+    alt_start: int
+    alt_end: int
+
+    @staticmethod
+    def _map_boundary(
+        position: int,
+        *,
+        source_start: int,
+        source_end: int,
+        target_start: int,
+        target_end: int,
+        side: Literal["left", "right"],
+    ) -> int:
+        if position <= source_start:
+            return target_start + (position - source_start)
+        if position >= source_end:
+            return target_end + (position - source_end)
+
+        source_length = source_end - source_start
+        target_length = target_end - target_start
+        if source_length <= 0:
+            return target_start if side == "left" else target_end
+        numerator = (position - source_start) * target_length
+        if side == "left":
+            offset = numerator // source_length
+        else:
+            offset = (numerator + source_length - 1) // source_length
+        return target_start + offset
+
+    def map_ref_interval_to_alt(self, start: int, end: int) -> tuple[int, int]:
+        """Map a reference-local half-open interval to alternative coordinates."""
+
+        if end < start:
+            raise ValueError("end must be greater than or equal to start")
+        mapped_start = self._map_boundary(
+            int(start),
+            source_start=self.ref_start,
+            source_end=self.ref_end,
+            target_start=self.alt_start,
+            target_end=self.alt_end,
+            side="left",
+        )
+        mapped_end = self._map_boundary(
+            int(end),
+            source_start=self.ref_start,
+            source_end=self.ref_end,
+            target_start=self.alt_start,
+            target_end=self.alt_end,
+            side="right",
+        )
+        return mapped_start, max(mapped_start, mapped_end)
+
+    def map_alt_interval_to_ref(self, start: int, end: int) -> tuple[int, int]:
+        """Map an alternative-local half-open interval to reference coordinates."""
+
+        if end < start:
+            raise ValueError("end must be greater than or equal to start")
+        mapped_start = self._map_boundary(
+            int(start),
+            source_start=self.alt_start,
+            source_end=self.alt_end,
+            target_start=self.ref_start,
+            target_end=self.ref_end,
+            side="left",
+        )
+        mapped_end = self._map_boundary(
+            int(end),
+            source_start=self.alt_start,
+            source_end=self.alt_end,
+            target_start=self.ref_start,
+            target_end=self.ref_end,
+            side="right",
+        )
+        return mapped_start, max(mapped_start, mapped_end)
+
+
+@dataclass(frozen=True)
 class SequencePair:
     """Reference and alternative annotated sequences for one variant."""
 
@@ -971,6 +1053,89 @@ class SequencePair:
             "metadata": dict(self.metadata),
         }
 
+    def _variant_alleles(self) -> tuple[str, str] | None:
+        """Return the explicit reference/alternative alleles, when available."""
+
+        if self.variant is None:
+            return None
+        if isinstance(self.variant, Mapping):
+            if "ref" in self.variant and "alt" in self.variant:
+                return str(self.variant["ref"]), str(self.variant["alt"])
+            return None
+        ref = getattr(self.variant, "ref", None)
+        alt = getattr(self.variant, "alt", None)
+        if ref is None or alt is None:
+            return None
+        return str(ref), str(alt)
+
+    def _exact_difference_interval(self, *, method: str = "auto") -> tuple[int, int, int, int]:
+        """Return changed intervals using exact allele lengths when possible.
+
+        Variant annotations use a one-base visual anchor for empty alleles. That
+        is useful for annotation plots, but it is not the true length of an
+        insertion or deletion. Coordinate mapping and gapped sequence rendering
+        therefore use the explicit variant allele lengths when they are known.
+        """
+
+        ref_start, ref_end, alt_start, alt_end = self.difference_interval(method=method)
+        alleles = self._variant_alleles()
+        if method == "string" or alleles is None:
+            return ref_start, ref_end, alt_start, alt_end
+        ref_allele, alt_allele = alleles
+        ref_feature, alt_feature = self.variant_features()
+        if ref_feature is None and alt_feature is None:
+            # Prefix/suffix comparison already produced exact local intervals;
+            # without an annotation anchor there is no reliable way to place
+            # externally supplied alleles back into the sequence.
+            return ref_start, ref_end, alt_start, alt_end
+        if ref_feature is not None:
+            ref_start = ref_feature.start
+        if alt_feature is not None:
+            alt_start = alt_feature.start
+
+        # Use the alleles as they actually occur in each local sequence. This
+        # keeps prefix/suffix normalization correct for reverse-complemented
+        # contexts while explicit allele lengths still recover empty alleles.
+        ref_allele = self.ref.sequence[ref_start : ref_start + len(ref_allele)]
+        alt_allele = self.alt.sequence[alt_start : alt_start + len(alt_allele)]
+
+        prefix_length = 0
+        shared_limit = min(len(ref_allele), len(alt_allele))
+        while prefix_length < shared_limit and ref_allele[prefix_length] == alt_allele[prefix_length]:
+            prefix_length += 1
+        suffix_length = 0
+        suffix_limit = shared_limit - prefix_length
+        while (
+            suffix_length < suffix_limit
+            and ref_allele[len(ref_allele) - suffix_length - 1]
+            == alt_allele[len(alt_allele) - suffix_length - 1]
+        ):
+            suffix_length += 1
+
+        ref_core_end = len(ref_allele) - suffix_length if suffix_length else len(ref_allele)
+        alt_core_end = len(alt_allele) - suffix_length if suffix_length else len(alt_allele)
+        return (
+            ref_start + prefix_length,
+            ref_start + ref_core_end,
+            alt_start + prefix_length,
+            alt_start + alt_core_end,
+        )
+
+    def coordinate_mapper(self) -> _PairCoordinateMapper:
+        """Return one cached reference/alternative coordinate transform."""
+
+        return _PairCoordinateMapper(*self._exact_difference_interval())
+
+    def map_ref_interval_to_alt(self, start: int, end: int) -> tuple[int, int]:
+        """Map a reference-local half-open interval to alternative coordinates."""
+
+        return self.coordinate_mapper().map_ref_interval_to_alt(start, end)
+
+    def map_alt_interval_to_ref(self, start: int, end: int) -> tuple[int, int]:
+        """Map an alternative-local half-open interval to reference coordinates."""
+
+        return self.coordinate_mapper().map_alt_interval_to_ref(start, end)
+
     def difference_interval(self, *, method: str = "auto") -> tuple[int, int, int, int]:
         """Return changed intervals as ``ref_start, ref_end, alt_start, alt_end``.
 
@@ -1012,27 +1177,94 @@ class SequencePair:
         *,
         flank: int = 40,
         method: str = "auto",
+        show_gaps: bool = True,
+        gap_char: str = "-",
         ax: Any | None = None,
         figsize: tuple[float, float] = (12.0, 2.4),
         title: str | None = None,
         save_path: str | Path | None = None,
     ):
-        """Plot the exact changed sequence segment between reference and alternative."""
+        """Plot the exact changed sequence segment between reference and alternative.
+
+        Unequal alleles are aligned around their shared prefix/suffix and the
+        shorter changed segment is padded with ``gap_char``. Gap insertion is a
+        display operation only and never changes either input sequence.
+        """
 
         import matplotlib.pyplot as plt
 
-        ref_start, ref_end, alt_start, alt_end = self.difference_interval(method=method)
+        if len(gap_char) != 1 or gap_char.isspace():
+            raise ValueError("gap_char must be one visible character")
+
+        ref_start, ref_end, alt_start, alt_end = self._exact_difference_interval(method=method)
         left = max(0, ref_start - flank)
         right = min(len(self.ref), ref_end + flank)
         alt_left = max(0, alt_start - flank)
         alt_right = min(len(self.alt), alt_end + flank)
 
-        ref_text = self.ref.sequence[left:right]
-        alt_text = self.alt.sequence[alt_left:alt_right]
+        ref_left = self.ref.sequence[left:ref_start]
+        alt_left_text = self.alt.sequence[alt_left:alt_start]
+        ref_allele = self.ref.sequence[ref_start:ref_end]
+        alt_allele = self.alt.sequence[alt_start:alt_end]
+        ref_right = self.ref.sequence[ref_end:right]
+        alt_right_text = self.alt.sequence[alt_end:alt_right]
+
+        prefix_length = 0
+        shared_limit = min(len(ref_allele), len(alt_allele))
+        while prefix_length < shared_limit and ref_allele[prefix_length] == alt_allele[prefix_length]:
+            prefix_length += 1
+
+        suffix_length = 0
+        suffix_limit = shared_limit - prefix_length
+        while (
+            suffix_length < suffix_limit
+            and ref_allele[len(ref_allele) - suffix_length - 1]
+            == alt_allele[len(alt_allele) - suffix_length - 1]
+        ):
+            suffix_length += 1
+
+        ref_core_end = len(ref_allele) - suffix_length if suffix_length else len(ref_allele)
+        alt_core_end = len(alt_allele) - suffix_length if suffix_length else len(alt_allele)
+        ref_core = ref_allele[prefix_length:ref_core_end]
+        alt_core = alt_allele[prefix_length:alt_core_end]
+        core_width = max(len(ref_core), len(alt_core), 1)
+
+        if show_gaps:
+            ref_aligned_allele = (
+                ref_allele[:prefix_length]
+                + ref_core.ljust(core_width, gap_char)
+                + (ref_allele[ref_core_end:] if suffix_length else "")
+            )
+            alt_aligned_allele = (
+                alt_allele[:prefix_length]
+                + alt_core.ljust(core_width, gap_char)
+                + (alt_allele[alt_core_end:] if suffix_length else "")
+            )
+        else:
+            ref_aligned_allele = ref_allele
+            alt_aligned_allele = alt_allele
+            core_width = max(len(ref_core), len(alt_core), 1)
+
+        left_width = max(len(ref_left), len(alt_left_text))
+        right_width = max(len(ref_right), len(alt_right_text))
+        ref_text = (
+            ref_left.rjust(left_width)
+            + ref_aligned_allele
+            + ref_right.ljust(right_width)
+        )
+        alt_text = (
+            alt_left_text.rjust(left_width)
+            + alt_aligned_allele
+            + alt_right_text.ljust(right_width)
+        )
+        marker_start = left_width + prefix_length
+        marker_width = core_width
+
         if len(ref_text) > 140:
             ref_text = ref_text[:137] + "..."
         if len(alt_text) > 140:
             alt_text = alt_text[:137] + "..."
+        visible_marker_width = max(1, min(marker_width, max(1, len(ref_text) - marker_start)))
 
         if ax is None:
             _, ax = plt.subplots(figsize=figsize)
@@ -1043,14 +1275,10 @@ class SequencePair:
         ax.text(0.01, 0.38, "ALT", weight="bold", ha="left", va="center", transform=ax.transAxes)
         ax.text(0.09, 0.72, ref_text, family="monospace", ha="left", va="center", transform=ax.transAxes)
         ax.text(0.09, 0.38, alt_text, family="monospace", ha="left", va="center", transform=ax.transAxes)
-        ref_marker_start = max(0, min(len(ref_text), ref_start - left))
-        ref_marker_end = max(ref_marker_start + 1, min(len(ref_text), ref_end - left))
-        alt_marker_start = max(0, min(len(alt_text), alt_start - alt_left))
-        alt_marker_end = max(alt_marker_start + 1, min(len(alt_text), alt_end - alt_left))
         ax.text(
             0.09,
             0.57,
-            " " * ref_marker_start + "^" * max(1, ref_marker_end - ref_marker_start),
+            " " * marker_start + "^" * visible_marker_width,
             family="monospace",
             color="crimson",
             ha="left",
@@ -1060,7 +1288,7 @@ class SequencePair:
         ax.text(
             0.09,
             0.23,
-            " " * alt_marker_start + "^" * max(1, alt_marker_end - alt_marker_start),
+            " " * marker_start + "^" * visible_marker_width,
             family="monospace",
             color="crimson",
             ha="left",

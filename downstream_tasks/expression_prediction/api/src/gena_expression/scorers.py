@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping, Protocol, Sequence
 
@@ -16,8 +18,151 @@ class Scorer(Protocol):
 
     name: str
 
-    def score(self, prediction: PairPrediction) -> ScoringResult:
+    def score(self, prediction: PairPrediction) -> ScoringResult | VariantReport:
         """Score a reference/alternative prediction pair."""
+
+
+class _TrackIntervalIndex:
+    """Fast weighted interval queries over ordinary model-track rows.
+
+    Model token rows are normally coordinate-sorted, non-overlapping, and
+    finite. That common case uses prefix integrals. Unusual overlapping,
+    unsorted, or non-finite rows retain the original scan semantics.
+    """
+
+    def __init__(self, rows: Sequence[Mapping[str, Any]], *, value_key: str = "value") -> None:
+        self.rows = [dict(row) for row in rows if int(row["end"]) > int(row["start"])]
+        self.value_key = value_key
+        self.starts = [int(row["start"]) for row in self.rows]
+        self.ends = [int(row["end"]) for row in self.rows]
+        self.values = [float(row[value_key]) for row in self.rows]
+        self.fast = all(
+            self.starts[index] >= self.ends[index - 1]
+            for index in range(1, len(self.rows))
+        ) and all(isfinite(value) for value in self.values)
+
+        self.prefix_area = [0.0]
+        self.prefix_coverage = [0]
+        if self.fast:
+            for start, end, value in zip(self.starts, self.ends, self.values):
+                width = end - start
+                self.prefix_area.append(self.prefix_area[-1] + value * width)
+                self.prefix_coverage.append(self.prefix_coverage[-1] + width)
+
+    def _scan_integral(self, start: int, end: int) -> tuple[float, int]:
+        if end <= start:
+            return 0.0, 0
+        weighted_sum = 0.0
+        total_weight = 0
+        for row, value in zip(self.rows, self.values):
+            overlap_start = max(int(row["start"]), start)
+            overlap_end = min(int(row["end"]), end)
+            if overlap_end <= overlap_start:
+                continue
+            weight = overlap_end - overlap_start
+            weighted_sum += value * weight
+            total_weight += weight
+        return weighted_sum, total_weight
+
+    def integral(self, start: int, end: int) -> tuple[float, int]:
+        """Return weighted area and covered bases inside ``[start, end)``."""
+
+        start = int(start)
+        end = int(end)
+        if end <= start:
+            return 0.0, 0
+        if not self.fast:
+            return self._scan_integral(start, end)
+
+        left = bisect_right(self.ends, start)
+        right = bisect_left(self.starts, end)
+        if right <= left:
+            return 0.0, 0
+
+        weighted_sum = self.prefix_area[right] - self.prefix_area[left]
+        total_weight = self.prefix_coverage[right] - self.prefix_coverage[left]
+        first = left
+        last = right - 1
+        left_clip = max(0, start - self.starts[first])
+        right_clip = max(0, self.ends[last] - end)
+        if left_clip:
+            weighted_sum -= self.values[first] * left_clip
+            total_weight -= left_clip
+        if right_clip:
+            weighted_sum -= self.values[last] * right_clip
+            total_weight -= right_clip
+        return weighted_sum, max(0, total_weight)
+
+    def integral_many(self, windows: Sequence[ScoreWindow]) -> tuple[float, int]:
+        """Return combined weighted area and coverage for supplied windows."""
+
+        weighted_sum = 0.0
+        total_weight = 0
+        for window in windows:
+            window_sum, window_weight = self.integral(window.start, window.end)
+            weighted_sum += window_sum
+            total_weight += window_weight
+        return weighted_sum, total_weight
+
+    def prefix_at_sorted(self, positions: Sequence[int]) -> tuple[list[float], list[int]] | None:
+        """Evaluate cumulative area/coverage at nondecreasing coordinates in O(N+T)."""
+
+        if not self.fast or any(positions[index] < positions[index - 1] for index in range(1, len(positions))):
+            return None
+        areas: list[float] = []
+        coverages: list[int] = []
+        row_index = 0
+        completed_area = 0.0
+        completed_coverage = 0
+        for position in positions:
+            position = int(position)
+            while row_index < len(self.rows) and self.ends[row_index] <= position:
+                width = self.ends[row_index] - self.starts[row_index]
+                completed_area += self.values[row_index] * width
+                completed_coverage += width
+                row_index += 1
+            area = completed_area
+            coverage = completed_coverage
+            if (
+                row_index < len(self.rows)
+                and self.starts[row_index] < position < self.ends[row_index]
+            ):
+                width = position - self.starts[row_index]
+                area += self.values[row_index] * width
+                coverage += width
+            areas.append(area)
+            coverages.append(coverage)
+        return areas, coverages
+
+    def weighted_means_for_sorted_intervals(
+        self,
+        intervals: Sequence[tuple[int, int]],
+    ) -> list[float | None] | None:
+        """Return overlap-weighted means using two linear prefix sweeps."""
+
+        starts = [int(start) for start, _ in intervals]
+        ends = [int(end) for _, end in intervals]
+        start_prefix = self.prefix_at_sorted(starts)
+        end_prefix = self.prefix_at_sorted(ends)
+        if start_prefix is None or end_prefix is None:
+            return None
+        start_areas, start_coverages = start_prefix
+        end_areas, end_coverages = end_prefix
+        means: list[float | None] = []
+        for start, end, start_area, end_area, start_coverage, end_coverage in zip(
+            starts,
+            ends,
+            start_areas,
+            end_areas,
+            start_coverages,
+            end_coverages,
+        ):
+            if end <= start:
+                means.append(None)
+                continue
+            coverage = end_coverage - start_coverage
+            means.append((end_area - start_area) / coverage if coverage > 0 else None)
+        return means
 
 
 @dataclass(frozen=True)
@@ -195,23 +340,31 @@ class TrackWindowScorer:
     def _rows_with_values(track_prediction) -> list[dict[str, Any]]:
         return [{**row, "value": value} for row, value in zip(track_prediction.tokens, track_prediction.values)]
 
-    def _aggregate_rows(self, rows: list[dict[str, Any]], window: ScoreWindow) -> float:
+    def _aggregate_rows(
+        self,
+        rows: list[dict[str, Any]],
+        window: ScoreWindow,
+        *,
+        index: _TrackIntervalIndex | None = None,
+    ) -> float:
+        if self.aggregate in {"sum", "auc", "weighted_sum", "mean"}:
+            index = index or _TrackIntervalIndex(rows)
+            weighted_sum, total_weight = index.integral(window.start, window.end)
+            if total_weight <= 0:
+                return float("nan")
+            if self.aggregate == "mean":
+                return float(weighted_sum / total_weight)
+            return float(weighted_sum)
+
         values: list[float] = []
-        weights: list[int] = []
         for row in rows:
             overlap_start = max(int(row["start"]), window.start)
             overlap_end = min(int(row["end"]), window.end)
             if overlap_end <= overlap_start:
                 continue
             values.append(float(row["value"]))
-            weights.append(overlap_end - overlap_start)
         if not values:
             return float("nan")
-        if self.aggregate in {"sum", "auc", "weighted_sum"}:
-            return float(sum(value * weight for value, weight in zip(values, weights)))
-        if self.aggregate == "mean":
-            denominator = sum(weights)
-            return float(sum(value * weight for value, weight in zip(values, weights)) / denominator)
         if self.aggregate == "max":
             return float(max(values))
         if self.aggregate == "min":
@@ -219,15 +372,84 @@ class TrackWindowScorer:
         raise ValueError("max_abs_delta is computed from ref and alt rows together.")
 
     @staticmethod
-    def _delta_rows(ref_rows: list[dict[str, Any]], alt_rows: list[dict[str, Any]], sign: str) -> list[dict[str, Any]]:
-        n = min(len(ref_rows), len(alt_rows))
-        rows = []
+    def _mean_over_interval(rows: list[dict[str, Any]], start: int, end: int) -> float | None:
+        """Return an overlap-weighted mean track value for one interval."""
+
+        if end <= start:
+            return None
+        weighted_sum = 0.0
+        total_weight = 0
+        for row in rows:
+            overlap_start = max(int(row["start"]), start)
+            overlap_end = min(int(row["end"]), end)
+            if overlap_end <= overlap_start:
+                continue
+            weight = overlap_end - overlap_start
+            weighted_sum += float(row["value"]) * weight
+            total_weight += weight
+        if total_weight == 0:
+            return None
+        return weighted_sum / total_weight
+
+    @classmethod
+    def _delta_rows(
+        cls,
+        ref_rows: list[dict[str, Any]],
+        alt_rows: list[dict[str, Any]],
+        sign: str,
+        *,
+        pair: Any | None = None,
+        mapper: Any | None = None,
+        alt_index: _TrackIntervalIndex | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return delta rows in reference coordinates.
+
+        When a sequence pair is supplied, every reference token interval is
+        mapped into alternative-local coordinates before alternative values are
+        aggregated. Deleted or otherwise uncovered intervals stay masked as
+        ``nan``; no synthetic zero or average value is inserted.
+        """
+
+        rows: list[dict[str, Any]] = []
         multiplier = -1.0 if sign == "ref-alt" else 1.0
-        for idx in range(n):
-            row = dict(alt_rows[idx])
-            row["ref_value"] = ref_rows[idx]["value"]
-            row["alt_value"] = alt_rows[idx]["value"]
-            row["delta"] = multiplier * (alt_rows[idx]["value"] - ref_rows[idx]["value"])
+        if pair is None:
+            n = min(len(ref_rows), len(alt_rows))
+            for idx in range(n):
+                row = dict(alt_rows[idx])
+                row["ref_value"] = ref_rows[idx]["value"]
+                row["alt_value"] = alt_rows[idx]["value"]
+                row["delta"] = multiplier * (alt_rows[idx]["value"] - ref_rows[idx]["value"])
+                row["alignment_status"] = "index"
+                rows.append(row)
+            return rows
+
+        mapper = mapper or pair.coordinate_mapper()
+        alt_index = alt_index or _TrackIntervalIndex(alt_rows)
+        mapped_intervals = [
+            mapper.map_ref_interval_to_alt(int(ref_row["start"]), int(ref_row["end"]))
+            for ref_row in ref_rows
+        ]
+        alt_values = alt_index.weighted_means_for_sorted_intervals(mapped_intervals)
+        if alt_values is None:
+            alt_values = [
+                cls._mean_over_interval(alt_rows, alt_start, alt_end)
+                for alt_start, alt_end in mapped_intervals
+            ]
+
+        for ref_row, (alt_start, alt_end), alt_value in zip(ref_rows, mapped_intervals, alt_values):
+            row = dict(ref_row)
+            ref_value = float(ref_row["value"])
+            row["ref_value"] = ref_value
+            row["alt_start"] = alt_start
+            row["alt_end"] = alt_end
+            if alt_value is None:
+                row["alt_value"] = float("nan")
+                row["delta"] = float("nan")
+                row["alignment_status"] = "deleted" if alt_end <= alt_start else "uncovered"
+            else:
+                row["alt_value"] = float(alt_value)
+                row["delta"] = multiplier * (float(alt_value) - ref_value)
+                row["alignment_status"] = "mapped"
             rows.append(row)
         return rows
 
@@ -239,18 +461,36 @@ class TrackWindowScorer:
         alt_track = prediction.alt.track(self.track, channel=self.channel)
         ref_rows = self._rows_with_values(ref_track)
         alt_rows = self._rows_with_values(alt_track)
-        delta_rows = self._delta_rows(ref_rows, alt_rows, self.sign)
+        mapper = prediction.pair.coordinate_mapper()
+        ref_index = _TrackIntervalIndex(ref_rows)
+        alt_index = _TrackIntervalIndex(alt_rows)
+        alt_start, alt_end = mapper.map_ref_interval_to_alt(window.start, window.end)
+        alt_window = ScoreWindow(
+            start=alt_start,
+            end=alt_end,
+            center=(alt_start + alt_end) // 2,
+            units="sequence",
+        )
+        delta_rows = self._delta_rows(
+            ref_rows,
+            alt_rows,
+            self.sign,
+            pair=prediction.pair,
+            mapper=mapper,
+            alt_index=alt_index,
+        )
 
         if self.aggregate == "max_abs_delta":
             selected = [
                 abs(float(row["delta"]))
                 for row in delta_rows
                 if max(int(row["start"]), window.start) < min(int(row["end"]), window.end)
+                and isfinite(float(row["delta"]))
             ]
             score = max(selected) if selected else float("nan")
         else:
-            ref_score = self._aggregate_rows(ref_rows, window)
-            alt_score = self._aggregate_rows(alt_rows, window)
+            ref_score = self._aggregate_rows(ref_rows, window, index=ref_index)
+            alt_score = self._aggregate_rows(alt_rows, alt_window, index=alt_index)
             score = alt_score - ref_score
             if self.sign == "ref-alt":
                 score = -score
@@ -269,6 +509,8 @@ class TrackWindowScorer:
                 "aggregate": self.aggregate,
                 "sign": self.sign,
                 "channel": self.channel,
+                "ref_window": window.to_dict(),
+                "alt_window": alt_window.to_dict(),
             },
         )
 
@@ -288,7 +530,6 @@ class TrackFeatureScorer:
     sign: Literal["alt-ref", "ref-alt"] = "alt-ref"
     channel: int | None = 0
     name: str = "track_feature"
-    normalize: bool = False
 
     def _feature_specs(self) -> tuple[str | Feature, ...]:
         """Return feature selectors as a tuple."""
@@ -382,25 +623,32 @@ class TrackFeatureScorer:
         row_end = int(row["end"])
         return sum(max(0, min(row_end, window.end) - max(row_start, window.start)) for window in windows)
 
-    def _aggregate_rows_in_windows(self, rows: list[dict[str, Any]], windows: Sequence[ScoreWindow]) -> float:
+    def _aggregate_rows_in_windows(
+        self,
+        rows: list[dict[str, Any]],
+        windows: Sequence[ScoreWindow],
+        *,
+        index: _TrackIntervalIndex | None = None,
+    ) -> float:
         """Aggregate track values over one or more feature windows."""
 
+        if self.aggregate in {"sum", "auc", "weighted_sum", "mean"}:
+            index = index or _TrackIntervalIndex(rows)
+            weighted_sum, total_weight = index.integral_many(windows)
+            if total_weight <= 0:
+                return float("nan")
+            if self.aggregate == "mean":
+                return float(weighted_sum / total_weight)
+            return float(weighted_sum)
+
         values: list[float] = []
-        weights: list[int] = []
         for row in rows:
             weight = self._row_overlap_weight(row, windows)
             if weight <= 0:
                 continue
             values.append(float(row["value"]))
-            weights.append(weight)
-        
         if not values:
             return float("nan")
-        if self.aggregate in {"sum", "auc", "weighted_sum"}:
-            return float(sum(value * weight for value, weight in zip(values, weights)))
-        if self.aggregate == "mean":
-            denominator = sum(weights)
-            return float(sum(value * weight for value, weight in zip(values, weights)) / denominator)
         if self.aggregate == "max":
             return float(max(values))
         if self.aggregate == "min":
@@ -412,23 +660,47 @@ class TrackFeatureScorer:
 
         selectors = self._feature_specs()
         ref_windows = self._feature_windows(prediction.pair.ref, selectors)
-        alt_windows = self._feature_windows(prediction.pair.alt, selectors)
+        mapper = prediction.pair.coordinate_mapper()
+        alt_windows = self._merge_windows(
+            [
+                ScoreWindow(
+                    start=mapped_start,
+                    end=mapped_end,
+                    center=(mapped_start + mapped_end) // 2,
+                    units="sequence",
+                )
+                for window in ref_windows
+                for mapped_start, mapped_end in [
+                    mapper.map_ref_interval_to_alt(window.start, window.end)
+                ]
+            ]
+        )
         ref_track = prediction.ref.track(self.track, channel=self.channel)
         alt_track = prediction.alt.track(self.track, channel=self.channel)
         ref_rows = TrackWindowScorer._rows_with_values(ref_track)
         alt_rows = TrackWindowScorer._rows_with_values(alt_track)
-        delta_rows = TrackWindowScorer._delta_rows(ref_rows, alt_rows, self.sign)
+        ref_index = _TrackIntervalIndex(ref_rows)
+        alt_index = _TrackIntervalIndex(alt_rows)
+        delta_rows = TrackWindowScorer._delta_rows(
+            ref_rows,
+            alt_rows,
+            self.sign,
+            pair=prediction.pair,
+            mapper=mapper,
+            alt_index=alt_index,
+        )
 
         if self.aggregate == "max_abs_delta":
             selected = [
                 abs(float(row["delta"]))
                 for row in delta_rows
-                if self._row_overlap_weight(row, alt_windows) > 0
+                if self._row_overlap_weight(row, ref_windows) > 0
+                and isfinite(float(row["delta"]))
             ]
             score = max(selected) if selected else float("nan")
         else:
-            ref_score = self._aggregate_rows_in_windows(ref_rows, ref_windows)
-            alt_score = self._aggregate_rows_in_windows(alt_rows, alt_windows)
+            ref_score = self._aggregate_rows_in_windows(ref_rows, ref_windows, index=ref_index)
+            alt_score = self._aggregate_rows_in_windows(alt_rows, alt_windows, index=alt_index)
             score = alt_score - ref_score
             if self.sign == "ref-alt":
                 score = -score
@@ -450,6 +722,164 @@ class TrackFeatureScorer:
                 ],
                 "ref_windows": [window.to_dict() for window in ref_windows],
                 "alt_windows": [window.to_dict() for window in alt_windows],
+                "aggregate": self.aggregate,
+                "sign": self.sign,
+                "channel": self.channel,
+            },
+        )
+
+
+@dataclass(frozen=True)
+class TrackAllFeaturesScorer:
+    """Score every annotated feature on each prediction pair independently.
+
+    Feature intervals are taken from ``feature_source`` and mapped through the
+    pair's reference/alternative replacement before each native track is
+    aggregated. The returned :class:`ScoringResult` stores the requested
+    ``{feature: score}`` mapping directly in ``result.score``.
+    """
+
+    track: str = "atac"
+    aggregate: Literal["sum", "mean", "max", "min", "max_abs_delta", "auc", "weighted_sum"] = "sum"
+    sign: Literal["alt-ref", "ref-alt"] = "alt-ref"
+    channel: int | None = 0
+    feature_source: Literal["ref", "alt"] = "ref"
+    name: str = "track_all_features"
+
+    def __post_init__(self) -> None:
+        if self.feature_source not in {"ref", "alt"}:
+            raise ValueError("feature_source must be 'ref' or 'alt'.")
+
+    @staticmethod
+    def _feature_keys(features: Sequence[Feature]) -> list[str]:
+        """Return stable, unique dictionary keys for sequence features."""
+
+        bases = [feature.name or feature.type or "feature" for feature in features]
+        totals: dict[str, int] = {}
+        for base in bases:
+            totals[base] = totals.get(base, 0) + 1
+        occurrences: dict[str, int] = {}
+        used: set[str] = set()
+        keys: list[str] = []
+        for base in bases:
+            occurrences[base] = occurrences.get(base, 0) + 1
+            key = base if totals[base] == 1 else f"{base}#{occurrences[base]}"
+            if key in used:
+                suffix = 2
+                candidate = f"{key}#{suffix}"
+                while candidate in used:
+                    suffix += 1
+                    candidate = f"{key}#{suffix}"
+                key = candidate
+            used.add(key)
+            keys.append(key)
+        return keys
+
+    def score(self, prediction: PairPrediction) -> ScoringResult:
+        """Return all per-feature scores for this prediction pair."""
+
+        sequence = prediction.pair.ref if self.feature_source == "ref" else prediction.pair.alt
+        features = tuple(sequence.features)
+        ref_track = prediction.ref.track(self.track, channel=self.channel)
+        alt_track = prediction.alt.track(self.track, channel=self.channel)
+        ref_rows = TrackWindowScorer._rows_with_values(ref_track)
+        alt_rows = TrackWindowScorer._rows_with_values(alt_track)
+        mapper = prediction.pair.coordinate_mapper()
+        ref_index = _TrackIntervalIndex(ref_rows)
+        alt_index = _TrackIntervalIndex(alt_rows)
+        delta_rows = TrackWindowScorer._delta_rows(
+            ref_rows,
+            alt_rows,
+            self.sign,
+            pair=prediction.pair,
+            mapper=mapper,
+            alt_index=alt_index,
+        )
+        aggregator = TrackFeatureScorer(
+            features=(),
+            track=self.track,
+            aggregate=self.aggregate,
+            sign=self.sign,
+            channel=self.channel,
+        )
+
+        scores: dict[str, float] = {}
+        feature_results: list[dict[str, Any]] = []
+        ref_result_windows: list[ScoreWindow] = []
+        for feature_key, feature in zip(self._feature_keys(features), features):
+            source_window = ScoreWindow(
+                start=feature.start,
+                end=feature.end,
+                center=(feature.start + feature.end) // 2,
+                units="sequence",
+            )
+            if self.feature_source == "ref":
+                ref_window = source_window
+                alt_start, alt_end = mapper.map_ref_interval_to_alt(feature.start, feature.end)
+                alt_window = ScoreWindow(
+                    start=alt_start,
+                    end=alt_end,
+                    center=(alt_start + alt_end) // 2,
+                    units="sequence",
+                )
+            else:
+                alt_window = source_window
+                ref_start, ref_end = mapper.map_alt_interval_to_ref(feature.start, feature.end)
+                ref_window = ScoreWindow(
+                    start=ref_start,
+                    end=ref_end,
+                    center=(ref_start + ref_end) // 2,
+                    units="sequence",
+                )
+            ref_result_windows.append(ref_window)
+            if self.aggregate == "max_abs_delta":
+                selected = [
+                    abs(float(row["delta"]))
+                    for row in delta_rows
+                    if aggregator._row_overlap_weight(row, (ref_window,)) > 0
+                    and isfinite(float(row["delta"]))
+                ]
+                score = max(selected) if selected else float("nan")
+            else:
+                ref_score = aggregator._aggregate_rows_in_windows(
+                    ref_rows,
+                    (ref_window,),
+                    index=ref_index,
+                )
+                alt_score = aggregator._aggregate_rows_in_windows(
+                    alt_rows,
+                    (alt_window,),
+                    index=alt_index,
+                )
+                score = alt_score - ref_score
+                if self.sign == "ref-alt":
+                    score = -score
+
+            scores[feature_key] = float(score)
+            feature_results.append(
+                {
+                    "key": feature_key,
+                    "score": float(score),
+                    "feature": feature.to_dict(),
+                    "score_window": ref_window.to_dict(),
+                    "ref_score_window": ref_window.to_dict(),
+                    "alt_score_window": alt_window.to_dict(),
+                }
+            )
+
+        return ScoringResult(
+            name=self.name,
+            score=scores,
+            prediction=prediction,
+            score_window=TrackFeatureScorer._bounding_window(ref_result_windows),
+            ref_track=ref_rows,
+            alt_track=alt_rows,
+            delta_track=delta_rows,
+            features=feature_results,
+            provenance={
+                "scorer": type(self).__name__,
+                "track": self.track,
+                "feature_source": self.feature_source,
                 "aggregate": self.aggregate,
                 "sign": self.sign,
                 "channel": self.channel,
