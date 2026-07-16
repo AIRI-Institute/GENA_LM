@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import logging
 import sys
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,10 +20,14 @@ from .tokenization import CenteredTokenizer, TokenizedSequence
 from .variants import Variant
 
 
-_TSS_WORKER_GENOME = None
-_TSS_WORKER_TOKENIZER = None
+_PROCESS_WORKER_GENOME = None
+_PROCESS_WORKER_TOKENIZER = None
+_PROCESS_WORKER_DESC_TOKENIZER = None
+_PROCESS_WORKER_DESC_MAX_SEQ_LEN = None
+_THREAD_WORKER_STATE = threading.local()
 
 GroupingMode = Literal["serial", "no_grouping", "condition", "sequence", "auto"]
+PreprocessingBackend = Literal["thread", "process"]
 
 
 @dataclass(frozen=True)
@@ -55,17 +60,26 @@ def _progress(
     return tqdm(items, total=total, desc=description, unit=unit)
 
 
-def _tss_worker_init(genome_config: Mapping[str, Any], tokenizer_config: Mapping[str, Any]) -> None:
-    """Initialize per-process genome/tokenizer state for TSS preprocessing."""
+def _process_worker_init(
+    genome_config: Mapping[str, Any] | None,
+    tokenizer_config: Mapping[str, Any],
+    description_tokenizer_config: Mapping[str, Any],
+) -> None:
+    """Load process-local preprocessing resources without touching the CUDA model."""
 
     from transformers import AutoTokenizer
 
-    from .genome import Genome
+    global _PROCESS_WORKER_GENOME
+    global _PROCESS_WORKER_TOKENIZER
+    global _PROCESS_WORKER_DESC_TOKENIZER
+    global _PROCESS_WORKER_DESC_MAX_SEQ_LEN
 
-    global _TSS_WORKER_GENOME, _TSS_WORKER_TOKENIZER
-    _TSS_WORKER_GENOME = Genome(**dict(genome_config))
-    dna_tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_config["name_or_path"]), trust_remote_code=True)
-    _TSS_WORKER_TOKENIZER = CenteredTokenizer(
+    if genome_config is not None:
+        from .genome import Genome
+
+        _PROCESS_WORKER_GENOME = Genome(**dict(genome_config))
+    dna_tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_config["name_or_path"]))
+    _PROCESS_WORKER_TOKENIZER = CenteredTokenizer(
         dna_tokenizer=dna_tokenizer,
         dna_max_seq_len=int(tokenizer_config["dna_max_seq_len"]),
         token_len_for_fetch=int(tokenizer_config["token_len_for_fetch"]),
@@ -74,14 +88,74 @@ def _tss_worker_init(genome_config: Mapping[str, Any], tokenizer_config: Mapping
         sep_id=tokenizer_config.get("sep_id"),
         pad_id=tokenizer_config.get("pad_id"),
     )
+    _PROCESS_WORKER_DESC_TOKENIZER = AutoTokenizer.from_pretrained(
+        str(description_tokenizer_config["name_or_path"]),
+        padding_side=str(description_tokenizer_config["padding_side"]),
+    )
+    _PROCESS_WORKER_DESC_MAX_SEQ_LEN = int(description_tokenizer_config["desc_max_seq_len"])
+
+
+def _thread_worker_init(
+    genome_config: Mapping[str, Any] | None,
+    centered_tokenizer: CenteredTokenizer,
+) -> None:
+    """Give each TSS preprocessing thread its own genome handle."""
+
+    _THREAD_WORKER_STATE.centered_tokenizer = centered_tokenizer
+    if genome_config is not None:
+        from .genome import Genome
+
+        _THREAD_WORKER_STATE.genome = Genome(**dict(genome_config))
+
+
+def _process_worker_tokenize_sequence(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Tokenize one compact DNA task and return a serialization-friendly payload."""
+
+    if _PROCESS_WORKER_TOKENIZER is None:
+        raise RuntimeError("Sequence preprocessing worker was not initialized.")
+    source = AnnotatedSequence(
+        str(task["sequence"]),
+        name=task.get("name"),
+        features=tuple(Feature(**dict(feature)) for feature in task.get("features", ())),
+    )
+    tokenized = _PROCESS_WORKER_TOKENIZER.tokenize(
+        source,
+        center=int(task["center"]),
+        strand=str(task["strand"]),
+    )
+    return {
+        "input_ids": tokenized.input_ids.tolist(),
+        "attention_mask": tokenized.attention_mask.tolist(),
+        "tokens": tokenized.tokens,
+        "center": tokenized.center,
+        "strand": tokenized.strand,
+    }
+
+
+def _process_worker_tokenize_description(description: str) -> dict[str, Any]:
+    """Tokenize one rendered description using process-local tokenizer state."""
+
+    if _PROCESS_WORKER_DESC_TOKENIZER is None or _PROCESS_WORKER_DESC_MAX_SEQ_LEN is None:
+        raise RuntimeError("Description preprocessing worker was not initialized.")
+    encoding = _PROCESS_WORKER_DESC_TOKENIZER(
+        description,
+        padding=False,
+        truncation=True,
+        max_length=_PROCESS_WORKER_DESC_MAX_SEQ_LEN,
+    )
+    return {
+        "description": description,
+        "desc_input_ids": list(encoding["input_ids"]),
+        "desc_attention_mask": list(encoding["attention_mask"]),
+    }
 
 
 def _tss_worker_tokenize(task: Mapping[str, Any]) -> tuple[int, TokenizedSequence]:
     """Build and tokenize one TSS-centered sequence inside a worker process."""
 
-    if _TSS_WORKER_GENOME is None or _TSS_WORKER_TOKENIZER is None:
+    if _PROCESS_WORKER_GENOME is None or _PROCESS_WORKER_TOKENIZER is None:
         raise RuntimeError("TSS preprocessing worker was not initialized.")
-    sequence = _TSS_WORKER_GENOME.sequence_around(
+    sequence = _PROCESS_WORKER_GENOME.sequence_around(
         str(task["chrom"]),
         int(task["tss0"]),
         int(task["size"]),
@@ -90,7 +164,27 @@ def _tss_worker_tokenize(task: Mapping[str, Any]) -> tuple[int, TokenizedSequenc
         center_feature_name=task["center_feature_name"],
         name=task["name"],
     )
-    tokenized = _TSS_WORKER_TOKENIZER.tokenize(sequence, center=task["center_feature_name"], strand="+")
+    tokenized = _PROCESS_WORKER_TOKENIZER.tokenize(sequence, center=task["center_feature_name"], strand="+")
+    return int(task["index"]), tokenized
+
+
+def _tss_thread_tokenize(task: Mapping[str, Any]) -> tuple[int, TokenizedSequence]:
+    """Build and tokenize one TSS record using thread-local genome state."""
+
+    genome = getattr(_THREAD_WORKER_STATE, "genome", None)
+    tokenizer = getattr(_THREAD_WORKER_STATE, "centered_tokenizer", None)
+    if genome is None or tokenizer is None:
+        raise RuntimeError("TSS preprocessing thread was not initialized.")
+    sequence = genome.sequence_around(
+        str(task["chrom"]),
+        int(task["tss0"]),
+        int(task["size"]),
+        strand=str(task["strand"]),
+        include_features=bool(task["include_features"]),
+        center_feature_name=task["center_feature_name"],
+        name=task["name"],
+    )
+    tokenized = tokenizer.tokenize(sequence, center=task["center_feature_name"], strand="+")
     return int(task["index"]), tokenized
 
 
@@ -370,11 +464,62 @@ class SequenceModel:
         return device_type, device_type == "cuda"
 
     @staticmethod
+    def _validate_preprocessing_backend(backend: PreprocessingBackend) -> None:
+        if backend not in {"thread", "process"}:
+            raise ValueError("preprocessing_backend must be 'thread' or 'process'.")
+
+    @contextmanager
+    def _preprocessing_executor(
+        self,
+        backend: PreprocessingBackend,
+        workers: int,
+        *,
+        genome: Any | None = None,
+    ):
+        """Yield one executor shared by every preprocessing stage in an API call."""
+
+        if workers < 0:
+            raise ValueError("preprocessing_workers must be non-negative.")
+        self._validate_preprocessing_backend(backend)
+        if workers == 0:
+            yield None
+            return
+
+        genome_config = self._worker_genome_config(genome) if genome is not None else None
+        self.logger.info("Starting %s preprocessing with %d worker(s)", backend, workers)
+        if backend == "thread":
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(
+                max_workers=int(workers),
+                initializer=_thread_worker_init,
+                initargs=(genome_config, self.centered_tokenizer),
+            ) as executor:
+                yield executor
+            return
+
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(
+            max_workers=int(workers),
+            mp_context=mp.get_context("spawn"),
+            initializer=_process_worker_init,
+            initargs=(
+                genome_config,
+                self._worker_tokenizer_config(),
+                self._worker_description_tokenizer_config(),
+            ),
+        ) as executor:
+            yield executor
+
+    @staticmethod
     def _map_preprocessing(
         func: Any,
         items: Sequence[Any],
         preprocessing_workers: int,
         *,
+        executor: Any | None = None,
         show_progress: bool = False,
         progress_description: str = "Preprocessing",
     ) -> list[Any]:
@@ -383,7 +528,7 @@ class SequenceModel:
         if preprocessing_workers < 0:
             raise ValueError("preprocessing_workers must be non-negative.")
         item_list = list(items)
-        if preprocessing_workers <= 1 or len(items) < 2:
+        if preprocessing_workers == 0 or len(item_list) < 2:
             iterator = _progress(
                 item_list,
                 total=len(item_list),
@@ -393,21 +538,23 @@ class SequenceModel:
             )
             return [func(item) for item in iterator]
 
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        if executor is None:
+            raise RuntimeError("Parallel preprocessing requires an initialized executor.")
 
-        with ThreadPoolExecutor(max_workers=int(preprocessing_workers)) as executor:
-            futures = {executor.submit(func, item): idx for idx, item in enumerate(item_list)}
-            output: list[Any] = [None] * len(item_list)
-            completed = _progress(
-                as_completed(futures),
-                total=len(futures),
-                description=progress_description,
-                enabled=show_progress,
-                unit="item",
-            )
-            for future in completed:
-                output[futures[future]] = future.result()
-            return output
+        from concurrent.futures import as_completed
+
+        futures = {executor.submit(func, item): idx for idx, item in enumerate(item_list)}
+        output: list[Any] = [None] * len(item_list)
+        completed = _progress(
+            as_completed(futures),
+            total=len(futures),
+            description=progress_description,
+            enabled=show_progress,
+            unit="item",
+        )
+        for future in completed:
+            output[futures[future]] = future.result()
+        return output
 
     @staticmethod
     def _as_sequence_list(sequences: AnnotatedSequence | str | Iterable[AnnotatedSequence | str]) -> list[AnnotatedSequence | str]:
@@ -465,11 +612,74 @@ class SequenceModel:
         center_key = ("value", center) if isinstance(center, (int, str)) else ("object", id(center))
         return sequence_key, center_key, strand
 
+    def _sequence_process_payload(
+        self,
+        task: tuple[AnnotatedSequence | str, int | str | Feature, str],
+    ) -> tuple[dict[str, Any], AnnotatedSequence]:
+        """Return a compact process task plus the original parent-side source."""
+
+        sequence, center, strand = task
+        source = self.centered_tokenizer._as_annotated(sequence)
+        center_index = self.centered_tokenizer._resolve_center(source, center)
+        features = tuple(
+            {
+                "name": feature.name,
+                "start": feature.start,
+                "end": feature.end,
+                "type": feature.type,
+                "strand": feature.strand,
+                "source": feature.source,
+            }
+            for feature in source.features
+        )
+        return (
+            {
+                "sequence": source.sequence,
+                "name": source.name,
+                "features": features,
+                "center": center_index,
+                "strand": strand,
+            },
+            source,
+        )
+
+    @staticmethod
+    def _restore_process_tokenized_sequence(
+        payload: Mapping[str, Any],
+        source: AnnotatedSequence,
+    ) -> TokenizedSequence:
+        """Reattach parent-side sequence metadata to compact worker output."""
+
+        import torch
+
+        return TokenizedSequence(
+            input_ids=torch.tensor(payload["input_ids"], dtype=torch.long),
+            attention_mask=torch.tensor(payload["attention_mask"], dtype=torch.long),
+            tokens=list(payload["tokens"]),
+            source=source,
+            center=int(payload["center"]),
+            strand=str(payload["strand"]),
+        )
+
+    @staticmethod
+    def _restore_process_description(payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Convert a compact description worker result to the model contract."""
+
+        import torch
+
+        return {
+            "description": payload["description"],
+            "desc_input_ids": torch.tensor(payload["desc_input_ids"], dtype=torch.long),
+            "desc_attention_mask": torch.tensor(payload["desc_attention_mask"], dtype=torch.long),
+        }
+
     def _tokenize_sequence_tasks(
         self,
         tasks: Sequence[tuple[AnnotatedSequence | str, int | str | Feature, str]],
         *,
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
+        preprocessing_executor: Any | None = None,
         show_progress: bool = False,
         progress_description: str = "Tokenizing DNA",
     ) -> list[TokenizedSequence]:
@@ -493,13 +703,29 @@ class SequenceModel:
             return self.tokenize_sequence(sequence, center=center, strand=strand)
 
         self.logger.info("%s: %d unique sequence(s)", progress_description, len(unique_tasks))
-        tokenized_unique = self._map_preprocessing(
-            tokenize,
-            unique_tasks,
-            preprocessing_workers,
-            show_progress=show_progress,
-            progress_description=progress_description,
-        )
+        if preprocessing_backend == "process" and preprocessing_workers > 0 and len(unique_tasks) >= 2:
+            process_tasks = [self._sequence_process_payload(task) for task in unique_tasks]
+            raw_payloads = self._map_preprocessing(
+                _process_worker_tokenize_sequence,
+                [payload for payload, _ in process_tasks],
+                preprocessing_workers,
+                executor=preprocessing_executor,
+                show_progress=show_progress,
+                progress_description=progress_description,
+            )
+            tokenized_unique = [
+                self._restore_process_tokenized_sequence(payload, source)
+                for payload, (_, source) in zip(raw_payloads, process_tasks)
+            ]
+        else:
+            tokenized_unique = self._map_preprocessing(
+                tokenize,
+                unique_tasks,
+                preprocessing_workers if preprocessing_backend == "thread" else 0,
+                executor=preprocessing_executor,
+                show_progress=show_progress,
+                progress_description=progress_description,
+            )
         tokenized_by_key = dict(zip(unique_keys, tokenized_unique))
         return [tokenized_by_key[key] for key in row_keys]
 
@@ -508,6 +734,8 @@ class SequenceModel:
         conditions: Sequence[Condition],
         *,
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
+        preprocessing_executor: Any | None = None,
         show_progress: bool = False,
         progress_description: str = "Tokenizing descriptions",
     ) -> list[dict[str, Any]]:
@@ -525,13 +753,25 @@ class SequenceModel:
                 unique_keys.append(key)
                 unique_conditions.append(condition)
         self.logger.info("%s: %d unique description(s)", progress_description, len(unique_conditions))
-        encoded_unique = self._map_preprocessing(
-            self.tokenize_description,
-            unique_conditions,
-            preprocessing_workers,
-            show_progress=show_progress,
-            progress_description=progress_description,
-        )
+        if preprocessing_backend == "process" and preprocessing_workers > 0 and len(unique_conditions) >= 2:
+            encoded_payloads = self._map_preprocessing(
+                _process_worker_tokenize_description,
+                [self.make_description(condition) for condition in unique_conditions],
+                preprocessing_workers,
+                executor=preprocessing_executor,
+                show_progress=show_progress,
+                progress_description=progress_description,
+            )
+            encoded_unique = [self._restore_process_description(payload) for payload in encoded_payloads]
+        else:
+            encoded_unique = self._map_preprocessing(
+                self.tokenize_description,
+                unique_conditions,
+                preprocessing_workers if preprocessing_backend == "thread" else 0,
+                executor=preprocessing_executor,
+                show_progress=show_progress,
+                progress_description=progress_description,
+            )
         encoded_by_key = dict(zip(unique_keys, encoded_unique))
         return [encoded_by_key[key] for key in row_keys]
 
@@ -746,6 +986,8 @@ class SequenceModel:
         *,
         grouping: GroupingMode,
         preprocessing_workers: int,
+        preprocessing_backend: PreprocessingBackend,
+        preprocessing_executor: Any | None,
         max_records_per_forward: int | None,
         prefetch_batches: int,
         show_progress: bool,
@@ -767,6 +1009,8 @@ class SequenceModel:
                 self._tokenize_sequence_tasks(
                     task_list,
                     preprocessing_workers=preprocessing_workers,
+                    preprocessing_backend=preprocessing_backend,
+                    preprocessing_executor=preprocessing_executor,
                     show_progress=show_progress,
                     progress_description=dna_stage,
                 )
@@ -781,6 +1025,8 @@ class SequenceModel:
             conditions,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
+            preprocessing_executor=preprocessing_executor,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=prefetch_batches,
             show_progress=show_progress,
@@ -798,6 +1044,8 @@ class SequenceModel:
         *,
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
+        preprocessing_executor: Any | None = None,
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -812,13 +1060,13 @@ class SequenceModel:
 
         ``serial`` runs one independent pair per forward. ``no_grouping`` keeps
         the same no-shortcut model semantics but batches independent pairs.
-        DNA and description tokenization are prefetched while the GPU runs the
-        current batch when grouping permits it. ``prefetch_batches=0`` disables
-        look-ahead.
+        DNA and description tokenization can be prefetched in threads or spawned
+        processes while the GPU runs the current batch. ``prefetch_batches=0``
+        disables look-ahead.
         """
 
         from collections import deque
-        from concurrent.futures import Future, ThreadPoolExecutor
+        from concurrent.futures import Future
 
         tokenized_list = list(tokenized_sequences)
         condition_list = list(conditions)
@@ -833,6 +1081,9 @@ class SequenceModel:
             return []
         if preprocessing_workers < 0:
             raise ValueError("preprocessing_workers must be non-negative.")
+        self._validate_preprocessing_backend(preprocessing_backend)
+        if preprocessing_workers > 0 and preprocessing_executor is None:
+            raise RuntimeError("Parallel preprocessing requires an initialized executor.")
         if prefetch_batches < 0:
             raise ValueError("prefetch_batches must be non-negative.")
         valid_grouping = {"serial", "no_grouping", "condition", "sequence", "auto"}
@@ -955,6 +1206,7 @@ class SequenceModel:
                         "max_records_per_forward": max_records_per_forward,
                         "prefetch_batches": prefetch_batches,
                         "preprocessing_workers": preprocessing_workers,
+                        "preprocessing_backend": preprocessing_backend,
                         "record_index": idx,
                     },
                 )
@@ -962,92 +1214,140 @@ class SequenceModel:
             forward_group_id += 1
 
         def prefetched_batches():
-            """Yield batches while CPU threads prepare future DNA and descriptions."""
+            """Yield batches while the selected CPU backend prepares future work."""
 
             if not batches:
                 return
 
-            pending: deque[Any] = deque()
-            desc_in_flight: dict[str, Future[Any]] = {}
             sequence_by_key: dict[tuple[Any, ...], TokenizedSequence] = {}
-            sequence_in_flight: dict[tuple[Any, ...], Future[Any]] = {}
-            next_batch = 0
-
-            with ThreadPoolExecutor(max_workers=max(1, int(preprocessing_workers))) as executor:
-
-                def submit(batch: _ForwardBatch) -> None:
-                    sequence_work = []
-                    description_work = []
+            if preprocessing_workers == 0:
+                for batch in batches:
+                    tokenized_batch: list[TokenizedSequence] = []
+                    desc_encodings = []
                     for idx in batch.indices:
-                        sequence_key = None
-                        sequence_future = None
                         if tokenized_list[idx] is None:
                             assert task_list is not None
                             task = task_list[idx]
                             sequence_key = self._sequence_task_key(*task)
-                            sequence_future = sequence_in_flight.get(sequence_key)
-                            if sequence_key not in sequence_by_key and sequence_future is None:
+                            if sequence_key not in sequence_by_key:
+                                sequence_by_key[sequence_key] = self.tokenize_sequence(
+                                    task[0],
+                                    center=task[1],
+                                    strand=task[2],
+                                )
+                            tokenized_list[idx] = sequence_by_key[sequence_key]
+                        tokenized = tokenized_list[idx]
+                        assert tokenized is not None
+                        tokenized_batch.append(tokenized)
+
+                        desc_key = self._grouping_key_for_condition(condition_list[idx])
+                        if desc_key not in encoded_by_key:
+                            encoded_by_key[desc_key] = self.tokenize_description(condition_list[idx])
+                        desc_encodings.append(encoded_by_key[desc_key])
+                    yield batch, tokenized_batch, desc_encodings
+                return
+
+            assert preprocessing_executor is not None
+            pending: deque[Any] = deque()
+            desc_in_flight: dict[str, Future[Any]] = {}
+            sequence_in_flight: dict[tuple[Any, ...], Future[Any]] = {}
+            next_batch = 0
+
+            def submit(batch: _ForwardBatch) -> None:
+                sequence_work = []
+                description_work = []
+                for idx in batch.indices:
+                    sequence_key = None
+                    sequence_future = None
+                    source = None
+                    if tokenized_list[idx] is None:
+                        assert task_list is not None
+                        task = task_list[idx]
+                        sequence_key = self._sequence_task_key(*task)
+                        sequence_future = sequence_in_flight.get(sequence_key)
+                        if sequence_key not in sequence_by_key and sequence_future is None:
+                            if preprocessing_backend == "process":
+                                process_payload, source = self._sequence_process_payload(task)
+                                sequence_future = executor.submit(
+                                    _process_worker_tokenize_sequence,
+                                    process_payload,
+                                )
+                            else:
                                 sequence_future = executor.submit(
                                     self.tokenize_sequence,
                                     task[0],
                                     center=task[1],
                                     strand=task[2],
                                 )
-                                sequence_in_flight[sequence_key] = sequence_future
-                        sequence_work.append((sequence_key, sequence_future))
+                            sequence_in_flight[sequence_key] = sequence_future
+                    sequence_work.append((sequence_key, sequence_future, source))
 
-                        desc_key = self._grouping_key_for_condition(condition_list[idx])
-                        desc_future = None
-                        if desc_key not in encoded_by_key:
-                            desc_future = desc_in_flight.get(desc_key)
-                            if desc_future is None:
+                    desc_key = self._grouping_key_for_condition(condition_list[idx])
+                    desc_future = None
+                    if desc_key not in encoded_by_key:
+                        desc_future = desc_in_flight.get(desc_key)
+                        if desc_future is None:
+                            if preprocessing_backend == "process":
+                                description = self.make_description(condition_list[idx])
+                                desc_future = executor.submit(_process_worker_tokenize_description, description)
+                            else:
                                 desc_future = executor.submit(self.tokenize_description, condition_list[idx])
-                                desc_in_flight[desc_key] = desc_future
-                        description_work.append((desc_key, desc_future))
-                    pending.append((batch, sequence_work, description_work))
+                            desc_in_flight[desc_key] = desc_future
+                    description_work.append((desc_key, desc_future))
+                pending.append((batch, sequence_work, description_work))
 
-                initial_count = min(len(batches), prefetch_batches + 1)
-                for _ in range(initial_count):
+            executor = preprocessing_executor
+            initial_count = min(len(batches), prefetch_batches + 1)
+            for _ in range(initial_count):
+                submit(batches[next_batch])
+                next_batch += 1
+
+            while pending:
+                batch, sequence_work, description_work = pending.popleft()
+                tokenized_batch: list[TokenizedSequence] = []
+                for idx, (key, future, source) in zip(batch.indices, sequence_work):
+                    if tokenized_list[idx] is None:
+                        assert key is not None
+                        if key not in sequence_by_key:
+                            assert future is not None
+                            result = future.result()
+                            if preprocessing_backend == "process":
+                                assert source is not None
+                                result = self._restore_process_tokenized_sequence(result, source)
+                            sequence_by_key[key] = result
+                            sequence_in_flight.pop(key, None)
+                        tokenized_list[idx] = sequence_by_key[key]
+                    tokenized = tokenized_list[idx]
+                    assert tokenized is not None
+                    tokenized_batch.append(tokenized)
+
+                desc_encodings = []
+                for key, future in description_work:
+                    if key not in encoded_by_key:
+                        assert future is not None
+                        result = future.result()
+                        if preprocessing_backend == "process":
+                            result = self._restore_process_description(result)
+                        encoded_by_key[key] = result
+                        desc_in_flight.pop(key, None)
+                    desc_encodings.append(encoded_by_key[key])
+
+                yield batch, tokenized_batch, desc_encodings
+
+                # Refill only after the current GPU forward has finished.
+                if next_batch < len(batches):
                     submit(batches[next_batch])
                     next_batch += 1
 
-                while pending:
-                    batch, sequence_work, description_work = pending.popleft()
-                    tokenized_batch: list[TokenizedSequence] = []
-                    for idx, (key, future) in zip(batch.indices, sequence_work):
-                        if tokenized_list[idx] is None:
-                            assert key is not None
-                            if key not in sequence_by_key:
-                                assert future is not None
-                                sequence_by_key[key] = future.result()
-                                sequence_in_flight.pop(key, None)
-                            tokenized_list[idx] = sequence_by_key[key]
-                        tokenized = tokenized_list[idx]
-                        assert tokenized is not None
-                        tokenized_batch.append(tokenized)
-
-                    desc_encodings = []
-                    for key, future in description_work:
-                        if key not in encoded_by_key:
-                            assert future is not None
-                            encoded_by_key[key] = future.result()
-                            desc_in_flight.pop(key, None)
-                        desc_encodings.append(encoded_by_key[key])
-
-                    yield batch, tokenized_batch, desc_encodings
-
-                    # Refill only after the current GPU forward has finished.
-                    if next_batch < len(batches):
-                        submit(batches[next_batch])
-                        next_batch += 1
-
         stage = progress_description or batch_method.replace("_", " ").title()
         self.logger.info(
-            "%s: %d row(s), %d forward batch(es), grouping=%s, prefetch=%d",
+            "%s: %d row(s), %d forward batch(es), grouping=%s, preprocessing=%s/%d, prefetch=%d",
             stage,
             len(tokenized_list),
             len(batches),
             resolved_grouping,
+            preprocessing_backend,
+            preprocessing_workers,
             prefetch_batches,
         )
         try:
@@ -1084,6 +1384,7 @@ class SequenceModel:
         strand: str = "+",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1093,22 +1394,30 @@ class SequenceModel:
 
         Accepts many sequences with one condition, one sequence with many
         conditions, or paired sequence/condition rows. Future CPU batches are
-        prepared by worker threads while the GPU runs.
+        prepared by threads or spawned processes while the GPU runs.
         """
 
         sequence_list, condition_list = self._sequence_condition_rows(sequences, conditions, condition)
-        predictions = self._predict_sequence_tasks(
-            [(sequence, center, strand) for sequence in sequence_list],
-            condition_list,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            batch_method="predict_multiple_sequences",
-            progress_description="Predicting sequences",
-            return_tokens=return_tokens,
-        )
+        if not sequence_list:
+            return []
+        with self._preprocessing_executor(
+            preprocessing_backend,
+            preprocessing_workers,
+        ) as preprocessing_executor:
+            predictions = self._predict_sequence_tasks(
+                [(sequence, center, strand) for sequence in sequence_list],
+                condition_list,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
+                preprocessing_executor=preprocessing_executor,
+                max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
+                batch_method="predict_multiple_sequences",
+                progress_description="Predicting sequences",
+                return_tokens=return_tokens,
+            )
         return [self._to_expression_prediction(prediction) for prediction in predictions]
 
     def _predict_multiple_sequences_one_condition(
@@ -1120,6 +1429,7 @@ class SequenceModel:
         strand: str = "+",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1134,6 +1444,7 @@ class SequenceModel:
             strand=strand,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=prefetch_batches,
             show_progress=show_progress,
@@ -1149,6 +1460,7 @@ class SequenceModel:
         strand: str = "+",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1163,6 +1475,7 @@ class SequenceModel:
             strand=strand,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=prefetch_batches,
             show_progress=show_progress,
@@ -1196,6 +1509,7 @@ class SequenceModel:
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1208,6 +1522,7 @@ class SequenceModel:
             center=center,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=prefetch_batches,
             show_progress=show_progress,
@@ -1222,6 +1537,7 @@ class SequenceModel:
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1238,32 +1554,40 @@ class SequenceModel:
         alt_tasks = [(pair.alt, pair_center, "+") for pair, pair_center in zip(pair_list, centers)]
 
         description_cache: dict[str, dict[str, Any]] = {}
-        ref_predictions = self._predict_sequence_tasks(
-            ref_tasks,
-            condition_list,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            batch_method="many_pair_refs",
-            progress_description="Predicting references",
-            return_tokens=True,
-            description_cache=description_cache,
-        )
-        alt_predictions = self._predict_sequence_tasks(
-            alt_tasks,
-            condition_list,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            batch_method="many_pair_alts",
-            progress_description="Predicting alternatives",
-            return_tokens=True,
-            description_cache=description_cache,
-        )
+        with self._preprocessing_executor(
+            preprocessing_backend,
+            preprocessing_workers,
+        ) as preprocessing_executor:
+            ref_predictions = self._predict_sequence_tasks(
+                ref_tasks,
+                condition_list,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
+                preprocessing_executor=preprocessing_executor,
+                max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
+                batch_method="many_pair_refs",
+                progress_description="Predicting references",
+                return_tokens=True,
+                description_cache=description_cache,
+            )
+            alt_predictions = self._predict_sequence_tasks(
+                alt_tasks,
+                condition_list,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
+                preprocessing_executor=preprocessing_executor,
+                max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
+                batch_method="many_pair_alts",
+                progress_description="Predicting alternatives",
+                return_tokens=True,
+                description_cache=description_cache,
+            )
         return [
             PairPrediction(
                 ref=self._to_expression_prediction(ref_pred),
@@ -1312,6 +1636,7 @@ class SequenceModel:
         center_feature_name: str = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         return_sequence: bool = True,
     ) -> ExpressionPrediction:
@@ -1329,6 +1654,7 @@ class SequenceModel:
             center_feature_name=center_feature_name,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=0,
             show_progress=False,
@@ -1380,10 +1706,10 @@ class SequenceModel:
         }
 
     def _worker_tokenizer_config(self) -> dict[str, Any]:
-        name_or_path = getattr(self.dna_tokenizer, "name_or_path", None)
+        name_or_path = getattr(self.dna_tokenizer, "name_or_path", None) or self.provenance.get("dna_tokenizer")
         if not name_or_path:
             raise ValueError(
-                "preprocessing_workers requires dna_tokenizer.name_or_path so each worker can load its own tokenizer."
+                "Process preprocessing requires a reloadable DNA tokenizer path."
             )
         return {
             "name_or_path": str(name_or_path),
@@ -1393,6 +1719,18 @@ class SequenceModel:
             "cls_id": self.dna_tokenizer.cls_token_id,
             "sep_id": self.dna_tokenizer.sep_token_id,
             "pad_id": self.dna_tokenizer.pad_token_id,
+        }
+
+    def _worker_description_tokenizer_config(self) -> dict[str, Any]:
+        name_or_path = getattr(self.desc_tokenizer, "name_or_path", None) or self.provenance.get("description_tokenizer")
+        if not name_or_path:
+            raise ValueError(
+                "Process preprocessing requires a reloadable description tokenizer path."
+            )
+        return {
+            "name_or_path": str(name_or_path),
+            "padding_side": getattr(self.desc_tokenizer, "padding_side", "left"),
+            "desc_max_seq_len": self.desc_max_seq_len,
         }
 
     def _prepare_tss_tokenized_records(
@@ -1405,9 +1743,11 @@ class SequenceModel:
         include_features: bool,
         center_feature_name: str,
         preprocessing_workers: int,
+        preprocessing_backend: PreprocessingBackend,
+        preprocessing_executor: Any | None,
         show_progress: bool,
     ) -> list[TokenizedSequence]:
-        """Build and tokenize TSS-centered sequences, optionally in worker processes."""
+        """Build and tokenize TSS-centered sequences using the selected backend."""
 
         tasks = []
         for idx, record in enumerate(records):
@@ -1460,25 +1800,20 @@ class SequenceModel:
                 )
                 output[task["index"]] = self.tokenize_sequence(sequence, center=center_feature_name, strand="+")
         else:
-            import multiprocessing as mp
-
-            ctx = mp.get_context("spawn")
+            if preprocessing_executor is None:
+                raise RuntimeError("Parallel TSS preprocessing requires an initialized executor.")
             chunksize = max(1, len(tasks) // (int(preprocessing_workers) * 4)) if tasks else 1
-            with ctx.Pool(
-                processes=int(preprocessing_workers),
-                initializer=_tss_worker_init,
-                initargs=(self._worker_genome_config(genome), self._worker_tokenizer_config()),
-            ) as pool:
-                completed = pool.imap_unordered(_tss_worker_tokenize, tasks, chunksize=chunksize)
-                completed = _progress(
-                    completed,
-                    total=len(tasks),
-                    description="Preparing TSS records",
-                    enabled=show_progress,
-                    unit="record",
-                )
-                for idx, tokenized in completed:
-                    output[idx] = tokenized
+            worker = _tss_worker_tokenize if preprocessing_backend == "process" else _tss_thread_tokenize
+            completed = preprocessing_executor.map(worker, tasks, chunksize=chunksize)
+            completed = _progress(
+                completed,
+                total=len(tasks),
+                description="Preparing TSS records",
+                enabled=show_progress,
+                unit="record",
+            )
+            for idx, tokenized in completed:
+                output[idx] = tokenized
 
         return [tokenized for tokenized in output if tokenized is not None]
 
@@ -1495,6 +1830,7 @@ class SequenceModel:
         center_feature_name: str = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1503,8 +1839,8 @@ class SequenceModel:
         """Predict expression for paired TSS records and conditions.
 
         ``records`` can be paired with one condition or row-wise conditions.
-        TSS sequence building uses process workers when ``preprocessing_workers``
-        is positive; each worker opens its own genome handle.
+        Positive ``preprocessing_workers`` use the selected backend, and every
+        worker opens an independent genome handle.
         """
 
         record_list = list(records)
@@ -1512,35 +1848,45 @@ class SequenceModel:
         if not record_list:
             return []
 
-        tokenized_list = self._prepare_tss_tokenized_records(
-            record_list,
+        with self._preprocessing_executor(
+            preprocessing_backend,
+            preprocessing_workers,
             genome=genome,
-            context_bp=context_bp,
-            coordinate_system=coordinate_system,
-            include_features=include_features,
-            center_feature_name=center_feature_name,
-            preprocessing_workers=preprocessing_workers,
-            show_progress=show_progress,
-        )
-        if len(tokenized_list) != len(record_list):
-            raise RuntimeError("TSS preprocessing did not return one tokenized sequence per record.")
+        ) as preprocessing_executor:
+            tokenized_list = self._prepare_tss_tokenized_records(
+                record_list,
+                genome=genome,
+                context_bp=context_bp,
+                coordinate_system=coordinate_system,
+                include_features=include_features,
+                center_feature_name=center_feature_name,
+                preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
+                preprocessing_executor=preprocessing_executor,
+                show_progress=show_progress,
+            )
+            if len(tokenized_list) != len(record_list):
+                raise RuntimeError("TSS preprocessing did not return one tokenized sequence per record.")
 
-        predictions = self._predict_many_tokenized_sequences(
-            tokenized_list,
-            condition_list,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            batch_method="predict_multiple_tss",
-            progress_description="Predicting TSS records",
-            return_tokens=True,
-            extra_provenance={
-                "preprocessing_workers": preprocessing_workers,
-                "prefetch_batches": prefetch_batches,
-            },
-        )
+            predictions = self._predict_many_tokenized_sequences(
+                tokenized_list,
+                condition_list,
+                grouping=grouping,
+                preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
+                preprocessing_executor=preprocessing_executor,
+                max_records_per_forward=max_records_per_forward,
+                prefetch_batches=prefetch_batches,
+                show_progress=show_progress,
+                batch_method="predict_multiple_tss",
+                progress_description="Predicting TSS records",
+                return_tokens=True,
+                extra_provenance={
+                    "preprocessing_workers": preprocessing_workers,
+                    "preprocessing_backend": preprocessing_backend,
+                    "prefetch_batches": prefetch_batches,
+                },
+            )
         return [self._to_expression_prediction(prediction, return_sequence=return_sequence) for prediction in predictions]
 
 
@@ -1595,6 +1941,7 @@ class VariantInterpreter:
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1639,6 +1986,7 @@ class VariantInterpreter:
                             center=center,
                             grouping=grouping,
                             preprocessing_workers=preprocessing_workers,
+                            preprocessing_backend=preprocessing_backend,
                             max_records_per_forward=max_records_per_forward,
                             prefetch_batches=prefetch_batches,
                             show_progress=False,
@@ -1677,6 +2025,7 @@ class VariantInterpreter:
                 center=center,
                 grouping=grouping,
                 preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
                 max_records_per_forward=max_records_per_forward,
                 prefetch_batches=prefetch_batches,
                 show_progress=show_progress,
@@ -1718,6 +2067,7 @@ class VariantInterpreter:
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1753,6 +2103,7 @@ class VariantInterpreter:
                             center=center,
                             grouping=grouping,
                             preprocessing_workers=preprocessing_workers,
+                            preprocessing_backend=preprocessing_backend,
                             max_records_per_forward=max_records_per_forward,
                             prefetch_batches=prefetch_batches,
                             show_progress=False,
@@ -1771,6 +2122,7 @@ class VariantInterpreter:
                 center=center,
                 grouping=grouping,
                 preprocessing_workers=preprocessing_workers,
+                preprocessing_backend=preprocessing_backend,
                 max_records_per_forward=max_records_per_forward,
                 prefetch_batches=prefetch_batches,
                 show_progress=show_progress,
@@ -1789,6 +2141,7 @@ class VariantInterpreter:
         center: int | str | Feature,
         grouping: GroupingMode,
         preprocessing_workers: int = 0,
+        preprocessing_backend: PreprocessingBackend = "process",
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
@@ -1801,6 +2154,7 @@ class VariantInterpreter:
             center=center,
             grouping=grouping,
             preprocessing_workers=preprocessing_workers,
+            preprocessing_backend=preprocessing_backend,
             max_records_per_forward=max_records_per_forward,
             prefetch_batches=prefetch_batches,
             show_progress=show_progress,
