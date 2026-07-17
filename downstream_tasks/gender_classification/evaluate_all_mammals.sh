@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PRETRAINED_CONFIG_NAME="answerdotai/ModernBERT-base"
 MODEL_PATH="./checkpoint-106000/model.safetensors"
 # DATA_DIR="/disk/10tb/home/chepurova/chepurova/mammals_data_contig_separated/"
 DATA_DIR="data/mammals_data_contig_separated/"
