@@ -36,6 +36,11 @@ def parse_args():
     )
     # Model and data paths
     parser.add_argument(
+        "--pretrained_config_name",
+        type=str,
+        default="AIRI-Institute/moderngena-base",
+    )
+    parser.add_argument(
         "--model_path",
         type=str,
         default="runs/human_mouse_contigs_16x3072_bs_128_lr_1e-05_chrY_chrY_ratio_0.5/run_1/checkpoint-153250/model.safetensors",
@@ -54,6 +59,9 @@ def parse_args():
     )
     parser.add_argument(
         "--chunk_size", type=int, default=3072, help="Size of each chunk"
+    )
+    parser.add_argument(
+        "--max_length", type=int, default=512, help="Size of the context window"
     )
     parser.add_argument(
         "--batch_size", type=int, default=32, help="Batch size for inference"
@@ -112,7 +120,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def preprocess_collate_fn(samples, tokenizer):
+def preprocess_collate_fn(samples, tokenizer, max_length=512):
     batch = collate_fn(samples)
 
     batch["chunks"] = np.array(batch["chunks"])
@@ -122,7 +130,7 @@ def preprocess_collate_fn(samples, tokenizer):
     tokenized_batch = tokenizer(
         batch["chunks"],
         padding="longest",
-        max_length=512,
+        max_length=max_length,
         truncation=True,
         return_tensors="pt",
     )
@@ -142,15 +150,15 @@ def preprocess_collate_fn(samples, tokenizer):
     }
 
 
-def load_model_and_tokenizer():
-    tokenizer = AutoTokenizer.from_pretrained("AIRI-Institute/moderngena-base")
+def load_model_and_tokenizer(pretrained_config_name="AIRI-Institute/moderngena-base"):
+    tokenizer = AutoTokenizer.from_pretrained(pretrained_config_name)
     pretrained_config = AutoConfig.from_pretrained(
-        "AIRI-Institute/moderngena-base", trust_remote_code=True
+        pretrained_config_name, trust_remote_code=True
     )
     is_modern = "modern" in getattr(pretrained_config, "model_type", "").lower()
     load_kwargs = {} if is_modern else {"add_pooling_layer": False}
     base_model = AutoModel.from_pretrained(
-        "AIRI-Institute/moderngena-base", trust_remote_code=True, **load_kwargs
+        pretrained_config_name, trust_remote_code=True, **load_kwargs
     )
     return base_model, tokenizer
 
@@ -200,7 +208,7 @@ def process_batches(dataloader, model, N, species):
 
 def run_inference(args):
     # Load model and tokenizer
-    base_model, tokenizer = load_model_and_tokenizer()
+    base_model, tokenizer = load_model_and_tokenizer(pretrained_config_name=args.pretrained_config_name)
     gender_model = GenderChunkedClassifier(base_model)
     load_model(gender_model, args.model_path)
     gender_model = gender_model.cuda()
@@ -239,7 +247,7 @@ def run_inference(args):
         dataloader = DataLoader(
             dataset,
             batch_size=args.batch_size,
-            collate_fn=lambda x: preprocess_collate_fn(x, tokenizer),
+            collate_fn=lambda x: preprocess_collate_fn(x, tokenizer, args.max_length),
             num_workers=args.num_workers,
             pin_memory=True,
             worker_init_fn=worker_init_fn,
@@ -346,6 +354,7 @@ def run_evaluation(
         f.write(
             json.dumps(
                 {
+                    "pretrained_config_name": args.pretrained_config_name,
                     "checkpoint": args.model_path,
                     "evaluation_species": species,
                     "N2thr": N2thr,
