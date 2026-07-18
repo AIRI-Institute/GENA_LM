@@ -12,7 +12,7 @@
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
 
-set -euo pipefail
+set -eo pipefail
 
 date
 
@@ -21,6 +21,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$SCRIPT_DIR"
 
 source "$HOME/envs/gender/bin/activate"
+set -u
 
 export HF_HOME="${HF_HOME:-$HOME/.hf}"
 export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
