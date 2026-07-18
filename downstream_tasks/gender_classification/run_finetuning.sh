@@ -1,6 +1,15 @@
 #!/bin/bash
 
-# Usage: CUDA_VISIBLE_DEVICES=0,1,2,3 NP=4 bash run_finetuning.sh
+source $HOME/envs/gender/bin/activate
+
+export HF_HOME=$HOME/.hf
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_OFFLINE=1
+export TOKENIZERS_PARALLELISM=0
+
+echo "HF_HOME: $HF_HOME"
+
+# TODO add cuda_visible_devices as the parameter is not used in the script !!
 
 # Define arguments for the script
 N_CHUNKS=16
@@ -10,13 +19,15 @@ FREEZE_BACKBONE=false
 # CHRY_NAME=Ys
 CHRY_NAME=Y
 CHRY_RATIO="${CHRY_RATIO:-0.25}"
-DATA_PATH="${DATA_PATH:-/disk/10tb/home/chepurova/chepurova/mammals_data_contig_separated/}"
+DATA_PATH="${DATA_PATH:-/external/nfs/01-home/vsefishman/DNALM/GENA_LM/GENA_LM-task-gender_classification/data/mammals_data_contig_separated/}"
 
 LR=1e-05
 TBS=128
 PER_DEVICE_BATCH_SIZE=8
+NP=8
 GRAD_ACC_STEPS=$(($TBS/($PER_DEVICE_BATCH_SIZE*$NP)))
-
+echo "GRAD_ACC_STEPS $GRAD_ACC_STEPS"
+echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
 EXP_PATH="./runs/mammals_contig_separated_modern_gena_${N_CHUNKS}x${CHUNK_SIZE}_bs_${TBS}_lr_${LR}_${CHRY_NAME}"
 
 if [ -n "$CHRY_RATIO" ]; then
@@ -37,19 +48,17 @@ N=1
 EXP_PATH="${EXP_PATH}/run_$N"
 
 # ---- Redirect temp & cache dirs ----
-TMP_DIR="${TMP_DIR:-/disk/10tb/home/chepurova/bigger_tmp}"
+TMP_DIR="${TMP_DIR:-/external/nfs/01-home/vsefishman/tmp}"
 export TMPDIR=$TMP_DIR
 export TEMP=$TMP_DIR
 export TMP=$TMP_DIR
 
-export CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES
-
 # conda activate dna-lm 
 # Execute the script using accelerate for parallel processing
+echo $(which python)
 accelerate launch \
   --main_process_port $((29500+N_CHUNKS*100+CHUNK_SIZE+TBS+N+1)) \
   --num_processes $NP \
-  --multi_gpu \
   --mixed_precision bf16 \
   --config_file default_config.yaml \
   ./train.py \
