@@ -4,7 +4,9 @@ set -euo pipefail
 # Submit the mammals evaluation array to the shared rnd partition.
 # Each array task requests one GPU via slurm/mammals_eval.slurm.
 
-cd "$(dirname "${BASH_SOURCE[0]}")"
+INVOCATION_DIR="$PWD"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 export HF_HOME="${HF_HOME:-$HOME/.hf}"
 export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
@@ -21,7 +23,13 @@ export SBATCH_QOS="${SBATCH_QOS:-airi-high}"
 export CONDA_ENV="${CONDA_ENV:-$HOME/envs/gender}"
 export MAX_CONCURRENT="${MAX_CONCURRENT:-8}"
 
-DATA_DIR="${DATA_DIR:-./data/mammals_data_contig_separated}"
+DATA_DIR="${DATA_DIR:-$REPO_ROOT/data/mammals_data_contig_separated}"
+if [[ "$DATA_DIR" != /* ]]; then
+    DATA_DIR="$INVOCATION_DIR/$DATA_DIR"
+fi
+DATA_DIR="$(cd "$DATA_DIR" && pwd)"
+
+cd "$SCRIPT_DIR"
 
 echo "DATA_DIR=$DATA_DIR"
 echo "CONDA_ENV=$CONDA_ENV"
