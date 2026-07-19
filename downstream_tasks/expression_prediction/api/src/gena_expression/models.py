@@ -20,7 +20,6 @@ from .tokenization import CenteredTokenizer, TokenizedSequence
 from .variants import Variant
 
 
-_PROCESS_WORKER_GENOME = None
 _PROCESS_WORKER_TOKENIZER = None
 _PROCESS_WORKER_DESC_TOKENIZER = None
 _PROCESS_WORKER_DESC_MAX_SEQ_LEN = None
@@ -61,7 +60,6 @@ def _progress(
 
 
 def _process_worker_init(
-    genome_config: Mapping[str, Any] | None,
     tokenizer_config: Mapping[str, Any],
     description_tokenizer_config: Mapping[str, Any],
 ) -> None:
@@ -69,15 +67,10 @@ def _process_worker_init(
 
     from transformers import AutoTokenizer
 
-    global _PROCESS_WORKER_GENOME
     global _PROCESS_WORKER_TOKENIZER
     global _PROCESS_WORKER_DESC_TOKENIZER
     global _PROCESS_WORKER_DESC_MAX_SEQ_LEN
 
-    if genome_config is not None:
-        from .genome import Genome
-
-        _PROCESS_WORKER_GENOME = Genome(**dict(genome_config))
     dna_tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_config["name_or_path"]))
     _PROCESS_WORKER_TOKENIZER = CenteredTokenizer(
         dna_tokenizer=dna_tokenizer,
@@ -96,16 +89,11 @@ def _process_worker_init(
 
 
 def _thread_worker_init(
-    genome_config: Mapping[str, Any] | None,
     centered_tokenizer: CenteredTokenizer,
 ) -> None:
-    """Give each TSS preprocessing thread its own genome handle."""
+    """Initialize thread-local sequence preprocessing state."""
 
     _THREAD_WORKER_STATE.centered_tokenizer = centered_tokenizer
-    if genome_config is not None:
-        from .genome import Genome
-
-        _THREAD_WORKER_STATE.genome = Genome(**dict(genome_config))
 
 
 def _process_worker_tokenize_sequence(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -148,44 +136,6 @@ def _process_worker_tokenize_description(description: str) -> dict[str, Any]:
         "desc_input_ids": list(encoding["input_ids"]),
         "desc_attention_mask": list(encoding["attention_mask"]),
     }
-
-
-def _tss_worker_tokenize(task: Mapping[str, Any]) -> tuple[int, TokenizedSequence]:
-    """Build and tokenize one TSS-centered sequence inside a worker process."""
-
-    if _PROCESS_WORKER_GENOME is None or _PROCESS_WORKER_TOKENIZER is None:
-        raise RuntimeError("TSS preprocessing worker was not initialized.")
-    sequence = _PROCESS_WORKER_GENOME.sequence_around(
-        str(task["chrom"]),
-        int(task["tss0"]),
-        int(task["size"]),
-        strand=str(task["strand"]),
-        include_features=bool(task["include_features"]),
-        center_feature_name=task["center_feature_name"],
-        name=task["name"],
-    )
-    tokenized = _PROCESS_WORKER_TOKENIZER.tokenize(sequence, center=task["center_feature_name"], strand="+")
-    return int(task["index"]), tokenized
-
-
-def _tss_thread_tokenize(task: Mapping[str, Any]) -> tuple[int, TokenizedSequence]:
-    """Build and tokenize one TSS record using thread-local genome state."""
-
-    genome = getattr(_THREAD_WORKER_STATE, "genome", None)
-    tokenizer = getattr(_THREAD_WORKER_STATE, "centered_tokenizer", None)
-    if genome is None or tokenizer is None:
-        raise RuntimeError("TSS preprocessing thread was not initialized.")
-    sequence = genome.sequence_around(
-        str(task["chrom"]),
-        int(task["tss0"]),
-        int(task["size"]),
-        strand=str(task["strand"]),
-        include_features=bool(task["include_features"]),
-        center_feature_name=task["center_feature_name"],
-        name=task["name"],
-    )
-    tokenized = tokenizer.tokenize(sequence, center=task["center_feature_name"], strand="+")
-    return int(task["index"]), tokenized
 
 
 class SequenceModel:
@@ -473,8 +423,6 @@ class SequenceModel:
         self,
         backend: PreprocessingBackend,
         workers: int,
-        *,
-        genome: Any | None = None,
     ):
         """Yield one executor shared by every preprocessing stage in an API call."""
 
@@ -485,7 +433,6 @@ class SequenceModel:
             yield None
             return
 
-        genome_config = self._worker_genome_config(genome) if genome is not None else None
         self.logger.info("Starting %s preprocessing with %d worker(s)", backend, workers)
         if backend == "thread":
             from concurrent.futures import ThreadPoolExecutor
@@ -493,7 +440,7 @@ class SequenceModel:
             with ThreadPoolExecutor(
                 max_workers=int(workers),
                 initializer=_thread_worker_init,
-                initargs=(genome_config, self.centered_tokenizer),
+                initargs=(self.centered_tokenizer,),
             ) as executor:
                 yield executor
             return
@@ -506,7 +453,6 @@ class SequenceModel:
             mp_context=mp.get_context("spawn"),
             initializer=_process_worker_init,
             initargs=(
-                genome_config,
                 self._worker_tokenizer_config(),
                 self._worker_description_tokenizer_config(),
             ),
@@ -729,52 +675,6 @@ class SequenceModel:
         tokenized_by_key = dict(zip(unique_keys, tokenized_unique))
         return [tokenized_by_key[key] for key in row_keys]
 
-    def _tokenize_descriptions(
-        self,
-        conditions: Sequence[Condition],
-        *,
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        preprocessing_executor: Any | None = None,
-        show_progress: bool = False,
-        progress_description: str = "Tokenizing descriptions",
-    ) -> list[dict[str, Any]]:
-        """Tokenize unique descriptions and restore the original row order."""
-
-        unique_conditions: list[Condition] = []
-        unique_keys: list[str] = []
-        seen: set[str] = set()
-        row_keys = []
-        for condition in conditions:
-            key = self._grouping_key_for_condition(condition)
-            row_keys.append(key)
-            if key not in seen:
-                seen.add(key)
-                unique_keys.append(key)
-                unique_conditions.append(condition)
-        self.logger.info("%s: %d unique description(s)", progress_description, len(unique_conditions))
-        if preprocessing_backend == "process" and preprocessing_workers > 0 and len(unique_conditions) >= 2:
-            encoded_payloads = self._map_preprocessing(
-                _process_worker_tokenize_description,
-                [self.make_description(condition) for condition in unique_conditions],
-                preprocessing_workers,
-                executor=preprocessing_executor,
-                show_progress=show_progress,
-                progress_description=progress_description,
-            )
-            encoded_unique = [self._restore_process_description(payload) for payload in encoded_payloads]
-        else:
-            encoded_unique = self._map_preprocessing(
-                self.tokenize_description,
-                unique_conditions,
-                preprocessing_workers if preprocessing_backend == "thread" else 0,
-                executor=preprocessing_executor,
-                show_progress=show_progress,
-                progress_description=progress_description,
-            )
-        encoded_by_key = dict(zip(unique_keys, encoded_unique))
-        return [encoded_by_key[key] for key in row_keys]
-
     @staticmethod
     def _description_token_payload(desc_encoded: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -873,7 +773,7 @@ class SequenceModel:
                 dataset_flag=dataset_flag,
             )
 
-    def _run_tokenized_same_sequence(
+    def _run_tokenized_repeated_sequence(
         self,
         tokenized_sequence: TokenizedSequence,
         desc_encodings: Sequence[dict[str, Any]],
@@ -947,7 +847,7 @@ class SequenceModel:
     ) -> ExpressionPrediction:
         """Run one already-tokenized sequence/condition row."""
 
-        prediction = self._predict_many_tokenized_sequences(
+        prediction = self._predict_multiple_tokenized_sequences(
             [tokenized],
             [condition_obj],
             grouping=grouping,
@@ -1002,8 +902,8 @@ class SequenceModel:
         sequence_tasks = None
         if grouping in {"sequence", "auto"}:
             dna_stage = {
-                "many_pair_refs": "Tokenizing references",
-                "many_pair_alts": "Tokenizing alternatives",
+                "multiple_pair_refs": "Tokenizing references",
+                "multiple_pair_alts": "Tokenizing alternatives",
             }.get(batch_method, "Tokenizing DNA")
             tokenized: list[TokenizedSequence | None] = list(
                 self._tokenize_sequence_tasks(
@@ -1020,7 +920,7 @@ class SequenceModel:
             tokenized = [None] * len(task_list)
             sequence_tasks = task_list
 
-        return self._predict_many_tokenized_sequences(
+        return self._predict_multiple_tokenized_sequences(
             tokenized,
             conditions,
             grouping=grouping,
@@ -1037,7 +937,7 @@ class SequenceModel:
             sequence_tasks=sequence_tasks,
         )
 
-    def _predict_many_tokenized_sequences(
+    def _predict_multiple_tokenized_sequences(
         self,
         tokenized_sequences: Sequence[TokenizedSequence | None],
         conditions: Sequence[Condition],
@@ -1364,7 +1264,7 @@ class SequenceModel:
                 elif batch.grouping == "condition":
                     model_output = self._run_tokenized_repeated_condition(tokenized_batch, desc_encodings[0])
                 elif batch.grouping == "sequence":
-                    model_output = self._run_tokenized_same_sequence(tokenized_batch[0], desc_encodings)
+                    model_output = self._run_tokenized_repeated_sequence(tokenized_batch[0], desc_encodings)
                 else:
                     raise RuntimeError(f"Unexpected forward grouping: {batch.grouping!r}")
                 store_predictions(batch, self._logits_to_cpu(model_output), desc_encodings)
@@ -1420,68 +1320,6 @@ class SequenceModel:
             )
         return [self._to_expression_prediction(prediction) for prediction in predictions]
 
-    def _predict_multiple_sequences_one_condition(
-        self,
-        sequences: Iterable[AnnotatedSequence | str],
-        *,
-        condition: Condition | str | Mapping[str, Any],
-        center: int | str | Feature = "tss",
-        strand: str = "+",
-        grouping: GroupingMode = "no_grouping",
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        max_records_per_forward: int | None = None,
-        prefetch_batches: int = 1,
-        show_progress: bool = True,
-        return_tokens: bool = True,
-    ) -> list[ExpressionPrediction]:
-        """Predict many sequences under one condition."""
-
-        return self.predict_multiple_sequences(
-            sequences,
-            condition=condition,
-            center=center,
-            strand=strand,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            preprocessing_backend=preprocessing_backend,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            return_tokens=return_tokens,
-        )
-
-    def _predict_one_sequence_many_conditions(
-        self,
-        sequence: AnnotatedSequence | str,
-        conditions: Iterable[Condition | str | Mapping[str, Any]],
-        *,
-        center: int | str | Feature = "tss",
-        strand: str = "+",
-        grouping: GroupingMode = "no_grouping",
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        max_records_per_forward: int | None = None,
-        prefetch_batches: int = 1,
-        show_progress: bool = True,
-        return_tokens: bool = True,
-    ) -> list[ExpressionPrediction]:
-        """Predict one sequence under many conditions."""
-
-        return self.predict_multiple_sequences(
-            sequence,
-            conditions=conditions,
-            center=center,
-            strand=strand,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            preprocessing_backend=preprocessing_backend,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-            return_tokens=return_tokens,
-        )
-
     def predict_pair(
         self,
         pair: SequencePair,
@@ -1500,33 +1338,6 @@ class SequenceModel:
             prefetch_batches=0,
             show_progress=False,
         )[0]
-
-    def _predict_multiple_pairs_one_condition(
-        self,
-        pairs: Iterable[SequencePair],
-        *,
-        condition: Condition | str | Mapping[str, Any],
-        center: int | str | Feature = "tss",
-        grouping: GroupingMode = "no_grouping",
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        max_records_per_forward: int | None = None,
-        prefetch_batches: int = 1,
-        show_progress: bool = True,
-    ) -> list[PairPrediction]:
-        """Predict many reference/alternative pairs under one condition."""
-
-        return self.predict_multiple_pairs(
-            pairs,
-            condition=condition,
-            center=center,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            preprocessing_backend=preprocessing_backend,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=prefetch_batches,
-            show_progress=show_progress,
-        )
 
     def predict_multiple_pairs(
         self,
@@ -1568,7 +1379,7 @@ class SequenceModel:
                 max_records_per_forward=max_records_per_forward,
                 prefetch_batches=prefetch_batches,
                 show_progress=show_progress,
-                batch_method="many_pair_refs",
+                batch_method="multiple_pair_refs",
                 progress_description="Predicting references",
                 return_tokens=True,
                 description_cache=description_cache,
@@ -1583,7 +1394,7 @@ class SequenceModel:
                 max_records_per_forward=max_records_per_forward,
                 prefetch_batches=prefetch_batches,
                 show_progress=show_progress,
-                batch_method="many_pair_alts",
+                batch_method="multiple_pair_alts",
                 progress_description="Predicting alternatives",
                 return_tokens=True,
                 description_cache=description_cache,
@@ -1622,53 +1433,6 @@ class SequenceModel:
                 return "variant"
             raise
 
-    def predict_tss(
-        self,
-        genome: Any,
-        chrom: str,
-        tss: int,
-        *,
-        condition: Condition | str | Mapping[str, Any],
-        strand: str = "+",
-        context_bp: int | None = None,
-        coordinate_system: Literal["0-based", "1-based"] = "0-based",
-        include_features: bool = True,
-        center_feature_name: str = "tss",
-        grouping: GroupingMode = "no_grouping",
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        max_records_per_forward: int | None = None,
-        return_sequence: bool = True,
-    ) -> ExpressionPrediction:
-        """Predict expression directly from a genome and TSS coordinate."""
-
-        tss0 = int(tss) - 1 if coordinate_system == "1-based" else int(tss)
-        record = {"chrom": chrom, "tss": tss, "strand": strand, "name": f"{chrom}:{tss0}:{strand}"}
-        return self.predict_multiple_tss(
-            [record],
-            condition=condition,
-            genome=genome,
-            context_bp=context_bp,
-            coordinate_system=coordinate_system,
-            include_features=include_features,
-            center_feature_name=center_feature_name,
-            grouping=grouping,
-            preprocessing_workers=preprocessing_workers,
-            preprocessing_backend=preprocessing_backend,
-            max_records_per_forward=max_records_per_forward,
-            prefetch_batches=0,
-            show_progress=False,
-            return_sequence=return_sequence,
-        )[0]
-
-    @staticmethod
-    def _record_field(record: Any, field: str, default: Any = None) -> Any:
-        """Return ``field`` from a mapping or row-like object."""
-
-        if isinstance(record, Mapping):
-            return record.get(field, default)
-        return getattr(record, field, default)
-
     @staticmethod
     def _chunks(indices: Sequence[int], size: int | None):
         if size is None:
@@ -1686,24 +1450,6 @@ class SequenceModel:
     @staticmethod
     def _grouping_key_for_condition(condition: Condition) -> str:
         return condition.text()
-
-    @staticmethod
-    def _worker_genome_config(genome: Any) -> dict[str, Any]:
-        if not hasattr(genome, "fasta_path"):
-            raise TypeError(
-                "preprocessing_workers requires a Genome-like object with fasta_path, "
-                "annotation, build, and chrom_style attributes."
-            )
-        annotation = getattr(genome, "annotation", None)
-        if isinstance(annotation, Path):
-            annotation = str(annotation)
-        return {
-            "fasta_path": str(getattr(genome, "fasta_path")),
-            "annotation": annotation,
-            "build": getattr(genome, "build", None),
-            "chrom_style": getattr(genome, "chrom_style", "auto"),
-            "cache": True,
-        }
 
     def _worker_tokenizer_config(self) -> dict[str, Any]:
         name_or_path = getattr(self.dna_tokenizer, "name_or_path", None) or self.provenance.get("dna_tokenizer")
@@ -1732,163 +1478,6 @@ class SequenceModel:
             "padding_side": getattr(self.desc_tokenizer, "padding_side", "left"),
             "desc_max_seq_len": self.desc_max_seq_len,
         }
-
-    def _prepare_tss_tokenized_records(
-        self,
-        records: Sequence[Any],
-        *,
-        genome: Any,
-        context_bp: int | None,
-        coordinate_system: Literal["0-based", "1-based"],
-        include_features: bool,
-        center_feature_name: str,
-        preprocessing_workers: int,
-        preprocessing_backend: PreprocessingBackend,
-        preprocessing_executor: Any | None,
-        show_progress: bool,
-    ) -> list[TokenizedSequence]:
-        """Build and tokenize TSS-centered sequences using the selected backend."""
-
-        tasks = []
-        for idx, record in enumerate(records):
-            chrom = self._record_field(record, "chrom")
-            tss = self._record_field(record, "tss")
-            strand = self._record_field(record, "strand", "+")
-            name = self._record_field(record, "name", None)
-            if chrom is None or tss is None:
-                raise ValueError(f"TSS record {idx} must contain chrom and tss fields.")
-            tss0 = int(tss) - 1 if coordinate_system == "1-based" else int(tss)
-            if context_bp is None:
-                size = 2 * self.token_len_for_fetch * max(
-                    self.num_before,
-                    self.dna_max_seq_tokens - self.num_before,
-                )
-            else:
-                size = int(context_bp)
-            tasks.append(
-                {
-                    "index": idx,
-                    "chrom": str(chrom),
-                    "tss0": tss0,
-                    "strand": strand,
-                    "name": name or f"{chrom}:{tss0}:{strand}",
-                    "size": size,
-                    "include_features": include_features,
-                    "center_feature_name": center_feature_name,
-                }
-            )
-
-        output: list[TokenizedSequence | None] = [None] * len(tasks)
-        self.logger.info("Building and tokenizing %d TSS record(s)", len(tasks))
-        if preprocessing_workers <= 0:
-            task_iterator = _progress(
-                tasks,
-                total=len(tasks),
-                description="Preparing TSS records",
-                enabled=show_progress,
-                unit="record",
-            )
-            for task in task_iterator:
-                sequence = genome.sequence_around(
-                    task["chrom"],
-                    task["tss0"],
-                    task["size"],
-                    strand=task["strand"],
-                    include_features=task["include_features"],
-                    center_feature_name=task["center_feature_name"],
-                    name=task["name"],
-                )
-                output[task["index"]] = self.tokenize_sequence(sequence, center=center_feature_name, strand="+")
-        else:
-            if preprocessing_executor is None:
-                raise RuntimeError("Parallel TSS preprocessing requires an initialized executor.")
-            chunksize = max(1, len(tasks) // (int(preprocessing_workers) * 4)) if tasks else 1
-            worker = _tss_worker_tokenize if preprocessing_backend == "process" else _tss_thread_tokenize
-            completed = preprocessing_executor.map(worker, tasks, chunksize=chunksize)
-            completed = _progress(
-                completed,
-                total=len(tasks),
-                description="Preparing TSS records",
-                enabled=show_progress,
-                unit="record",
-            )
-            for idx, tokenized in completed:
-                output[idx] = tokenized
-
-        return [tokenized for tokenized in output if tokenized is not None]
-
-    def predict_multiple_tss(
-        self,
-        records: Iterable[Any],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
-        *,
-        condition: Condition | str | Mapping[str, Any] | None = None,
-        genome: Any,
-        context_bp: int | None = None,
-        coordinate_system: Literal["0-based", "1-based"] = "0-based",
-        include_features: bool = True,
-        center_feature_name: str = "tss",
-        grouping: GroupingMode = "no_grouping",
-        preprocessing_workers: int = 0,
-        preprocessing_backend: PreprocessingBackend = "process",
-        max_records_per_forward: int | None = None,
-        prefetch_batches: int = 1,
-        show_progress: bool = True,
-        return_sequence: bool = True,
-    ) -> list[ExpressionPrediction]:
-        """Predict expression for paired TSS records and conditions.
-
-        ``records`` can be paired with one condition or row-wise conditions.
-        Positive ``preprocessing_workers`` use the selected backend, and every
-        worker opens an independent genome handle.
-        """
-
-        record_list = list(records)
-        condition_list = self._broadcast_conditions(len(record_list), conditions, condition)
-        if not record_list:
-            return []
-
-        with self._preprocessing_executor(
-            preprocessing_backend,
-            preprocessing_workers,
-            genome=genome,
-        ) as preprocessing_executor:
-            tokenized_list = self._prepare_tss_tokenized_records(
-                record_list,
-                genome=genome,
-                context_bp=context_bp,
-                coordinate_system=coordinate_system,
-                include_features=include_features,
-                center_feature_name=center_feature_name,
-                preprocessing_workers=preprocessing_workers,
-                preprocessing_backend=preprocessing_backend,
-                preprocessing_executor=preprocessing_executor,
-                show_progress=show_progress,
-            )
-            if len(tokenized_list) != len(record_list):
-                raise RuntimeError("TSS preprocessing did not return one tokenized sequence per record.")
-
-            predictions = self._predict_many_tokenized_sequences(
-                tokenized_list,
-                condition_list,
-                grouping=grouping,
-                preprocessing_workers=preprocessing_workers,
-                preprocessing_backend=preprocessing_backend,
-                preprocessing_executor=preprocessing_executor,
-                max_records_per_forward=max_records_per_forward,
-                prefetch_batches=prefetch_batches,
-                show_progress=show_progress,
-                batch_method="predict_multiple_tss",
-                progress_description="Predicting TSS records",
-                return_tokens=True,
-                extra_provenance={
-                    "preprocessing_workers": preprocessing_workers,
-                    "preprocessing_backend": preprocessing_backend,
-                    "prefetch_batches": prefetch_batches,
-                },
-            )
-        return [self._to_expression_prediction(prediction, return_sequence=return_sequence) for prediction in predictions]
-
 
 class VariantInterpreter:
     """High-level object for scoring variant and sequence-pair effects."""
