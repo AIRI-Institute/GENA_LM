@@ -1,27 +1,57 @@
 """Benchmark-neutral API for sequence prediction and variant interpretation."""
 
 from .conditions import Condition, DescriptionLookup
-from .contexts import Context, GenomeContext, PlasmidContext
-from .genome import Genome, GenomeInterval, GenomeRegion, SafeHarborSite
-from .models import SequenceModel, VariantInterpreter
-from .plasmids import (
+from .config import (
+    FULL_RETENTION,
+    SCALAR_RETENTION,
+    PredictionRetention,
+    RetainedDataError,
+    RetentionMode,
+    RetentionPolicy,
+    ScoringRetention,
+    get_retention_policy,
+    retention_mode,
+    set_retention_mode,
+    set_retention_policy,
+)
+from .contexts import (
+    Context,
     FeatureMatch,
+    Genome,
+    GenomeContext,
+    GenomeInterval,
+    GenomeRegion,
     PlasmidCollection,
+    PlasmidContext,
     PlasmidMetadata,
     PlasmidRecord,
+    SafeHarborSite,
     infer_table18_primer_tails,
 )
-from .predictions import ExpressionPrediction, PairPrediction, Prediction, Track, TrackPrediction
-from .results import DisplayWindow, ScoringResult, ScoreWindow, VariantReport
-from .scorers import (
+from .inference import (
+    CenteredTokenizer,
+    ExpressionPrediction,
+    PairPrediction,
+    Prediction,
+    SequenceModel,
+    TokenizedSequence,
+)
+from .ism import ISM
+from .scoring import (
+    DisplayWindow,
     ExpressionDeltaScorer,
     RegressionScorer,
+    ResultIdentity,
     ScorerSet,
+    ScoringResult,
+    ScoreWindow,
     TokenWindowScorer,
     TrackAllFeaturesScorer,
     TrackFeatureBuilder,
     TrackFeatureScorer,
     TrackWindowScorer,
+    VariantInterpreter,
+    VariantReport,
 )
 from .sequences import (
     AnnotatedSequence,
@@ -31,7 +61,7 @@ from .sequences import (
     SequencePair,
     SourceCoordinate,
 )
-from .tokenization import CenteredTokenizer, TokenizedSequence
+from .tracks import Track, TrackPrediction
 from .variants import Variant
 
 __all__ = [
@@ -47,21 +77,27 @@ __all__ = [
     "ExpressionPrediction",
     "Feature",
     "FeatureMatch",
+    "FULL_RETENTION",
     "Genome",
     "GenomeContext",
     "GenomeInterval",
     "GenomeRegion",
+    "ISM",
     "PairPrediction",
     "PlasmidCollection",
     "PlasmidContext",
     "PlasmidMetadata",
     "PlasmidRecord",
     "Prediction",
+    "PredictionRetention",
     "RegressionScorer",
+    "ResultIdentity",
     "ScorerSet",
     "ScoringResult",
+    "ScoringRetention",
     "ScoreWindow",
     "SafeHarborSite",
+    "SCALAR_RETENTION",
     "SequenceModel",
     "SequencePair",
     "SourceCoordinate",
@@ -76,5 +112,12 @@ __all__ = [
     "Variant",
     "VariantInterpreter",
     "VariantReport",
+    "RetainedDataError",
+    "RetentionMode",
+    "RetentionPolicy",
+    "get_retention_policy",
     "infer_table18_primer_tails",
+    "retention_mode",
+    "set_retention_mode",
+    "set_retention_policy",
 ]

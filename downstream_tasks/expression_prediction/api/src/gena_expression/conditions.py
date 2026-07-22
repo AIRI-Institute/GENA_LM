@@ -80,6 +80,8 @@ class DescriptionLookup:
         search_fields: Sequence[str] | None = None,
         **filters: Any,
     ) -> None:
+        """Index matching description JSON files for deterministic lookup."""
+
         self.json_dir = Path(json_dir)
         self._keys = list(keys)
         self.seed = str(seed)
@@ -114,9 +116,13 @@ class DescriptionLookup:
             self._lookup[key] = candidates[index][1]
 
     def __getitem__(self, key: str) -> Dict[str, Any]:
+        """Return the selected metadata record for ``key``."""
+
         return self._lookup[key]
 
     def __contains__(self, key: str) -> bool:
+        """Return whether ``key`` has a selected metadata record."""
+
         return key in self._lookup
 
     def keys(self):
@@ -177,6 +183,8 @@ class DescriptionLookup:
         return global_filters, key_filters
 
     def _iter_matching_records(self):
+        """Yield JSON records that satisfy the global filters."""
+
         for path in sorted(self.json_dir.glob("*.json")):
             with path.open("r", encoding="utf-8") as handle:
                 content = json.load(handle)
@@ -192,6 +200,8 @@ class DescriptionLookup:
 
     @staticmethod
     def _get_field(content: Mapping[str, Any], field: str) -> Optional[Any]:
+        """Read a dotted field path from nested metadata."""
+
         current: Any = content
         for part in field.split("."):
             if not isinstance(current, Mapping) or part not in current:
@@ -206,6 +216,8 @@ class DescriptionLookup:
         text: str,
         search_fields: Sequence[str] | None = None,
     ) -> bool:
+        """Return whether selected metadata text contains ``text``."""
+
         if search_fields is None:
             json_text = json.dumps(content, ensure_ascii=False).lower()
             return str(text).lower() in json_text
@@ -218,5 +230,7 @@ class DescriptionLookup:
         return False
 
     def _stable_index(self, key: str, n: int) -> int:
+        """Choose a seed-stable candidate index for ``key``."""
+
         digest = hashlib.sha256(f"{self.seed}:{key}".encode("utf-8")).hexdigest()
         return int(digest, 16) % n

@@ -27,6 +27,8 @@ class Feature:
     metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        """Validate the half-open feature interval."""
+
         if self.start < 0 or self.end < self.start:
             raise ValueError(f"Invalid feature interval: {self.start}:{self.end}")
 
@@ -115,6 +117,8 @@ class CoordinateMap:
     segments: Sequence[CoordinateSegment] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
+        """Freeze coordinate segments as an immutable tuple."""
+
         object.__setattr__(self, "segments", tuple(self.segments))
 
     @classmethod
@@ -246,6 +250,8 @@ class AnnotatedSequence:
     metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        """Normalize sequence text and immutable annotation metadata."""
+
         sequence = self.sequence.upper()
         object.__setattr__(self, "sequence", sequence)
         object.__setattr__(self, "features", tuple(self.features))
@@ -254,12 +260,18 @@ class AnnotatedSequence:
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
     def __str__(self) -> str:
+        """Return the underlying DNA sequence."""
+
         return self.sequence
 
     def __len__(self) -> int:
+        """Return sequence length in bases."""
+
         return len(self.sequence)
 
     def __getitem__(self, item: slice | int) -> str | "AnnotatedSequence":
+        """Return one base or an annotation-preserving sequence slice."""
+
         if isinstance(item, int):
             return self.sequence[item]
         start, stop, step = item.indices(len(self))
@@ -934,6 +946,8 @@ class _PairCoordinateMapper:
         target_end: int,
         side: Literal["left", "right"],
     ) -> int:
+        """Map one replacement boundary between allele coordinates."""
+
         if position <= source_start:
             return target_start + (position - source_start)
         if position >= source_end:
@@ -1007,6 +1021,8 @@ class SequencePair:
     metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        """Normalize pair metadata to a plain dictionary."""
+
         object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
     def variant_feature(self) -> Feature | None:

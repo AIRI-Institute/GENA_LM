@@ -28,6 +28,8 @@ class Variant:
     metadata: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
+        """Normalize alleles and validate the 0-based variant position."""
+
         ref = "" if self.ref == "-" else self.ref.upper()
         alt = "" if self.alt == "-" else self.alt.upper()
         object.__setattr__(self, "ref", ref)
@@ -225,7 +227,7 @@ class Variant:
     ) -> SequencePair:
         """Build a sequence pair by matching cloning primers around the variant."""
 
-        from .plasmids import reverse_complement
+        from .contexts.plasmid import reverse_complement
 
         if genome is None:
             raise ValueError("Primer-based to_sequence_pair() requires genome=....")
@@ -534,7 +536,7 @@ class Variant:
     ) -> tuple[str, str, str, dict[str, object]]:
         """Match primers in a known interval-backed search window."""
 
-        from .plasmids import _match_primer_pair
+        from .contexts.plasmid import _match_primer_pair
 
         if isinstance(primer_pairs, Mapping):
             items = list(primer_pairs.items())
@@ -595,7 +597,7 @@ class Variant:
     ) -> tuple[str, str, str, dict[str, object]]:
         """Return the best primer pair whose inferred fragment contains the variant."""
 
-        from .plasmids import reverse_complement
+        from .contexts.plasmid import reverse_complement
 
         if isinstance(primer_pairs, Mapping):
             items = list(primer_pairs.items())
