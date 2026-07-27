@@ -3,7 +3,11 @@ import numpy as np
 from dataclasses import dataclass
 import numpy as np
 from Bio.Seq import Seq
-import pickle
+import json
+from contextlib import nullcontext
+from pathlib import Path
+
+from downstream_tasks.expression_prediction.expression_dataset_final import ExpressionDataset
 
 @dataclass
 class ScoredSeq:
@@ -22,34 +26,107 @@ class MaxCriterion: # should be minimized
         score = min(pred[ta] / self.maxes[ta] for ta in self.targets) - max(pred[ot] / self.maxes[ot] for ot in self.off_targets)
         return -score 
 
-# def score_seq(model, tokenizer, seq, criterion, device, target_poses: dict[str, int]):
-#     with torch.inference_mode():
+def _load_description_texts(selected_keys, description_source=None):
+    if description_source is None:
+        return {key: key for key in selected_keys}
 
-#         X = encode(seq, tokenizer, device)
+    if isinstance(description_source, dict):
+        missing = [key for key in selected_keys if key not in description_source]
+        if missing:
+            raise KeyError(f"Missing descriptions for selected keys: {missing}")
+        return {key: description_source[key] for key in selected_keys}
 
-#         sc = model(**X)
-#         sc = torch.cat(sc.logits_segm)
-#         sc = torch.nn.functional.softplus(sc[:])
+    source_path = Path(description_source).expanduser()
+    if source_path.is_dir():
+        json_paths = {path.stem: path for path in source_path.rglob("*.json")}
+        missing = [key for key in selected_keys if key not in json_paths]
+        if missing:
+            raise KeyError(
+                f"Could not find JSON metadata files for selected keys: {missing}"
+            )
+        texts = {}
+        for key in selected_keys:
+            with open(json_paths[key], "r", encoding="utf-8") as handle:
+                meta = json.load(handle)
+            texts[key] = ExpressionDataset.make_description_from_json(
+                meta=meta,
+                description_id=key,
+                meta_path=str(json_paths[key]),
+            )
+        return texts
 
-#         dt = {}
-#         for name, p in target_poses.items():
-#             dt[name] = sc[:, p].max(axis=0).values.detach().cpu().numpy().max()
-#     return dt 
+    if source_path.is_file() and source_path.suffix == ".json":
+        with open(source_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if all(key in data and isinstance(data[key], str) for key in selected_keys):
+            return {key: data[key] for key in selected_keys}
+        if len(selected_keys) != 1:
+            raise ValueError(
+                "A single metadata JSON file can only be used with one selected key."
+            )
+        key = selected_keys[0]
+        return {
+            key: ExpressionDataset.make_description_from_json(
+                meta=data,
+                description_id=key,
+                meta_path=str(source_path),
+            )
+        }
 
-def score_seq(model, tokenizer, seq, device, selected_keys, text_data_path):
+    raise ValueError(
+        "description_source must be None, a dict, a metadata JSON file, "
+        "or a directory with <selected_key>.json files."
+    )
+
+
+def _tokenize_descriptions(text_tokenizer, description_texts, selected_keys, max_length, device):
+    encoded = text_tokenizer(
+        [description_texts[key] for key in selected_keys],
+        padding=True,
+        truncation=True,
+        max_length=max_length,
+        return_tensors="pt",
+    )
+    return {
+        "desc_input_ids": encoded["input_ids"].unsqueeze(0).to(device),
+        "desc_attention_mask": encoded["attention_mask"].unsqueeze(0).to(device),
+    }
+
+
+def score_seq(
+    model,
+    tokenizer,
+    seq,
+    device,
+    selected_keys,
+    description_source=None,
+    text_tokenizer=None,
+    text_max_seq_len=510,
+):
+    if text_tokenizer is None:
+        raise ValueError("text_tokenizer is required for ExpressionCounts scoring")
+
     with torch.inference_mode():
-        X = encode(seq, tokenizer, device, selected_keys, text_data_path)
-        output = model(**X)
-        predictions_segm = [[el.detach().cpu() for el in s] for s in output['logits_segm']]
-        rmt_labels_masks_segm = [[el.detach().cpu().to(torch.bool) for el in s] for s in output['labels_mask_reshaped']]
-        preds = torch.stack(predictions_segm[-1])
-        masks = torch.stack(rmt_labels_masks_segm[-1])
-        p_segm = preds[:, 0, :].squeeze(-1)
-        mask = masks[:, 0, :].squeeze(-1)
-        # p = torch.nn.functional.softplus(p_segm[mask])
+        X = encode(
+            seq=seq,
+            tokenizer=tokenizer,
+            device=device,
+            selected_keys=selected_keys,
+            description_source=description_source,
+            text_tokenizer=text_tokenizer,
+            text_max_seq_len=text_max_seq_len,
+        )
+        autocast_context = (
+            torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+            if str(device).startswith("cuda")
+            else nullcontext()
+        )
+        with autocast_context:
+            output = model(**X)
+        preds = output["logits"][:, 0, 0].detach().float().cpu()
         dt = {}
         for i, name in enumerate(selected_keys):
-            dt[name]=p[i].item()
+            dt[name] = preds[i].item()
         return dt 
 
 def rev_seq(s: str) -> str:
@@ -75,47 +152,38 @@ def rev_seq(s: str) -> str:
 #         'bins_mask': torch.from_numpy(bins_mask).unsqueeze(0).to(device),}
 #     return X
 
-def load_description(selected_keys, text_data_path):
-    with open(text_data_path, "rb") as f:
-        desc_data = pickle.load(f)
-
-    desc_vectors_list = []
-    for key in selected_keys:
-        if key not in desc_data:
-            raise KeyError(f"Track ID '{key}' not found in desc_data")
-        desc_vectors_list.append(desc_data[key])
-
-    desc_vectors_np = np.stack(desc_vectors_list)
-    desc_vectors = torch.from_numpy(desc_vectors_np)
-    return desc_vectors
-
-def encode(sq: str, tokenizer, device, selected_keys, text_data_path):
-    desc_vectors = load_description(selected_keys, text_data_path)
-
+def encode(
+    seq: str,
+    tokenizer,
+    device,
+    selected_keys,
+    description_source=None,
+    text_tokenizer=None,
+    text_max_seq_len=510,
+):
     encoded = tokenizer(
-        sq,
+        seq,
         add_special_tokens=False,
         return_attention_mask=True,
-        return_token_type_ids=True,
         return_tensors="pt"  
     )
-
-    L = encoded["input_ids"].shape[1]
-    N_keys = desc_vectors.shape[0]
-
-    labels_mask = torch.zeros((1, L, N_keys), dtype=torch.bool, device=device)
-    tpm = torch.ones((1, N_keys), dtype=torch.float32, device=device)
-    labels = torch.zeros((1, L, N_keys), dtype=torch.float32, device=device) 
+    n_keys = len(selected_keys)
+    description_texts = _load_description_texts(selected_keys, description_source)
+    desc_inputs = _tokenize_descriptions(
+        text_tokenizer=text_tokenizer,
+        description_texts=description_texts,
+        selected_keys=selected_keys,
+        max_length=text_max_seq_len,
+        device=device,
+    )
 
     #batch=1
     X = {
-        'input_ids':      encoded["input_ids"].to(device),       # [1, L]
-        'attention_mask': encoded["attention_mask"].to(device),  # [1, L]
-        'token_type_ids': encoded["token_type_ids"].to(device),  # [1, L]
-        'labels_mask':    labels_mask,                    # [1, L, N_keys]
-        'labels':            labels,                      # [1, L, N_keys]
-        'desc_vectors':   desc_vectors.unsqueeze(0).to(device),  # [1, N_keys, D_desc]
-        'tpm':            tpm                         # [1, N_keys]
+        "input_ids": encoded["input_ids"].repeat(n_keys, 1).to(device),
+        "attention_mask": encoded["attention_mask"].repeat(n_keys, 1).to(device),
+        "desc_input_ids": desc_inputs["desc_input_ids"],
+        "desc_attention_mask": desc_inputs["desc_attention_mask"],
+        "dataset_flag": torch.ones((1, n_keys), dtype=torch.bool, device=device),
     }
     return X
 
@@ -124,10 +192,22 @@ def get_score(model,
               seq: str,
               criterion, 
               device,  
-              selected_keys, text_data_path,
-              label: str):
+              selected_keys,
+              description_source=None,
+              text_tokenizer=None,
+              text_max_seq_len=510,
+              label: str = "model"):
     with torch.inference_mode():
-        dt = score_seq(model=model, tokenizer=tokenizer, seq=seq, device=device, selected_keys = selected_keys, text_data_path = text_data_path)
+        dt = score_seq(
+            model=model,
+            tokenizer=tokenizer,
+            seq=seq,
+            device=device,
+            selected_keys=selected_keys,
+            description_source=description_source,
+            text_tokenizer=text_tokenizer,
+            text_max_seq_len=text_max_seq_len,
+        )
         loss = criterion(dt)
     return ScoredSeq(seq=seq, dt=dt, score=loss, method=label)
 
@@ -254,4 +334,3 @@ def remove_duplicates(population):
         else:
             new_population.append(population[ip])
     return new_population
-
