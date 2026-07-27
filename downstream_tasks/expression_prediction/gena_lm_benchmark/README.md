@@ -3,26 +3,6 @@
 This folder contains the scripts used to run GENA_LM expression inference for
 the human `valid` and `test` gene sets.
 
-It is the GENA_LM part of the joint GENA_LM vs AlphaGenome benchmark branch.
-
-## What The Model Predicts
-
-For every gene and every cell-line JSON description, the script predicts one
-expression value:
-
-```text
-gene sequence around TSS + cell-line JSON description -> scalar expression prediction
-```
-
-The output matrix format is:
-
-```text
-gene_id,ENCFF035CWS,ENCFF083EOC,...
-ENSG00000232604.1,0.322,0.005,...
-```
-
-Rows are genes. Columns are cell IDs.
-
 ## Files In This Folder
 
 ```text
@@ -45,7 +25,9 @@ It uses:
 downstream_tasks/expression_prediction/inference_example/inference_input_utils.py
 ```
 
-## Required Input Layout On Anogena
+
+
+## Required input
 
 The scripts assume this working folder:
 
@@ -62,26 +44,14 @@ Required folders/files:
 /home/jovyan/dpanc/benchmarking/data/human.test.reverse.csv
 /home/jovyan/dpanc/benchmarking/data/hg38.fna
 
-/home/jovyan/dpanc/benchmarking/GENA_LM/models/<model_name>/...
+/home/jovyan/dpanc/benchmarking/GENA_LM/models/<model_name>/<model_name>pytorch_model.bin
 /home/jovyan/dpanc/benchmarking/GENA_LM/inference_inputs/*.csv
 /home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all/*.json
 /home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_14/*.json
 /home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_812/*.json
 ```
 
-The repo path is expected to be:
 
-```text
-/home/jovyan/dpanc/GENA_LM/GENA_LM_expression_branch
-```
-
-If needed, override paths:
-
-```bash
-export TASK_ROOT=/path/to/benchmarking/GENA_LM
-export GENA_HOME=/path/to/GENA_LM/repo
-export DATA_ROOT=/path/to/benchmarking/data
-```
 
 ## Create JSON Folders
 
@@ -110,16 +80,11 @@ find /home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_14 -name "*.json" | 
 find /home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_812 -name "*.json" | wc -l
 ```
 
-Expected:
 
-```text
-14
-812
-```
 
 ## Run One Model
 
-Activate the environment:
+Activate the environment
 
 ```bash
 source /home/jovyan/miniconda3/etc/profile.d/conda.sh
@@ -146,11 +111,9 @@ Allowed models:
 ```text
 full_model
 all_datasets_2
-decoder
 dev_loss
 glioma
 len_2048
-modernbert_large
 ```
 
 Allowed splits:
@@ -167,8 +130,7 @@ json_14
 json_812
 ```
 
-The `len_2048` model automatically uses `--dna-max-seq-len 2048`. All other
-models use 1024 DNA tokens.
+The `len_2048` model automatically uses `--dna-max-seq-len 2048`. All other models use 1024 DNA tokens
 
 ## Run Full Model Only
 
@@ -189,6 +151,8 @@ nohup bash downstream_tasks/expression_prediction/gena_lm_benchmark/scripts/run_
   test json_812 3 256 \
   > /home/jovyan/dpanc/benchmarking/GENA_LM/outputs/logs/full_model_test_json812.nohup.log 2>&1 &
 ```
+
+
 
 ## Run All Six Benchmark Checkpoints
 
@@ -221,6 +185,8 @@ nohup bash downstream_tasks/expression_prediction/gena_lm_benchmark/scripts/run_
   > /home/jovyan/dpanc/benchmarking/GENA_LM/outputs/logs/all_models_json14.nohup.log 2>&1 &
 ```
 
+
+
 ## Outputs
 
 Predictions are written to:
@@ -240,14 +206,3 @@ Logs are written to:
 ```text
 /home/jovyan/dpanc/benchmarking/GENA_LM/outputs/logs
 ```
-
-## What Was Changed For Git
-
-The original working scripts were kept as the source, but the git version was
-made less ambiguous:
-
-- `CELL_SET` is now explicit: `json_14` or `json_812`.
-- one generic script runs one model/split/cell-set combination.
-- one wrapper runs the six benchmark checkpoints for both `valid` and `test`.
-- full model has a tiny separate wrapper for quick single-checkpoint runs.
-- model files, output CSVs, logs, and caches are not committed.
