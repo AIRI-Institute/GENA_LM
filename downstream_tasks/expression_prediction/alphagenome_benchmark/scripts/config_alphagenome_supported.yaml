@@ -1,0 +1,29 @@
+true_test_file: "/home/biophysinf/DashaP/benchmarking/data/test_true_human.csv"
+true_valid_file: "/home/biophysinf/DashaP/benchmarking/data/valid_true_human.csv"
+output_dir: "/scratch/biophysinf-alphagenome/results-seq_len1Mb_json812"
+
+genes_forward_val: "/home/biophysinf/DashaP/benchmarking/data/human.valid.forward.csv"
+genes_reverse_val: "/home/biophysinf/DashaP/benchmarking/data/human.valid.reverse.csv"
+genes_forward_test: "/home/biophysinf/DashaP/benchmarking/data/human.test.forward.csv"
+genes_reverse_test: "/home/biophysinf/DashaP/benchmarking/data/human.test.reverse.csv"
+
+ref_genome: "/home/biophysinf/DashaP/benchmarking/data/hg38.fna"
+
+run_prediction: true
+model_version: "FOLD_1"
+# Do not commit API keys. Set this before running:
+# export ALPHAGENOME_API_KEY="..."
+api_key:
+save_pred_path: "alphagenome_supported_predictions_{split}_{prediction_functions_name}.csv"
+checkpoint_path: "/scratch/biophysinf-alphagenome/results-seq_len1Mb_json14/checkpoint_{split}_{prediction_functions_name}.csv"
+checkpoint_every: 25
+tissues: "/home/biophysinf/DashaP/benchmarking/data/Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+
+path_to_selected: "/home/biophysinf/DashaP/benchmarking/data/selected_targets.csv"
+
+splits:
+  - test
+  - valid
+
+prediction_functions:
+  - "intervals"

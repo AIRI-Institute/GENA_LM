@@ -1,0 +1,4 @@
+id,original_id,targets_identifier_base,ontology_curie,biosample_name,assay,track_name
+ENCFF198SVA,ENCFF117HUT,ENCFF117HUT,EFO:0005721,SK-N-DZ,total RNA-seq,EFO:0005721 total RNA-seq
+ENCFF639PCM,ENCFF318UAJ,ENCFF318UAJ,UBERON:0001774,muscle of trunk,total RNA-seq,UBERON:0001774 total RNA-seq
+ENCFF385HGM,ENCFF123BBC,ENCFF123BBC,CL:0000127,astrocyte,polyA plus RNA-seq,CL:0000127 polyA plus RNA-seq
