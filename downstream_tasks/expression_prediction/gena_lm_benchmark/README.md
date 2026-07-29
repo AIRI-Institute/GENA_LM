@@ -53,6 +53,67 @@ Required folders/files:
 
 
 
+## Where The Cell JSON Files Came From On Anogena
+
+The inference script does not read the large mapping CSV directly. It reads one
+metadata JSON file per cell type. On `anogena`, these JSON files were stored in:
+
+```text
+/home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all
+```
+
+The mapping CSVs are available through this symlink:
+
+```text
+/home/jovyan/dpanc/benchmarking/GENA_LM/inference_inputs -> /home/jovyan/dpanc/benchmarking/data/inference_inputs
+```
+
+The two mapping files used for benchmark runs were:
+
+```text
+/home/jovyan/dpanc/benchmarking/GENA_LM/inference_inputs/Expression_dataset_v1_csv_file_mappings_qnorm_14_fixed.csv
+/home/jovyan/dpanc/benchmarking/GENA_LM/inference_inputs/file_mappings_borzoi_all_GRCh38_only_with_description.csv
+```
+
+We used `scripts/get_json_folder.py` to create run-specific JSON folders. The
+script reads the mapping CSV, takes the `id` and `metadata` columns, and creates
+symlinks named like `ENCFF035CWS.json`. So:
+
+- `json_runs/json_14` contains 14 symlinks for the small benchmark.
+- `json_runs/json_812` contains 812 symlinks for the full benchmark.
+
+Example symlink:
+
+```text
+/home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_812/ENCFF083EOC.json -> /home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all/ENCFF083EOC.json
+```
+
+If the metadata JSON folder is missing, restore it from project storage/S3 first.
+The bucket path we used for expression metadata/data was:
+
+```text
+s3://genalm/expr/data/tpm/
+```
+
+With configured S3 credentials, the command pattern is:
+
+```bash
+aws s3 cp \
+  s3://genalm/expr/data/tpm/ \
+  /home/jovyan/dpanc/benchmarking/GENA_LM/ \
+  --recursive \
+  --profile airi \
+  --endpoint-url https://s3.cloud.ru \
+  --region ru-central-1
+```
+
+After download, check where the JSON files are and make/link this folder:
+
+```bash
+find /home/jovyan/dpanc/benchmarking/GENA_LM -name "ENCFF*.json" | head
+mkdir -p /home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all
+```
+
 ## Create JSON Folders
 
 Create a folder with 14 cell-line JSONs:
