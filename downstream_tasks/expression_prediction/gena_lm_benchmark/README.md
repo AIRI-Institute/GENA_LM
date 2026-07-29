@@ -53,20 +53,7 @@ Required folders/files:
 
 
 
-## Where The Cell JSON Files Came From On Anogena
-
-The inference script does not read the large mapping CSV directly. It reads one
-metadata JSON file per cell type. On `anogena`, these JSON files were stored in:
-
-```text
-/home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all
-```
-
-The mapping CSVs are available through this symlink:
-
-```text
-/home/jovyan/dpanc/benchmarking/GENA_LM/inference_inputs -> /home/jovyan/dpanc/benchmarking/data/inference_inputs
-```
+## Download json files
 
 The two mapping files used for benchmark runs were:
 
@@ -82,20 +69,13 @@ symlinks named like `ENCFF035CWS.json`. So:
 - `json_runs/json_14` contains 14 symlinks for the small benchmark.
 - `json_runs/json_812` contains 812 symlinks for the full benchmark.
 
-Example symlink:
-
-```text
-/home/jovyan/dpanc/benchmarking/GENA_LM/json_runs/json_812/ENCFF083EOC.json -> /home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all/ENCFF083EOC.json
-```
-
-If the metadata JSON folder is missing, restore it from project storage/S3 first.
-The bucket path we used for expression metadata/data was:
+If the metadata JSON folder is missing, restore it from project storage/S3 first. The bucket path we used for expression metadata/data
 
 ```text
 s3://genalm/expr/data/tpm/
 ```
 
-With configured S3 credentials, the command pattern is:
+With configured S3 credentials
 
 ```bash
 aws s3 cp \
@@ -113,6 +93,8 @@ After download, check where the JSON files are and make/link this folder:
 find /home/jovyan/dpanc/benchmarking/GENA_LM -name "ENCFF*.json" | head
 mkdir -p /home/jovyan/dpanc/benchmarking/GENA_LM/metadata_borzoi_all
 ```
+
+
 
 ## Create JSON Folders
 
