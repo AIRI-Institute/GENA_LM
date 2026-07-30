@@ -3,6 +3,8 @@
 from .interpreter import VariantInterpreter
 from .results import (
     DisplayWindow,
+    PredictionReport,
+    PredictionScoringResult,
     ResultIdentity,
     ScoringResult,
     ScoreWindow,
@@ -12,10 +14,12 @@ from .results import (
 )
 from .scorers import (
     ExpressionDeltaScorer,
+    ExpressionScorer,
     RegressionScorer,
     ScorerSet,
     TokenWindowScorer,
     TrackAllFeaturesScorer,
+    TrackEffectPeakScorer,
     TrackFeatureBuilder,
     TrackFeatureScorer,
     TrackWindowScorer,
@@ -24,6 +28,9 @@ from .scorers import (
 __all__ = [
     "DisplayWindow",
     "ExpressionDeltaScorer",
+    "ExpressionScorer",
+    "PredictionReport",
+    "PredictionScoringResult",
     "RegressionScorer",
     "ResultIdentity",
     "ScorerSet",
@@ -31,6 +38,7 @@ __all__ = [
     "ScoreWindow",
     "TokenWindowScorer",
     "TrackAllFeaturesScorer",
+    "TrackEffectPeakScorer",
     "TrackFeatureBuilder",
     "TrackFeatureScorer",
     "TrackWindowScorer",

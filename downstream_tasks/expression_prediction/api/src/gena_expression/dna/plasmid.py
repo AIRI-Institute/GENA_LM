@@ -1,4 +1,4 @@
-"""Annotation-aware plasmid context helpers."""
+"""Annotation-aware infer_table18_primer_tailslasmid context helpers."""
 
 from __future__ import annotations
 
@@ -438,13 +438,7 @@ class PlasmidRecord:
 
 
 class PlasmidCollection:
-    """Route MPRA elements to source plasmids and cache annotated contexts.
-
-    This is the annotation-aware replacement for the old
-    ``PlasmidCollection(...).element_name_based_context`` workflow. It accepts
-    your ``CONST.enhancer_to_mpra_plasmid`` and
-    ``CONST.promoter_to_mpra_plasmid`` merged mapping as ``element_to_plasmid``.
-    """
+    """Route MPRA elements to source plasmids and cache annotated contexts."""
 
     def __init__(
         self,

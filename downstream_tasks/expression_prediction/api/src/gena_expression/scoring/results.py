@@ -14,7 +14,7 @@ from ..config import (
     RetentionPolicy,
     ScoringRetention,
 )
-from ..inference.outputs import PairPrediction, retain_pair_prediction
+from ..inference.outputs import PairPrediction, Prediction, retain_pair_prediction
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,68 @@ class DisplayWindow:
             "center": self.center,
             "annotation_which": self.annotation_which,
         }
+
+
+@dataclass
+class PredictionScoringResult:
+    """An absolute score computed from one sequence prediction."""
+
+    name: str
+    score: float | list[float] | Mapping[str, float]
+    prediction: Prediction
+    score_window: ScoreWindow | None = None
+    score_windows: tuple[ScoreWindow, ...] = field(default_factory=tuple)
+    track: Any | None = None
+    features: Any | None = None
+    warnings: Sequence[str] = field(default_factory=tuple)
+    provenance: Mapping[str, Any] | None = None
+
+    @property
+    def condition_name(self) -> str:
+        """Return the condition name attached to the prediction."""
+
+        return self.prediction.condition.name
+
+    @property
+    def sequence_name(self) -> str | None:
+        """Return the predicted sequence name, when one is available."""
+
+        sequence = self.prediction.sequence
+        return sequence.name if sequence is not None else None
+
+    def to_frame(self):
+        """Return a one-row pandas DataFrame with score metadata."""
+
+        import pandas as pd
+
+        return pd.DataFrame(
+            [
+                {
+                    "name": self.name,
+                    "score": self.score,
+                    "condition": self.condition_name,
+                    "sequence": self.sequence_name,
+                }
+            ]
+        )
+
+    def to_json(self, path: str | Path | None = None) -> str:
+        """Serialize the result to JSON, optionally writing it to ``path``."""
+
+        payload = {
+            "name": self.name,
+            "score": self.score,
+            "score_window": self.score_window.to_dict() if self.score_window else None,
+            "score_windows": [window.to_dict() for window in self.score_windows],
+            "sequence": self.sequence_name,
+            "condition": self.condition_name,
+            "warnings": list(self.warnings),
+            "provenance": dict(self.provenance or {}),
+        }
+        text = json.dumps(payload, indent=2, sort_keys=True)
+        if path is not None:
+            Path(path).write_text(text, encoding="utf-8")
+        return text
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +181,8 @@ class ScoringResult:
     provenance: Mapping[str, Any] | None = None
     display_window: DisplayWindow | None = field(default=None, repr=False, compare=False)
     identity: ResultIdentity | None = field(default=None, repr=False, compare=False)
+    ref_score_windows: tuple[ScoreWindow, ...] = field(default_factory=tuple)
+    alt_score_windows: tuple[ScoreWindow, ...] = field(default_factory=tuple)
 
     @property
     def variant(self):
@@ -190,13 +254,21 @@ class ScoringResult:
         for entry in self._feature_entries():
             if str(entry["key"]) != str(name):
                 continue
-            window_data = entry.get("ref_score_window") or entry.get("score_window")
-            score_window = self._score_window_from(window_data)
+            ref_window_data = entry.get("ref_score_window") or entry.get("score_window")
+            alt_window_data = entry.get("alt_score_window") or ref_window_data
+            ref_score_window = self._score_window_from(ref_window_data)
+            alt_score_window = self._score_window_from(alt_window_data)
             return ScoringResult(
                 name=f"{self.name}:{name}",
                 score=float(entry["score"]),
                 prediction=self.prediction,
-                score_window=score_window,
+                score_window=ref_score_window,
+                ref_score_windows=(
+                    (ref_score_window,) if ref_score_window is not None else ()
+                ),
+                alt_score_windows=(
+                    (alt_score_window,) if alt_score_window is not None else ()
+                ),
                 ref_track=self.ref_track,
                 alt_track=self.alt_track,
                 delta_track=self.delta_track,
@@ -308,6 +380,12 @@ class ScoringResult:
             "name": self.name,
             "score": self.score,
             "score_window": self.score_window.to_dict() if self.score_window else None,
+            "ref_score_windows": [
+                window.to_dict() for window in self.ref_score_windows
+            ],
+            "alt_score_windows": [
+                window.to_dict() for window in self.alt_score_windows
+            ],
             "display_window": self.display_window.to_dict() if self.display_window else None,
             "variant": self.variant.to_dict() if hasattr(self.variant, "to_dict") else self.variant,
             "condition": (
@@ -370,8 +448,8 @@ class ScoringResult:
         self._plot_track_axis(axes[0], self.ref_track, "value", "ref ATAC", color="tab:blue")
         self._plot_track_axis(axes[1], self.alt_track, "value", "alt ATAC", color="tab:orange")
         self._plot_track_axis(axes[2], self.delta_track, "delta", "delta ATAC", color="tab:green", color_by_sign=True)
-        for ax in axes:
-            self._mark_score_window(ax)
+        for ax, which in zip(axes, ("ref", "alt", "delta")):
+            self._mark_score_windows(ax, which=which)
             ax.grid(axis="y", alpha=0.18)
             self._apply_display_window(ax)
         axes[-1].set_xlabel("Sequence coordinate")
@@ -395,7 +473,7 @@ class ScoringResult:
         self._require_tracks()
         fig, ax = plt.subplots(figsize=figsize)
         self._plot_track_axis(ax, self.delta_track, "delta", "delta ATAC", color="tab:green", color_by_sign=True)
-        self._mark_score_window(ax)
+        self._mark_score_windows(ax, which="delta")
         ax.grid(axis="y", alpha=0.18)
         self._apply_display_window(ax)
         ax.set_xlabel("Sequence coordinate")
@@ -486,8 +564,8 @@ class ScoringResult:
             )
         for ax in coordinate_axes:
             ax.set_xlim(common_start, common_end)
-        for ax in axes:
-            self._mark_score_window(ax)
+        for ax, which in zip(axes, ("ref", "alt", "delta")):
+            self._mark_score_windows(ax, which=which)
             ax.grid(axis="y", alpha=0.18)
         axes[-1].set_xlabel("Sequence coordinate")
         fig.suptitle(f"{self.name}: score={self.score}")
@@ -667,14 +745,32 @@ class ScoringResult:
         ax.plot(xs, ys, linewidth=1.4, color=color)
         ax.set_ylabel(ylabel)
 
-    def _mark_score_window(self, ax: Any) -> None:
-        """Shade the sequence-coordinate score window on an axis."""
+    def _score_windows_for(self, which: Literal["ref", "alt", "delta"]) -> tuple[ScoreWindow, ...]:
+        """Return score windows in the coordinate system used by one track."""
 
-        if self.score_window is None or self.score_window.units != "sequence":
-            return
-        ax.axvspan(self.score_window.start, self.score_window.end, color="black", alpha=0.08)
-        if self.score_window.center is not None:
-            ax.axvline(self.score_window.center, color="black", linewidth=0.8, alpha=0.45)
+        has_allele_windows = bool(self.ref_score_windows or self.alt_score_windows)
+        if has_allele_windows:
+            return (
+                self.alt_score_windows
+                if which == "alt"
+                else self.ref_score_windows
+            )
+        return (self.score_window,) if self.score_window is not None else ()
+
+    def _mark_score_windows(
+        self,
+        ax: Any,
+        *,
+        which: Literal["ref", "alt", "delta"],
+    ) -> None:
+        """Shade every sequence-coordinate scoring window on one track axis."""
+
+        for window in self._score_windows_for(which):
+            if window.units != "sequence":
+                continue
+            ax.axvspan(window.start, window.end, color="black", alpha=0.08)
+            if window.center is not None:
+                ax.axvline(window.center, color="black", linewidth=0.8, alpha=0.45)
 
 
 @dataclass
@@ -717,6 +813,30 @@ class VariantReport:
         if save_path is not None:
             fig.savefig(save_path, dpi=180, bbox_inches="tight")
         return fig, ax
+
+
+@dataclass
+class PredictionReport:
+    """Container for several named single-prediction scoring results."""
+
+    results: Mapping[str, PredictionScoringResult]
+
+    def scores(self) -> dict[str, float | list[float] | Mapping[str, float]]:
+        """Return ``{name: score}`` for all configured scorers."""
+
+        return {name: result.score for name, result in self.results.items()}
+
+    def to_frame(self):
+        """Return all prediction scores as a pandas DataFrame."""
+
+        import pandas as pd
+
+        return pd.concat([result.to_frame() for result in self.results.values()], ignore_index=True)
+
+    def __getitem__(self, name: str) -> PredictionScoringResult:
+        """Return one named result from the report."""
+
+        return self.results[name]
 
 
 def _score_only_features(features: Any) -> Any:
@@ -764,6 +884,12 @@ def retain_scoring_result(
         result,
         prediction=retained_prediction,
         score_window=result.score_window if scoring.score_window else None,
+        ref_score_windows=(
+            result.ref_score_windows if scoring.score_window else ()
+        ),
+        alt_score_windows=(
+            result.alt_score_windows if scoring.score_window else ()
+        ),
         ref_track=result.ref_track if scoring.tracks == "all" else None,
         alt_track=result.alt_track if scoring.tracks == "all" else None,
         delta_track=(

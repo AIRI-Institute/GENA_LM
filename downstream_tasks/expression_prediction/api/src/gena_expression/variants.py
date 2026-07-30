@@ -202,7 +202,7 @@ class Variant:
             )
 
         if window_bp is not None:
-            from .contexts import GenomeContext
+            from .dna import GenomeContext
 
             return GenomeContext(length=window_bp).build(self, genome=genome, name=name)
 
@@ -227,7 +227,7 @@ class Variant:
     ) -> SequencePair:
         """Build a sequence pair by matching cloning primers around the variant."""
 
-        from .contexts.plasmid import reverse_complement
+        from .dna.plasmid import reverse_complement
 
         if genome is None:
             raise ValueError("Primer-based to_sequence_pair() requires genome=....")
@@ -536,7 +536,7 @@ class Variant:
     ) -> tuple[str, str, str, dict[str, object]]:
         """Match primers in a known interval-backed search window."""
 
-        from .contexts.plasmid import _match_primer_pair
+        from .dna.plasmid import _match_primer_pair
 
         if isinstance(primer_pairs, Mapping):
             items = list(primer_pairs.items())
@@ -597,7 +597,7 @@ class Variant:
     ) -> tuple[str, str, str, dict[str, object]]:
         """Return the best primer pair whose inferred fragment contains the variant."""
 
-        from .contexts.plasmid import reverse_complement
+        from .dna.plasmid import reverse_complement
 
         if isinstance(primer_pairs, Mapping):
             items = list(primer_pairs.items())

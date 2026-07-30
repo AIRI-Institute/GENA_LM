@@ -14,7 +14,7 @@ from .config import (
     set_retention_mode,
     set_retention_policy,
 )
-from .contexts import (
+from .dna import (
     Context,
     FeatureMatch,
     Genome,
