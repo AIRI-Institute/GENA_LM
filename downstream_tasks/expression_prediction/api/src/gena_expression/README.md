@@ -12,7 +12,7 @@ duplicate the detailed class references in those subpackage READMEs.
 
 | Path | Responsibility | What its README covers |
 | --- | --- | --- |
-| [`contexts/`](contexts/README.md) | FASTA/GTF-backed genome access, genomic windows, GenBank plasmids, MPRA insertion, and context builders | `Context`, `Genome`, `GenomeContext`, `GenomeRegion`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, related value classes, and primer/context utilities |
+| [`dna/`](dna/README.md) | FASTA/GTF-backed genome access, genomic windows, GenBank plasmids, MPRA insertion, and context builders | `Context`, `Genome`, `GenomeContext`, `GenomeRegion`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, related value classes, and primer/context utilities |
 | [`inference/`](inference/README.md) | Model loading, centered tokenization, batching, prediction, and prediction retention | `SequenceModel`, `CenteredTokenizer`, `TokenizedSequence`, `Prediction`, `ExpressionPrediction`, `PairPrediction`, grouping modes, pair execution, and preprocessing arguments |
 | [`scoring/`](scoring/README.md) | Pair interpretation, absolute and pair-effect scorers, result containers, plotting, and result retention | `VariantInterpreter`, every scorer, `ScoringResult`, report classes, scorer arguments, aggregation rules, and retained-data requirements |
 | [`ism/`](ism/README.md) | In-silico substitution/deletion library generation, resumable scoring, tables, and plots | `ISM`, its mutation-table schema, constructor controls, scoring lifecycle, query/export methods, and plotting arguments |
