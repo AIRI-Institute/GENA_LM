@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on mouse MIN6, a pancreatic beta-cell insulinoma line from C57BL/6 transgenic mouse islets transformed by SV40 large T antigen under the human insulin promoter; endocrine tumor model retaining glucose-responsive insulin secretion features.",
+  "biosample_summary": "Mus musculus MIN6 pancreatic beta-cell insulinoma cell line",
+  "life_stage_age": "13 weeks",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "M25",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC3W9J6MN",
+  "genome": "mm10"
+}

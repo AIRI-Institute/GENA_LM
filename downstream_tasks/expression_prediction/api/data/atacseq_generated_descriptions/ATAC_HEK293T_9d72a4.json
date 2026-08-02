@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a transformed human embryonic kidney-derived cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "female",
+  "Characteristics [Age]": "fetal",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on HEK293T cells, a transformed derivative of HEK293 carrying SV40 large T antigen, used as an epithelial-like embryonic kidney/neuroectoderm-associated model for transfection, viral packaging, and regulatory genomics.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from a population of cultured cells: intact nuclei are isolated, permeabilized, and incubated with Tn5 transposase to tag accessible chromatin before PCR amplification and sequencing.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "HEK293T",
+  "Characteristics [Tissue]": "embryonic kidney",
+  "id": "BulkATAC_9d72a4f1c0e8"
+}

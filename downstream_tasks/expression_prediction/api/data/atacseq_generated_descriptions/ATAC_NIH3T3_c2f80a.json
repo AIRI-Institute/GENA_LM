@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a mouse embryonic fibroblast cell line",
+  "Chracteristics [Species]": "Mouse (Mus musculus)",
+  "Characteristics [Sex]": "NaN",
+  "Characteristics [Age]": "embryonic",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on NIH-3T3 cells, a spontaneously immortalized fibroblast line established from NIH Swiss mouse embryo tissue using the 3T3 serial-transfer protocol and used for fibroblast, stromal, growth, and transformation studies.",
+  "Comment [organism]": "Mus musculus",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from adherent mouse fibroblast cultures: nuclei from the pooled population are recovered, accessible chromatin is fragmented and adapter-tagged by Tn5 transposase, and libraries represent population-level fibroblast accessibility.",
+  "genome": "mm10",
+  "Characteristics [Cell type]": "NIH-3T3",
+  "Characteristics [Tissue]": "embryonic fibroblast",
+  "id": "BulkATAC_c2f80a65d19b"
+}

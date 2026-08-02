@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on mouse Neuro-2a, a fast-growing neuroblastoma cell line derived from a spontaneous tumor in an A/Jax mouse; neuronal/neuroendocrine cancer model that can show neuroblast-like and neurite-forming differentiation features.",
+  "biosample_summary": "Mus musculus Neuro-2a neuroblastoma cell line",
+  "life_stage_age": "age unknown",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "M25",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC5Y2R8N2",
+  "genome": "mm10"
+}

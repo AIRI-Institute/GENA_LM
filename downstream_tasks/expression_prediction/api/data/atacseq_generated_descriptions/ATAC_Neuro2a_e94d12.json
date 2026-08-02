@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a mouse neuroblastoma cell line",
+  "Chracteristics [Species]": "Mouse (Mus musculus)",
+  "Characteristics [Sex]": "NaN",
+  "Characteristics [Age]": "NaN",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on Neuro-2a cells, a mouse neuroblastoma line derived from a spontaneous A/Jax mouse tumor and used as a neuronal cancer model with neuroblast-like and neurite-forming differentiation potential.",
+  "Comment [organism]": "Mus musculus",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from mouse neuroblastoma cultures: nuclei are isolated in bulk, transposed with Tn5 to label accessible regulatory DNA, and amplified libraries profile chromatin accessibility across the cell population.",
+  "genome": "mm10",
+  "Characteristics [Cell type]": "Neuro-2a",
+  "Characteristics [Tissue]": "nervous system neuroblastoma",
+  "id": "BulkATAC_e94d12b0a7c6"
+}
