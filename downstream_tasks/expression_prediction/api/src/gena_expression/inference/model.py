@@ -810,6 +810,7 @@ class SequenceModel:
         grouping: GroupingMode = "no_grouping",
         return_tokens: bool = True,
         retention: PredictionRetention = FULL_RETENTION.prediction,
+        description_cache: dict[str, dict[str, Any]] | None = None,
     ) -> ExpressionPrediction:
         """Run one already-tokenized sequence/condition row."""
 
@@ -822,6 +823,7 @@ class SequenceModel:
             batch_method="predict_sequence",
             return_tokens=return_tokens,
             retention=retention,
+            description_cache=description_cache,
         )[0]
         return self._to_expression_prediction(prediction)
 
@@ -835,6 +837,7 @@ class SequenceModel:
         grouping: GroupingMode = "no_grouping",
         return_tokens: bool = True,
         retention: RetentionLike = None,
+        description_cache: dict[str, dict[str, Any]] | None = None,
     ) -> ExpressionPrediction:
         """Predict expression for one sequence under one condition."""
 
@@ -847,6 +850,7 @@ class SequenceModel:
             grouping=grouping,
             return_tokens=return_tokens,
             retention=prediction_retention,
+            description_cache=description_cache,
         )
 
     def _predict_sequence_tasks(
@@ -1361,6 +1365,7 @@ class SequenceModel:
         show_progress: bool = True,
         return_tokens: bool = True,
         retention: RetentionLike = None,
+        description_cache: dict[str, dict[str, Any]] | None = None,
     ) -> list[ExpressionPrediction]:
         """Predict expression for sequence/condition rows.
 
@@ -1391,6 +1396,7 @@ class SequenceModel:
                 progress_description="Predicting sequences",
                 return_tokens=return_tokens,
                 retention=prediction_retention,
+                description_cache=description_cache,
             )
         return [self._to_expression_prediction(prediction) for prediction in predictions]
 

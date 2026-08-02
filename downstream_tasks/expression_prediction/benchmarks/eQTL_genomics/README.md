@@ -1,0 +1,50 @@
+# TSS saturation mutagenesis
+
+This benchmark scores every possible SNV in the fixed 2,001-bp interval
+`[TSS-1000, TSS+1001)` around each hg38 TSS. Every reference and alternate is
+evaluated in genomic-forward and reverse-complement orientations. The output
+stores the absolute reference ATAC sum, absolute mutant ATAC sum, and their
+difference over `[TSS-500, TSS+501)` for both orientations.
+
+The JSON description is rendered and tokenized with the same code path as
+`ExpressionDataset`: no padding, Qwen truncation at 510 tokens, and the dataset's
+metadata cleanup and sentence formatting.
+
+## Pilot
+
+Run a two-TSS pilot first. Pick an unused GPU and an output directory:
+
+```bash
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
+  pilot --description-json /path/to/description.json \
+  --output-dir /path/to/pilot --device cuda:0
+```
+
+The progress line reports observed variants per second. Use it to estimate the
+full run before launching production.
+
+## Multi-GPU run and merge
+
+```bash
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
+  run --description-json /path/to/description.json \
+  --output-dir /path/to/shards --devices 0,1,2,3,4,5,6
+
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
+  merge --output-dir /path/to/shards --output /path/to/tss_ism.h5
+```
+
+Each GPU writes one deterministic shard and skips completed TSSs when restarted.
+The merge command requires every shard to be complete and provenance-compatible.
+Checkpoint, model config, FASTA, tokenizers, batch size, CPU worker count, and
+prefetch depth are command-line options; see `--help`.
+
+The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
+`ref_base[N]`, and `position_offset[N]` arrays plus `/tss` offsets and metadata.
+The last axis is `[forward, reverse_complement]`. Alternative bases are the
+lexicographically ordered members of `ACGT` excluding the reference.
+Use `iter_variant_scores()` from `saturation_mutagenesis.py` to obtain explicit
+1-based genomic variant records.

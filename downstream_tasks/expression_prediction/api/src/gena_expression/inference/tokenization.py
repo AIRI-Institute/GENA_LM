@@ -81,6 +81,7 @@ class CenteredTokenizer:
         input_ids: list[int],
         offsets: list[tuple[int, int]],
         genomic_side: str,
+        initial_previous_end: int = 0,
     ) -> list[dict[str, Any]]:
         """Convert tokenizer offsets into track-compatible token records."""
 
@@ -92,7 +93,9 @@ class CenteredTokenizer:
             # use continuation-like tokens where offset start is not enough to
             # recover the token span length.
             if token_id == 5:
-                previous_end = int(offsets[idx - 1][1]) if idx > 0 else 0
+                previous_end = (
+                    int(offsets[idx - 1][1]) if idx > 0 else int(initial_previous_end)
+                )
                 length = int(end_i) - previous_end
             else:
                 length = int(end_i) - int(start_i)
@@ -173,9 +176,18 @@ class CenteredTokenizer:
             upstream_ids = encoded["input_ids"][1:-1]
             upstream_offsets = encoded.get("offset_mapping", [(0, 1)] * len(upstream_ids))[1:-1]
 
-            selected_ids = upstream_ids[-self.num_before :]
-            selected_offsets = upstream_offsets[-self.num_before :]
-            records.extend(self._records_from_encoded(selected_ids, selected_offsets, genomic_side=genomic_side))
+            selected_start = max(0, len(upstream_ids) - self.num_before)
+            selected_ids = upstream_ids[selected_start:]
+            selected_offsets = upstream_offsets[selected_start:]
+            previous_end = (
+                int(upstream_offsets[selected_start - 1][1]) if selected_start > 0 else 0
+            )
+            records.extend(self._records_from_encoded(
+                selected_ids,
+                selected_offsets,
+                genomic_side=genomic_side,
+                initial_previous_end=previous_end,
+            ))
 
         if not reverse:
             downstream_seq = sequence_text[center_index:]
@@ -194,7 +206,11 @@ class CenteredTokenizer:
         downstream_limit = self.dna_max_seq_tokens - self.num_before
         selected_ids = downstream_ids[:downstream_limit]
         selected_offsets = downstream_offsets[:downstream_limit]
-        records.extend(self._records_from_encoded(selected_ids, selected_offsets, genomic_side=genomic_side))
+        records.extend(self._records_from_encoded(
+            selected_ids,
+            selected_offsets,
+            genomic_side=genomic_side,
+        ))
 
         if reverse:
             records.reverse()
@@ -206,6 +222,10 @@ class CenteredTokenizer:
         current = center_index - left_length
         for input_position, record in enumerate(records, start=1):
             length = int(record["length"])
+            if length <= 0:
+                raise ValueError(
+                    f"Tokenizer produced a non-positive source span for token {record['token_id']}."
+                )
             record["input_position"] = input_position
             record["start"] = int(current)
             record["end"] = int(current + length)
@@ -216,6 +236,21 @@ class CenteredTokenizer:
             ]
             record["source"] = source.name
             current += length
+
+        if current > len(sequence_text):
+            raise ValueError(
+                "Token-to-sequence mapping extends beyond the source sequence: "
+                f"mapped end {current}, sequence length {len(sequence_text)}."
+            )
+        for record in records:
+            if int(record["token_id"]) != 5:
+                continue
+            source_bases = sequence_text[int(record["start"]) : int(record["end"])]
+            if not source_bases or set(source_bases) != {"N"}:
+                raise ValueError(
+                    "Gap token 5 did not map exactly to an N-run: "
+                    f"{record['start']}:{record['end']} -> {source_bases!r}."
+                )
 
         input_ids = [self.cls_id] + [record["token_id"] for record in records] + [self.sep_id]
         attention_mask = [1] * len(input_ids)
