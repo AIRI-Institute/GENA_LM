@@ -28,6 +28,7 @@ def inference_defaults() -> dict[str, object]:
     values = {
         "checkpoint": OmegaConf.select(config, "checkpoint"),
         "genome_fasta": OmegaConf.select(config, "genome_fasta"),
+        "description_json": OmegaConf.select(config, "description_json"),
         "mutation_window_bp": OmegaConf.select(config, "mutation_window_bp"),
         "score_window_bp": OmegaConf.select(config, "score_window_bp"),
     }
@@ -48,7 +49,9 @@ def shared(parser: argparse.ArgumentParser) -> None:
     defaults = inference_defaults()
     parser.add_argument("--catalog", type=Path, default=HERE / "data" / "selected_tss_catalog.tsv")
     parser.add_argument("--genome-fasta", type=Path, default=config_path(defaults["genome_fasta"]))
-    parser.add_argument("--description-json", type=Path, required=True)
+    parser.add_argument(
+        "--description-json", type=Path, default=config_path(defaults["description_json"])
+    )
     parser.add_argument("--checkpoint", type=Path, default=config_path(defaults["checkpoint"]))
     parser.add_argument(
         "--mutation-window-bp", type=int, default=int(defaults["mutation_window_bp"])

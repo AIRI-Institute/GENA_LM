@@ -34,9 +34,13 @@ S3 run and stored beside the local `pytorch_model.bin`.
 
 All persistent model names live under the repository-root `models/` directory:
 `model_010726`, `moderngena_large`, and `decoderdp0.1`. They are symlinks to the
-large model storage outside Git. The hg38 FASTA/index remain symlinked under
-`data/genomes/`. Set `GENALM_HOME` to the repository root for every command;
+large model storage outside Git. The reusable hg38 FASTA/index are symlinked at
+repository-root `data/genomes/hg38/`. Set `GENALM_HOME` to the repository root for every command;
 the inference and checkpoint YAMLs resolve models through that variable.
+
+The default condition description is the benchmark-relative
+`data/descriptions/ENCFF556YQA.json`. Use `--description-json` only to override
+that condition.
 
 ## Pilot
 
@@ -47,8 +51,7 @@ GENALM_HOME=/path/to/GENA_LM \
 CUDA_VISIBLE_DEVICES=0 \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
-  pilot --description-json /path/to/description.json \
-  --output-dir /path/to/pilot --device cuda:0
+  pilot --output-dir /path/to/pilot --device cuda:0
 ```
 
 The progress line reports observed variants per second. Use it to estimate the
@@ -64,7 +67,6 @@ CUDA_VISIBLE_DEVICES=0 \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
   pilot \
   --catalog downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/data/smoke_test_10_tss.tsv \
-  --description-json /path/to/description.json \
   --output-dir /path/to/smoke-output \
   --device cuda:0 \
   --limit 10
@@ -77,8 +79,7 @@ GENALM_HOME=/path/to/GENA_LM \
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
-  run --description-json /path/to/description.json \
-  --output-dir /path/to/shards --devices 0,1,2,3,4,5,6
+  run --output-dir /path/to/shards --devices 0,1,2,3,4,5,6
 
 GENALM_HOME=/path/to/GENA_LM \
 /home/jovyan/miniconda3/envs/api/bin/python \

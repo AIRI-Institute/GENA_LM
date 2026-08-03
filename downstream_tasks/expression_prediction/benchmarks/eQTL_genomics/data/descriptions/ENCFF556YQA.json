@@ -1,0 +1,14 @@
+{
+    "id": "ENCFF556YQA",
+    "assay_term_name": "ATAC-seq",
+    "description": "ATAC-seq on human left lobe of liver",
+    "biosample_summary": "Homo sapiens left lobe of liver tissue female adult (61 years)",
+    "life_stage_age": "adult 61 years",
+    "cell_type": "left lobe of liver",
+    "cell_id": "UBERON:0001115",
+    "classification": "tissue",
+    "pipeline_version": "1.9.1",
+    "lab": "Michael Snyder, Stanford",
+    "mapped_run_type": "paired-ended",
+    "genome": "GRCh38"
+}
