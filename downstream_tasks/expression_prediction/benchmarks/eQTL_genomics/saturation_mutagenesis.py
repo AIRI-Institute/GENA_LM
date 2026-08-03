@@ -246,7 +246,6 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
 def create_sequence_plan(
     record: TSSRecord,
     fasta: Any,
-    centered_tokenizer: Any,
     *,
     fetch_bp_per_token: int,
 ) -> TSSPlan:
@@ -283,11 +282,6 @@ def create_sequence_plan(
         ),
         metadata={"genome_build": "hg38", "tss_id": record.tss_id},
     )
-    # Validate that both orientations can construct a complete 510+510-token
-    # model input, but define variants in base-pair coordinates independently
-    # of BPE boundaries.
-    for _, orientation_strand in ORIENTATIONS:
-        centered_tokenizer.tokenize(sequence, center=center, strand=orientation_strand)
     mutation_genomic_start = max(0, record.tss_0based - 1000)
     mutation_genomic_end = min(chrom_length, record.tss_0based + 1001)
     mutation_start = mutation_genomic_start - genomic_start
@@ -525,22 +519,16 @@ def run_worker(args: Any) -> None:
         records = records[: args.limit]
     args.expected_tss_count = len(records)
     records = [record for index, record in enumerate(records) if index % args.shard_count == args.shard_index]
-    dna_tokenizer = AutoTokenizer.from_pretrained(str(args.dna_tokenizer))
     desc_tokenizer = AutoTokenizer.from_pretrained(str(args.description_tokenizer), padding_side="left")
     _, rendered = render_description(args.description_json)
     desc_tokens = tokenize_description(desc_tokenizer, rendered, args.text_max_seq_len)
     provenance = build_provenance(args, rendered, desc_tokens)
     fasta = pysam.FastaFile(str(args.genome_fasta))
 
-    # A light tokenizer object is sufficient to pre-plan exact reference spans.
-    from gena_expression.inference.tokenization import CenteredTokenizer
-    planner = CenteredTokenizer(
-        dna_tokenizer,
-        args.dna_input_seq_len,
-        args.fetch_bp_per_token,
-        args.num_before,
-    )
-    plans = [create_sequence_plan(record, fasta, planner, fetch_bp_per_token=args.fetch_bp_per_token) for record in records]
+    plans = [
+        create_sequence_plan(record, fasta, fetch_bp_per_token=args.fetch_bp_per_token)
+        for record in records
+    ]
     shard_path = Path(args.output_dir) / f"shard-{args.shard_index:04d}-of-{args.shard_count:04d}.h5"
     initialize_shard(shard_path, plans, provenance, args.shard_index, args.shard_count)
     validate_existing_shard(shard_path, plans, provenance, args.shard_index, args.shard_count)
