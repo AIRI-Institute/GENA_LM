@@ -54,6 +54,11 @@ Checkpoint, FASTA, batch size, CPU worker count, and prefetch depth are
 command-line options; see `--help`. Model and tokenizer settings come from the
 checkpoint-local training YAML.
 
+The DNA input split is derived from the checkpoint's `args_params.input_seq_len`
+and the inference `--num-before` setting. Two positions are reserved for CLS and
+SEP, so downstream tokens equal `input_seq_len - 2 - num_before`. Both derived
+side lengths are recorded in provenance.
+
 The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
 `ref_base[N]`, and `position_offset[N]` arrays plus `/tss` offsets and metadata.
 The last axis is `[forward, reverse_complement]`. Alternative bases are the

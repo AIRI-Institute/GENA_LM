@@ -42,6 +42,7 @@ def shared(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--preprocessing-backend", choices=("process", "thread"), default="process")
     parser.add_argument("--prefetch-batches", type=int, default=2)
     parser.add_argument("--fetch-bp-per-token", type=int, default=20)
+    parser.add_argument("--num-before", type=int, default=510)
     parser.add_argument("--on-error", choices=("raise", "record"), default="raise")
     parser.add_argument("--limit", type=int)
 

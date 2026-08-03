@@ -22,7 +22,7 @@ flowchart TD
     ModelConfig["Require exactly one YAML beside checkpoint<br/>Load model + tokenizer settings"] --> Model
 
     Catalog --> Plan["Build TSS plan"]
-    Plan --> Fetch["Fetch hg38 context<br/>~510 × 20 bp each side"]
+    Plan --> Fetch["Fetch hg38 context<br/>configured token budget × fetch estimate"]
     Fetch --> MutationSpan["Fixed genomic mutation span<br/>TSS −1000 … TSS +1000"]
     MutationSpan --> Variants["Skip N/ambiguous positions<br/>Generate 3 SNVs per A/C/G/T"]
 
@@ -61,8 +61,8 @@ hg38 sequence context and fixed mutation interval
   ▼
 Model BPE tokenization per orientation
   │
-  ├─ 510 upstream tokens
-  ├─ 510 downstream tokens
+  ├─ upstream tokens = num_before
+  ├─ downstream tokens = model input length − 2 − num_before
   ├─ gap token "-" maps to the complete source N-run
   └─ BPE boundaries do not define the mutation interval
   │

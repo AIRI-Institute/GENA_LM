@@ -26,6 +26,7 @@ from saturation_mutagenesis import (
     TSSRecord,
     alternatives,
     _load_checkpoint_runtime_config,
+    dna_token_sides,
     find_checkpoint_config,
     initialize_shard,
     iter_variant_scores,
@@ -34,6 +35,12 @@ from saturation_mutagenesis import (
     mutation_batches,
     render_description,
 )
+
+
+def test_dna_token_sides_reserve_special_tokens() -> None:
+    assert dna_token_sides(model_input_seq_len=1024, num_before=510) == (510, 512)
+    with pytest.raises(ValueError, match="num_before must be between"):
+        dna_token_sides(model_input_seq_len=1024, num_before=1023)
 
 
 def record(name: str = "tss-1", strand: str = "+") -> TSSRecord:

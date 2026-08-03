@@ -167,7 +167,8 @@ def _load_checkpoint_runtime_config(path: str | Path) -> dict[str, Any]:
         raise ValueError("args_params.input_seq_len must support 510+510 DNA tokens and two special tokens")
     return values
 
-
+# TODO: once we reorganize yamls, make yaml file name deterministic based on the checkpoint name
+# blocked by @aspeedok
 def find_checkpoint_config(checkpoint: str | Path) -> Path:
     """Require exactly one training YAML beside the checkpoint binary."""
 
@@ -188,9 +189,24 @@ def _string_dtype():
     return h5py.string_dtype(encoding="utf-8")
 
 
+def dna_token_sides(model_input_seq_len: int, num_before: int) -> tuple[int, int]:
+    """Split the DNA-token budget after reserving CLS and SEP tokens."""
+
+    dna_token_budget = int(model_input_seq_len) - 2
+    if not 0 <= int(num_before) <= dna_token_budget:
+        raise ValueError(
+            f"num_before must be between 0 and {dna_token_budget} for "
+            f"model input length {model_input_seq_len}, got {num_before}"
+        )
+    return int(num_before), dna_token_budget - int(num_before)
+
+
 def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -> dict[str, Any]:
     """Build compatibility metadata shared by shards and final outputs."""
 
+    dna_tokens_upstream, dna_tokens_downstream = dna_token_sides(
+        args.model_input_seq_len, args.num_before
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "expected_tss_count": int(args.expected_tss_count),
@@ -213,8 +229,8 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "description_token_ids_sha256": str(desc_tokens["token_ids_sha256"]),
         "text_max_seq_len": int(args.text_max_seq_len),
         "description_truncated": bool(desc_tokens["truncated"]),
-        "dna_tokens_upstream": 510,
-        "dna_tokens_downstream": 510,
+        "dna_tokens_upstream": dna_tokens_upstream,
+        "dna_tokens_downstream": dna_tokens_downstream,
         "mutation_window_left_bp": 1000,
         "mutation_window_right_bp": 1001,
         "orientations": "forward,reverse_complement",
@@ -491,6 +507,7 @@ def run_worker(args: Any) -> None:
     args.dna_tokenizer = checkpoint_runtime["dna_tokenizer"]
     args.description_tokenizer = checkpoint_runtime["description_tokenizer"]
     args.text_max_seq_len = checkpoint_runtime["text_max_seq_len"]
+    dna_token_sides(args.model_input_seq_len, args.num_before)
     records = load_catalog(args.catalog)
     if args.limit is not None:
         records = records[: args.limit]
@@ -505,7 +522,12 @@ def run_worker(args: Any) -> None:
 
     # A light tokenizer object is sufficient to pre-plan exact reference spans.
     from gena_expression.inference.tokenization import CenteredTokenizer
-    planner = CenteredTokenizer(dna_tokenizer, 1022, args.fetch_bp_per_token, 510)
+    planner = CenteredTokenizer(
+        dna_tokenizer,
+        args.model_input_seq_len,
+        args.fetch_bp_per_token,
+        args.num_before,
+    )
     plans = [create_sequence_plan(record, fasta, planner, fetch_bp_per_token=args.fetch_bp_per_token) for record in records]
     shard_path = Path(args.output_dir) / f"shard-{args.shard_index:04d}-of-{args.shard_count:04d}.h5"
     initialize_shard(shard_path, plans, provenance, args.shard_index, args.shard_count)
@@ -521,10 +543,10 @@ def run_worker(args: Any) -> None:
         config=args.checkpoint_config,
         dna_tokenizer=args.dna_tokenizer,
         description_tokenizer=args.description_tokenizer,
-        dna_max_seq_len=1022,
+        dna_max_seq_len=args.model_input_seq_len,
         desc_max_seq_len=args.text_max_seq_len,
         token_len_for_fetch=args.fetch_bp_per_token,
-        num_before=510,
+        num_before=args.num_before,
         device=args.device,
     )
     condition = Condition(name=Path(args.description_json).stem, description=rendered)
