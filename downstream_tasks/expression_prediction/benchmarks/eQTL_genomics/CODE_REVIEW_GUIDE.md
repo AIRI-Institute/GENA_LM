@@ -62,7 +62,7 @@ hg38 sequence context and fixed mutation interval
 Model BPE tokenization per orientation
   │
   ├─ upstream tokens = num_before
-  ├─ downstream tokens = model input length − 2 − num_before
+  ├─ downstream tokens = DNA input length − 2 − num_before
   ├─ gap token "-" maps to the complete source N-run
   └─ BPE boundaries do not define the mutation interval
   │

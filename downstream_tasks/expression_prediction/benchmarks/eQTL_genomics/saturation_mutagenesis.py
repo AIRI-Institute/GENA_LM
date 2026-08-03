@@ -163,8 +163,8 @@ def _load_checkpoint_runtime_config(path: str | Path) -> dict[str, Any]:
     values["model_input_seq_len"] = int(values["model_input_seq_len"])
     if values["text_max_seq_len"] < 1:
         raise ValueError("shared_dataset_params.text_max_seq_len must be positive")
-    if values["model_input_seq_len"] < 1022:
-        raise ValueError("args_params.input_seq_len must support 510+510 DNA tokens and two special tokens")
+    if values["model_input_seq_len"] < 3:
+        raise ValueError("args_params.input_seq_len must allow DNA plus CLS and SEP tokens")
     return values
 
 # TODO: once we reorganize yamls, make yaml file name deterministic based on the checkpoint name
@@ -189,14 +189,14 @@ def _string_dtype():
     return h5py.string_dtype(encoding="utf-8")
 
 
-def dna_token_sides(model_input_seq_len: int, num_before: int) -> tuple[int, int]:
+def dna_token_sides(dna_input_seq_len: int, num_before: int) -> tuple[int, int]:
     """Split the DNA-token budget after reserving CLS and SEP tokens."""
 
-    dna_token_budget = int(model_input_seq_len) - 2
+    dna_token_budget = int(dna_input_seq_len) - 2
     if not 0 <= int(num_before) <= dna_token_budget:
         raise ValueError(
             f"num_before must be between 0 and {dna_token_budget} for "
-            f"model input length {model_input_seq_len}, got {num_before}"
+            f"DNA input length {dna_input_seq_len}, got {num_before}"
         )
     return int(num_before), dna_token_budget - int(num_before)
 
@@ -205,7 +205,7 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
     """Build compatibility metadata shared by shards and final outputs."""
 
     dna_tokens_upstream, dna_tokens_downstream = dna_token_sides(
-        args.model_input_seq_len, args.num_before
+        args.dna_input_seq_len, args.num_before
     )
     return {
         "schema_version": SCHEMA_VERSION,
@@ -220,6 +220,7 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "checkpoint_config_sha256": sha256_file(args.checkpoint_config),
         "model_class": str(args.model_class),
         "model_input_seq_len": int(args.model_input_seq_len),
+        "dna_input_seq_len": int(args.dna_input_seq_len),
         "dna_tokenizer": str(args.dna_tokenizer),
         "description_tokenizer": str(args.description_tokenizer),
         "description_json": str(Path(args.description_json).resolve()),
@@ -507,7 +508,12 @@ def run_worker(args: Any) -> None:
     args.dna_tokenizer = checkpoint_runtime["dna_tokenizer"]
     args.description_tokenizer = checkpoint_runtime["description_tokenizer"]
     args.text_max_seq_len = checkpoint_runtime["text_max_seq_len"]
-    dna_token_sides(args.model_input_seq_len, args.num_before)
+    if args.dna_input_seq_len > args.model_input_seq_len:
+        raise ValueError(
+            f"DNA input length {args.dna_input_seq_len} exceeds checkpoint model "
+            f"capacity {args.model_input_seq_len}"
+        )
+    dna_token_sides(args.dna_input_seq_len, args.num_before)
     records = load_catalog(args.catalog)
     if args.limit is not None:
         records = records[: args.limit]
@@ -524,7 +530,7 @@ def run_worker(args: Any) -> None:
     from gena_expression.inference.tokenization import CenteredTokenizer
     planner = CenteredTokenizer(
         dna_tokenizer,
-        args.model_input_seq_len,
+        args.dna_input_seq_len,
         args.fetch_bp_per_token,
         args.num_before,
     )
@@ -543,7 +549,7 @@ def run_worker(args: Any) -> None:
         config=args.checkpoint_config,
         dna_tokenizer=args.dna_tokenizer,
         description_tokenizer=args.description_tokenizer,
-        dna_max_seq_len=args.model_input_seq_len,
+        dna_max_seq_len=args.dna_input_seq_len,
         desc_max_seq_len=args.text_max_seq_len,
         token_len_for_fetch=args.fetch_bp_per_token,
         num_before=args.num_before,

@@ -38,9 +38,9 @@ from saturation_mutagenesis import (
 
 
 def test_dna_token_sides_reserve_special_tokens() -> None:
-    assert dna_token_sides(model_input_seq_len=1024, num_before=510) == (510, 512)
+    assert dna_token_sides(dna_input_seq_len=1022, num_before=510) == (510, 510)
     with pytest.raises(ValueError, match="num_before must be between"):
-        dna_token_sides(model_input_seq_len=1024, num_before=1023)
+        dna_token_sides(dna_input_seq_len=1022, num_before=1021)
 
 
 def record(name: str = "tss-1", strand: str = "+") -> TSSRecord:
