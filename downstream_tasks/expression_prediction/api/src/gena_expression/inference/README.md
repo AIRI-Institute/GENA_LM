@@ -217,7 +217,7 @@ SequenceModel.load(
 
 | Argument | Purpose |
 | --- | --- |
-| `model_cls` | `"path/to/model.py::ClassName"` or `"package.module::ClassName"`. The separator `::` is required. |
+| `model_cls` | Repository-style `"package.module:ClassName"` or API/file-style `"path/to/model.py::ClassName"`. |
 | `checkpoint` | `.tensors` loads with `safetensors.torch.load_file`; any other suffix loads through `torch.load(..., weights_only=True)`. |
 | `config` | Hydra config file. The code composes its file name from its parent directory and instantiates `experiment_config["model_kwargs"]`. |
 | `dna_tokenizer`, `description_tokenizer` | Paths/names passed to `AutoTokenizer.from_pretrained()`. The description tokenizer is loaded with left padding. |

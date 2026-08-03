@@ -19,6 +19,7 @@ for path in (TASK_DIR, TASK_DIR / "api" / "src", HERE):
 
 from gena_expression.sequences import AnnotatedSequence, Feature
 from gena_expression.inference.tokenization import CenteredTokenizer
+from gena_expression.inference.model import _split_model_class_spec
 from expression_dataset_final import ExpressionDataset
 from saturation_mutagenesis import (
     BASE_TO_CODE,
@@ -41,6 +42,15 @@ def test_dna_token_sides_reserve_special_tokens() -> None:
     assert dna_token_sides(dna_input_seq_len=1022, num_before=510) == (510, 510)
     with pytest.raises(ValueError, match="num_before must be between"):
         dna_token_sides(dna_input_seq_len=1022, num_before=1021)
+
+
+def test_model_class_spec_accepts_repo_and_api_styles() -> None:
+    expected = ("downstream_tasks.expression_prediction.expression_model_final", "ExpressionCounts")
+    assert _split_model_class_spec(f"{expected[0]}:{expected[1]}") == expected
+    assert _split_model_class_spec(f"/tmp/expression_model_final.py::{expected[1]}") == (
+        "/tmp/expression_model_final.py",
+        expected[1],
+    )
 
 
 def record(name: str = "tss-1", strand: str = "+") -> TSSRecord:

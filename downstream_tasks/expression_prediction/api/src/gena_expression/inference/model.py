@@ -33,6 +33,19 @@ from .outputs import ExpressionPrediction, PairPrediction, Prediction, _simple_v
 from .tokenization import CenteredTokenizer, TokenizedSequence
 
 
+def _split_model_class_spec(model_cls: str) -> tuple[str, str]:
+    """Accept the repo-standard ``module:Class`` and API ``file::Class`` forms."""
+
+    separator = "::" if "::" in model_cls else ":"
+    parts = model_cls.rsplit(separator, 1)
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(
+            "model_cls must use 'module:ClassName' or 'path/to/file.py::ClassName', "
+            f"got {model_cls!r}"
+        )
+    return parts[0], parts[1]
+
+
 class SequenceModel:
     """Load tokenizers/model checkpoint and expose prediction helpers.
 
@@ -101,8 +114,8 @@ class SequenceModel:
     ) -> "SequenceModel":
         """Load model class, Hydra config, checkpoint, and tokenizers.
 
-        ``model_cls`` accepts either ``/path/to/file.py::ClassName`` as in the
-        attached code, or an import path such as ``package.module::ClassName``.
+        ``model_cls`` accepts the repository-standard ``package.module:ClassName``
+        or the API's explicit ``/path/to/file.py::ClassName`` form.
         """
 
         import torch
@@ -112,7 +125,7 @@ class SequenceModel:
         from transformers import AutoTokenizer
 
         logger = logging.getLogger(__name__)
-        model_path_or_module, class_name = model_cls.split("::")
+        model_path_or_module, class_name = _split_model_class_spec(model_cls)
 
         @contextmanager
         def _temporary_sys_path(path: Path):

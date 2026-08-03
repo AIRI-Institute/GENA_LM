@@ -546,11 +546,8 @@ def run_worker(args: Any) -> None:
     validate_existing_shard(shard_path, plans, provenance, args.shard_index, args.shard_count)
 
     os.environ.setdefault("CAGI5_MODEL_ROOT", str(Path(args.checkpoint).resolve().parents[1]))
-    model_class = str(args.model_class)
-    if "::" not in model_class:
-        model_class = model_class.replace(":", "::", 1)
     model = SequenceModel.load(
-        model_cls=model_class,
+        model_cls=str(args.model_class),
         checkpoint=args.checkpoint,
         config=args.checkpoint_config,
         dna_tokenizer=args.dna_tokenizer,
