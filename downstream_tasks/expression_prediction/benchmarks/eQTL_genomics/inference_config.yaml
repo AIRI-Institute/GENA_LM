@@ -1,3 +1,4 @@
-checkpoint: /workspace-SR003.nfs2/estsoi/CAGI5_benchmark/models/expression_model_v1-1/pytorch_model.bin
+checkpoint: data/checkpoints/model_010726/pytorch_model.bin
+genome_fasta: data/genomes/hg38/hg38.fa
 mutation_window_bp: 1000
 score_window_bp: 500

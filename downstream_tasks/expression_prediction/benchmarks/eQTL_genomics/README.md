@@ -32,6 +32,10 @@ The default checkpoint has these equivalent names and locations:
 Its checkpoint-local configuration is `final_02062026.yaml`, sourced from that
 S3 run and stored beside the local `pytorch_model.bin`.
 
+`inference_config.yaml` uses paths relative to this benchmark. The repository
+entries under `data/checkpoints/` and `data/genomes/` are symlinks to the large
+checkpoint and hg38 FASTA/index stored outside Git.
+
 ## Pilot
 
 Run a two-TSS pilot first. Pick an unused GPU and an output directory:

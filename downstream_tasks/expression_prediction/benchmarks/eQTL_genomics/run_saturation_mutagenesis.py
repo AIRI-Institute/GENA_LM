@@ -27,6 +27,7 @@ def inference_defaults() -> dict[str, object]:
     config = OmegaConf.load(HERE / "inference_config.yaml")
     values = {
         "checkpoint": OmegaConf.select(config, "checkpoint"),
+        "genome_fasta": OmegaConf.select(config, "genome_fasta"),
         "mutation_window_bp": OmegaConf.select(config, "mutation_window_bp"),
         "score_window_bp": OmegaConf.select(config, "score_window_bp"),
     }
@@ -36,12 +37,19 @@ def inference_defaults() -> dict[str, object]:
     return values
 
 
+def config_path(value: object) -> Path:
+    """Resolve inference-config paths relative to the benchmark directory."""
+
+    path = Path(str(value))
+    return path if path.is_absolute() else HERE / path
+
+
 def shared(parser: argparse.ArgumentParser) -> None:
     defaults = inference_defaults()
     parser.add_argument("--catalog", type=Path, default=HERE / "data" / "selected_tss_catalog.tsv")
-    parser.add_argument("--genome-fasta", type=Path, default=Path("/home/jovyan/.cache/mpramnist/data/Kircher/hg38.fa"))
+    parser.add_argument("--genome-fasta", type=Path, default=config_path(defaults["genome_fasta"]))
     parser.add_argument("--description-json", type=Path, required=True)
-    parser.add_argument("--checkpoint", type=Path, default=Path(str(defaults["checkpoint"])))
+    parser.add_argument("--checkpoint", type=Path, default=config_path(defaults["checkpoint"]))
     parser.add_argument(
         "--mutation-window-bp", type=int, default=int(defaults["mutation_window_bp"])
     )
