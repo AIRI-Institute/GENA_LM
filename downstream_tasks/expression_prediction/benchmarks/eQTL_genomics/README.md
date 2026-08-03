@@ -10,6 +10,17 @@ The JSON description is rendered and tokenized with the same code path as
 `ExpressionDataset`: no padding, Qwen truncation at 510 tokens, and the dataset's
 metadata cleanup and sentence formatting.
 
+## Checkpoint-local configuration requirement
+
+The checkpoint directory must contain exactly one `*.yaml` file beside the
+checkpoint `.bin`. Before tokenizers or the model are loaded, the runner compares
+the checkpoint YAML's complete `model_kwargs` section with `inference_config.yaml`.
+Every key and value must match except `hf_model_name` and
+`hf_model_name_decoder`, whose local asset paths may differ. Missing, multiple,
+or incompatible checkpoint YAML files stop the run with a field-level error.
+The accepted checkpoint-local YAML path and SHA-256 hash are stored in HDF5
+provenance.
+
 ## Pilot
 
 Run a two-TSS pilot first. Pick an unused GPU and an output directory:

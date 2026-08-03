@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import h5py
 import numpy as np
+import pytest
 
 HERE = Path(__file__).resolve().parent
 TASK_DIR = HERE.parents[1]
@@ -30,6 +31,7 @@ from saturation_mutagenesis import (
     merge_shards,
     mutation_batches,
     render_description,
+    validate_checkpoint_config,
 )
 
 
@@ -85,6 +87,45 @@ def test_description_uses_expression_dataset_formatter(tmp_path: Path) -> None:
         metadata, path.stem, str(path)
     )
     assert text == "Characteristics[cell type] is K 562. Parameter dose is high value."
+
+
+def _write_model_config(path: Path, *, weight: int = 8, encoder: str = "encoder") -> None:
+    path.write_text(
+        "model_kwargs:\n"
+        "  _target_: builtins.dict\n"
+        f"  hf_model_name: {encoder}\n"
+        "  hf_model_name_decoder: decoder\n"
+        f"  weight: {weight}\n"
+        "  config:\n"
+        "    _target_: builtins.dict\n",
+        encoding="utf-8",
+    )
+
+
+def test_checkpoint_requires_exactly_one_sibling_yaml(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pytorch_model.bin"
+    checkpoint.write_bytes(b"checkpoint")
+    inference = tmp_path / "inference.yml"
+    _write_model_config(inference)
+    with pytest.raises(ValueError, match="exactly one"):
+        validate_checkpoint_config(checkpoint, inference)
+    _write_model_config(tmp_path / "first.yaml")
+    _write_model_config(tmp_path / "second.yaml")
+    with pytest.raises(ValueError, match="found 2"):
+        validate_checkpoint_config(checkpoint, inference)
+
+
+def test_checkpoint_config_matches_except_model_asset_paths(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pytorch_model.bin"
+    checkpoint.write_bytes(b"checkpoint")
+    inference = tmp_path / "inference.yml"
+    checkpoint_config = tmp_path / "training.yaml"
+    _write_model_config(inference, encoder="inference-encoder")
+    _write_model_config(checkpoint_config, encoder="checkpoint-encoder")
+    assert validate_checkpoint_config(checkpoint, inference) == checkpoint_config
+    _write_model_config(checkpoint_config, weight=5, encoder="checkpoint-encoder")
+    with pytest.raises(ValueError, match=r"model_kwargs.weight.*inference=8, checkpoint=5"):
+        validate_checkpoint_config(checkpoint, inference)
 
 
 def test_mutation_batches_retokenize_three_alternatives() -> None:

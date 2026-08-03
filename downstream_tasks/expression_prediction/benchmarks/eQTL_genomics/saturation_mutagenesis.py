@@ -140,6 +140,72 @@ def tokenize_description(tokenizer: Any, text: str, max_length: int = 510) -> di
     }
 
 
+def _model_kwargs_from_yaml(path: str | Path) -> dict[str, Any]:
+    """Load unresolved, primitive model kwargs from a Hydra YAML file."""
+
+    from omegaconf import OmegaConf
+
+    config = OmegaConf.load(Path(path))
+    if "model_kwargs" not in config:
+        raise ValueError(f"Config has no model_kwargs section: {path}")
+    values = OmegaConf.to_container(config["model_kwargs"], resolve=False)
+    if not isinstance(values, dict):
+        raise TypeError(f"model_kwargs must be a mapping: {path}")
+    return values
+
+
+def _without_model_asset_paths(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Return model kwargs excluding the two permitted asset-path differences."""
+
+    ignored = {"hf_model_name", "hf_model_name_decoder"}
+    return {key: value for key, value in values.items() if key not in ignored}
+
+
+def _config_differences(left: Any, right: Any, prefix: str = "model_kwargs") -> list[str]:
+    """Return concise leaf-level structural differences between config values."""
+
+    if isinstance(left, Mapping) and isinstance(right, Mapping):
+        differences: list[str] = []
+        for key in sorted(set(left) | set(right)):
+            path = f"{prefix}.{key}"
+            if key not in left:
+                differences.append(f"{path}: missing from inference config")
+            elif key not in right:
+                differences.append(f"{path}: missing from checkpoint config")
+            else:
+                differences.extend(_config_differences(left[key], right[key], path))
+        return differences
+    if left != right:
+        return [f"{prefix}: inference={left!r}, checkpoint={right!r}"]
+    return []
+
+
+def validate_checkpoint_config(checkpoint: str | Path, inference_config: str | Path) -> Path:
+    """Require one sibling YAML whose model kwargs match the inference config."""
+
+    checkpoint_path = Path(checkpoint).resolve()
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"Model checkpoint does not exist: {checkpoint_path}")
+    candidates = sorted(checkpoint_path.parent.glob("*.yaml"))
+    if len(candidates) != 1:
+        names = ", ".join(path.name for path in candidates) or "none"
+        raise ValueError(
+            f"Expected exactly one *.yaml beside {checkpoint_path.name} in "
+            f"{checkpoint_path.parent}, found {len(candidates)}: {names}"
+        )
+    checkpoint_config = candidates[0]
+    inference_kwargs = _without_model_asset_paths(_model_kwargs_from_yaml(inference_config))
+    checkpoint_kwargs = _without_model_asset_paths(_model_kwargs_from_yaml(checkpoint_config))
+    differences = _config_differences(inference_kwargs, checkpoint_kwargs)
+    if differences:
+        details = "\n  - ".join(differences)
+        raise ValueError(
+            "Inference model_kwargs do not match the checkpoint-local YAML "
+            "(excluding hf_model_name and hf_model_name_decoder):\n  - " + details
+        )
+    return checkpoint_config
+
+
 def _string_dtype():
     return h5py.string_dtype(encoding="utf-8")
 
@@ -156,6 +222,8 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "genome_fai_sha256": sha256_file(f"{args.genome_fasta}.fai"),
         "checkpoint": str(Path(args.checkpoint).resolve()),
         "checkpoint_sha256": sha256_file(args.checkpoint),
+        "checkpoint_config": str(Path(args.checkpoint_config).resolve()),
+        "checkpoint_config_sha256": sha256_file(args.checkpoint_config),
         "model_config": str(Path(args.model_config).resolve()),
         "model_config_sha256": sha256_file(args.model_config),
         "dna_tokenizer": str(args.dna_tokenizer),
@@ -438,6 +506,7 @@ def run_worker(args: Any) -> None:
     from gena_expression.inference import SequenceModel
     from gena_expression.scoring import TrackWindowScorer
 
+    args.checkpoint_config = validate_checkpoint_config(args.checkpoint, args.model_config)
     records = load_catalog(args.catalog)
     if args.limit is not None:
         records = records[: args.limit]

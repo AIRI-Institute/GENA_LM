@@ -19,6 +19,7 @@ flowchart TD
     Shard --> Catalog["Read selected_tss_catalog.tsv<br/>1-based hg38 → 0-based"]
     Shard --> Description["Render JSON with ExpressionDataset<br/>Tokenize once, max 510 tokens"]
     Shard --> Model["Load checkpoint + tokenizers<br/>one model per GPU"]
+    ModelConfig["Require exactly one YAML beside checkpoint<br/>Compare model_kwargs"] --> Model
 
     Catalog --> Plan["Build TSS plan"]
     Plan --> Fetch["Fetch hg38 context<br/>~510 × 20 bp each side"]
@@ -159,6 +160,10 @@ alternate sequences ─ batched inference ───┼─ alt − ref
 
 Important behavior:
 
+- Before model loading, exactly one `*.yaml` must exist beside the checkpoint.
+- Its full `model_kwargs` mapping must equal the inference config, except for
+  `hf_model_name` and `hf_model_name_decoder`.
+- Missing, additional, or different parameters are reported by dotted field path.
 - The reference is evaluated once in each orientation per TSS.
 - Alternatives are grouped under one cached description.
 - The description uses the exact `ExpressionDataset` formatter and tokenizer path.
@@ -188,6 +193,10 @@ Review `initialize_shard()` and `merge_shards()` in
 | `/tss/status` | Pending, complete, or failed |
 | `/tss/reference_atac_sum[TSS,2]` | Absolute forward and reverse-complement reference ATAC sums |
 | `/provenance` | Input, model, tokenizer, description, and scoring settings and hashes |
+
+Provenance includes both the checkpoint `.bin` and checkpoint-local YAML paths
+and SHA-256 hashes. This prevents shards produced from differently configured
+checkpoints from being merged.
 
 If an interval is `ACNTA`, the mutable position offsets remain `0,1,3,4`.
 Skipping `N` therefore does not silently close the genomic coordinate gap.
@@ -242,10 +251,12 @@ For the highest-value review in the least time:
 6. Is skipping `N` correct, or should affected TSSs be excluded entirely?
 7. Are separate forward and reverse-complement absolute values the desired orientation representation?
 8. Is the compact three-alternative HDF5 representation convenient for downstream analysis?
+9. Does every deployed checkpoint directory contain exactly one matching YAML?
 
 ## Validation completed
 
-- Six focused unit and regression tests pass.
+- Eight focused unit and regression tests pass.
+- Checkpoint-local YAML cardinality and model-kwargs compatibility are tested.
 - Plus- and minus-strand BPE windows were checked.
 - A selected leading gap token representing 12 `N` bases maps to all 12 source bases.
 - The v1-1 checkpoint and restored inference configuration load successfully.
