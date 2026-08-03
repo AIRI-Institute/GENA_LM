@@ -25,13 +25,14 @@ from saturation_mutagenesis import (
     TSSPlan,
     TSSRecord,
     alternatives,
+    _load_checkpoint_runtime_config,
+    find_checkpoint_config,
     initialize_shard,
     iter_variant_scores,
     load_catalog,
     merge_shards,
     mutation_batches,
     render_description,
-    validate_checkpoint_config,
 )
 
 
@@ -89,15 +90,22 @@ def test_description_uses_expression_dataset_formatter(tmp_path: Path) -> None:
     assert text == "Characteristics[cell type] is K 562. Parameter dose is high value."
 
 
-def _write_model_config(path: Path, *, weight: int = 8, encoder: str = "encoder") -> None:
+def _write_model_config(path: Path, *, text_max_seq_len: int = 510) -> None:
     path.write_text(
+        "args_params:\n"
+        "  model_cls: package.model:ExpressionCounts\n"
+        "  input_seq_len: 1024\n"
+        "  gen_tokenizer: dna-tokenizer\n"
+        "  text_tokenizer: qwen-tokenizer\n"
         "model_kwargs:\n"
         "  _target_: builtins.dict\n"
-        f"  hf_model_name: {encoder}\n"
+        "  hf_model_name: encoder\n"
         "  hf_model_name_decoder: decoder\n"
-        f"  weight: {weight}\n"
+        "  weight: 8\n"
         "  config:\n"
-        "    _target_: builtins.dict\n",
+        "    _target_: builtins.dict\n"
+        "shared_dataset_params:\n"
+        f"  text_max_seq_len: {text_max_seq_len}\n",
         encoding="utf-8",
     )
 
@@ -105,27 +113,27 @@ def _write_model_config(path: Path, *, weight: int = 8, encoder: str = "encoder"
 def test_checkpoint_requires_exactly_one_sibling_yaml(tmp_path: Path) -> None:
     checkpoint = tmp_path / "pytorch_model.bin"
     checkpoint.write_bytes(b"checkpoint")
-    inference = tmp_path / "inference.yml"
-    _write_model_config(inference)
     with pytest.raises(ValueError, match="exactly one"):
-        validate_checkpoint_config(checkpoint, inference)
+        find_checkpoint_config(checkpoint)
     _write_model_config(tmp_path / "first.yaml")
     _write_model_config(tmp_path / "second.yaml")
     with pytest.raises(ValueError, match="found 2"):
-        validate_checkpoint_config(checkpoint, inference)
+        find_checkpoint_config(checkpoint)
 
 
-def test_checkpoint_config_matches_except_model_asset_paths(tmp_path: Path) -> None:
+def test_checkpoint_config_supplies_tokenizers_and_text_length(tmp_path: Path) -> None:
     checkpoint = tmp_path / "pytorch_model.bin"
     checkpoint.write_bytes(b"checkpoint")
-    inference = tmp_path / "inference.yml"
     checkpoint_config = tmp_path / "training.yaml"
-    _write_model_config(inference, encoder="inference-encoder")
-    _write_model_config(checkpoint_config, encoder="checkpoint-encoder")
-    assert validate_checkpoint_config(checkpoint, inference) == checkpoint_config
-    _write_model_config(checkpoint_config, weight=5, encoder="checkpoint-encoder")
-    with pytest.raises(ValueError, match=r"model_kwargs.weight.*inference=8, checkpoint=5"):
-        validate_checkpoint_config(checkpoint, inference)
+    _write_model_config(checkpoint_config, text_max_seq_len=384)
+    assert find_checkpoint_config(checkpoint) == checkpoint_config
+    assert _load_checkpoint_runtime_config(checkpoint_config) == {
+        "model_class": "package.model:ExpressionCounts",
+        "model_input_seq_len": 1024,
+        "dna_tokenizer": "dna-tokenizer",
+        "description_tokenizer": "qwen-tokenizer",
+        "text_max_seq_len": 384,
+    }
 
 
 def test_mutation_batches_retokenize_three_alternatives() -> None:

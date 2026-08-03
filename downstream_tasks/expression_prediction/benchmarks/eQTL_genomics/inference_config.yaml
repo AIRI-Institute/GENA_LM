@@ -1,14 +1,1 @@
-model_kwargs:
-  _target_: builtins.dict
-  hf: true
-  hf_model_name: ${oc.env:CAGI5_MODEL_ROOT}/modernbert_large
-  hf_model_name_decoder: ${oc.env:CAGI5_MODEL_ROOT}/decoder
-  desc_model_name: Qwen/Qwen3-Embedding-0.6B
-  loss_fct:
-    _target_: torch.nn.MSELoss
-    reduction: none
-  activation:
-    _target_: torch.nn.Identity
-  config:
-    _target_: builtins.dict
-  weight: 8
+checkpoint: /workspace-SR003.nfs2/estsoi/CAGI5_benchmark/models/expression_model_v1-1/pytorch_model.bin

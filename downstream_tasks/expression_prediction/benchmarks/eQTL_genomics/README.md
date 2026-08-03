@@ -7,19 +7,19 @@ stores the absolute reference ATAC sum, absolute mutant ATAC sum, and their
 difference over `[TSS-500, TSS+501)` for both orientations.
 
 The JSON description is rendered and tokenized with the same code path as
-`ExpressionDataset`: no padding, Qwen truncation at 510 tokens, and the dataset's
-metadata cleanup and sentence formatting.
+`ExpressionDataset`: no padding, truncation at the checkpoint YAML's
+`shared_dataset_params.text_max_seq_len`, and the dataset's metadata cleanup and
+sentence formatting.
 
 ## Checkpoint-local configuration requirement
 
 The checkpoint directory must contain exactly one `*.yaml` file beside the
-checkpoint `.bin`. Before tokenizers or the model are loaded, the runner compares
-the checkpoint YAML's complete `model_kwargs` section with `inference_config.yaml`.
-Every key and value must match except `hf_model_name` and
-`hf_model_name_decoder`, whose local asset paths may differ. Missing, multiple,
-or incompatible checkpoint YAML files stop the run with a field-level error.
-The accepted checkpoint-local YAML path and SHA-256 hash are stored in HDF5
-provenance.
+checkpoint `.bin`. That training YAML is authoritative for `model_kwargs`, the
+DNA and description tokenizers, and `shared_dataset_params.text_max_seq_len`.
+Missing or multiple checkpoint YAML files stop the run. `inference_config.yaml`
+contains only the default checkpoint path, which can still be overridden with
+`--checkpoint`. The checkpoint-local YAML path, hash, resolved tokenizers, and
+text length are stored in HDF5 provenance.
 
 ## Pilot
 
@@ -50,8 +50,9 @@ full run before launching production.
 
 Each GPU writes one deterministic shard and skips completed TSSs when restarted.
 The merge command requires every shard to be complete and provenance-compatible.
-Checkpoint, model config, FASTA, tokenizers, batch size, CPU worker count, and
-prefetch depth are command-line options; see `--help`.
+Checkpoint, FASTA, batch size, CPU worker count, and prefetch depth are
+command-line options; see `--help`. Model and tokenizer settings come from the
+checkpoint-local training YAML.
 
 The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
 `ref_base[N]`, and `position_offset[N]` arrays plus `/tss` offsets and metadata.

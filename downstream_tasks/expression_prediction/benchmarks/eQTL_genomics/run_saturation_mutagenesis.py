@@ -19,18 +19,23 @@ for path in (str(TASK_DIR), str(API_SRC), str(HERE)):
 from saturation_mutagenesis import merge_shards, run_worker
 
 
-DEFAULT_ROOT = Path("/workspace-SR003.nfs2/estsoi/CAGI5_benchmark")
+def default_checkpoint() -> Path:
+    """Read the only model-specific inference setting."""
+
+    from omegaconf import OmegaConf
+
+    config = OmegaConf.load(HERE / "inference_config.yaml")
+    checkpoint = OmegaConf.select(config, "checkpoint")
+    if not checkpoint:
+        raise ValueError("inference_config.yaml must define checkpoint")
+    return Path(str(checkpoint))
 
 
 def shared(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--catalog", type=Path, default=HERE / "data" / "selected_tss_catalog.tsv")
     parser.add_argument("--genome-fasta", type=Path, default=Path("/home/jovyan/.cache/mpramnist/data/Kircher/hg38.fa"))
     parser.add_argument("--description-json", type=Path, required=True)
-    parser.add_argument("--checkpoint", type=Path, default=DEFAULT_ROOT / "models/expression_model_v1-1/pytorch_model.bin")
-    parser.add_argument("--model-config", type=Path, default=HERE / "inference_config.yaml")
-    parser.add_argument("--model-class-file", type=Path, default=TASK_DIR / "expression_model_final.py")
-    parser.add_argument("--dna-tokenizer", default=str(TASK_DIR.parents[1] / "data/tokenizers/t2t_1000h_multi_32k"))
-    parser.add_argument("--description-tokenizer", default="Qwen/Qwen3-Embedding-0.6B")
+    parser.add_argument("--checkpoint", type=Path, default=default_checkpoint())
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=200)
     parser.add_argument("--preprocessing-workers", type=int, default=10)

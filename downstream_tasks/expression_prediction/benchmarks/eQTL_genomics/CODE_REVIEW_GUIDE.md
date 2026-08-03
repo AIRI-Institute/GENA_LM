@@ -17,9 +17,9 @@ flowchart TD
     Launcher --> Shard["Deterministic TSS shard<br/>catalog_index % GPU_count"]
 
     Shard --> Catalog["Read selected_tss_catalog.tsv<br/>1-based hg38 → 0-based"]
-    Shard --> Description["Render JSON with ExpressionDataset<br/>Tokenize once, max 510 tokens"]
+    Shard --> Description["Render JSON with ExpressionDataset<br/>Tokenize once, checkpoint text_max_seq_len"]
     Shard --> Model["Load checkpoint + tokenizers<br/>one model per GPU"]
-    ModelConfig["Require exactly one YAML beside checkpoint<br/>Compare model_kwargs"] --> Model
+    ModelConfig["Require exactly one YAML beside checkpoint<br/>Load model + tokenizer settings"] --> Model
 
     Catalog --> Plan["Build TSS plan"]
     Plan --> Fetch["Fetch hg38 context<br/>~510 × 20 bp each side"]
@@ -161,9 +161,10 @@ alternate sequences ─ batched inference ───┼─ alt − ref
 Important behavior:
 
 - Before model loading, exactly one `*.yaml` must exist beside the checkpoint.
-- Its full `model_kwargs` mapping must equal the inference config, except for
-  `hf_model_name` and `hf_model_name_decoder`.
-- Missing, additional, or different parameters are reported by dotted field path.
+- That YAML directly supplies `model_kwargs`, model class, DNA and description
+  tokenizers, model input length, and `text_max_seq_len`.
+- `inference_config.yaml` supplies only the default checkpoint path; it does not
+  duplicate training/model parameters.
 - The reference is evaluated once in each orientation per TSS.
 - Alternatives are grouped under one cached description.
 - The description uses the exact `ExpressionDataset` formatter and tokenizer path.
