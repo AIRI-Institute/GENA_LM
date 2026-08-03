@@ -1,4 +1,4 @@
-checkpoint: data/checkpoints/model_010726/pytorch_model.bin
+checkpoint: ${oc.env:GENALM_HOME}/models/model_010726/pytorch_model.bin
 genome_fasta: data/genomes/hg38/hg38.fa
 mutation_window_bp: 1000
 score_window_bp: 500

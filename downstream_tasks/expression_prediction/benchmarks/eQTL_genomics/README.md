@@ -32,15 +32,19 @@ The default checkpoint has these equivalent names and locations:
 Its checkpoint-local configuration is `final_02062026.yaml`, sourced from that
 S3 run and stored beside the local `pytorch_model.bin`.
 
-`inference_config.yaml` uses paths relative to this benchmark. The repository
-entries under `data/checkpoints/` and `data/genomes/` are symlinks to the large
-checkpoint and hg38 FASTA/index stored outside Git.
+All persistent model names live under the repository-root `models/` directory:
+`model_010726`, `moderngena_large`, and `decoderdp0.1`. They are symlinks to the
+large model storage outside Git. The hg38 FASTA/index remain symlinked under
+`data/genomes/`. Set `GENALM_HOME` to the repository root for every command;
+the inference and checkpoint YAMLs resolve models through that variable.
 
 ## Pilot
 
 Run a two-TSS pilot first. Pick an unused GPU and an output directory:
 
 ```bash
+GENALM_HOME=/path/to/GENA_LM \
+CUDA_VISIBLE_DEVICES=0 \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
   pilot --description-json /path/to/description.json \
@@ -54,6 +58,8 @@ For the checked-in 10-TSS smoke set (six plus-strand and four minus-strand TSSs)
 override the pilot's default two-record limit:
 
 ```bash
+GENALM_HOME=/path/to/GENA_LM \
+CUDA_VISIBLE_DEVICES=0 \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
   pilot \
@@ -67,11 +73,14 @@ override the pilot's default two-record limit:
 ## Multi-GPU run and merge
 
 ```bash
+GENALM_HOME=/path/to/GENA_LM \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
   run --description-json /path/to/description.json \
   --output-dir /path/to/shards --devices 0,1,2,3,4,5,6
 
+GENALM_HOME=/path/to/GENA_LM \
 /home/jovyan/miniconda3/envs/api/bin/python \
   downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
   merge --output-dir /path/to/shards --output /path/to/tss_ism.h5
