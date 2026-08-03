@@ -37,6 +37,20 @@ Run a two-TSS pilot first. Pick an unused GPU and an output directory:
 The progress line reports observed variants per second. Use it to estimate the
 full run before launching production.
 
+For the checked-in 10-TSS smoke set (six plus-strand and four minus-strand TSSs),
+override the pilot's default two-record limit:
+
+```bash
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py \
+  pilot \
+  --catalog downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/data/smoke_test_10_tss.tsv \
+  --description-json /path/to/description.json \
+  --output-dir /path/to/smoke-output \
+  --device cuda:0 \
+  --limit 10
+```
+
 ## Multi-GPU run and merge
 
 ```bash
