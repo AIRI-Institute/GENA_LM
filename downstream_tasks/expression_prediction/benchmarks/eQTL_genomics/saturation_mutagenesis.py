@@ -234,8 +234,12 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "dna_tokens_downstream": dna_tokens_downstream,
         "mutation_window_left_bp": 1000,
         "mutation_window_right_bp": 1001,
+        "score_window_bp": int(args.score_window_bp),
         "orientations": "forward,reverse_complement",
-        "score": "ATAC channel 0 weighted sum [TSS-500,TSS+501), alt-ref",
+        "score": (
+            f"ATAC channel 0 weighted sum [TSS-{args.score_window_bp},"
+            f"TSS+{args.score_window_bp + 1}), alt-ref"
+        ),
     }
 
 
@@ -508,6 +512,8 @@ def run_worker(args: Any) -> None:
     args.dna_tokenizer = checkpoint_runtime["dna_tokenizer"]
     args.description_tokenizer = checkpoint_runtime["description_tokenizer"]
     args.text_max_seq_len = checkpoint_runtime["text_max_seq_len"]
+    if args.score_window_bp < 0:
+        raise ValueError(f"score_window_bp must be non-negative, got {args.score_window_bp}")
     if args.dna_input_seq_len > args.model_input_seq_len:
         raise ValueError(
             f"DNA input length {args.dna_input_seq_len} exceeds checkpoint model "
@@ -556,7 +562,14 @@ def run_worker(args: Any) -> None:
         device=args.device,
     )
     condition = Condition(name=Path(args.description_json).stem, description=rendered)
-    scorer = TrackWindowScorer(track="atac", center="tss", left_bp=500, right_bp=501, aggregate="sum", channel=0)
+    scorer = TrackWindowScorer(
+        track="atac",
+        center="tss",
+        left_bp=args.score_window_bp,
+        right_bp=args.score_window_bp + 1,
+        aggregate="sum",
+        channel=0,
+    )
     description_cache = {model._grouping_key_for_condition(condition): {
         "description": rendered,
         "desc_input_ids": desc_tokens["desc_input_ids"],

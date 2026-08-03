@@ -163,14 +163,16 @@ Important behavior:
 - Before model loading, exactly one `*.yaml` must exist beside the checkpoint.
 - That YAML directly supplies `model_kwargs`, model class, DNA and description
   tokenizers, model input length, and `text_max_seq_len`.
-- `inference_config.yaml` supplies only the default checkpoint path; it does not
-  duplicate training/model parameters.
+- `inference_config.yaml` supplies the default checkpoint path and the
+  inference-specific base-pair scoring radius; it does not duplicate
+  training/model parameters.
 - The reference is evaluated once in each orientation per TSS.
 - Alternatives are grouped under one cached description.
 - The description uses the exact `ExpressionDataset` formatter and tokenizer path.
 - ATAC channel `0` is selected.
 - Aggregation is base-pair weighted rather than a raw token sum.
-- The score window is `[TSS−500, TSS+501)`, exactly 1,001 bp.
+- With `score_window_bp: 500`, the score window is `[TSS−500, TSS+501)`,
+  exactly 1,001 bp.
 - Absolute reference and mutant sums are retained for both orientations.
 - The stored delta sign is `alternative − reference` for each orientation.
 - Prediction objects are released after scalar extraction.

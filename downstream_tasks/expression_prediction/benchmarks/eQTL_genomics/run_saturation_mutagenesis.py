@@ -19,23 +19,29 @@ for path in (str(TASK_DIR), str(API_SRC), str(HERE)):
 from saturation_mutagenesis import merge_shards, run_worker
 
 
-def default_checkpoint() -> Path:
-    """Read the only model-specific inference setting."""
+def inference_defaults() -> dict[str, object]:
+    """Read inference-specific defaults that may be overridden on the CLI."""
 
     from omegaconf import OmegaConf
 
     config = OmegaConf.load(HERE / "inference_config.yaml")
-    checkpoint = OmegaConf.select(config, "checkpoint")
-    if not checkpoint:
-        raise ValueError("inference_config.yaml must define checkpoint")
-    return Path(str(checkpoint))
+    values = {
+        "checkpoint": OmegaConf.select(config, "checkpoint"),
+        "score_window_bp": OmegaConf.select(config, "score_window_bp"),
+    }
+    missing = [key for key, value in values.items() if value is None]
+    if missing:
+        raise ValueError(f"inference_config.yaml is missing: {', '.join(missing)}")
+    return values
 
 
 def shared(parser: argparse.ArgumentParser) -> None:
+    defaults = inference_defaults()
     parser.add_argument("--catalog", type=Path, default=HERE / "data" / "selected_tss_catalog.tsv")
     parser.add_argument("--genome-fasta", type=Path, default=Path("/home/jovyan/.cache/mpramnist/data/Kircher/hg38.fa"))
     parser.add_argument("--description-json", type=Path, required=True)
-    parser.add_argument("--checkpoint", type=Path, default=default_checkpoint())
+    parser.add_argument("--checkpoint", type=Path, default=Path(str(defaults["checkpoint"])))
+    parser.add_argument("--score-window-bp", type=int, default=int(defaults["score_window_bp"]))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=200)
     parser.add_argument("--preprocessing-workers", type=int, default=10)

@@ -17,9 +17,10 @@ The checkpoint directory must contain exactly one `*.yaml` file beside the
 checkpoint `.bin`. That training YAML is authoritative for `model_kwargs`, the
 DNA and description tokenizers, and `shared_dataset_params.text_max_seq_len`.
 Missing or multiple checkpoint YAML files stop the run. `inference_config.yaml`
-contains only the default checkpoint path, which can still be overridden with
-`--checkpoint`. The checkpoint-local YAML path, hash, resolved tokenizers, and
-text length are stored in HDF5 provenance.
+contains the default checkpoint path and inference-specific ATAC scoring radius;
+both can still be overridden with `--checkpoint` and `--score-window-bp`. The
+checkpoint-local YAML path, hash, resolved tokenizers, and text length are stored
+in HDF5 provenance.
 
 ## Pilot
 
