@@ -29,14 +29,16 @@ The default checkpoint has these equivalent names and locations:
 - Model alias: `all_datasets_2`
 - S3 run: `s3://genalm/expr/runs/model_010726/`
 
-Its checkpoint-local configuration is `final_02062026.yaml`, sourced from that
-S3 run and stored beside the local `pytorch_model.bin`.
+Its checkpoint-local configuration must be `final_02062026.yaml`, sourced from
+that S3 run and placed beside the local `pytorch_model.bin`.
 
 All persistent model names live under the repository-root `models/` directory:
-`model_010726`, `moderngena_large`, and `decoderdp0.1`. They are symlinks to the
-large model storage outside Git. The reusable hg38 FASTA/index are symlinked at
-repository-root `data/genomes/hg38/`. Set `GENALM_HOME` to the repository root for every command;
-the inference and checkpoint YAMLs resolve models through that variable.
+`model_010726`, `moderngena_large`, and `decoderdp0.1`. Git creates these as
+empty directories; each user must populate them locally with files or symlinks.
+Likewise, users must provide `data/genomes/hg38/hg38.fa` and its
+`hg38.fa.fai` index. Large model and genome files or symlinks are deliberately
+not committed. Set `GENALM_HOME` to the repository root for every command; the
+inference and checkpoint YAMLs resolve models through that variable.
 
 The default condition description is the benchmark-relative
 `data/descriptions/ENCFF556YQA.json`. Use `--description-json` only to override
