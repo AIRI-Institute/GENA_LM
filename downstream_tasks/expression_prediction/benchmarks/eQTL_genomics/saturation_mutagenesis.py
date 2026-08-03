@@ -269,6 +269,13 @@ def create_sequence_plan(
     genomic_end = min(chrom_length, record.tss_0based + fetch)
     sequence_text = fasta.fetch(record.chromosome, genomic_start, genomic_end).upper()
     center = record.tss_0based - genomic_start
+
+    # sanity checks
+    assert center >= 0, f"Center is negative: {center}"
+    assert genomic_end - genomic_start == len(sequence_text), f"Genomic end - genomic start != length of sequence text: {genomic_end - genomic_start} != {len(sequence_text)}"
+    assert record.tss_0based >= genomic_start, f"TSS is before genomic start: {record.tss_0based} < {genomic_start}"
+    assert record.tss_0based < genomic_end, f"TSS is after genomic end: {record.tss_0based} >= {genomic_end}"
+    
     sequence = AnnotatedSequence(
         sequence_text,
         name=record.tss_id,
