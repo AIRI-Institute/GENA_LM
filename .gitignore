@@ -68,6 +68,12 @@ venv.bak/
 *.zip
 data/genomes/*
 data/pretrain/*
+models/model_010726/*
+!models/model_010726/.gitkeep
+models/moderngena_large/*
+!models/moderngena_large/.gitkeep
+models/decoderdp0.1/*
+!models/decoderdp0.1/.gitkeep
 notebooks/data/*
 *.pyc
 .DS_Store
