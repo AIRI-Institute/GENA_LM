@@ -1,7 +1,7 @@
 # TSS saturation mutagenesis
 
-This benchmark scores every possible SNV in the fixed 2,001-bp interval
-`[TSS-1000, TSS+1001)` around each hg38 TSS. Every reference and alternate is
+This benchmark scores every possible SNV in the configured mutation interval
+(by default `[TSS-1000, TSS+1001)`, 2,001 bp) around each hg38 TSS. Every reference and alternate is
 evaluated in genomic-forward and reverse-complement orientations. The output
 stores the absolute reference ATAC sum, absolute mutant ATAC sum, and their
 difference over `[TSS-500, TSS+501)` for both orientations.
@@ -17,8 +17,9 @@ The checkpoint directory must contain exactly one `*.yaml` file beside the
 checkpoint `.bin`. That training YAML is authoritative for `model_kwargs`, the
 DNA and description tokenizers, and `shared_dataset_params.text_max_seq_len`.
 Missing or multiple checkpoint YAML files stop the run. `inference_config.yaml`
-contains the default checkpoint path and inference-specific ATAC scoring radius;
-both can still be overridden with `--checkpoint` and `--score-window-bp`. The
+contains the default checkpoint path, mutation radius, and ATAC scoring radius;
+these can still be overridden with `--checkpoint`, `--mutation-window-bp`, and
+`--score-window-bp`. The
 checkpoint-local YAML path, hash, resolved tokenizers, and text length are stored
 in HDF5 provenance.
 

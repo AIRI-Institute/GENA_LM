@@ -1,2 +1,3 @@
 checkpoint: /workspace-SR003.nfs2/estsoi/CAGI5_benchmark/models/expression_model_v1-1/pytorch_model.bin
+mutation_window_bp: 1000
 score_window_bp: 500

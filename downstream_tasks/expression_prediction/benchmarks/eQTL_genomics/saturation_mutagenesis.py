@@ -232,8 +232,9 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "description_truncated": bool(desc_tokens["truncated"]),
         "dna_tokens_upstream": dna_tokens_upstream,
         "dna_tokens_downstream": dna_tokens_downstream,
-        "mutation_window_left_bp": 1000,
-        "mutation_window_right_bp": 1001,
+        "mutation_window_bp": int(args.mutation_window_bp),
+        "mutation_window_left_bp": int(args.mutation_window_bp),
+        "mutation_window_right_bp": int(args.mutation_window_bp) + 1,
         "score_window_bp": int(args.score_window_bp),
         "orientations": "forward,reverse_complement",
         "score": (
@@ -248,8 +249,10 @@ def create_sequence_plan(
     fasta: Any,
     *,
     fetch_bp_per_token: int,
+    fetch_token_count: int,
+    mutation_window_bp: int,
 ) -> TSSPlan:
-    """Fetch hg38 context and define the fixed ±1000-bp mutation interval."""
+    """Fetch hg38 context and define the configured symmetric mutation interval."""
 
     from gena_expression.sequences import AnnotatedSequence, CoordinateMap, CoordinateSegment, Feature
 
@@ -258,7 +261,10 @@ def create_sequence_plan(
     chrom_length = fasta.get_reference_length(record.chromosome)
     if not 0 <= record.tss_0based < chrom_length:
         raise ValueError(f"TSS outside chromosome for {record.tss_id}")
-    fetch = 510 * int(fetch_bp_per_token)
+    fetch = max(
+        int(fetch_token_count) * int(fetch_bp_per_token),
+        int(mutation_window_bp) + 1,
+    )
     genomic_start = max(0, record.tss_0based - fetch)
     genomic_end = min(chrom_length, record.tss_0based + fetch)
     sequence_text = fasta.fetch(record.chromosome, genomic_start, genomic_end).upper()
@@ -282,8 +288,8 @@ def create_sequence_plan(
         ),
         metadata={"genome_build": "hg38", "tss_id": record.tss_id},
     )
-    mutation_genomic_start = max(0, record.tss_0based - 1000)
-    mutation_genomic_end = min(chrom_length, record.tss_0based + 1001)
+    mutation_genomic_start = max(0, record.tss_0based - mutation_window_bp)
+    mutation_genomic_end = min(chrom_length, record.tss_0based + mutation_window_bp + 1)
     mutation_start = mutation_genomic_start - genomic_start
     mutation_end = mutation_genomic_end - genomic_start
     reference = sequence_text[mutation_start:mutation_end]
@@ -506,6 +512,10 @@ def run_worker(args: Any) -> None:
     args.dna_tokenizer = checkpoint_runtime["dna_tokenizer"]
     args.description_tokenizer = checkpoint_runtime["description_tokenizer"]
     args.text_max_seq_len = checkpoint_runtime["text_max_seq_len"]
+    if args.mutation_window_bp < 0:
+        raise ValueError(
+            f"mutation_window_bp must be non-negative, got {args.mutation_window_bp}"
+        )
     if args.score_window_bp < 0:
         raise ValueError(f"score_window_bp must be non-negative, got {args.score_window_bp}")
     if args.dna_input_seq_len > args.model_input_seq_len:
@@ -513,7 +523,9 @@ def run_worker(args: Any) -> None:
             f"DNA input length {args.dna_input_seq_len} exceeds checkpoint model "
             f"capacity {args.model_input_seq_len}"
         )
-    dna_token_sides(args.dna_input_seq_len, args.num_before)
+    dna_tokens_upstream, dna_tokens_downstream = dna_token_sides(
+        args.dna_input_seq_len, args.num_before
+    )
     records = load_catalog(args.catalog)
     if args.limit is not None:
         records = records[: args.limit]
@@ -526,7 +538,13 @@ def run_worker(args: Any) -> None:
     fasta = pysam.FastaFile(str(args.genome_fasta))
 
     plans = [
-        create_sequence_plan(record, fasta, fetch_bp_per_token=args.fetch_bp_per_token)
+        create_sequence_plan(
+            record,
+            fasta,
+            fetch_bp_per_token=args.fetch_bp_per_token,
+            fetch_token_count=max(dna_tokens_upstream, dna_tokens_downstream),
+            mutation_window_bp=args.mutation_window_bp,
+        )
         for record in records
     ]
     shard_path = Path(args.output_dir) / f"shard-{args.shard_index:04d}-of-{args.shard_count:04d}.h5"

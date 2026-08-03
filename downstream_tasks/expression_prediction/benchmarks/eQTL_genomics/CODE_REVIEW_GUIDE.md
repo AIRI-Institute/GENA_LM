@@ -23,7 +23,7 @@ flowchart TD
 
     Catalog --> Plan["Build TSS plan"]
     Plan --> Fetch["Fetch hg38 context<br/>configured token budget × fetch estimate"]
-    Fetch --> MutationSpan["Fixed genomic mutation span<br/>TSS −1000 … TSS +1000"]
+    Fetch --> MutationSpan["Configured genomic mutation span<br/>default TSS −1000 … TSS +1000"]
     MutationSpan --> Variants["Skip N/ambiguous positions<br/>Generate 3 SNVs per A/C/G/T"]
 
     Model --> Ref["Infer reference once per orientation"]
@@ -54,7 +54,7 @@ TSS catalog row
   ▼
 hg38 sequence context and fixed mutation interval
   │
-  ├─ [TSS−1000, TSS+1001): 2,001 candidate bases
+  ├─ configured radius; default [TSS−1000, TSS+1001): 2,001 candidate bases
   ├─ forward inference: genomic + orientation
   └─ reverse-complement inference: genomic − orientation
   │
@@ -104,7 +104,7 @@ Check:
 
 - Is `tss_position_1based - 1` the intended coordinate conversion?
 - Is transcript-oriented handling correct for minus-strand TSSs?
-- Is the fixed `[TSS−1000, TSS+1001)` mutation interval correct?
+- Is the configured mutation interval (default `[TSS−1000, TSS+1001)`) correct?
 - Should `N` bases be skipped rather than mutated?
 - Should genomic alleles be stored in reference-genome orientation? This is the current behavior.
 
@@ -164,7 +164,7 @@ Important behavior:
 - That YAML directly supplies `model_kwargs`, model class, DNA and description
   tokenizers, model input length, and `text_max_seq_len`.
 - `inference_config.yaml` supplies the default checkpoint path and the
-  inference-specific base-pair scoring radius; it does not duplicate
+  inference-specific mutation and scoring radii; it does not duplicate
   training/model parameters.
 - The reference is evaluated once in each orientation per TSS.
 - Alternatives are grouped under one cached description.
@@ -246,7 +246,7 @@ For the highest-value review in the least time:
 
 ## Review questions
 
-1. Is the fixed 2,001-bp mutation interval correct?
+1. Is the configured mutation interval (2,001 bp by default) correct?
 2. Should mutation alleles be reported in genomic orientation, as implemented?
 3. Is the 1,001-bp ATAC window exactly what is intended?
 4. Is ATAC channel `0` definitely the desired model output?

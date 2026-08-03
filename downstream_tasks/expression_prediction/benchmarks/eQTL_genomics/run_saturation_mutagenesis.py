@@ -27,6 +27,7 @@ def inference_defaults() -> dict[str, object]:
     config = OmegaConf.load(HERE / "inference_config.yaml")
     values = {
         "checkpoint": OmegaConf.select(config, "checkpoint"),
+        "mutation_window_bp": OmegaConf.select(config, "mutation_window_bp"),
         "score_window_bp": OmegaConf.select(config, "score_window_bp"),
     }
     missing = [key for key, value in values.items() if value is None]
@@ -41,6 +42,9 @@ def shared(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--genome-fasta", type=Path, default=Path("/home/jovyan/.cache/mpramnist/data/Kircher/hg38.fa"))
     parser.add_argument("--description-json", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, default=Path(str(defaults["checkpoint"])))
+    parser.add_argument(
+        "--mutation-window-bp", type=int, default=int(defaults["mutation_window_bp"])
+    )
     parser.add_argument("--score-window-bp", type=int, default=int(defaults["score_window_bp"]))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=200)
