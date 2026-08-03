@@ -23,6 +23,15 @@ these can still be overridden with `--checkpoint`, `--mutation-window-bp`, and
 checkpoint-local YAML path, hash, resolved tokenizers, and text length are stored
 in HDF5 provenance.
 
+The default checkpoint has these equivalent names and locations:
+
+- Local experiment name: `expression_model_v1-1`
+- Model alias: `all_datasets_2`
+- S3 run: `s3://genalm/expr/runs/model_010726/`
+
+Its checkpoint-local configuration is `final_02062026.yaml`, sourced from that
+S3 run and stored beside the local `pytorch_model.bin`.
+
 ## Pilot
 
 Run a two-TSS pilot first. Pick an unused GPU and an output directory:
