@@ -403,7 +403,7 @@ def score_plan(
 
 
 def _prediction_retention():
-    from gena_expression.config import PredictionRetention, RetentionPolicy, ScoringRetention
+    from gena_expression.config import PredictionRetention, RetentionPolicy
 
     return RetentionPolicy(
         prediction=PredictionRetention(
@@ -414,7 +414,6 @@ def _prediction_retention():
             description_tokens=False,
             provenance=False,
         ),
-        scoring=ScoringRetention(prediction=False, tracks="none", features="scores", provenance=False),
     )
 
 
