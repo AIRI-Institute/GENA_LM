@@ -315,9 +315,15 @@ def mutable_offsets(plan: TSSPlan) -> np.ndarray:
 def mutation_batches(plan: TSSPlan, batch_size: int) -> Iterator[tuple[np.ndarray, list[Any]]]:
     """Lazily materialize alternate sequences and their flattened score indices."""
 
+    from gena_expression.sequences import AnnotatedSequence
+
+    if not isinstance(plan.sequence, AnnotatedSequence):
+        raise TypeError(
+            f"TSSPlan.sequence must be AnnotatedSequence, got {type(plan.sequence).__name__}"
+        )
     offsets = mutable_offsets(plan)
     flat_indices: list[int] = []
-    sequences: list[Any] = []
+    sequences: list[AnnotatedSequence] = []
     for base_index, offset in enumerate(offsets):
         local_position = plan.mutation_start + int(offset)
         ref = plan.sequence.sequence[local_position]
@@ -325,7 +331,7 @@ def mutation_batches(plan: TSSPlan, batch_size: int) -> Iterator[tuple[np.ndarra
             text = plan.sequence.sequence
             mutated = text[:local_position] + alt + text[local_position + 1 :]
             sequences.append(
-                type(plan.sequence)(
+                AnnotatedSequence(
                     mutated,
                     name=f"{plan.record.tss_id}:{plan.genomic_start_0based + int(offset) + 1}:{ref}>{alt}",
                     features=plan.sequence.features,

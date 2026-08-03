@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -159,6 +160,12 @@ def test_mutation_batches_retokenize_three_alternatives() -> None:
     first = batches[0][1][:3]
     assert [item.sequence[2] for item in first] == ["C", "G", "T"]
     assert all(item.features[0].name == "tss" for item in first)
+
+
+def test_mutation_batches_reject_unexpected_sequence_type() -> None:
+    invalid = replace(plan(), sequence="ACGT")
+    with pytest.raises(TypeError, match="TSSPlan.sequence must be AnnotatedSequence"):
+        next(mutation_batches(invalid, batch_size=1))
 
 
 def test_collapsed_n_gap_keeps_source_coordinates_after_token_selection() -> None:
