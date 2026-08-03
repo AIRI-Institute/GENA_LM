@@ -155,6 +155,7 @@ class CenteredTokenizer:
 
         source = self._as_annotated(sequence)
         sequence_text = source.sequence.upper()
+        assert strand in {"+", "-"}, f"Invalid strand: {strand}" # some users may pass in "1" or "0" instead of "+" or "-"
         reverse = strand == "-"
         center_index = self._resolve_center(source, center)
         records: list[dict[str, Any]] = []
