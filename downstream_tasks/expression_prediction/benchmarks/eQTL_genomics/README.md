@@ -111,4 +111,11 @@ The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
 The last axis is `[forward, reverse_complement]`. Alternative bases are the
 lexicographically ordered members of `ACGT` excluding the reference.
 Use `iter_variant_scores()` from `saturation_mutagenesis.py` to obtain explicit
-1-based genomic variant records.
+1-based genomic variant records. These records expose both the compact `ref` / `alt`
+names and the `variant_catalog.tsv` join columns: `variant_id`, `chromosome`,
+`position_1based`, `reference`, `alternate`, and `variant_type`.
+
+Use `iter_catalog_variant_scores()` to return only scored substitutions found
+in `data/variant_catalog.tsv` and attach its train/validation occurrence fields.
+The explicit catalog also contains insertions and deletions; those rows are
+validated but are not scored by this saturation-SNV experiment.

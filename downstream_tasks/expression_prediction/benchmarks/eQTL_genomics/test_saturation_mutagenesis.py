@@ -31,8 +31,10 @@ from saturation_mutagenesis import (
     dna_token_sides,
     find_checkpoint_config,
     initialize_shard,
+    iter_catalog_variant_scores,
     iter_variant_scores,
     load_catalog,
+    load_variant_catalog,
     merge_shards,
     mutation_batches,
     render_description,
@@ -89,14 +91,42 @@ def test_alternatives_are_lexicographic() -> None:
 
 def test_catalog_converts_one_based_coordinates(tmp_path: Path) -> None:
     path = tmp_path / "catalog.tsv"
-    columns = ["tss_id", "gene_id", "gene_name", "chromosome", "tss_position_1based", "strand", "annotation_source"]
+    columns = [
+        "tss_id", "gene_id", "gene_name", "chromosome", "tss_position_1based",
+        "strand", "annotation_source", "present_in_train", "present_in_validation",
+    ]
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
         writer.writeheader()
-        writer.writerow(dict(zip(columns, ["x", "g", "G", "chr1", 101, "-", "source"])))
+        writer.writerow(
+            dict(zip(columns, ["x", "g", "G", "chr1", 101, "-", "source", "True", "False"]))
+        )
     item = load_catalog(path)[0]
     assert item.tss_0based == 100
     assert item.strand == "-"
+
+
+def _write_variant_catalog(path: Path) -> None:
+    columns = [
+        "variant_id", "chromosome", "position_1based", "reference", "alternate",
+        "variant_type", "present_in_train", "present_in_validation",
+        "train_signal_count", "validation_signal_count", "total_signal_count",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
+        writer.writeheader()
+        writer.writerow(dict(zip(columns, ["chr1-99-A-C", "chr1", 99, "A", "C", "SNV", "True", "False", 2, 0, 2])))
+        writer.writerow(dict(zip(columns, ["chr1-105-A-AT", "chr1", 105, "A", "AT", "insertion", "False", "True", 0, 1, 1])))
+
+
+def test_variant_catalog_supports_snvs_and_indels(tmp_path: Path) -> None:
+    path = tmp_path / "variant_catalog.tsv"
+    _write_variant_catalog(path)
+    records = load_variant_catalog(path)
+    assert [record.variant_type for record in records] == ["SNV", "insertion"]
+    assert records[0].position_1based == 99
+    assert records[0].present_in_train is True
+    assert records[1].present_in_validation is True
 
 
 def test_description_uses_expression_dataset_formatter(tmp_path: Path) -> None:
@@ -227,7 +257,17 @@ def test_hdf5_roundtrip_and_merge(tmp_path: Path) -> None:
     assert rows[0]["position_1based"] == 99
     assert rows[-1]["position_1based"] == 102
     assert rows[0]["ref"] == "A"
+    assert rows[0]["reference"] == "A"
+    assert rows[0]["alternate"] == "C"
+    assert rows[0]["variant_id"] == "chr1-99-A-C"
+    assert rows[0]["variant_type"] == "SNV"
     assert rows[0]["forward_reference_atac_sum"] == 1.5
     assert rows[0]["reverse_complement_reference_atac_sum"] == 2.5
     assert rows[0]["forward_variant_atac_sum"] == 0.0
     assert rows[0]["forward_delta"] == -1.5
+    catalog_path = tmp_path / "variant_catalog.tsv"
+    _write_variant_catalog(catalog_path)
+    catalog_rows = list(iter_catalog_variant_scores(final, catalog_path, "minus"))
+    assert len(catalog_rows) == 1
+    assert catalog_rows[0]["variant_id"] == "chr1-99-A-C"
+    assert catalog_rows[0]["present_in_train"] is True
