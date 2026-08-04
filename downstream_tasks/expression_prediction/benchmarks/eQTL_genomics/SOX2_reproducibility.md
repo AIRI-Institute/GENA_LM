@@ -276,3 +276,31 @@ The checkpoint, TSS center, sequence interval, pair-execution mode, variant
 set, and DNA token budget were reverted independently after Experiment 4. See
 the [ablation report](ablations/README.md) for the per-experiment artifacts,
 quantitative comparison, and conclusions.
+
+## Experiment 5 — legacy workflow with the two dominant fixes
+
+This experiment returned to Experiment 3's
+[`run_variant_centered_mutagenesis.py`](run_variant_centered_mutagenesis.py)
+workflow and changed only the two dominant factors identified by the ablations:
+
+- checkpoint: `all_datasets` to `dev_loss`;
+- catalog TSS: the old 1-based 181711924 to the corrected 181711925.
+
+The dedicated
+[`sox2_two_factor_inference_config.yaml`](sox2_two_factor_inference_config.yaml)
+preserves the earlier 1022/510 DNA token budget, TSS-centered model input,
+TSS -600...+600 mutation interval, separate reference/alternative batches, both
+orientations, H1 description, and 501-bp variant-centered score.
+
+The run completed at 2.02 variants/second. Across the 1,800 shared upstream
+SNVs, its scores correlate 0.982 with Experiment 4 and have RMSE 6.88. The
+strongest-negative positional profiles correlate 0.981. Both workflows select
+the same strongest SNV, 467 bp upstream (`A>C`): -182.90 in this legacy
+workflow versus -202.13 in the exact notebook workflow. Thus the two dominant
+fixes are sufficient to recover the notebook's qualitative pattern; exact
+sequence bounds, token budget, and joint-pair execution account for the
+remaining modest numerical differences.
+
+- Local merged HDF5: `sox2_dev_loss_corrected_tss_variant_centered.h5`.
+- Forward plot:
+  [`sox2_dev_loss_corrected_tss_variant_centered_forward.png`](sox2_dev_loss_corrected_tss_variant_centered_forward.png).
