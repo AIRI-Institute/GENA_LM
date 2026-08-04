@@ -477,25 +477,35 @@ def run_worker(args: argparse.Namespace) -> None:
                 show_progress=False,
                 retention=SCALAR_RETENTION,
             )
-            scores = np.asarray([float(result.score) for result in results], dtype=np.float32)
+            raw_scores = np.asarray([float(result.score) for result in results], dtype=np.float64)
             feature_scores = [
                 {str(item["key"]): float(item["score"]) for item in result.features}
                 for result in results
             ]
-            reference_sums = np.asarray(
+            raw_reference_sums = np.asarray(
                 [values["reference_atac_sum"] for values in feature_scores],
-                dtype=np.float32,
+                dtype=np.float64,
             )
-            alternate_sums = np.asarray(
+            raw_alternate_sums = np.asarray(
                 [values["alternate_atac_sum"] for values in feature_scores],
-                dtype=np.float32,
+                dtype=np.float64,
             )
-            if len(scores) != len(local_indices) or not np.all(np.isfinite(scores)):
+            if len(raw_scores) != len(local_indices) or not np.all(np.isfinite(raw_scores)):
                 raise ValueError("Variant batch returned missing or non-finite scores")
-            if not np.all(np.isfinite(reference_sums)) or not np.all(np.isfinite(alternate_sums)):
+            if not np.all(np.isfinite(raw_reference_sums)) or not np.all(
+                np.isfinite(raw_alternate_sums)
+            ):
                 raise ValueError("Variant batch returned non-finite absolute allele sums")
-            if not np.allclose(scores, alternate_sums - reference_sums, rtol=1e-5, atol=1e-4):
+            if not np.allclose(
+                raw_scores,
+                raw_alternate_sums - raw_reference_sums,
+                rtol=1e-10,
+                atol=1e-8,
+            ):
                 raise ValueError("Variant score does not equal alternate minus reference sum")
+            scores = raw_scores.astype(np.float32)
+            reference_sums = raw_reference_sums.astype(np.float32)
+            alternate_sums = raw_alternate_sums.astype(np.float32)
             output["score"][local_indices] = scores
             output["reference_atac_sum"][local_indices] = reference_sums
             output["alternate_atac_sum"][local_indices] = alternate_sums
