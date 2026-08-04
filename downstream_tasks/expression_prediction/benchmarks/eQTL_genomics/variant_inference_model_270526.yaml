@@ -1,0 +1,4 @@
+checkpoint: ${oc.env:GENALM_HOME}/models/model_270526/pytorch_model.bin
+genome_fasta: ${oc.env:GENALM_HOME}/data/genomes/hg38/hg38.fa
+description_json: data/descriptions/ENCFF556YQA.json
+score_window_bp: 500

@@ -31,9 +31,10 @@ from saturation_mutagenesis import (  # noqa: E402
     render_description,
     sha256_file,
 )
+from gena_expression.scoring import TrackWindowScorer  # noqa: E402
 
 
-SCHEMA_VERSION = "variant-catalog-1"
+SCHEMA_VERSION = "variant-catalog-2"
 VARIANT_TYPES = {"SNV", "insertion", "deletion"}
 
 
@@ -102,6 +103,26 @@ class CatalogGenomeContext:
         )
         pair.assert_compatible()
         return pair
+
+
+class AbsoluteTrackWindowScorer(TrackWindowScorer):
+    """Retain compact absolute allele sums alongside their difference."""
+
+    def score(self, prediction: Any) -> Any:
+        result = super().score(prediction)
+        reference_sum = self._aggregate_rows(
+            result.ref_track,
+            result.ref_score_windows[0],
+        )
+        alternate_sum = self._aggregate_rows(
+            result.alt_track,
+            result.alt_score_windows[0],
+        )
+        result.features = (
+            {"key": "reference_atac_sum", "score": float(reference_sum)},
+            {"key": "alternate_atac_sum", "score": float(alternate_sum)},
+        )
+        return result
 
 
 def _boolean(value: str, *, field: str, variant_id: str) -> bool:
@@ -212,9 +233,9 @@ def _local_path(value: Any, *, config_path: Path, name: str) -> Path:
     return path
 
 
-def _add_shared(parser: argparse.ArgumentParser) -> None:
-    config_path = HERE / "variant_inference_config.yaml"
+def _add_shared(parser: argparse.ArgumentParser, config_path: Path) -> None:
     defaults = _config_defaults(config_path)
+    parser.add_argument("--inference-config", type=Path, default=config_path)
     parser.add_argument("--catalog", type=Path, default=HERE / "data" / "variant_catalog.tsv")
     parser.add_argument(
         "--checkpoint",
@@ -243,19 +264,27 @@ def _add_shared(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument(
+        "--inference-config",
+        type=Path,
+        default=HERE / "variant_inference_model_010726.yaml",
+    )
+    config_args, _ = config_parser.parse_known_args()
+    config_path = config_args.inference_config.resolve()
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     pilot = commands.add_parser("pilot")
-    _add_shared(pilot)
+    _add_shared(pilot, config_path)
     pilot.add_argument("--device", default="cuda:0")
     pilot.set_defaults(limit=10, shard_index=0, shard_count=1)
     worker = commands.add_parser("worker", help=argparse.SUPPRESS)
-    _add_shared(worker)
+    _add_shared(worker, config_path)
     worker.add_argument("--device", required=True)
     worker.add_argument("--shard-index", type=int, required=True)
     worker.add_argument("--shard-count", type=int, required=True)
     run = commands.add_parser("run")
-    _add_shared(run)
+    _add_shared(run, config_path)
     run.add_argument("--devices", default="0")
     merge = commands.add_parser("merge")
     merge.add_argument("--output-dir", type=Path, required=True)
@@ -273,6 +302,12 @@ def _initialize_shard(
     attrs: dict[str, Any],
 ) -> None:
     if path.exists():
+        with h5py.File(path, "r") as handle:
+            if handle.attrs.get("schema_version") != SCHEMA_VERSION:
+                raise ValueError(
+                    f"Existing shard uses schema {handle.attrs.get('schema_version')!r}; "
+                    f"use a new output directory for {SCHEMA_VERSION!r}"
+                )
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + f".{os.getpid()}.tmp")
@@ -307,6 +342,14 @@ def _initialize_shard(
                 dtype=np.int32,
             )
         handle.create_dataset("score", data=np.full(len(rows), np.nan, dtype=np.float32))
+        handle.create_dataset(
+            "reference_atac_sum",
+            data=np.full(len(rows), np.nan, dtype=np.float32),
+        )
+        handle.create_dataset(
+            "alternate_atac_sum",
+            data=np.full(len(rows), np.nan, dtype=np.float32),
+        )
         handle.create_dataset("status", data=np.zeros(len(rows), dtype=np.uint8))
         handle.create_dataset("error", data=["" for _ in rows], dtype=_string_dtype())
         handle.flush()
@@ -323,7 +366,7 @@ def run_worker(args: argparse.Namespace) -> None:
     from gena_expression.config import SCALAR_RETENTION
     from gena_expression.dna import Genome
     from gena_expression.inference import SequenceModel
-    from gena_expression.scoring import TrackWindowScorer, VariantInterpreter
+    from gena_expression.scoring import VariantInterpreter
     from gena_expression.variants import Variant
 
     all_variants = load_variant_catalog(args.catalog)
@@ -358,6 +401,23 @@ def run_worker(args: argparse.Namespace) -> None:
         "variant_center_local": variant_center,
         "score_window": f"[variant-{args.score_window_bp},variant+{args.score_window_bp + 1})",
         "score_definition": "alternative ATAC sum - reference ATAC sum",
+        "inference_config_yaml": args.inference_config.read_text(encoding="utf-8"),
+        "inference_config_path": str(args.inference_config.resolve()),
+        "checkpoint_config_yaml": checkpoint_config.read_text(encoding="utf-8"),
+        "rendered_description": description,
+        "catalog_path": str(args.catalog.resolve()),
+        "checkpoint_path": str(args.checkpoint.resolve()),
+        "checkpoint_config_path": str(checkpoint_config.resolve()),
+        "genome_fasta_path": str(args.genome_fasta.resolve()),
+        "description_json_path": str(args.description_json.resolve()),
+        "model_class": str(runtime["model_class"]),
+        "dna_tokenizer": str(runtime["dna_tokenizer"]),
+        "description_tokenizer": str(runtime["description_tokenizer"]),
+        "text_max_seq_len": int(runtime["text_max_seq_len"]),
+        "batch_size": args.batch_size,
+        "preprocessing_workers": args.preprocessing_workers,
+        "prefetch_batches": args.prefetch_batches,
+        "fetch_bp_per_token": args.fetch_bp_per_token,
     }
     shard_path = args.output_dir / f"variant-shard-{args.shard_index:04d}-of-{args.shard_count:04d}.h5"
     _initialize_shard(shard_path, rows, attrs)
@@ -378,7 +438,7 @@ def run_worker(args: argparse.Namespace) -> None:
     )
     context = CatalogGenomeContext(length=context_length)
     condition = Condition(name=args.description_json.stem, description=description)
-    scorer = TrackWindowScorer(
+    scorer = AbsoluteTrackWindowScorer(
         track="atac",
         center=variant_center,
         left_bp=args.score_window_bp,
@@ -418,9 +478,27 @@ def run_worker(args: argparse.Namespace) -> None:
                 retention=SCALAR_RETENTION,
             )
             scores = np.asarray([float(result.score) for result in results], dtype=np.float32)
+            feature_scores = [
+                {str(item["key"]): float(item["score"]) for item in result.features}
+                for result in results
+            ]
+            reference_sums = np.asarray(
+                [values["reference_atac_sum"] for values in feature_scores],
+                dtype=np.float32,
+            )
+            alternate_sums = np.asarray(
+                [values["alternate_atac_sum"] for values in feature_scores],
+                dtype=np.float32,
+            )
             if len(scores) != len(local_indices) or not np.all(np.isfinite(scores)):
                 raise ValueError("Variant batch returned missing or non-finite scores")
+            if not np.all(np.isfinite(reference_sums)) or not np.all(np.isfinite(alternate_sums)):
+                raise ValueError("Variant batch returned non-finite absolute allele sums")
+            if not np.allclose(scores, alternate_sums - reference_sums, rtol=1e-5, atol=1e-4):
+                raise ValueError("Variant score does not equal alternate minus reference sum")
             output["score"][local_indices] = scores
+            output["reference_atac_sum"][local_indices] = reference_sums
+            output["alternate_atac_sum"][local_indices] = alternate_sums
             output["status"][local_indices] = 1
             output.flush()
             completed += len(local_indices)
@@ -465,6 +543,11 @@ def merge_shards(paths: Sequence[Path], output: Path) -> None:
     handles = [h5py.File(path, "r") for path in paths]
     try:
         first_attrs = dict(handles[0].attrs)
+        if first_attrs.get("schema_version") != SCHEMA_VERSION:
+            raise ValueError(
+                f"Shards use schema {first_attrs.get('schema_version')!r}; "
+                f"rerun scoring with schema {SCHEMA_VERSION!r}"
+            )
         comparable = {key: value for key, value in first_attrs.items() if key != "shard_index"}
         for handle in handles:
             current = {key: value for key, value in handle.attrs.items() if key != "shard_index"}

@@ -126,6 +126,10 @@ ALT ATAC sum over [variant-500, variant+501)
   - REF ATAC sum over [variant-500, variant+501)
 ```
 
+Schema `variant-catalog-2` stores both absolute sums as well as their
+difference. Shards produced by the earlier difference-only schema are rejected;
+use a new output directory and rerun inference rather than mixing schemas.
+
 Run a ten-variant pilot, then a multi-GPU production run and merge:
 
 ```bash
@@ -188,21 +192,26 @@ below therefore has 75,920 rows. The row-aligned datasets are:
 | `position_1based` | int64 | Catalog position; the first REF base and scoring center. |
 | `reference`, `alternate` | string | Exact alleles used for the two predictions. |
 | `variant_type` | string | `SNV`, `insertion`, or `deletion`. |
-| `score` | float32 | Alternative ATAC sum minus reference ATAC sum. |
+| `reference_atac_sum` | float32 | Absolute predicted REF ATAC sum in the scoring window. |
+| `alternate_atac_sum` | float32 | Absolute predicted ALT ATAC sum in the allele-mapped scoring window. |
+| `score` | float32 | `alternate_atac_sum - reference_atac_sum`. |
 | `present_in_train`, `present_in_validation` | bool | Original catalog membership flags. |
 | `train_signal_count`, `validation_signal_count`, `total_signal_count` | int32 | Original catalog counts. |
 | `status` | uint8 | `1` for a completed row. Merge rejects incomplete shards, so every merged row is `1`. |
 | `error` | string | Empty for successfully merged rows. |
 
-The merged file's root attributes provide provenance: schema version; hashes of
-the catalog, checkpoint, checkpoint YAML, FASTA index, and description JSON;
-total DNA input length and upstream/downstream token allocation; fetched context
-length; local variant center; scoring-window definition; score sign; and shard
-count. `shard_index` is intentionally removed during merge.
+The merged file's root attributes provide provenance: schema version; hashes and
+resolved paths for the catalog, checkpoint, checkpoint YAML, FASTA index, and
+description JSON; the complete inference and checkpoint YAML text; rendered
+description; model class and tokenizer identifiers; total DNA input length and
+upstream/downstream token allocation; fetched context length; local variant
+center; scoring-window definition and sign; batch/preprocessing settings; and
+shard count. Thus the effective inference configuration travels with the result
+file. `shard_index` is intentionally removed during merge.
 
 A positive `score` means the ALT sequence increased the predicted ATAC sum in
-the configured window; a negative value means it decreased it. The file does
-not store separate absolute REF and ALT sums—only their difference.
+the configured window; a negative value means it decreased it. Both absolute
+allele sums are retained so they can be analyzed independently later.
 
 Example inspection:
 
@@ -215,6 +224,10 @@ to the catalog REF for the reference prediction and to catalog ALT for the
 alternative prediction. This preserves the requested `ALT - REF` direction even
 when a catalog REF label differs from the hg38 allele. The runner is resumable
 at completed batches and retains the original catalog metadata in each shard
-and in the merged file. Defaults are in `variant_inference_config.yaml`;
-checkpoint model and tokenizer settings continue to come from the single YAML
+and in the merged file. Defaults are in
+`variant_inference_model_010726.yaml`. Select another model with
+`--inference-config downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/variant_inference_model_270526.yaml`
+or
+`--inference-config downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/variant_inference_dev_loss.yaml`.
+Checkpoint model and tokenizer settings continue to come from the single YAML
 beside the checkpoint.

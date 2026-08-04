@@ -105,16 +105,20 @@ def _variant(index: int) -> CatalogVariant:
 
 
 def test_shards_merge_in_catalog_order(tmp_path: Path) -> None:
-    attrs = {"schema_version": "test", "total_variants": 3, "shard_count": 2}
+    attrs = {"schema_version": "variant-catalog-2", "total_variants": 3, "shard_count": 2}
     shard_zero = tmp_path / "variant-shard-0000-of-0002.h5"
     shard_one = tmp_path / "variant-shard-0001-of-0002.h5"
     _initialize_shard(shard_zero, [(0, _variant(0)), (2, _variant(2))], {**attrs, "shard_index": 0})
     _initialize_shard(shard_one, [(1, _variant(1))], {**attrs, "shard_index": 1})
     with h5py.File(shard_zero, "r+") as handle:
         handle["score"][:] = [0.5, 2.5]
+        handle["reference_atac_sum"][:] = [10.0, 20.0]
+        handle["alternate_atac_sum"][:] = [10.5, 22.5]
         handle["status"][:] = 1
     with h5py.File(shard_one, "r+") as handle:
         handle["score"][:] = [1.5]
+        handle["reference_atac_sum"][:] = [30.0]
+        handle["alternate_atac_sum"][:] = [31.5]
         handle["status"][:] = 1
 
     merged = tmp_path / "merged.h5"
@@ -123,6 +127,8 @@ def test_shards_merge_in_catalog_order(tmp_path: Path) -> None:
     with h5py.File(merged) as handle:
         np.testing.assert_array_equal(handle["catalog_index"][:], [0, 1, 2])
         np.testing.assert_allclose(handle["score"][:], [0.5, 1.5, 2.5])
+        np.testing.assert_allclose(handle["reference_atac_sum"][:], [10.0, 30.0, 20.0])
+        np.testing.assert_allclose(handle["alternate_atac_sum"][:], [10.5, 31.5, 22.5])
 
 
 def test_catalog_context_uses_literal_ref_and_alt_alleles() -> None:
