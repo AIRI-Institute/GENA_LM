@@ -40,23 +40,6 @@ class TSSRecord:
 
 
 @dataclass(frozen=True)
-class CatalogVariant:
-    """One validated 1-based hg38 variant-catalog row."""
-
-    variant_id: str
-    chromosome: str
-    position_1based: int
-    reference: str
-    alternate: str
-    variant_type: str
-    present_in_train: bool
-    present_in_validation: bool
-    train_signal_count: int
-    validation_signal_count: int
-    total_signal_count: int
-
-
-@dataclass(frozen=True)
 class TSSPlan:
     """Reference sequence and fixed genomic mutation interval for one TSS."""
 
@@ -94,23 +77,10 @@ def alternatives(ref: str) -> tuple[str, str, str]:
 def load_catalog(path: str | Path) -> list[TSSRecord]:
     """Load the documented hg38, 1-based catalog and convert coordinates once."""
 
-    required = {
-        "tss_id",
-        "gene_id",
-        "gene_name",
-        "chromosome",
-        "tss_position_1based",
-        "strand",
-        "annotation_source",
-    }
     records: list[TSSRecord] = []
     seen: set[str] = set()
     with Path(path).open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        missing = required.difference(reader.fieldnames or ())
-        if missing:
-            raise ValueError(f"TSS catalog is missing columns: {', '.join(sorted(missing))}")
-        for row in reader:
+        for row in csv.DictReader(handle, delimiter="\t"):
             tss_id = row["tss_id"]
             if tss_id in seen:
                 raise ValueError(f"Duplicate tss_id: {tss_id}")
@@ -128,101 +98,6 @@ def load_catalog(path: str | Path) -> list[TSSRecord]:
                     tss_0based=position - 1,
                     strand=strand,
                     annotation_source=row["annotation_source"],
-                )
-            )
-    return records
-
-
-def _catalog_bool(value: str, *, field: str, variant_id: str) -> bool:
-    if value == "True":
-        return True
-    if value == "False":
-        return False
-    raise ValueError(f"Invalid {field} for {variant_id}: {value!r}")
-
-
-def load_variant_catalog(path: str | Path) -> list[CatalogVariant]:
-    """Load the explicit-variant TSV used to annotate saturation SNV scores.
-
-    The saturation experiment itself remains SNV-only. Insertions and deletions
-    are validated and retained as catalog metadata but cannot match an emitted
-    saturation score.
-    """
-
-    required = {
-        "variant_id",
-        "chromosome",
-        "position_1based",
-        "reference",
-        "alternate",
-        "variant_type",
-        "present_in_train",
-        "present_in_validation",
-        "train_signal_count",
-        "validation_signal_count",
-        "total_signal_count",
-    }
-    records: list[CatalogVariant] = []
-    seen: set[str] = set()
-    with Path(path).open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        missing = required.difference(reader.fieldnames or ())
-        if missing:
-            raise ValueError(f"Variant catalog is missing columns: {', '.join(sorted(missing))}")
-        for row in reader:
-            variant_id = row["variant_id"]
-            if variant_id in seen:
-                raise ValueError(f"Duplicate variant_id: {variant_id}")
-            seen.add(variant_id)
-            position = int(row["position_1based"])
-            chromosome = row["chromosome"]
-            reference = row["reference"].upper()
-            alternate = row["alternate"].upper()
-            variant_type = row["variant_type"]
-            if position < 1 or not chromosome or not reference or not alternate:
-                raise ValueError(f"Invalid variant catalog row for {variant_id}")
-            expected_id = f"{chromosome}-{position}-{reference}-{alternate}"
-            if variant_id != expected_id:
-                raise ValueError(
-                    f"variant_id does not match its coordinates and alleles: "
-                    f"{variant_id!r} != {expected_id!r}"
-                )
-            if variant_type not in {"SNV", "insertion", "deletion"}:
-                raise ValueError(f"Invalid variant_type for {variant_id}: {variant_type!r}")
-            if variant_type == "SNV" and (
-                len(reference) != 1
-                or len(alternate) != 1
-                or reference not in DNA
-                or alternate not in DNA
-                or reference == alternate
-            ):
-                raise ValueError(f"Invalid SNV alleles for {variant_id}")
-            train_count = int(row["train_signal_count"])
-            validation_count = int(row["validation_signal_count"])
-            total_count = int(row["total_signal_count"])
-            if min(train_count, validation_count, total_count) < 0:
-                raise ValueError(f"Negative signal count for {variant_id}")
-            if train_count + validation_count != total_count:
-                raise ValueError(f"Signal counts do not add up for {variant_id}")
-            records.append(
-                CatalogVariant(
-                    variant_id=variant_id,
-                    chromosome=chromosome,
-                    position_1based=position,
-                    reference=reference,
-                    alternate=alternate,
-                    variant_type=variant_type,
-                    present_in_train=_catalog_bool(
-                        row["present_in_train"], field="present_in_train", variant_id=variant_id
-                    ),
-                    present_in_validation=_catalog_bool(
-                        row["present_in_validation"],
-                        field="present_in_validation",
-                        variant_id=variant_id,
-                    ),
-                    train_signal_count=train_count,
-                    validation_signal_count=validation_count,
-                    total_signal_count=total_count,
                 )
             )
     return records
@@ -841,12 +716,6 @@ def iter_variant_scores(path: str | Path, tss_id: str | None = None) -> Iterator
             scores = handle["scores"][start:end]
             variant_values = handle["variant_atac_sum"][start:end]
             reference_values = handle["tss/reference_atac_sum"][index]
-            chromosome_raw = handle["tss/chromosome"][index]
-            chromosome = (
-                chromosome_raw.decode()
-                if isinstance(chromosome_raw, bytes)
-                else str(chromosome_raw)
-            )
             for position_offset, code, values, absolute_values in zip(
                 positions, codes, scores, variant_values
             ):
@@ -854,15 +723,10 @@ def iter_variant_scores(path: str | Path, tss_id: str | None = None) -> Iterator
                 for alt, orientation_deltas, orientation_absolutes in zip(
                     alternatives(ref), values, absolute_values
                 ):
-                    position_1based = genomic_start + int(position_offset) + 1
                     yield {
-                        "variant_id": f"{chromosome}-{position_1based}-{ref}-{alt}",
                         "tss_id": current_id,
-                        "chromosome": chromosome,
-                        "position_1based": position_1based,
-                        "reference": ref,
-                        "alternate": alt,
-                        "variant_type": "SNV",
+                        "chromosome": (handle["tss/chromosome"][index].decode() if isinstance(handle["tss/chromosome"][index], bytes) else str(handle["tss/chromosome"][index])),
+                        "position_1based": genomic_start + int(position_offset) + 1,
                         "ref": ref,
                         "alt": alt,
                         "forward_reference_atac_sum": float(reference_values[0]),
@@ -872,34 +736,3 @@ def iter_variant_scores(path: str | Path, tss_id: str | None = None) -> Iterator
                         "reverse_complement_variant_atac_sum": float(orientation_absolutes[1]),
                         "reverse_complement_delta": float(orientation_deltas[1]),
                     }
-
-
-def iter_catalog_variant_scores(
-    path: str | Path,
-    variant_catalog: str | Path,
-    tss_id: str | None = None,
-) -> Iterator[dict[str, Any]]:
-    """Yield saturation SNV scores that occur in the explicit variant catalog.
-
-    Multiple rows may be returned for one catalog variant when it lies within
-    the mutation windows of multiple TSSs. Catalog insertions and deletions are
-    intentionally absent because this experiment generates substitutions only.
-    """
-
-    catalog = {
-        record.variant_id: record
-        for record in load_variant_catalog(variant_catalog)
-        if record.variant_type == "SNV"
-    }
-    for score in iter_variant_scores(path, tss_id=tss_id):
-        record = catalog.get(score["variant_id"])
-        if record is None:
-            continue
-        yield {
-            **score,
-            "present_in_train": record.present_in_train,
-            "present_in_validation": record.present_in_validation,
-            "train_signal_count": record.train_signal_count,
-            "validation_signal_count": record.validation_signal_count,
-            "total_signal_count": record.total_signal_count,
-        }

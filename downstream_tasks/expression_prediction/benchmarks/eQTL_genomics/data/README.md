@@ -1,8 +1,7 @@
-# Candidate TSS and variant catalogs
+# eQTL genomics benchmark catalogs
 
-This directory contains the TSS-selection pass from experiment E2 and the
-benchmark's explicit hg38 variant catalog. The catalogs carry train/validation
-occurrence metadata; no model scoring is performed while constructing them.
+This directory contains the updated TSS and explicit-variant catalogs used by
+the eQTL genomics inference workflows.
 
 ## Selection rule
 
@@ -25,16 +24,15 @@ fallback.
 
 - `selected_tss_catalog.tsv`: one row per unique selected gene/TSS coordinate.
   This is the recommended table to annotate externally. `tss_id` is the join
-  key. Transcript fields describe transcripts remaining at that coordinate;
-  train/validation fields record candidate-set occurrence metadata.
-- `variant_catalog.tsv`: one row per unique hg38 variant. SNV scores emitted by
-  the saturation runner join on `variant_id` or on `chromosome`,
-  `position_1based`, `reference`, and `alternate`. Insertions and deletions are
-  retained as metadata but are outside the substitution-only experiment.
+  key. Transcript fields describe transcripts remaining at that coordinate.
 - `sample_candidate_tss.tsv`: one row per sample/candidate/selected-TSS
   relationship. Join external annotations back through `tss_id`.
 - `unmapped_candidate_genes.tsv`: candidate genes with no exportable E2 TSS,
   including their occurrence counts and the reason.
+- `variant_catalog.tsv`: explicit hg38 REF/ALT variants. It contains 75,920
+  rows: 68,803 SNVs, 3,257 insertions, and 3,860 deletions. These rows are scored
+  directly by `../score_variant_catalog.py`; they are not expanded into nearby
+  saturation variants.
 
 `is_ground_truth` is included only as mapping metadata and is not used during
 TSS selection.
@@ -47,8 +45,7 @@ TSS selection.
   39,528
 - Unique candidate genes: 15,054
 - Unique candidate genes with selected TSSs: 11,080
-- Current unique selected gene/TSS coordinates: 19,195
-- Current unique variants: 75,920 (68,803 SNVs, 3,257 insertions, and 3,860 deletions)
+- Unique selected gene/TSS coordinates in the current catalog: 19,195
 - Sample/candidate/TSS mapping rows: 43,009
 - Samples whose ground-truth gene has at least one selected TSS:
   1,128/1,581

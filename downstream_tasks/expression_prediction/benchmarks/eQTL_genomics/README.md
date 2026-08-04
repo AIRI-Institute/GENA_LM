@@ -111,11 +111,74 @@ The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
 The last axis is `[forward, reverse_complement]`. Alternative bases are the
 lexicographically ordered members of `ACGT` excluding the reference.
 Use `iter_variant_scores()` from `saturation_mutagenesis.py` to obtain explicit
-1-based genomic variant records. These records expose both the compact `ref` / `alt`
-names and the `variant_catalog.tsv` join columns: `variant_id`, `chromosome`,
-`position_1based`, `reference`, `alternate`, and `variant_type`.
+1-based genomic variant records.
 
-Use `iter_catalog_variant_scores()` to return only scored substitutions found
-in `data/variant_catalog.tsv` and attach its train/validation occurrence fields.
-The explicit catalog also contains insertions and deletions; those rows are
-validated but are not scored by this saturation-SNV experiment.
+## Explicit variant catalog scoring
+
+`score_variant_catalog.py` is a separate workflow for `data/variant_catalog.tsv`.
+It scores exactly one supplied REF/ALT pair per row, including SNVs, insertions,
+and deletions. Both the model input and the ATAC aggregation window are centered
+on the row's 1-based variant position (the first REF base). The stored float32
+`score` is:
+
+```text
+ALT ATAC sum over [variant-500, variant+501)
+  - REF ATAC sum over [variant-500, variant+501)
+```
+
+Run a ten-variant pilot, then a multi-GPU production run and merge:
+
+```bash
+GENALM_HOME=/path/to/GENA_LM CUDA_VISIBLE_DEVICES=0 \
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py \
+  pilot --output-dir /path/to/variant-pilot --device cuda:0 --limit 10
+
+GENALM_HOME=/path/to/GENA_LM CUDA_VISIBLE_DEVICES=0,1,2,3 \
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py \
+  run --output-dir /path/to/variant-shards --devices 0,1,2,3
+
+GENALM_HOME=/path/to/GENA_LM \
+/home/jovyan/miniconda3/envs/api/bin/python \
+  downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py \
+  merge --output-dir /path/to/variant-shards --output /path/to/variant-scores.h5
+```
+
+### Seven-GPU tmux example
+
+The following one-liner starts a detached `tmux` session using GPUs 0–6 and
+writes the combined worker output to `outputs/variant_catalog/run.log`:
+
+```bash
+tmux new-session -d -s variant_catalog "zsh -lc 'cd /home/jovyan/minja/DNALM/GENA_LM && mkdir -p outputs/variant_catalog && GENALM_HOME=\$PWD CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6 /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py run --output-dir outputs/variant_catalog/shards --devices 0,1,2,3,4,5,6 2>&1 | tee outputs/variant_catalog/run.log'"
+```
+
+Each worker prints its completed and pending variant counts and observed
+variants per second. Attach to the session to monitor it interactively:
+
+```bash
+tmux attach -t variant_catalog
+```
+
+Detach without stopping the run with `Ctrl-b`, then `d`. Alternatively, follow
+the log without attaching:
+
+```bash
+tail -f /home/jovyan/minja/DNALM/GENA_LM/outputs/variant_catalog/run.log
+```
+
+After all workers finish, merge the seven shards:
+
+```bash
+cd /home/jovyan/minja/DNALM/GENA_LM && GENALM_HOME=$PWD /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py merge --output-dir outputs/variant_catalog/shards --output outputs/variant_catalog/variant-scores.h5
+```
+
+The genomic flanks come from hg38. The sequence at the variant interval is set
+to the catalog REF for the reference prediction and to catalog ALT for the
+alternative prediction. This preserves the requested `ALT - REF` direction even
+when a catalog REF label differs from the hg38 allele. The runner is resumable
+at completed batches and retains the original catalog metadata in each shard
+and in the merged file. Defaults are in `variant_inference_config.yaml`;
+checkpoint model and tokenizer settings continue to come from the single YAML
+beside the checkpoint.
