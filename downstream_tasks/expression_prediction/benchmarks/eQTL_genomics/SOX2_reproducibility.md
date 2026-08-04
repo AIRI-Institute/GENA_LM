@@ -269,3 +269,10 @@ file but no YAML. `models/dev_loss/inference_example_config.yaml` was therefore
 copied from the exact external configuration referenced by the notebook, with
 only the two backbone paths changed to the repository-local persistent model
 aliases.
+
+## One-factor ablations
+
+The checkpoint, TSS center, sequence interval, pair-execution mode, variant
+set, and DNA token budget were reverted independently after Experiment 4. See
+the [ablation report](ablations/README.md) for the per-experiment artifacts,
+quantitative comparison, and conclusions.

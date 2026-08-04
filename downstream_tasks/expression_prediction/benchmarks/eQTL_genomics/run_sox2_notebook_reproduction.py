@@ -55,6 +55,30 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument("--experiment-name", default="sox2_dev_loss_h1_notebook_exact")
+    parser.add_argument("--tss-0based", type=int, default=SOX2_TSS_0BASED)
+    parser.add_argument(
+        "--sequence-start-0based",
+        type=int,
+        default=SOX2_TSS_0BASED - NUM_BEFORE * TOKEN_LEN_FOR_FETCH,
+    )
+    parser.add_argument(
+        "--sequence-end-0based",
+        type=int,
+        default=SOX2_TES_0BASED_EXCLUSIVE,
+    )
+    parser.add_argument("--dna-input-seq-len", type=int, default=DNA_INPUT_SEQ_LEN)
+    parser.add_argument("--num-before", type=int, default=NUM_BEFORE)
+    parser.add_argument("--pair-execution", choices=("joint", "separate"), default="joint")
+    parser.add_argument(
+        "--variant-region",
+        choices=("notebook-promoter", "previous-centered"),
+        default="notebook-promoter",
+        help=(
+            "Mutate the notebook's 600-bp upstream promoter or the previous "
+            "TSS-centered [-600,+600] interval."
+        ),
+    )
     parser.add_argument("--preprocessing-workers", type=int, default=10)
     parser.add_argument("--prefetch-batches", type=int, default=2)
     parser.add_argument("--max-pairs-per-forward", type=int, default=200)
@@ -107,26 +131,33 @@ def main() -> None:
         config=checkpoint_config,
         dna_tokenizer=runtime["dna_tokenizer"],
         description_tokenizer=runtime["description_tokenizer"],
-        dna_max_seq_len=DNA_INPUT_SEQ_LEN,
-        num_before=NUM_BEFORE,
+        dna_max_seq_len=args.dna_input_seq_len,
+        num_before=args.num_before,
         desc_max_seq_len=int(runtime["text_max_seq_len"]),
         token_len_for_fetch=TOKEN_LEN_FOR_FETCH,
         device=args.device,
     )
 
     genome = Genome(fasta_path=args.genome_fasta)
-    sequence_start = SOX2_TSS_0BASED - NUM_BEFORE * TOKEN_LEN_FOR_FETCH
-    center = SOX2_TSS_0BASED - sequence_start
+    sequence_start = args.sequence_start_0based
+    sequence_end = args.sequence_end_0based
+    center = args.tss_0based - sequence_start
+    if not 0 <= center < sequence_end - sequence_start:
+        raise ValueError("TSS center must fall inside the configured sequence interval")
+    region_start = center - PROMOTER_BP
+    region_end = center if args.variant_region == "notebook-promoter" else center + PROMOTER_BP + 1
+    if region_start < 0 or region_end > sequence_end - sequence_start:
+        raise ValueError("Configured sequence does not contain the requested mutation region")
     sequence = genome.sequence(
         chrom=SOX2_CHROM,
         start=sequence_start,
-        end=SOX2_TES_0BASED_EXCLUSIVE,
+        end=sequence_end,
         strand="+",
         name="SOX2 gene region",
     ).add_feature(
         name="promoter",
-        start=center - PROMOTER_BP,
-        end=center,
+        start=region_start,
+        end=region_end,
         type="promoter",
     )
 
@@ -146,14 +177,19 @@ def main() -> None:
     )
     scorer = TrackWindowScorer(center="variant", width_bp=VARIANT_SCORE_WIDTH_BP)
     started = time.monotonic()
+    execution_limit = (
+        {"max_pairs_per_forward": args.max_pairs_per_forward}
+        if args.pair_execution == "joint"
+        else {"max_records_per_forward": args.max_pairs_per_forward * 2}
+    )
     ism.score(
         interpreter=VariantInterpreter(model),
         scorer=scorer,
-        pair_execution="joint",
+        pair_execution=args.pair_execution,
         preprocessing_workers=args.preprocessing_workers,
         prefetch_batches=args.prefetch_batches,
-        max_pairs_per_forward=args.max_pairs_per_forward,
         chunk_size=args.chunk_size,
+        **execution_limit,
     )
     elapsed = time.monotonic() - started
     ism.write_parquet(parquet_path)
@@ -161,7 +197,7 @@ def main() -> None:
     figure.savefig(plot_path, dpi=160, bbox_inches="tight")
 
     provenance = {
-        "experiment": "sox2_dev_loss_h1_notebook_exact",
+        "experiment": args.experiment_name,
         "checkpoint": str(args.checkpoint.resolve()),
         "checkpoint_md5": md5_file(args.checkpoint),
         "checkpoint_sha256": sha256_file(args.checkpoint),
@@ -172,21 +208,26 @@ def main() -> None:
         "description_json_sha256": sha256_file(args.description_json),
         "rendered_description": metadata_to_description(condition_metadata),
         "chromosome": SOX2_CHROM,
-        "tss_0based": SOX2_TSS_0BASED,
-        "tss_1based": SOX2_TSS_0BASED + 1,
+        "tss_0based": args.tss_0based,
+        "tss_1based": args.tss_0based + 1,
         "tes_0based_exclusive": SOX2_TES_0BASED_EXCLUSIVE,
         "sequence_start_0based": sequence_start,
-        "sequence_end_0based": SOX2_TES_0BASED_EXCLUSIVE,
+        "sequence_end_0based": sequence_end,
         "sequence_length_bp": len(sequence),
         "promoter_start_local": center - PROMOTER_BP,
-        "promoter_end_local": center,
-        "dna_input_seq_len": DNA_INPUT_SEQ_LEN,
-        "num_before": NUM_BEFORE,
+        "promoter_end_local": region_end,
+        "variant_region": args.variant_region,
+        "dna_input_seq_len": args.dna_input_seq_len,
+        "num_before": args.num_before,
         "token_len_for_fetch": TOKEN_LEN_FOR_FETCH,
         "score": "ATAC channel 0 weighted sum, variant-centered width 501 bp, alt-ref",
-        "pair_execution": "joint",
-        "substitutions": 1800,
-        "deletions": 20 if args.include_deletions else 0,
+        "pair_execution": args.pair_execution,
+        "substitutions": int(
+            ism.variants.filter(ism.variants["mutation_type"] == "substitution").height
+        ),
+        "deletions": int(
+            ism.variants.filter(ism.variants["mutation_type"] == "deletion").height
+        ),
         "elapsed_seconds": elapsed,
         "variants_per_second": len(ism.variants) / elapsed,
     }
