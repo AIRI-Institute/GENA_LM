@@ -174,6 +174,42 @@ After all workers finish, merge the seven shards:
 cd /home/jovyan/minja/DNALM/GENA_LM && GENALM_HOME=$PWD /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/score_variant_catalog.py merge --output-dir outputs/variant_catalog/shards --output outputs/variant_catalog/variant-scores.h5
 ```
 
+### Expected merged output
+
+The merge produces one HDF5 file with one row per input catalog row, restored to
+the original catalog order. For the complete checked-in catalog, every dataset
+below therefore has 75,920 rows. The row-aligned datasets are:
+
+| Dataset | Type | Meaning |
+| --- | --- | --- |
+| `catalog_index` | int64 | Zero-based row number in the input TSV. |
+| `variant_id` | string | Catalog identifier, `chrom-position-ref-alt`. |
+| `chromosome` | string | hg38 chromosome. |
+| `position_1based` | int64 | Catalog position; the first REF base and scoring center. |
+| `reference`, `alternate` | string | Exact alleles used for the two predictions. |
+| `variant_type` | string | `SNV`, `insertion`, or `deletion`. |
+| `score` | float32 | Alternative ATAC sum minus reference ATAC sum. |
+| `present_in_train`, `present_in_validation` | bool | Original catalog membership flags. |
+| `train_signal_count`, `validation_signal_count`, `total_signal_count` | int32 | Original catalog counts. |
+| `status` | uint8 | `1` for a completed row. Merge rejects incomplete shards, so every merged row is `1`. |
+| `error` | string | Empty for successfully merged rows. |
+
+The merged file's root attributes provide provenance: schema version; hashes of
+the catalog, checkpoint, checkpoint YAML, FASTA index, and description JSON;
+total DNA input length and upstream/downstream token allocation; fetched context
+length; local variant center; scoring-window definition; score sign; and shard
+count. `shard_index` is intentionally removed during merge.
+
+A positive `score` means the ALT sequence increased the predicted ATAC sum in
+the configured window; a negative value means it decreased it. The file does
+not store separate absolute REF and ALT sums—only their difference.
+
+Example inspection:
+
+```bash
+cd /home/jovyan/minja/DNALM/GENA_LM && /home/jovyan/miniconda3/envs/api/bin/python -c 'import h5py; f=h5py.File("outputs/variant_catalog/variant-scores.h5"); print(dict(f.attrs)); print({k: f[k].shape for k in f}); print(f["variant_id"][0], f["score"][0])'
+```
+
 The genomic flanks come from hg38. The sequence at the variant interval is set
 to the catalog REF for the reference prediction and to catalog ALT for the
 alternative prediction. This preserves the requested `ALT - REF` direction even
