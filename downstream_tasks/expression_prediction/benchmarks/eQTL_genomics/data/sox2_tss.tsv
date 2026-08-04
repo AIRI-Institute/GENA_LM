@@ -1,0 +1,2 @@
+tss_id	gene_id	gene_name	chromosome	tss_position_1based	strand	annotation_source	selection_method	atac_overlap_within_100bp	selected_transcript_count	selected_transcript_ids	mane_select	transcript_support_levels
+SOX2|chr3:181711925:+	SOX2	SOX2	chr3	181711925	+	manual_notebook_validation	manual	NA	1	NA	NA	NA

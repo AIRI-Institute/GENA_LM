@@ -1,0 +1,8 @@
+# Notebook-comparison profile for SOX2 using the all_datasets checkpoint.
+checkpoint: ${oc.env:GENALM_HOME}/models/dev_loss/pytorch_model.bin
+genome_fasta: ${oc.env:GENALM_HOME}/data/genomes/hg38/hg38.fa
+description_json: ../../api/data/real_descriptions/ENCFF081FQX.json
+mutation_window_bp: 600
+score_window_bp: 500
+dna_input_seq_len: 1024
+num_before: 511
