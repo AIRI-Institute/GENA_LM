@@ -12,8 +12,8 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TASK_DIR = HERE.parents[1]
-REPO_ROOT = HERE.parents[3]
+TASK_DIR = HERE.parents[2]
+REPO_ROOT = HERE.parents[4]
 API_SRC = TASK_DIR / "api" / "src"
 for path in (REPO_ROOT, TASK_DIR, API_SRC, HERE):
     if str(path) not in sys.path:

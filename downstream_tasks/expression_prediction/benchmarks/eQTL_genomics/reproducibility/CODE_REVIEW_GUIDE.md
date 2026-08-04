@@ -190,6 +190,7 @@ Review `initialize_shard()` and `merge_shards()` in
 |---|---|
 | `/scores[N,3,2]` | Three alternatives × forward/reverse-complement float32 deltas per mutable base |
 | `/variant_atac_sum[N,3,2]` | Absolute mutant ATAC sums for both orientations |
+| `/reference_atac_sum_by_position[N,2]` | Position-specific reference sums used by variant-centered scoring; repeats the TSS reference in fixed-window mode |
 | `/ref_base[N]` | Reference nucleotide encoded as `A=0,C=1,G=2,T=3` |
 | `/position_offset[N]` | Genomic offset within the reference-visible interval |
 | `/tss/offsets` | Maps each TSS to its flat score rows |
@@ -264,3 +265,9 @@ For the highest-value review in the least time:
 - A selected leading gap token representing 12 `N` bases maps to all 12 source bases.
 - The v1-1 checkpoint and restored inference configuration load successfully.
 - A real minus-strand reference/three-SNV inference smoke test produced finite scores.
+- The dedicated SOX2 notebook reproduction in
+  `run_sox2_notebook_reproduction.py` uses the dev_loss/v1-2 checkpoint,
+  1024 total DNA positions, 511 upstream tokens, exact TSS-to-TES sequence
+  bounds, the H1 description, and joint `SequencePair` inference.
+- Its 1,800 substitutions and 20 deletions reproduced the notebook's dominant
+  effect cluster at promoter positions 128–144; see `SOX2_reproducibility.md`.

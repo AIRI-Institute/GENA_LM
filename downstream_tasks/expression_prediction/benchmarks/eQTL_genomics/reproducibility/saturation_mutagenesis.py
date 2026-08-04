@@ -172,8 +172,9 @@ def _load_checkpoint_runtime_config(path: str | Path) -> dict[str, Any]:
 def find_checkpoint_config(checkpoint: str | Path) -> Path:
     """Require exactly one training YAML beside the checkpoint binary."""
 
-    # Search beside the configured repository path. The checkpoint itself may
-    # be a local symlink whose binary target lives on external storage.
+    # Keep the configured (possibly symlinked) model directory as the config
+    # boundary. Resolving the symlink would incorrectly search beside its
+    # machine-specific external target instead of beside models/<run-name>/.
     checkpoint_path = Path(checkpoint).absolute()
     if not checkpoint_path.is_file():
         raise FileNotFoundError(f"Model checkpoint does not exist: {checkpoint_path}")
@@ -239,8 +240,13 @@ def build_provenance(args: Any, rendered: str, desc_tokens: Mapping[str, Any]) -
         "mutation_window_right_bp": int(args.mutation_window_bp) + 1,
         "score_window_bp": int(args.score_window_bp),
         "orientations": "forward,reverse_complement",
+        "score_center": str(args.score_center),
+        "variant_score_width_bp": int(args.variant_score_width_bp),
         "score": (
-            f"ATAC channel 0 weighted sum [TSS-{args.score_window_bp},"
+            f"ATAC channel 0 weighted sum, variant-centered width "
+            f"{args.variant_score_width_bp} bp, alt-ref"
+            if args.score_center == "variant"
+            else f"ATAC channel 0 weighted sum [TSS-{args.score_window_bp},"
             f"TSS+{args.score_window_bp + 1}), alt-ref"
         ),
     }
@@ -277,7 +283,7 @@ def create_sequence_plan(
     assert genomic_end - genomic_start == len(sequence_text), f"Genomic end - genomic start != length of sequence text: {genomic_end - genomic_start} != {len(sequence_text)}"
     assert record.tss_0based >= genomic_start, f"TSS is before genomic start: {record.tss_0based} < {genomic_start}"
     assert record.tss_0based < genomic_end, f"TSS is after genomic end: {record.tss_0based} >= {genomic_end}"
-    
+
     sequence = AnnotatedSequence(
         sequence_text,
         name=record.tss_id,
@@ -367,25 +373,76 @@ def score_plan(
     scorer: Any,
     description_cache: dict[str, dict[str, Any]],
     args: Any,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Infer absolute reference/mutant ATAC and deltas in both orientations."""
 
     retention = _prediction_retention()
     reference_scores = np.full(len(ORIENTATIONS), np.nan, dtype=np.float32)
+    position_reference_scores = np.full(
+        (plan.mutable_count, len(ORIENTATIONS)), np.nan, dtype=np.float32
+    )
     variant_scores = np.full((plan.mutable_count * 3, len(ORIENTATIONS)), np.nan, dtype=np.float32)
     for orientation_index, (_, orientation_strand) in enumerate(ORIENTATIONS):
-        ref_prediction = model.predict_sequence(
-            plan.sequence,
-            condition=condition,
-            center="tss",
-            strand=orientation_strand,
-            retention=retention,
-            description_cache=description_cache,
-        )
-        reference_scores[orientation_index] = np.float32(
-            scorer.score_prediction(ref_prediction).score
-        )
+        if args.score_center == "tss":
+            ref_prediction = model.predict_sequence(
+                plan.sequence,
+                condition=condition,
+                center="tss",
+                strand=orientation_strand,
+                retention=retention,
+                description_cache=description_cache,
+            )
+            reference_scores[orientation_index] = np.float32(
+                scorer.score_prediction(ref_prediction).score
+            )
+            position_reference_scores[:, orientation_index] = reference_scores[
+                orientation_index
+            ]
         for flat_indices, sequences in mutation_batches(plan, args.batch_size):
+            if args.score_center == "variant":
+                base_indices = np.unique(flat_indices // 3)
+                reference_sequences = []
+                for base_index in base_indices:
+                    local_position = (
+                        plan.mutation_start + int(plan.position_offsets[int(base_index)])
+                    )
+                    reference_sequences.append(
+                        plan.sequence.add_feature(
+                            name="variant",
+                            start=local_position,
+                            end=local_position + 1,
+                            type="variant",
+                        )
+                    )
+                reference_predictions = model.predict_multiple_sequences(
+                    reference_sequences,
+                    condition=condition,
+                    center="tss",
+                    strand=orientation_strand,
+                    grouping="condition",
+                    preprocessing_workers=args.preprocessing_workers,
+                    preprocessing_backend=args.preprocessing_backend,
+                    max_records_per_forward=args.batch_size,
+                    prefetch_batches=args.prefetch_batches,
+                    show_progress=False,
+                    retention=retention,
+                    description_cache=description_cache,
+                )
+                position_reference_scores[base_indices, orientation_index] = _score_predictions(
+                    reference_predictions, scorer
+                )
+                sequences = [
+                    sequence.add_feature(
+                        name="variant",
+                        start=plan.mutation_start
+                        + int(plan.position_offsets[int(flat_index // 3)]),
+                        end=plan.mutation_start
+                        + int(plan.position_offsets[int(flat_index // 3)])
+                        + 1,
+                        type="variant",
+                    )
+                    for flat_index, sequence in zip(flat_indices, sequences)
+                ]
             predictions = model.predict_multiple_sequences(
                 sequences,
                 condition=condition,
@@ -403,9 +460,14 @@ def score_plan(
             variant_scores[flat_indices, orientation_index] = _score_predictions(
                 predictions, scorer
             )
-    deltas = variant_scores - reference_scores.reshape(1, len(ORIENTATIONS))
+    if args.score_center == "variant":
+        flat_reference_scores = np.repeat(position_reference_scores, 3, axis=0)
+        deltas = variant_scores - flat_reference_scores
+    else:
+        deltas = variant_scores - reference_scores.reshape(1, len(ORIENTATIONS))
     return (
         reference_scores,
+        position_reference_scores,
         variant_scores.reshape(plan.mutable_count, 3, len(ORIENTATIONS)),
         deltas.reshape(plan.mutable_count, 3, len(ORIENTATIONS)),
     )
@@ -477,6 +539,15 @@ def initialize_shard(path: Path, plans: Sequence[TSSPlan], provenance: Mapping[s
             compression_opts=1,
             fillvalue=np.nan,
         )
+        position_reference = output.create_dataset(
+            "reference_atac_sum_by_position",
+            shape=(int(offsets[-1]), len(ORIENTATIONS)),
+            dtype=np.float32,
+            chunks=(chunk_rows, len(ORIENTATIONS)),
+            compression="gzip",
+            compression_opts=1,
+            fillvalue=np.nan,
+        )
         score = output.create_dataset(
             "scores",
             shape=(int(offsets[-1]), 3, len(ORIENTATIONS)),
@@ -493,6 +564,7 @@ def initialize_shard(path: Path, plans: Sequence[TSSPlan], provenance: Mapping[s
         score.attrs["orientation_order"] = ",".join(name for name, _ in ORIENTATIONS)
         variant.attrs["alternative_order"] = score.attrs["alternative_order"]
         variant.attrs["orientation_order"] = score.attrs["orientation_order"]
+        position_reference.attrs["orientation_order"] = score.attrs["orientation_order"]
         _write_provenance(output.create_group("provenance"), provenance)
         output.flush()
     os.replace(temp, path)
@@ -523,10 +595,6 @@ def run_worker(args: Any) -> None:
     checkpoint_runtime = _load_checkpoint_runtime_config(args.checkpoint_config)
     args.model_class = checkpoint_runtime["model_class"]
     args.model_input_seq_len = checkpoint_runtime["model_input_seq_len"]
-    # The checkpoint's input_seq_len is the complete model input, including
-    # CLS and SEP. Split the remaining DNA-token budget evenly around the TSS.
-    args.dna_input_seq_len = args.model_input_seq_len
-    args.num_before = (args.dna_input_seq_len - 2) // 2
     args.dna_tokenizer = checkpoint_runtime["dna_tokenizer"]
     args.description_tokenizer = checkpoint_runtime["description_tokenizer"]
     args.text_max_seq_len = checkpoint_runtime["text_max_seq_len"]
@@ -536,6 +604,11 @@ def run_worker(args: Any) -> None:
         )
     if args.score_window_bp < 0:
         raise ValueError(f"score_window_bp must be non-negative, got {args.score_window_bp}")
+    if args.dna_input_seq_len > args.model_input_seq_len:
+        raise ValueError(
+            f"DNA input length {args.dna_input_seq_len} exceeds checkpoint model "
+            f"capacity {args.model_input_seq_len}"
+        )
     dna_tokens_upstream, dna_tokens_downstream = dna_token_sides(
         args.dna_input_seq_len, args.num_before
     )
@@ -578,14 +651,23 @@ def run_worker(args: Any) -> None:
         device=args.device,
     )
     condition = Condition(name=Path(args.description_json).stem, description=rendered)
-    scorer = TrackWindowScorer(
-        track="atac",
-        center="tss",
-        left_bp=args.score_window_bp,
-        right_bp=args.score_window_bp + 1,
-        aggregate="sum",
-        channel=0,
-    )
+    if args.score_center == "variant":
+        scorer = TrackWindowScorer(
+            track="atac",
+            center="variant",
+            width_bp=args.variant_score_width_bp,
+            aggregate="sum",
+            channel=0,
+        )
+    else:
+        scorer = TrackWindowScorer(
+            track="atac",
+            center="tss",
+            left_bp=args.score_window_bp,
+            right_bp=args.score_window_bp + 1,
+            aggregate="sum",
+            channel=0,
+        )
     description_cache = {model._grouping_key_for_condition(condition): {
         "description": rendered,
         "desc_input_ids": desc_tokens["desc_input_ids"],
@@ -599,11 +681,12 @@ def run_worker(args: Any) -> None:
             if output["tss/status"][index] == 1:
                 continue
             try:
-                reference_scores, variant_scores, scores = score_plan(
+                reference_scores, position_reference_scores, variant_scores, scores = score_plan(
                     plan, model, condition, scorer, description_cache, args
                 )
                 start, end = int(offsets[index]), int(offsets[index + 1])
                 output["variant_atac_sum"][start:end, :, :] = variant_scores
+                output["reference_atac_sum_by_position"][start:end, :] = position_reference_scores
                 output["scores"][start:end, :] = scores
                 output["tss/reference_atac_sum"][index, :] = reference_scores
                 output["tss/error"][index] = ""
@@ -630,6 +713,18 @@ def _copy_rows(source: h5py.File, target: h5py.File, tss_at: int, base_at: int) 
     target["ref_base"][base_at : base_at + n_bases] = source["ref_base"][:]
     target["position_offset"][base_at : base_at + n_bases] = source["position_offset"][:]
     target["variant_atac_sum"][base_at : base_at + n_bases] = source["variant_atac_sum"][:]
+    if "reference_atac_sum_by_position" in source:
+        target["reference_atac_sum_by_position"][base_at : base_at + n_bases] = source[
+            "reference_atac_sum_by_position"
+        ][:]
+    else:
+        source_offsets = source["tss/offsets"][:]
+        for index in range(n_tss):
+            row_start = base_at + int(source_offsets[index])
+            row_end = base_at + int(source_offsets[index + 1])
+            target["reference_atac_sum_by_position"][row_start:row_end] = source[
+                "tss/reference_atac_sum"
+            ][index]
     target["scores"][base_at : base_at + n_bases] = source["scores"][:]
     return tss_at + n_tss, base_at + n_bases
 
@@ -679,6 +774,7 @@ def merge_shards(paths: Sequence[Path], output_path: Path) -> None:
             target.create_dataset("position_offset", shape=(total_bases,), dtype=np.int32, chunks=True, compression="gzip", compression_opts=1)
             chunk_rows = min(32768, max(1, total_bases))
             target.create_dataset("variant_atac_sum", shape=(total_bases, 3, len(ORIENTATIONS)), dtype=np.float32, chunks=(chunk_rows, 3, len(ORIENTATIONS)), compression="gzip", compression_opts=1)
+            target.create_dataset("reference_atac_sum_by_position", shape=(total_bases, len(ORIENTATIONS)), dtype=np.float32, chunks=(chunk_rows, len(ORIENTATIONS)), compression="gzip", compression_opts=1)
             target.create_dataset("scores", shape=(total_bases, 3, len(ORIENTATIONS)), dtype=np.float32, chunks=(chunk_rows, 3, len(ORIENTATIONS)), compression="gzip", compression_opts=1)
             target["variant_atac_sum"].attrs["alternative_order"] = "ACGT excluding reference, lexicographic"
             target["variant_atac_sum"].attrs["orientation_order"] = ",".join(name for name, _ in ORIENTATIONS)
@@ -715,10 +811,20 @@ def iter_variant_scores(path: str | Path, tss_id: str | None = None) -> Iterator
             positions = handle["position_offset"][start:end]
             scores = handle["scores"][start:end]
             variant_values = handle["variant_atac_sum"][start:end]
-            reference_values = handle["tss/reference_atac_sum"][index]
-            for position_offset, code, values, absolute_values in zip(
-                positions, codes, scores, variant_values
+            tss_reference_values = handle["tss/reference_atac_sum"][index]
+            if "reference_atac_sum_by_position" in handle:
+                position_reference_values = handle["reference_atac_sum_by_position"][start:end]
+            else:
+                position_reference_values = np.repeat(
+                    np.asarray(tss_reference_values, dtype=np.float32)[None, :],
+                    end - start,
+                    axis=0,
+                )
+            for position_offset, code, values, absolute_values, reference_values in zip(
+                positions, codes, scores, variant_values, position_reference_values
             ):
+                if not np.all(np.isfinite(reference_values)):
+                    reference_values = tss_reference_values
                 ref = DNA[int(code)]
                 for alt, orientation_deltas, orientation_absolutes in zip(
                     alternatives(ref), values, absolute_values

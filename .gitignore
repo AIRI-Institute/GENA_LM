@@ -70,10 +70,13 @@ data/genomes/*
 data/pretrain/*
 models/model_010726/*
 !models/model_010726/.gitkeep
+!models/model_010726/*.yaml
 models/model_270526/*
 !models/model_270526/.gitkeep
+!models/model_270526/*.yaml
 models/dev_loss/*
 !models/dev_loss/.gitkeep
+!models/dev_loss/*.yaml
 models/moderngena_large/*
 !models/moderngena_large/.gitkeep
 models/decoderdp0.1/*

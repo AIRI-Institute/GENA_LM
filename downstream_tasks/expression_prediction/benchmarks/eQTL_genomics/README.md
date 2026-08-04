@@ -11,6 +11,10 @@ The JSON description is rendered and tokenized with the same code path as
 `shared_dataset_params.text_max_seq_len`, and the dataset's metadata cleanup and
 sentence formatting.
 
+SOX2 notebook reproduction code, configurations, results, and analysis are
+isolated under [`reproducibility/`](reproducibility/README.md). They are not
+part of the production runner described here.
+
 ## Checkpoint-local configuration requirement
 
 The checkpoint directory must contain exactly one `*.yaml` file beside the
@@ -74,44 +78,6 @@ CUDA_VISIBLE_DEVICES=0 \
   --limit 10
 ```
 
-## SOX2 notebook validation
-
-`data/sox2_tss.tsv` contains the notebook-equivalent plus-strand SOX2 TSS at
-`chr3:181711925` (hg38, 1-based; notebook coordinate 181711924 is 0-based). Keep its profiling artifacts separate from
-the general smoke test:
-
-The dedicated `sox2_inference_config.yaml` selects the `dev_loss` model
-(locally backed by `expression_model_v1-2`), the notebook's H1
-description `ENCFF081FQX`, and a reduced ±600-bp mutation interval. Scoring
-remains fixed at TSS ±500 bp; it is not variant-centered.
-
-```bash
-cd "${GENALM_HOME}" && CUDA_VISIBLE_DEVICES=0 /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py pilot --inference-config downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_inference_config.yaml --catalog downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/data/sox2_tss.tsv --output-dir downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_model_270526_output --device cuda:0 --limit 1 2>&1 | tee downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_model_270526_profile.log
-```
-
-The one-worker shard is already a complete HDF5 result. To give it a dedicated
-final filename and draw the forward-orientation 600-bp upstream promoter used
-by the API notebook:
-
-```bash
-cd "${GENALM_HOME}" && /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_saturation_mutagenesis.py merge --output-dir downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_output --output downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_saturation_mutagenesis.h5 && /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/plot_ref_alt.py downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_saturation_mutagenesis.h5 --output downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_forward_promoter_ref_alt.png --orientation forward --relative-start -600 --relative-end -1 --y-min -500 --y-max 500 --title "SOX2 promoter — forward"
-```
-
-The helper reads the stored `scores` (alternative minus reference ATAC sum).
-Alternative alleles are colors and reference alleles are marker shapes, matching
-the notebook convention. Use `--orientation reverse_complement` or omit the
-relative bounds to inspect the other orientation or the entire ±1000-bp window.
-
-For notebook-style scoring, use `run_variant_centered_mutagenesis.py`. It keeps
-DNA tokenization centered at the TSS but scores each allele over a 501-bp ATAC
-window centered on that variant. Its HDF5 additionally stores
-`reference_atac_sum_by_position[N,2]`, because the reference score changes with
-the genomic position:
-
-```bash
-cd "${GENALM_HOME}" && CUDA_VISIBLE_DEVICES=0 /home/jovyan/miniconda3/envs/api/bin/python downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/run_variant_centered_mutagenesis.py pilot --inference-config downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_inference_config.yaml --catalog downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/data/sox2_tss.tsv --output-dir downstream_tasks/expression_prediction/benchmarks/eQTL_genomics/sox2_model_270526_h1_variant_centered_output --device cuda:0 --limit 1
-```
-
 ## Multi-GPU run and merge
 
 ```bash
@@ -133,11 +99,12 @@ Checkpoint, FASTA, batch size, CPU worker count, and prefetch depth are
 command-line options; see `--help`. Model and tokenizer settings come from the
 checkpoint-local training YAML.
 
-The checkpoint's `args_params.input_seq_len` is the model capacity. The actual
-experiment input is controlled by `--dna-input-seq-len` (default 1,022) and must
-not exceed that capacity. Two positions are reserved for CLS and SEP, so with
-`--num-before 510` the remaining 510 positions are downstream DNA tokens. The
-actual input length and both derived side lengths are recorded in provenance.
+The checkpoint's `args_params.input_seq_len` is used as the total model input
+length. It includes CLS and SEP. The remaining DNA-token budget is divided
+evenly around the TSS; for every current 1,024-position checkpoint this is one
+CLS, 511 upstream DNA tokens, 511 downstream DNA tokens, and one SEP. Near a
+chromosome end, less source context may be available. The total configured
+length and both derived side lengths are recorded in provenance.
 
 The final HDF5 stores flat `scores[N,3,2]`, `variant_atac_sum[N,3,2]`,
 `ref_base[N]`, and `position_offset[N]` arrays plus `/tss` offsets and metadata.

@@ -41,6 +41,7 @@ from saturation_mutagenesis import (
 
 def test_dna_token_sides_reserve_special_tokens() -> None:
     assert dna_token_sides(dna_input_seq_len=1022, num_before=510) == (510, 510)
+    assert dna_token_sides(dna_input_seq_len=1024, num_before=511) == (511, 511)
     with pytest.raises(ValueError, match="num_before must be between"):
         dna_token_sides(dna_input_seq_len=1022, num_before=1021)
 
@@ -152,6 +153,20 @@ def test_checkpoint_config_supplies_tokenizers_and_text_length(tmp_path: Path) -
         "description_tokenizer": "qwen-tokenizer",
         "text_max_seq_len": 384,
     }
+
+
+def test_checkpoint_config_stays_beside_local_checkpoint_symlink(tmp_path: Path) -> None:
+    external = tmp_path / "external"
+    external.mkdir()
+    external_checkpoint = external / "pytorch_model.bin"
+    external_checkpoint.write_bytes(b"checkpoint")
+    local = tmp_path / "models" / "run"
+    local.mkdir(parents=True)
+    (local / "pytorch_model.bin").symlink_to(external_checkpoint)
+    local_config = local / "training.yaml"
+    _write_model_config(local_config)
+
+    assert find_checkpoint_config(local / "pytorch_model.bin") == local_config
 
 
 def test_mutation_batches_retokenize_three_alternatives() -> None:

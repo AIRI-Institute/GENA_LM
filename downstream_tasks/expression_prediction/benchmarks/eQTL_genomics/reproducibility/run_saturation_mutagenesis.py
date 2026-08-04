@@ -10,22 +10,32 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TASK_DIR = HERE.parents[1]
-REPO_ROOT = HERE.parents[3]
+BENCHMARK_DIR = HERE.parent
+TASK_DIR = HERE.parents[2]
+REPO_ROOT = HERE.parents[4]
 API_SRC = TASK_DIR / "api" / "src"
-for path in (str(TASK_DIR), str(API_SRC), str(HERE)):
+for path in (str(REPO_ROOT), str(TASK_DIR), str(API_SRC), str(HERE)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
 from saturation_mutagenesis import merge_shards, run_worker
 
 
-def inference_defaults() -> dict[str, object]:
+def requested_inference_config() -> Path:
+    """Find --inference-config before constructing command-specific parsers."""
+
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--inference-config", type=Path)
+    known, _ = pre_parser.parse_known_args()
+    return known.inference_config or BENCHMARK_DIR / "inference_config.yaml"
+
+
+def inference_defaults(path: Path) -> dict[str, object]:
     """Read inference-specific defaults that may be overridden on the CLI."""
 
     from omegaconf import OmegaConf
 
-    config = OmegaConf.load(HERE / "inference_config.yaml")
+    config = OmegaConf.load(path)
     values = {
         "checkpoint": OmegaConf.select(config, "checkpoint"),
         "genome_fasta": OmegaConf.select(config, "genome_fasta"),
@@ -35,63 +45,49 @@ def inference_defaults() -> dict[str, object]:
     }
     missing = [key for key, value in values.items() if value is None]
     if missing:
-        raise ValueError(f"inference_config.yaml is missing: {', '.join(missing)}")
+        raise ValueError(f"{path} is missing: {', '.join(missing)}")
+    values["dna_input_seq_len"] = OmegaConf.select(
+        config, "dna_input_seq_len", default=1022
+    )
+    values["num_before"] = OmegaConf.select(config, "num_before", default=510)
     return values
 
 
 def config_path(value: object) -> Path:
-    """Resolve inference-config paths relative to the benchmark directory."""
+    """Resolve inference-config paths relative to the reproducibility directory."""
 
     path = Path(str(value))
     return path if path.is_absolute() else HERE / path
 
 
-def repository_config_path(value: object, name: str) -> Path:
-    """Require a configured path to be located under the repository checkout.
-
-    Resolve the parent directory but deliberately not the final path component:
-    model and genome files may be repository-local symlinks to external storage.
-    """
-
-    path = config_path(value).absolute()
-    anchored_path = path.parent.resolve() / path.name
-    try:
-        anchored_path.relative_to(REPO_ROOT)
-    except ValueError as error:
-        raise ValueError(
-            f"inference_config.yaml {name} must be inside {REPO_ROOT}; got {path}"
-        ) from error
-    return path
-
-
 def shared(parser: argparse.ArgumentParser) -> None:
-    defaults = inference_defaults()
-    parser.add_argument("--catalog", type=Path, default=HERE / "data" / "selected_tss_catalog.tsv")
+    inference_config = requested_inference_config()
+    defaults = inference_defaults(inference_config)
+    parser.add_argument("--inference-config", type=Path, default=inference_config)
     parser.add_argument(
-        "--genome-fasta",
-        type=Path,
-        default=repository_config_path(defaults["genome_fasta"], "genome_fasta"),
+        "--catalog", type=Path, default=BENCHMARK_DIR / "data" / "selected_tss_catalog.tsv"
     )
+    parser.add_argument("--genome-fasta", type=Path, default=config_path(defaults["genome_fasta"]))
     parser.add_argument(
-        "--description-json",
-        type=Path,
-        default=repository_config_path(defaults["description_json"], "description_json"),
+        "--description-json", type=Path, default=config_path(defaults["description_json"])
     )
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        default=repository_config_path(defaults["checkpoint"], "checkpoint"),
-    )
+    parser.add_argument("--checkpoint", type=Path, default=config_path(defaults["checkpoint"]))
     parser.add_argument(
         "--mutation-window-bp", type=int, default=int(defaults["mutation_window_bp"])
     )
     parser.add_argument("--score-window-bp", type=int, default=int(defaults["score_window_bp"]))
+    parser.add_argument("--score-center", choices=("tss", "variant"), default="tss")
+    parser.add_argument("--variant-score-width-bp", type=int, default=501)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=200)
     parser.add_argument("--preprocessing-workers", type=int, default=10)
     parser.add_argument("--preprocessing-backend", choices=("process", "thread"), default="process")
     parser.add_argument("--prefetch-batches", type=int, default=2)
     parser.add_argument("--fetch-bp-per-token", type=int, default=20)
+    parser.add_argument(
+        "--dna-input-seq-len", type=int, default=int(defaults["dna_input_seq_len"])
+    )
+    parser.add_argument("--num-before", type=int, default=int(defaults["num_before"]))
     parser.add_argument("--on-error", choices=("raise", "record"), default="raise")
     parser.add_argument("--limit", type=int)
 
