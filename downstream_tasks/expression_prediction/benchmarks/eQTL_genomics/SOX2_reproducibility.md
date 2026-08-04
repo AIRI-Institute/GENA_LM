@@ -195,9 +195,9 @@ necessary for an exact workflow comparison.
   at the variant, alternative minus reference.
 - Displayed orientation: forward.
 
-## Proposed exact-reproduction experiment
+## Exact-reproduction specification
 
-Before running another GPU profile:
+Experiment 4 implemented the following specification:
 
 1. Use the corrected `models/model_270526/pytorch_model.bin` symlink, which now
    points to the actual `expression_model_v1-2/pytorch_model.bin`.
@@ -216,8 +216,10 @@ Before running another GPU profile:
   differences removed.
 - Code:
   [`run_sox2_notebook_reproduction.py`](run_sox2_notebook_reproduction.py).
-- Git baseline: [`d56f6e9`](https://github.com/AIRI-Institute/GENA_LM/commit/d56f6e977c62bb96b066489aeb9ad615c9615775),
-  with uncommitted experiment code; no exact GitHub commit exists yet.
+- Archived code and results commit:
+  [`6017833`](https://github.com/AIRI-Institute/GENA_LM/commit/6017833).
+  The run occurred immediately before this commit from the same script content;
+  the commit captures the executable, Parquet results, JSON provenance, and PNG.
 - Semantic model: `dev_loss`.
 - Checkpoint: `expression_model_v1-2`, MD5
   `02668c3e5572c58f1322b0faba22d7d7`, SHA-256
