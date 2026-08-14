@@ -32,9 +32,9 @@ Prediction methods accept:
 | `"sequence"` | Group identical token-ID sequences, encode the DNA once, and reuse it for multiple descriptions. Not supported with joint pair execution. |
 | `"auto"` | Ordinary rows choose the grouping that saves more repeated encodings, preferring condition grouping on a tie. Joint pairs choose condition grouping only when a condition repeats across pairs; otherwise they use pair batching. |
 
-Grouping uses exact `Condition.text()` for condition identity and token IDs for
-sequence identity. It is not based only on `Condition.name` or
-`AnnotatedSequence.name`.
+Grouping uses the exact condition text rendered by the model's snapshotted
+formatter for condition identity and token IDs for sequence identity. It is not
+based only on `Condition.name` or `AnnotatedSequence.name`.
 
 ### Pair execution
 
@@ -181,6 +181,7 @@ SequenceModel(
     device=None,
     output_names=None,
     provenance=None,
+    description_formatter=None,
 )
 ```
 
@@ -195,6 +196,7 @@ SequenceModel(
 | `device` | Explicit PyTorch device string. `None` selects `"cuda"` when available, otherwise `"cpu"`. |
 | `output_names` | Copied output-name mapping. Default is `{"expression": 0, "track": 0, "atac": 0}`. Current expression/track access uses fixed prediction conventions rather than indexing through this mapping. |
 | `provenance` | Base metadata copied into retained prediction provenance and used as a tokenizer-path fallback for process workers. |
+| `description_formatter` | Callable or `"/path/file.py::ClassName::static_method"`. `None` uses the formatter explicitly configured by `Condition.set_description_formatter()`; construction raises if neither exists. |
 
 ### `SequenceModel.load(...)`
 
@@ -212,6 +214,7 @@ SequenceModel.load(
     num_before,
     device=None,
     output_names=None,
+    description_formatter=None,
 )
 ```
 
@@ -221,6 +224,7 @@ SequenceModel.load(
 | `checkpoint` | `.tensors` loads with `safetensors.torch.load_file`; any other suffix loads through `torch.load(..., weights_only=True)`. |
 | `config` | Hydra config file. The code composes its file name from its parent directory and instantiates `experiment_config["model_kwargs"]`. |
 | `dna_tokenizer`, `description_tokenizer` | Paths/names passed to `AutoTokenizer.from_pretrained()`. The description tokenizer is loaded with left padding. |
+| `description_formatter` | Per-model formatter specification. `None` uses the current `Condition` runtime formatter. No implicit metadata formatter is installed. |
 | Remaining keyword arguments | Same runtime/tokenization meanings as the direct constructor. |
 
 The method constructs the model class with the instantiated `model_kwargs`,
@@ -233,8 +237,8 @@ Dependencies used by `load()` are PyTorch, Hydra, Safetensors, and Transformers.
 
 | Method | Arguments and result | Used elsewhere |
 | --- | --- | --- |
-| `make_description(condition)` | Static normalization: `Condition.text()`, an unchanged string, or `metadata_to_description(mapping)`. |
-| `make_description_from_json(meta)` | Compatibility alias for `metadata_to_description()`. |
+| `make_description(condition)` | Return strings unchanged; render structured descriptions with the model's snapshotted formatter. |
+| `make_description_from_json(meta)` | Render one metadata mapping with the model's formatter. |
 | `tokenize_description(condition)` | Tokenize without padding, with truncation to `desc_max_seq_len`, returning description text plus `desc_input_ids` and `desc_attention_mask`. | Batch execution and description caching. |
 | `tokenize_sequence(sequence, center="tss", strand="+")` | Delegate to the configured `CenteredTokenizer`. | `predict_sequence()` and preprocessing paths. |
 | `clear_cuda_cache()` | Static helper calling `torch.cuda.empty_cache()` only when CUDA is available. The batch prediction path calls it in `finally`. |

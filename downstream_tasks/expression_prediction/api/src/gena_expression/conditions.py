@@ -3,16 +3,180 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
+import inspect
 import json
 import re
+import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, ClassVar, Dict, Iterable, Mapping, Optional, Sequence
+
+
+DescriptionFormatter = Callable[..., str]
+ResolvedDescriptionFormatter = Callable[[Mapping[str, Any]], str]
+DescriptionFormatterSpec = DescriptionFormatter | str
+
+
+@contextmanager
+def _temporary_sys_path(path: Path):
+    """Temporarily make sibling imports available while loading a user file."""
+
+    path_str = str(path)
+    added = path_str not in sys.path
+    if added:
+        sys.path.insert(0, path_str)
+    try:
+        yield
+    finally:
+        if added:
+            sys.path.remove(path_str)
+
+
+def _load_static_description_formatter(reference: str) -> DescriptionFormatter:
+    """Load ``file.py::ClassName::static_method`` from trusted user code."""
+
+    parts = reference.rsplit("::", 2)
+    if len(parts) != 3 or not all(parts):
+        raise ValueError(
+            "Description formatter references must use "
+            "'/path/to/file.py::ClassName::static_method_name'."
+        )
+
+    file_name, class_name, method_name = parts
+    file_path = Path(file_name).expanduser().resolve()
+    if not file_path.is_file():
+        raise FileNotFoundError(f"Description formatter file does not exist: {file_path}")
+
+    module_hash = hashlib.sha256(str(file_path).encode("utf-8")).hexdigest()[:16]
+    module_name = f"_gena_expression_description_formatter_{module_hash}"
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load description formatter module from {file_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    try:
+        with _temporary_sys_path(file_path.parent):
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+    except Exception:
+        if sys.modules.get(module_name) is module:
+            del sys.modules[module_name]
+        raise
+
+    try:
+        owner = getattr(module, class_name)
+    except AttributeError as exc:
+        raise ImportError(f"{class_name!r} not found in {file_path}") from exc
+
+    try:
+        descriptor = inspect.getattr_static(owner, method_name)
+    except AttributeError as exc:
+        raise ImportError(
+            f"{method_name!r} not found on {class_name!r} in {file_path}"
+        ) from exc
+    if not isinstance(descriptor, staticmethod):
+        raise TypeError(
+            f"{reference!r} must point to a method declared with @staticmethod."
+        )
+
+    formatter = getattr(owner, method_name)
+    if not callable(formatter):
+        raise TypeError(f"Resolved description formatter is not callable: {reference!r}")
+    return formatter
+
+
+def _description_formatter_source(formatter: DescriptionFormatterSpec) -> str:
+    """Return a compact provenance label for a formatter specification."""
+
+    if isinstance(formatter, str):
+        return formatter
+    stored_source = getattr(formatter, "__gena_expression_formatter_source__", None)
+    if stored_source is not None:
+        return str(stored_source)
+    module = getattr(formatter, "__module__", None)
+    qualname = getattr(formatter, "__qualname__", None)
+    if module and qualname:
+        return f"{module}.{qualname}"
+    return repr(formatter)
+
+
+def resolve_description_formatter(
+    formatter: DescriptionFormatterSpec,
+) -> ResolvedDescriptionFormatter:
+    """Resolve and adapt a user formatter to the internal one-mapping contract.
+
+    The metadata mapping is converted to a built-in ``dict`` and passed as the
+    first argument. Every additional fixed positional or keyword-only argument
+    receives ``None``. Variadic ``*args`` and ``**kwargs`` receive no invented
+    values.
+    """
+
+    if getattr(formatter, "__gena_expression_resolved_formatter__", False):
+        return formatter  # type: ignore[return-value]
+    if isinstance(formatter, str):
+        source = formatter
+        target = _load_static_description_formatter(formatter)
+    elif callable(formatter):
+        source = _description_formatter_source(formatter)
+        target = formatter
+    else:
+        raise TypeError(
+            "description_formatter must be a callable or a static-method reference string."
+        )
+
+    try:
+        signature = inspect.signature(target)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("Could not inspect the description formatter signature.") from exc
+
+    fixed_positional = [
+        parameter
+        for parameter in signature.parameters.values()
+        if parameter.kind
+        in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }
+    ]
+    if not fixed_positional:
+        raise TypeError(
+            "Description formatter must accept metadata as its first positional argument."
+        )
+    keyword_only = [
+        parameter.name
+        for parameter in signature.parameters.values()
+        if parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    ]
+    extra_positional_count = len(fixed_positional) - 1
+
+    @wraps(target)
+    def render(meta: Mapping[str, Any]) -> str:
+        result = target(
+            dict(meta),
+            *([None] * extra_positional_count),
+            **{name: None for name in keyword_only},
+        )
+        if not isinstance(result, str):
+            raise TypeError(
+                "Description formatter must return str, "
+                f"got {type(result).__name__}."
+            )
+        return result
+
+    render.__gena_expression_resolved_formatter__ = True  # type: ignore[attr-defined]
+    render.__gena_expression_formatter_source__ = source  # type: ignore[attr-defined]
+    return render
 
 
 @dataclass(frozen=True)
 class Condition:
     """Description and structured metadata used to condition a model."""
+
+    _description_formatter: ClassVar[ResolvedDescriptionFormatter | None] = None
+    _description_formatter_source: ClassVar[str | None] = None
 
     name: str
     description: str | Mapping[str, Any]
@@ -21,12 +185,52 @@ class Condition:
     tissue: str | None = None
     metadata: Mapping[str, Any] | None = None
 
+    @classmethod
+    def set_description_formatter(cls, formatter: DescriptionFormatterSpec | None) -> None:
+        """Set the description formatter for this Python runtime.
+
+        Passing ``None`` clears the runtime formatter. Models snapshot the
+        resolved callable when they are constructed.
+        """
+
+        if formatter is None:
+            cls.clear_description_formatter()
+            return
+        resolved = resolve_description_formatter(formatter)
+        cls._description_formatter = resolved
+        cls._description_formatter_source = _description_formatter_source(resolved)
+
+    @classmethod
+    def clear_description_formatter(cls) -> None:
+        """Clear the runtime formatter so structured descriptions fail fast."""
+
+        cls._description_formatter = None
+        cls._description_formatter_source = None
+
+    @classmethod
+    def get_description_formatter(cls) -> ResolvedDescriptionFormatter | None:
+        """Return the configured runtime formatter, if any."""
+
+        return cls._description_formatter
+
+    @classmethod
+    def get_description_formatter_source(cls) -> str | None:
+        """Return the provenance label for the runtime formatter, if any."""
+
+        return cls._description_formatter_source
+
     def text(self) -> str:
         """Return the exact natural-language text passed to the description tokenizer."""
 
         if isinstance(self.description, str):
             return self.description
-        return metadata_to_description(self.description)
+        formatter = self.get_description_formatter()
+        if formatter is None:
+            raise ValueError(
+                "No description formatter is configured. Call "
+                "Condition.set_description_formatter(...) first."
+            )
+        return formatter(self.description)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the condition to a JSON-friendly dictionary."""

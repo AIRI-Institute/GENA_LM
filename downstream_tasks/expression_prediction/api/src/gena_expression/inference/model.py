@@ -10,7 +10,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-from ..conditions import Condition, metadata_to_description
+from ..conditions import (
+    Condition,
+    DescriptionFormatterSpec,
+    ResolvedDescriptionFormatter,
+    resolve_description_formatter,
+)
 from ..config import (
     FULL_RETENTION,
     PredictionRetention,
@@ -54,9 +59,11 @@ class SequenceModel:
         device: str | None = None,
         output_names: Mapping[str, int | str] | None = None,
         provenance: Mapping[str, Any] | None = None,
+        description_formatter: DescriptionFormatterSpec | None = None,
     ) -> None:
         """Attach model runtime objects and configure centered tokenization."""
 
+        resolved_formatter = self._resolve_description_formatter(description_formatter)
         import torch
 
         self.logger = logging.getLogger(__name__)
@@ -71,6 +78,15 @@ class SequenceModel:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.output_names = dict(output_names or {"expression": 0, "track": 0, "atac": 0})
         self.provenance = dict(provenance or {})
+        self.description_formatter = resolved_formatter
+        self.provenance.setdefault(
+            "description_formatter",
+            getattr(
+                resolved_formatter,
+                "__gena_expression_formatter_source__",
+                repr(resolved_formatter),
+            ),
+        )
         self.centered_tokenizer = CenteredTokenizer(
             dna_tokenizer=self.dna_tokenizer,
             dna_max_seq_len=self.dna_max_seq_len,
@@ -98,12 +114,15 @@ class SequenceModel:
         num_before: int,
         device: str | None = None,
         output_names: Mapping[str, int | str] | None = None,
+        description_formatter: DescriptionFormatterSpec | None = None,
     ) -> "SequenceModel":
         """Load model class, Hydra config, checkpoint, and tokenizers.
 
         ``model_cls`` accepts either ``/path/to/file.py::ClassName`` as in the
         attached code, or an import path such as ``package.module::ClassName``.
         """
+
+        resolved_formatter = cls._resolve_description_formatter(description_formatter)
 
         import torch
         from hydra import compose, initialize_config_dir
@@ -187,6 +206,7 @@ class SequenceModel:
             num_before=num_before,
             device=device,
             output_names=output_names,
+            description_formatter=resolved_formatter,
             provenance={
                 **model_provenance,
                 "checkpoint": str(checkpoint_path),
@@ -197,20 +217,37 @@ class SequenceModel:
         )
 
     @staticmethod
-    def make_description(condition: Condition | str | Mapping[str, Any]) -> str:
-        """Return description text using the attached metadata sentence format."""
+    def _resolve_description_formatter(
+        formatter: DescriptionFormatterSpec | None,
+    ) -> ResolvedDescriptionFormatter:
+        """Resolve a per-model formatter or the explicitly configured runtime formatter."""
+
+        if formatter is None:
+            resolved = Condition.get_description_formatter()
+            if resolved is None:
+                raise ValueError(
+                    "No description formatter is configured. Pass "
+                    "description_formatter=... or call "
+                    "Condition.set_description_formatter(...)."
+                )
+            return resolved
+        return resolve_description_formatter(formatter)
+
+    def make_description(self, condition: Condition | str | Mapping[str, Any]) -> str:
+        """Render condition metadata with this model's snapshotted formatter."""
 
         if isinstance(condition, Condition):
-            return condition.text()
-        if isinstance(condition, str):
-            return condition
-        return metadata_to_description(condition)
+            description = condition.description
+        else:
+            description = condition
+        if isinstance(description, str):
+            return description
+        return self.description_formatter(description)
 
-    @staticmethod
-    def make_description_from_json(meta: Mapping[str, Any]) -> str:
-        """Compatibility alias for the attached benchmark helper name."""
+    def make_description_from_json(self, meta: Mapping[str, Any]) -> str:
+        """Render one metadata mapping with this model's formatter."""
 
-        return metadata_to_description(meta)
+        return self.description_formatter(meta)
 
     def _as_condition(self, condition: Condition | str | Mapping[str, Any]) -> Condition:
         """Normalize user condition input to a :class:`Condition`."""
@@ -625,7 +662,6 @@ class SequenceModel:
 
         expression_prediction = ExpressionPrediction(
             sequence=prediction.sequence if return_sequence else None,
-            sequence_name=prediction.sequence_name,
             condition=prediction.condition,
             logits=prediction.logits,
             outputs=prediction.outputs,
@@ -1144,7 +1180,6 @@ class SequenceModel:
                 )
                 prediction = Prediction(
                     sequence=tokenized.source if retention.sequence else None,
-                    sequence_name=tokenized.source.name,
                     condition=condition_list[idx],
                     logits=row_logits if retention.logits else None,
                     outputs=retained_outputs,
@@ -1583,11 +1618,10 @@ class SequenceModel:
 
         return tuple(int(value) for value in tokenized.input_ids.tolist())
 
-    @staticmethod
-    def _grouping_key_for_condition(condition: Condition) -> str:
+    def _grouping_key_for_condition(self, condition: Condition) -> str:
         """Return the exact condition text used for grouping and caching."""
 
-        return condition.text()
+        return self.make_description(condition)
 
     def _worker_tokenizer_config(self) -> dict[str, Any]:
         """Build serializable DNA-tokenizer configuration for workers."""
