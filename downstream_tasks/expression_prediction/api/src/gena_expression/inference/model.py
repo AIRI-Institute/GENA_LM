@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from .._import_utils import temporary_sys_path
 from ..conditions import (
     Condition,
     DescriptionFormatterSpec,
@@ -34,6 +35,7 @@ from .batching import (
     _progress,
     _thread_worker_init,
 )
+from .description import get_configured_description_formatter
 from .outputs import ExpressionPrediction, PairPrediction, Prediction, _simple_value
 from .tokenization import CenteredTokenizer, TokenizedSequence
 
@@ -122,7 +124,11 @@ class SequenceModel:
         attached code, or an import path such as ``package.module::ClassName``.
         """
 
-        resolved_formatter = cls._resolve_description_formatter(description_formatter)
+        config_path = Path(config).expanduser().resolve()
+        resolved_formatter = cls._resolve_description_formatter(
+            description_formatter,
+            config_path=config_path,
+        )
 
         import torch
         from hydra import compose, initialize_config_dir
@@ -132,20 +138,6 @@ class SequenceModel:
 
         logger = logging.getLogger(__name__)
         model_path_or_module, class_name = model_cls.split("::")
-
-        @contextmanager
-        def _temporary_sys_path(path: Path):
-            """Temporarily prepend a model directory to ``sys.path``."""
-
-            path_str = str(path)
-            added = path_str not in sys.path
-            if added:
-                sys.path.insert(0, path_str)
-            try:
-                yield
-            finally:
-                if added:
-                    sys.path.remove(path_str)
 
         def _load_model_class():
             """Load the configured model class from a file or module."""
@@ -159,7 +151,7 @@ class SequenceModel:
                     raise ImportError(f"Could not load module from {model_path}")
 
                 module = importlib.util.module_from_spec(spec)
-                with _temporary_sys_path(path=model_path.parent):
+                with temporary_sys_path(model_path.parent):
                     sys.modules[module_name] = module
                     spec.loader.exec_module(module)
 
@@ -177,7 +169,6 @@ class SequenceModel:
         logger.info("Loading model on %s", device)
         loaded_cls, model_provenance = _load_model_class()
 
-        config_path = Path(config)
         with initialize_config_dir(str(config_path.parents[0])):
             experiment_config = compose(config_name=config_path.name)
         model_kwargs = instantiate(experiment_config["model_kwargs"])
@@ -219,19 +210,28 @@ class SequenceModel:
     @staticmethod
     def _resolve_description_formatter(
         formatter: DescriptionFormatterSpec | None,
+        *,
+        config_path: str | Path | None = None,
     ) -> ResolvedDescriptionFormatter:
-        """Resolve a per-model formatter or the explicitly configured runtime formatter."""
+        """Resolve an explicit, runtime, or dataset-config formatter."""
 
-        if formatter is None:
-            resolved = Condition.get_description_formatter()
-            if resolved is None:
-                raise ValueError(
-                    "No description formatter is configured. Pass "
-                    "description_formatter=... or call "
-                    "Condition.set_description_formatter(...)."
-                )
-            return resolved
-        return resolve_description_formatter(formatter)
+        if formatter is not None:
+            return resolve_description_formatter(formatter)
+
+        runtime_formatter = Condition.get_description_formatter()
+        if runtime_formatter is not None:
+            return runtime_formatter
+
+        if config_path is not None:
+            configured_formatter = get_configured_description_formatter(config_path)
+            return resolve_description_formatter(configured_formatter)
+
+        raise ValueError(
+            "No description formatter is configured. Pass "
+            "description_formatter=..., call "
+            "Condition.set_description_formatter(...), or construct the model "
+            "with SequenceModel.load(...) so its dataset config can be inspected."
+        )
 
     def make_description(self, condition: Condition | str | Mapping[str, Any]) -> str:
         """Render condition metadata with this model's snapshotted formatter."""

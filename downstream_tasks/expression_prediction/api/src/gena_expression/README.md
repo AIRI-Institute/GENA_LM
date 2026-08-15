@@ -112,7 +112,7 @@ The package root re-exports the following names from `gena_expression`:
 | Retention | `PredictionRetention`, `ScoringRetention`, `RetentionPolicy`, `RetentionMode`, `RetainedDataError`, `FULL_RETENTION`, `SCALAR_RETENTION`, `get_retention_policy`, `set_retention_mode`, `set_retention_policy`, `retention_mode` |
 | Sequences and variants | `Feature`, `SourceCoordinate`, `CoordinateSegment`, `CoordinateMap`, `AnnotatedSequence`, `SequencePair`, `Variant` |
 | Tracks | `Track`, `TrackPrediction` |
-| Contexts | `Context`, `Genome`, `GenomeContext`, `GenomeInterval`, `GenomeRegion`, `SafeHarborSite`, `FeatureMatch`, `PlasmidMetadata`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, `infer_table18_primer_tails` |
+| dna | `Context`, `Genome`, `GenomeContext`, `GenomeInterval`, `GenomeRegion`, `SafeHarborSite`, `FeatureMatch`, `PlasmidMetadata`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, `infer_table18_primer_tails` |
 | Inference | `CenteredTokenizer`, `TokenizedSequence`, `SequenceModel`, `Prediction`, `ExpressionPrediction`, `PairPrediction` |
 | Scoring | `VariantInterpreter`, `ExpressionScorer`, `ExpressionDeltaScorer`, `TokenWindowScorer`, `TrackWindowScorer`, `TrackEffectPeakScorer`, `TrackFeatureScorer`, `TrackAllFeaturesScorer`, `TrackFeatureBuilder`, `RegressionScorer`, `ScorerSet`, `ScoreWindow`, `DisplayWindow`, `ResultIdentity`, `PredictionScoringResult`, `ScoringResult`, `PredictionReport`, `VariantReport` |
 | Workflows | `ISM`, `SequenceOptimizer` |
@@ -158,7 +158,10 @@ Methods:
 
 | Method | Arguments and result | Used elsewhere |
 | --- | --- | --- |
-| `text()` | Returns `description` unchanged when it is a string; otherwise calls `metadata_to_description()`. | `SequenceModel` uses this text for tokenization, condition grouping, and description caching. |
+| `set_description_formatter(formatter)` | Configure a callable or `"/path/file.py::ClassName::static_method"` for this Python runtime. `None` clears it. | Models use this runtime override when no per-model formatter is supplied. |
+| `clear_description_formatter()` | Clear the runtime formatter. | Structured descriptions then fail until a formatter is configured. |
+| `get_description_formatter()` | Return the resolved runtime formatter, or `None`. | `SequenceModel` snapshots it during construction. |
+| `text()` | Returns `description` unchanged when it is a string; otherwise uses the configured runtime formatter. | Standalone condition rendering. Model inference uses the model's snapshotted formatter. |
 | `to_dict()` | Returns all constructor fields in a JSON-friendly dictionary; `metadata=None` becomes `{}`. | `Prediction.to_dict()` includes it. |
 
 ### `metadata_to_description(meta)`
@@ -166,8 +169,27 @@ Methods:
 Converts each mapping entry, in mapping iteration order, to a sentence of the
 form `"<clean key> is <clean value>."`. Underscores become spaces, quotes are
 removed from values, square brackets are removed from keys, and several
-leading metadata prefixes are stripped. `SequenceModel.make_description()` and
-`Condition.text()` both use this function.
+leading metadata prefixes are stripped. This function remains available for
+explicit use, but is not installed as an implicit default.
+
+Standalone `Condition.text()` calls with structured descriptions require runtime
+configuration:
+
+```python
+Condition.set_description_formatter(my_callable)
+
+Condition.set_description_formatter(
+    "/path/to/dataset_file.py::DatasetDescriptions::make_description_from_json"
+)
+```
+
+For model inference, a formatter can instead be supplied directly to
+`SequenceModel`. When `SequenceModel.load()` receives neither a per-model nor a
+runtime formatter, it loads `make_description_from_json` from the dataset class
+selected by the model config. Formatter callables always receive a built-in
+`dict` first. Every additional fixed positional or keyword-only parameter
+receives `None`; variadic parameters do not receive invented values. The
+callable must return `str`.
 
 ### `DescriptionLookup`
 

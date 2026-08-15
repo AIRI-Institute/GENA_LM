@@ -196,7 +196,7 @@ SequenceModel(
 | `device` | Explicit PyTorch device string. `None` selects `"cuda"` when available, otherwise `"cpu"`. |
 | `output_names` | Copied output-name mapping. Default is `{"expression": 0, "track": 0, "atac": 0}`. Current expression/track access uses fixed prediction conventions rather than indexing through this mapping. |
 | `provenance` | Base metadata copied into retained prediction provenance and used as a tokenizer-path fallback for process workers. |
-| `description_formatter` | Callable or `"/path/file.py::ClassName::static_method"`. `None` uses the formatter explicitly configured by `Condition.set_description_formatter()`; construction raises if neither exists. |
+| `description_formatter` | Callable or `"/path/file.py::ClassName::static_method"`. `None` uses the formatter explicitly configured by `Condition.set_description_formatter()`; direct construction raises if none exists because it has no dataset config to inspect. |
 
 ### `SequenceModel.load(...)`
 
@@ -224,12 +224,24 @@ SequenceModel.load(
 | `checkpoint` | `.tensors` loads with `safetensors.torch.load_file`; any other suffix loads through `torch.load(..., weights_only=True)`. |
 | `config` | Hydra config file. The code composes its file name from its parent directory and instantiates `experiment_config["model_kwargs"]`. |
 | `dna_tokenizer`, `description_tokenizer` | Paths/names passed to `AutoTokenizer.from_pretrained()`. The description tokenizer is loaded with left padding. |
-| `description_formatter` | Per-model formatter specification. `None` uses the current `Condition` runtime formatter. No implicit metadata formatter is installed. |
+| `description_formatter` | Per-model formatter specification. `None` uses the current `Condition` runtime formatter, then falls back to `make_description_from_json` on the dataset class selected by `config`. |
 | Remaining keyword arguments | Same runtime/tokenization meanings as the direct constructor. |
 
 The method constructs the model class with the instantiated `model_kwargs`,
 loads its state dictionary, builds tokenizers, records paths/class information
 as provenance, and delegates to the constructor.
+
+Description formatters are resolved in this order: the explicit
+`description_formatter`, the current `Condition` runtime formatter, then the
+configured dataset class. The final fallback reads the first
+`train_dataset_*` entry, or the first `valid_dataset_*` entry when no training
+entry exists, and imports its `*target*` through `hydra.utils.get_class()`
+without constructing the dataset. During that import,
+`${GENALM_HOME}/GENA_LM` is temporarily prepended to `sys.path`. A missing
+environment variable, directory, dataset config, target, or callable
+`make_description_from_json` raises before checkpoint loading. The selected
+formatter is retained only by the new model and does not mutate `Condition`
+runtime state.
 
 Dependencies used by `load()` are PyTorch, Hydra, Safetensors, and Transformers.
 
