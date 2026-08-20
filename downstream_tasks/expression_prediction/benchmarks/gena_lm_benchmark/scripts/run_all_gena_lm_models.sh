@@ -11,18 +11,23 @@ CELL_SET="$1"
 GPU_ID="$2"
 BATCH_SIZE="${3:-256}"
 
-TASK_ROOT="${TASK_ROOT:-/home/jovyan/dpanc/benchmarking/GENA_LM}"
-GENA_HOME="${GENA_HOME:-/home/jovyan/dpanc/GENA_LM/GENA_LM_expression_branch}"
-RUN_ONE="$GENA_HOME/downstream_tasks/expression_prediction/gena_lm_benchmark/scripts/run_gena_lm_model_inference.sh"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+GENA_HOME="${GENA_HOME:-$(cd "$SCRIPT_DIR/../../../../.." && pwd)}"
+TASK_ROOT="${TASK_ROOT:-$GENA_HOME}"
+RUN_ONE="$GENA_HOME/downstream_tasks/expression_prediction/benchmarks/gena_lm_benchmark/scripts/run_gena_lm_model_inference.sh"
 LOG_DIR="$TASK_ROOT/outputs/logs"
 
 MODELS=(
+  ATAC
+  all_datasets
+  all_datasets2
   all_datasets_2
-  decoder
   dev_loss
+  full_model
   glioma
   len_2048
-  modernbert_large
+  mult_loss
+  xlarge
 )
 
 SPLITS=(

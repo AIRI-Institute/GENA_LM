@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument(
         "--data-root",
         default=str(DEFAULT_DATA_ROOT),
-        help="Folder with human.valid/test.forward/reverse.csv and hg38.fna",
+        help="Folder with mouse.valid/test.forward/reverse.csv and mm10.fa",
     )
     parser.add_argument(
         "--experiment-config",
@@ -59,7 +59,7 @@ def parse_args():
         "--split",
         choices=["valid", "test"],
         default="valid",
-        help="Use human.<split>.forward/reverse.csv",
+        help="Use mouse.<split>.forward/reverse.csv",
     )
     parser.add_argument("--forward-intervals", default=None)
     parser.add_argument("--reverse-intervals", default=None)
@@ -110,12 +110,12 @@ def main():
     )
     json_dir = Path(args.json_dir) if args.json_dir else (task_root / "json_runs/json_14")
     forward_intervals = Path(args.forward_intervals) if args.forward_intervals else (
-        data_root / f"human.{args.split}.forward.csv"
+        data_root / f"mouse.{args.split}.forward.csv"
     )
     reverse_intervals = Path(args.reverse_intervals) if args.reverse_intervals else (
-        data_root / f"human.{args.split}.reverse.csv"
+        data_root / f"mouse.{args.split}.reverse.csv"
     )
-    genome_path = Path(args.genome) if args.genome else (data_root / "hg38.fna")
+    genome_path = Path(args.genome) if args.genome else (data_root / "mm10.fa")
     output_path = Path(args.output) if args.output else (
         task_root / "outputs" / f"gena_lm_{args.split}_{json_dir.name}_predictions.csv"
     )

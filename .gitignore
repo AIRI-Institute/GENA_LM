@@ -93,3 +93,26 @@ downstream_tasks/expression_prediction/test.*
 downstream_tasks/expression_prediction/shift_expression_checks/*.csv
 downstream_tasks/expression_prediction/*minja*
 downstream_tasks/expression_prediction/configs/*minja*
+
+# Local expression benchmark assets and generated outputs
+/models/
+/json_runs/
+/predictions_results/
+/predictions_results_mm10/
+/AlphaGenome/
+/outputs/
+/cache/
+
+# Large ground-truth matrices kept locally under data/
+/data/test_true_*.csv
+/data/valid_true_*.csv
+/data/true_*_all_genes*.csv
+/data/*qnorm_matrix*.csv
+
+# AlphaGenome/GENA-LM benchmark runtime artifacts
+/downstream_tasks/expression_prediction/benchmarks/alphagenome_benchmark/logs/
+/downstream_tasks/expression_prediction/benchmarks/gena_lm_benchmark/logs/
+/downstream_tasks/expression_prediction/benchmarks/alphagenome_benchmark/data/encode_metadata_cache*.json
+/downstream_tasks/expression_prediction/benchmarks/alphagenome_benchmark/**/checkpoint*.csv
+/downstream_tasks/expression_prediction/benchmarks/alphagenome_benchmark/**/*predictions*.csv
+/downstream_tasks/expression_prediction/benchmarks/gena_lm_benchmark/**/*predictions*.csv

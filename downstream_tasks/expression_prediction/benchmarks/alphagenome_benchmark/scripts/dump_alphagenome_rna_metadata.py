@@ -28,7 +28,7 @@ def main() -> int:
         raise SystemExit(f"Set {args.api_key_env} before running this script.")
 
     model = dna_client.create(api_key)
-    metadata = model.output_metadata(organism=dna_client.Organism.HOMO_SAPIENS)
+    metadata = model.output_metadata(organism=dna_client.Organism.MUS_MUSCULUS)
     rna_seq = metadata.rna_seq
     if rna_seq is None:
         raise SystemExit("AlphaGenome returned no RNA-seq metadata.")

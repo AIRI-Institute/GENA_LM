@@ -1,3 +1,5 @@
+import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -10,10 +12,24 @@ sys.path.insert(0, str(SCRIPT_DIR))
 from score_ct_specificity import score_predictions
 
 
-TRUE_PATH = Path("/home/biophysinf/DashaP/benchmarking/AlphaGenome/data/borzoi_all_ids_qnorm_matrix.csv")
-PRED_PATH = Path("/scratch/biophysinf-alphagenome/alphagenome_benchmark_results_02062026/alphagenome_predictions_test_intervals.tsv")
-SELECTED_TARGETS = Path("/home/biophysinf/DashaP/benchmarking/data/selected_targets.csv")
-OUT_PATH = Path("/home/biophysinf/DashaP/benchmarking/AlphaGenome/benchmark_outputs/simple_alphagenome_benchmark_summary.csv")
+REPO_ROOT = Path(__file__).resolve().parents[5]
+BENCHMARK_ROOT = Path(os.environ.get("BENCHMARK_ROOT", REPO_ROOT))
+DATA_ROOT = Path(os.environ.get("DATA_ROOT", REPO_ROOT / "data"))
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--true", default=DATA_ROOT / "borzoi_all_ids_qnorm_matrix.csv")
+parser.add_argument("--pred", required=True, help="AlphaGenome prediction CSV/TSV")
+parser.add_argument("--selected-targets", default=DATA_ROOT / "selected_targets.csv")
+parser.add_argument(
+    "--out",
+    default=BENCHMARK_ROOT / "AlphaGenome/benchmark_outputs/simple_alphagenome_benchmark_summary.csv",
+)
+args = parser.parse_args()
+
+TRUE_PATH = Path(args.true)
+PRED_PATH = Path(args.pred)
+SELECTED_TARGETS = Path(args.selected_targets)
+OUT_PATH = Path(args.out)
 
 split_name = "test"
 prediction_functions_name = "intervals"
