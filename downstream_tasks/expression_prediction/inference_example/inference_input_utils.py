@@ -144,6 +144,7 @@ def prepare_descriptions_from_json_dir(
     text_max_seq_len: int,
     cache_dir: str,
     repeat_to_num_genes: Optional[int] = None,
+    dataset_cls=ExpressionDataset,
 ) -> Tuple[OrderedDict, Dict[str, Dict[str, torch.Tensor]], str]:
     text_tokenizer = _ensure_tokenizer(text_tokenizer)
     json_dir_path = Path(json_dir).expanduser().resolve()
@@ -153,7 +154,8 @@ def prepare_descriptions_from_json_dir(
     json_files = _iter_json_files(json_dir_path)
     json_signature = _json_folder_signature(json_dir_path, json_files)
     desc_hash = _hash_string(
-        [json_signature, _tokenizer_tag(text_tokenizer), str(text_max_seq_len)]
+        [json_signature, _tokenizer_tag(text_tokenizer), str(text_max_seq_len),
+         dataset_cls.__name__]
     )
     cache_path = cache_dir_path / (
         f"{json_dir_path.name}.{desc_hash}.{_tokenizer_tag(text_tokenizer)}."
@@ -165,7 +167,7 @@ def prepare_descriptions_from_json_dir(
         with open(json_path, "r", encoding="utf-8") as handle:
             meta = json.load(handle)
         experiment_name = _experiment_name(json_path, json_dir_path)
-        experiments[experiment_name] = ExpressionDataset.make_description_from_json(
+        experiments[experiment_name] = dataset_cls.make_description_from_json(
             meta=meta,
             description_id=experiment_name,
             meta_path=str(json_path),
@@ -254,6 +256,7 @@ def _tokenize_single_interval_file_like_dataset(
     num_before: int,
     token_len_for_fetch: int,
     loglevel: int,
+    dataset_cls=ExpressionDataset,
 ) -> Tuple[pd.DataFrame, Path]:
     genes = _load_single_interval_records(intervals_path, strand)
     _ensure_unique_gene_ids(genes)
@@ -278,7 +281,7 @@ def _tokenize_single_interval_file_like_dataset(
         return genes.reset_index(drop=True), cache_path
 
     gene_records = _build_gene_records(genes)
-    proxy = ExpressionDataset.__new__(ExpressionDataset)
+    proxy = dataset_cls.__new__(dataset_cls)
     proxy.logger = LOGGER
     proxy.logger.setLevel(loglevel)
     proxy.gen_tokenizer = gen_tokenizer
@@ -294,7 +297,7 @@ def _tokenize_single_interval_file_like_dataset(
             h5f.attrs["gene_order"] = json.dumps([record["gene_id"] for record in gene_records])
             for idx, record in enumerate(gene_records):
                 gene_id = record["gene_id"]
-                _, tokens_df = ExpressionDataset.tokenize_genome(proxy, idx)
+                _, tokens_df = dataset_cls.tokenize_genome(proxy, idx)
                 group = h5f.create_group(gene_id)
                 group.create_dataset(
                     "input_ids",
@@ -330,6 +333,7 @@ def tokenize_interval_genes_like_dataset(
     num_before: int = 512,
     token_len_for_fetch: int = 10,
     loglevel: int = logging.WARNING,
+    dataset_cls=ExpressionDataset,
 ) -> Tuple[OrderedDict, Dict[str, torch.Tensor], Dict[str, str]]:
     gen_tokenizer = _ensure_tokenizer(gen_tokenizer)
     forward_path = Path(forward_intervals_path).expanduser().resolve()
@@ -348,6 +352,7 @@ def tokenize_interval_genes_like_dataset(
         num_before=num_before,
         token_len_for_fetch=token_len_for_fetch,
         loglevel=loglevel,
+        dataset_cls=dataset_cls,
     )
     frames = [forward_genes]
     cache_paths: Dict[str, str] = {"forward": str(forward_cache_path)}
@@ -363,6 +368,7 @@ def tokenize_interval_genes_like_dataset(
             num_before=num_before,
             token_len_for_fetch=token_len_for_fetch,
             loglevel=loglevel,
+            dataset_cls=dataset_cls,
         )
         frames.append(reverse_genes)
         cache_paths["reverse"] = str(reverse_cache_path)
@@ -433,6 +439,7 @@ def prepare_inference_inputs_from_intervals(
     num_before: int = 512,
     token_len_for_fetch: int = 10,
     loglevel: int = logging.WARNING,
+    dataset_cls=ExpressionDataset,
 ) -> Dict[str, Any]:
     genes, tokenized_dna, gene_cache_paths = tokenize_interval_genes_like_dataset(
         forward_intervals_path=forward_intervals_path,
@@ -444,6 +451,7 @@ def prepare_inference_inputs_from_intervals(
         num_before=num_before,
         token_len_for_fetch=token_len_for_fetch,
         loglevel=loglevel,
+        dataset_cls=dataset_cls,
     )
 
     experiments, tokenized_descriptions, description_cache_path = prepare_descriptions_from_json_dir(
@@ -452,6 +460,7 @@ def prepare_inference_inputs_from_intervals(
         text_max_seq_len=text_max_seq_len,
         cache_dir=cache_dir,
         repeat_to_num_genes=len(genes),
+        dataset_cls=dataset_cls,
     )
 
     return {
