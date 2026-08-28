@@ -17,7 +17,7 @@ BS=2
 NP=2
 GAS=$(( TBS / (BS * NP) ))  
 
-config_name="glioma"
+config_name="final_02062026_dev"
 
 GENALM_HOME=$(realpath ..) accelerate launch \
   --main_process_port 29515 \

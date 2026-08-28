@@ -1,0 +1,379 @@
+{
+    "CL:0000037 total RNA-seq": [
+        "ENCFF505YKR",
+        "ENCFF995CGM"
+    ],
+    "CL:0000038 total RNA-seq": [
+        "ENCFF994JUZ"
+    ],
+    "CL:0000049 total RNA-seq": [
+        "ENCFF137ITG",
+        "ENCFF762ZUL"
+    ],
+    "CL:0000050 polyA plus RNA-seq": [
+        "ENCFF452SKY"
+    ],
+    "CL:0000050 total RNA-seq": [
+        "ENCFF632TZR",
+        "ENCFF958VDY"
+    ],
+    "CL:0000187 polyA plus RNA-seq": [
+        "ENCFF208FJA"
+    ],
+    "CL:0000553 total RNA-seq": [
+        "ENCFF158VAH"
+    ],
+    "CL:0000556 polyA plus RNA-seq": [
+        "ENCFF393MOV"
+    ],
+    "CL:0000556 total RNA-seq": [
+        "ENCFF175MIE"
+    ],
+    "CL:0000557 total RNA-seq": [
+        "ENCFF500LGH",
+        "ENCFF684UPU"
+    ],
+    "CL:0000576 total RNA-seq": [
+        "ENCFF646DKD"
+    ],
+    "CL:0000765 polyA plus RNA-seq": [
+        "ENCFF341YQI"
+    ],
+    "CL:0000765 total RNA-seq": [
+        "ENCFF620TBP"
+    ],
+    "CL:0000775 total RNA-seq": [
+        "ENCFF837HZG"
+    ],
+    "CL:0000837 polyA plus RNA-seq": [
+        "ENCFF804IHU"
+    ],
+    "EFO:0001098 polyA plus RNA-seq": [
+        "ENCFF333OSU"
+    ],
+    "EFO:0002034 polyA plus RNA-seq": [
+        "ENCFF088ENG",
+        "ENCFF465SZB"
+    ],
+    "EFO:0002034 total RNA-seq": [
+        "ENCFF122LNJ",
+        "ENCFF939MTI"
+    ],
+    "EFO:0002055 polyA plus RNA-seq": [
+        "ENCFF277LVK",
+        "ENCFF396MRH",
+        "ENCFF449UIB",
+        "ENCFF566QKL",
+        "ENCFF610IML",
+        "ENCFF951KYQ",
+        "ENCFF977JQX"
+    ],
+    "EFO:0002816 polyA plus RNA-seq": [
+        "ENCFF248HSB",
+        "ENCFF649QID"
+    ],
+    "EFO:0003971 polyA plus RNA-seq": [
+        "ENCFF018JOM",
+        "ENCFF446VXU"
+    ],
+    "EFO:0003971 total RNA-seq": [
+        "ENCFF082TDF",
+        "ENCFF481CYN"
+    ],
+    "EFO:0005233 polyA plus RNA-seq": [
+        "ENCFF343FPR"
+    ],
+    "EFO:0005233 total RNA-seq": [
+        "ENCFF203XTH",
+        "ENCFF465NLB"
+    ],
+    "EFO:0005481 polyA plus RNA-seq": [
+        "ENCFF802XAM"
+    ],
+    "EFO:0007075 total RNA-seq": [
+        "ENCFF723BLL"
+    ],
+    "NTR:0000646 polyA plus RNA-seq": [
+        "ENCFF591CHX"
+    ],
+    "NTR:0000646 total RNA-seq": [
+        "ENCFF035HTU",
+        "ENCFF053CZM",
+        "ENCFF137FUZ",
+        "ENCFF146UOV",
+        "ENCFF199BPA",
+        "ENCFF202MZQ",
+        "ENCFF276ZLR",
+        "ENCFF296ORN",
+        "ENCFF299MCL",
+        "ENCFF417DBE",
+        "ENCFF501MKJ",
+        "ENCFF701BYJ",
+        "ENCFF705DKZ",
+        "ENCFF750MYZ",
+        "ENCFF918LVU",
+        "ENCFF991WFR"
+    ],
+    "NTR:0000714 polyA plus RNA-seq": [
+        "ENCFF981RRV"
+    ],
+    "UBERON:0000059 polyA plus RNA-seq": [
+        "ENCFF374JUW"
+    ],
+    "UBERON:0000160 polyA plus RNA-seq": [
+        "ENCFF343CIJ",
+        "ENCFF671ZUE",
+        "ENCFF844OSS",
+        "ENCFF878QRN"
+    ],
+    "UBERON:0000473 polyA plus RNA-seq": [
+        "ENCFF077YNA",
+        "ENCFF737EKM"
+    ],
+    "UBERON:0000945 polyA plus RNA-seq": [
+        "ENCFF489JNP",
+        "ENCFF657AXS",
+        "ENCFF805NXA",
+        "ENCFF928ZEZ"
+    ],
+    "UBERON:0000948 polyA plus RNA-seq": [
+        "ENCFF059JNC",
+        "ENCFF062YMQ",
+        "ENCFF077ZPD",
+        "ENCFF280GYQ",
+        "ENCFF398DLX",
+        "ENCFF604PRU",
+        "ENCFF719HZQ",
+        "ENCFF886PZI",
+        "ENCFF928ETD",
+        "ENCFF939SSR"
+    ],
+    "UBERON:0000948 total RNA-seq": [
+        "ENCFF028BFD",
+        "ENCFF058KQX",
+        "ENCFF213YQE",
+        "ENCFF265DFI",
+        "ENCFF266NLF",
+        "ENCFF329YRR",
+        "ENCFF433CQU",
+        "ENCFF441NLP",
+        "ENCFF446JRM",
+        "ENCFF528PTS",
+        "ENCFF616BJV",
+        "ENCFF681EGX",
+        "ENCFF712IHA",
+        "ENCFF871DXO",
+        "ENCFF913LOM",
+        "ENCFF927HGO",
+        "ENCFF996FYH"
+    ],
+    "UBERON:0000955 polyA plus RNA-seq": [
+        "ENCFF275BPC",
+        "ENCFF562NCC"
+    ],
+    "UBERON:0000992 polyA plus RNA-seq": [
+        "ENCFF105IYD",
+        "ENCFF499EED"
+    ],
+    "UBERON:0001013 polyA plus RNA-seq": [
+        "ENCFF146UAB"
+    ],
+    "UBERON:0001017 polyA plus RNA-seq": [
+        "ENCFF128EIE",
+        "ENCFF147QET",
+        "ENCFF200UVS"
+    ],
+    "UBERON:0001049 polyA plus RNA-seq": [
+        "ENCFF043CYS",
+        "ENCFF344DUK",
+        "ENCFF544EQE",
+        "ENCFF621WSA",
+        "ENCFF629YWF",
+        "ENCFF979LAQ"
+    ],
+    "UBERON:0001255 polyA plus RNA-seq": [
+        "ENCFF924JLI"
+    ],
+    "UBERON:0001388 total RNA-seq": [
+        "ENCFF019GOC",
+        "ENCFF058OVM",
+        "ENCFF252ZGC",
+        "ENCFF311DDU",
+        "ENCFF410PYN",
+        "ENCFF517JON",
+        "ENCFF556TDA",
+        "ENCFF582BEW",
+        "ENCFF603KFA",
+        "ENCFF627HVE",
+        "ENCFF697FVP",
+        "ENCFF740WZT",
+        "ENCFF869ZPV",
+        "ENCFF904LTP",
+        "ENCFF914GKM",
+        "ENCFF966OLS"
+    ],
+    "UBERON:0001870 polyA plus RNA-seq": [
+        "ENCFF072FBP"
+    ],
+    "UBERON:0001890 polyA plus RNA-seq": [
+        "ENCFF030KGD",
+        "ENCFF264AYX",
+        "ENCFF362XNO",
+        "ENCFF500BMU",
+        "ENCFF733BKS",
+        "ENCFF752EBM",
+        "ENCFF757OFF",
+        "ENCFF982DHB"
+    ],
+    "UBERON:0001890 total RNA-seq": [
+        "ENCFF760YQJ"
+    ],
+    "UBERON:0001891 polyA plus RNA-seq": [
+        "ENCFF086TGR",
+        "ENCFF168IHR",
+        "ENCFF269IKY",
+        "ENCFF507HXX",
+        "ENCFF616GSP",
+        "ENCFF654PLC",
+        "ENCFF873ZQW",
+        "ENCFF962WGQ"
+    ],
+    "UBERON:0001891 total RNA-seq": [
+        "ENCFF398QVK"
+    ],
+    "UBERON:0001911 polyA plus RNA-seq": [
+        "ENCFF102NZC"
+    ],
+    "UBERON:0001987 polyA plus RNA-seq": [
+        "ENCFF374ZNE"
+    ],
+    "UBERON:0002028 polyA plus RNA-seq": [
+        "ENCFF053MDK",
+        "ENCFF108KAM",
+        "ENCFF154XHV",
+        "ENCFF400ONZ",
+        "ENCFF414FET",
+        "ENCFF788PBH",
+        "ENCFF837JTB",
+        "ENCFF912YVY"
+    ],
+    "UBERON:0002028 total RNA-seq": [
+        "ENCFF983VMB"
+    ],
+    "UBERON:0002037 polyA plus RNA-seq": [
+        "ENCFF413PHM"
+    ],
+    "UBERON:0002048 polyA plus RNA-seq": [
+        "ENCFF011XNK",
+        "ENCFF151XGX",
+        "ENCFF196XDY",
+        "ENCFF608JDQ",
+        "ENCFF630KND",
+        "ENCFF653RJL"
+    ],
+    "UBERON:0002101 polyA plus RNA-seq": [
+        "ENCFF080WUQ",
+        "ENCFF198MOG",
+        "ENCFF459OJB",
+        "ENCFF604FAD",
+        "ENCFF653RIM",
+        "ENCFF769IIX",
+        "ENCFF781QXU"
+    ],
+    "UBERON:0002106 polyA plus RNA-seq": [
+        "ENCFF226UNW",
+        "ENCFF343WAE",
+        "ENCFF966PFP"
+    ],
+    "UBERON:0002107 polyA plus RNA-seq": [
+        "ENCFF133CSN",
+        "ENCFF172VMD",
+        "ENCFF410RXW",
+        "ENCFF485XIX",
+        "ENCFF580MOK",
+        "ENCFF589KZQ",
+        "ENCFF657JSS",
+        "ENCFF764VNF",
+        "ENCFF803RQK",
+        "ENCFF813BEO",
+        "ENCFF819GNG",
+        "ENCFF975MMK"
+    ],
+    "UBERON:0002108 polyA plus RNA-seq": [
+        "ENCFF458UBO",
+        "ENCFF768RMV"
+    ],
+    "UBERON:0002113 polyA plus RNA-seq": [
+        "ENCFF009KUL",
+        "ENCFF142YNH",
+        "ENCFF334PFP",
+        "ENCFF501IOH",
+        "ENCFF895NAR"
+    ],
+    "UBERON:0002114 polyA plus RNA-seq": [
+        "ENCFF070EOB"
+    ],
+    "UBERON:0002190 polyA plus RNA-seq": [
+        "ENCFF157LZL"
+    ],
+    "UBERON:0002305 polyA plus RNA-seq": [
+        "ENCFF290AKR"
+    ],
+    "UBERON:0002305 total RNA-seq": [
+        "ENCFF005TUM",
+        "ENCFF016QYQ",
+        "ENCFF165PCY",
+        "ENCFF182XXS",
+        "ENCFF259TYF",
+        "ENCFF279AJU",
+        "ENCFF387PCB",
+        "ENCFF612WTX",
+        "ENCFF713VQZ",
+        "ENCFF750EZH",
+        "ENCFF813YZW",
+        "ENCFF822CVI",
+        "ENCFF918JDF",
+        "ENCFF932HKK"
+    ],
+    "UBERON:0002369 polyA plus RNA-seq": [
+        "ENCFF148NWW",
+        "ENCFF399BIJ",
+        "ENCFF443FFT"
+    ],
+    "UBERON:0002369 total RNA-seq": [
+        "ENCFF036WYD",
+        "ENCFF135EIP",
+        "ENCFF293NAT",
+        "ENCFF394XTN",
+        "ENCFF456HBG",
+        "ENCFF576RKY",
+        "ENCFF580ZUW",
+        "ENCFF603CNN",
+        "ENCFF605HBO",
+        "ENCFF624XXP",
+        "ENCFF694VTC",
+        "ENCFF724PBG",
+        "ENCFF753LQL",
+        "ENCFF809NMT",
+        "ENCFF843DCX",
+        "ENCFF941NIM"
+    ],
+    "UBERON:0002370 polyA plus RNA-seq": [
+        "ENCFF160YFD",
+        "ENCFF390QLK"
+    ],
+    "UBERON:0003428 polyA plus RNA-seq": [
+        "ENCFF536TZT"
+    ],
+    "UBERON:0005343 polyA plus RNA-seq": [
+        "ENCFF318LQN"
+    ],
+    "UBERON:0012314 polyA plus RNA-seq": [
+        "ENCFF130UDT",
+        "ENCFF397BRZ",
+        "ENCFF598WYM",
+        "ENCFF683BNI",
+        "ENCFF758PZK",
+        "ENCFF777TMP"
+    ]
+}
