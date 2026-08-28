@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import torch
 from borzoi_pytorch import Borzoi
+from borzoi_pytorch.pytorch_borzoi_transformer import get_positional_embed
 from pyfaidx import Fasta
 from tqdm import tqdm
 
@@ -33,10 +34,15 @@ TPM_TO_TARGETS_TRACK = {
 @dataclass
 class Paths:
     borzoi_dir: Path
+    species: str
+    genome_name: str
     fasta_path: Path
     targets_file: Path
     annot_gtf: Path
     file_mappings_dir: Path
+    qnorm_target_map_file: Path
+    intersection_file: Path
+    intervals_prefix: str
 
 
 @dataclass
@@ -58,6 +64,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("model_variant", choices=["borzoi", "flashzoi"])
     parser.add_argument("split", choices=["valid", "test"])
+    parser.add_argument(
+        "--species",
+        choices=["human", "mouse"],
+        default="human",
+        help="Genome/species preset to use for intervals, FASTA, GTF, targets, and qnorm map.",
+    )
     parser.add_argument(
         "--replicates",
         type=int,
@@ -82,6 +94,34 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         default=None,
         help="Directory where per-replicate prediction CSVs will be saved.",
+    )
+    parser.add_argument(
+        "--targets-file",
+        default=None,
+        help="Override Borzoi targets file. Defaults to targets_human.txt or targets_mouse.txt in --borzoi-dir.",
+    )
+    parser.add_argument(
+        "--qnorm-target-map",
+        default=None,
+        help="Override qnorm id to Borzoi target map CSV.",
+    )
+    parser.add_argument(
+        "--fasta-path",
+        default=None,
+        help="Override genome FASTA path.",
+    )
+    parser.add_argument(
+        "--annot-gtf",
+        default=None,
+        help="Override annotation GTF path.",
+    )
+    parser.add_argument(
+        "--intervals-prefix",
+        default=None,
+        help=(
+            "Override interval prefix before '{split}.{strand}.csv'. "
+            "Defaults to <borzoi-dir>/human. for human and <expr_prediction_dir>/intervals/mouse. for mouse."
+        ),
     )
     parser.add_argument(
         "--device",
@@ -122,13 +162,47 @@ def build_paths(args: argparse.Namespace) -> Paths:
 
     expr_prediction_dir = borzoi_dir.parent.parent
     datasets_data_dir = expr_prediction_dir / "datasets" / "data"
+    species_defaults = {
+        "human": {
+            "genome_name": "hg38",
+            "targets_file": borzoi_dir / "targets_human.txt",
+            "annot_gtf": borzoi_dir / "gencode.v29.primary_assembly.annotation_UCSC_names.gtf.gz",
+            "qnorm_target_map_file": borzoi_dir / "qnorm_id_to_targets_map.csv",
+            "intersection_file": borzoi_dir / "qnorm_targets_human_intersection.csv",
+            "intervals_prefix": str(expr_prediction_dir / "intervals" / "human."),
+        },
+        "mouse": {
+            "genome_name": "mm10",
+            "targets_file": borzoi_dir / "targets_mouse.txt",
+            "annot_gtf": datasets_data_dir
+            / "genomes"
+            / "mm10"
+            / "gencode.vM21.primary_assembly.annotation_UCSC_names.gtf.gz",
+            "qnorm_target_map_file": borzoi_dir / "qnorm_id_to_targets_map_mouse.csv",
+            "intersection_file": borzoi_dir / "qnorm_targets_mouse_intersection.csv",
+            "intervals_prefix": str(expr_prediction_dir / "intervals" / "mouse."),
+        },
+    }
+    defaults = species_defaults[args.species]
+    genome_name = defaults["genome_name"]
 
     return Paths(
         borzoi_dir=borzoi_dir,
-        fasta_path=datasets_data_dir / "genomes" / "hg38" / "hg38.fa",
-        targets_file=borzoi_dir / "targets_human.txt",
-        annot_gtf=borzoi_dir / "gencode.v29.primary_assembly.annotation_UCSC_names.gtf.gz",
+        species=args.species,
+        genome_name=genome_name,
+        fasta_path=Path(args.fasta_path).expanduser()
+        if args.fasta_path
+        else datasets_data_dir / "genomes" / genome_name / f"{genome_name}.fa",
+        targets_file=Path(args.targets_file).expanduser()
+        if args.targets_file
+        else defaults["targets_file"],
+        annot_gtf=Path(args.annot_gtf).expanduser() if args.annot_gtf else defaults["annot_gtf"],
         file_mappings_dir=datasets_data_dir / "file_mappings",
+        qnorm_target_map_file=Path(args.qnorm_target_map).expanduser()
+        if args.qnorm_target_map
+        else defaults["qnorm_target_map_file"],
+        intersection_file=defaults["intersection_file"],
+        intervals_prefix=args.intervals_prefix if args.intervals_prefix else defaults["intervals_prefix"],
     )
 
 
@@ -139,8 +213,14 @@ def resolve_device(device_arg: str) -> torch.device:
 
 
 def build_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
-    expr_map_q = pd.read_csv(paths.file_mappings_dir / "Expression_dataset_v1_csv_file_mappings_qnorm.csv")
-    borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_human_qnorm.csv")
+    if paths.species == "human":
+        expr_map_q = pd.read_csv(
+            paths.file_mappings_dir / "Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+        )
+        borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_human_qnorm.csv")
+    else:
+        expr_map_q = pd.read_csv(paths.file_mappings_dir / "full_mm10_csv_file_mappings_qnorm.csv")
+        borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_mouse_qnorm.csv")
 
     qnorm_target_id_map_df = (
         pd.concat([expr_map_q, borzoi_map_q], ignore_index=True)
@@ -182,8 +262,8 @@ def build_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
 
 
 def load_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
-    map_path = paths.borzoi_dir / "qnorm_id_to_targets_map.csv"
-    required_columns = {"id", "original_id", "targets_identifier_base", "strand_specificity"}
+    map_path = paths.qnorm_target_map_file
+    required_columns = {"id", "original_id", "targets_identifier_base"}
 
     if not map_path.is_file():
         raise FileNotFoundError(f"Required target map is missing: {map_path}")
@@ -196,6 +276,10 @@ def load_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
     cached["id"] = cached["id"].astype(str)
     cached["original_id"] = cached["original_id"].astype(str)
     cached["targets_identifier_base"] = cached["targets_identifier_base"].astype("string")
+    if "strand_specificity" not in cached.columns:
+        # Version 2 ignores strand_specificity for plus/minus row selection, but
+        # keeps the column in downstream tables for a stable schema.
+        cached["strand_specificity"] = "direct"
     cached["strand_specificity"] = cached["strand_specificity"].astype("string").str.strip().str.lower()
 
     if cached["strand_specificity"].isna().any() or (cached["strand_specificity"] == "").any():
@@ -353,7 +437,7 @@ def build_target_context(paths: Paths, qnorm_target_id_map_df: pd.DataFrame) -> 
                 np.asarray(selected_rows, dtype=int)
             )
 
-    intersection_path = paths.borzoi_dir / "qnorm_targets_human_intersection.csv"
+    intersection_path = paths.intersection_file
     targets_df_sub[
         [
             "identifier",
@@ -425,11 +509,28 @@ class Predictor:
         self.missing_gene_count = 0
 
     def load_model(self, replicate: int) -> None:
-        model_name = f"johahi/{self.model_variant}-replicate-{replicate}"
+        mouse_suffix = "-mouse" if self.paths.species == "mouse" and self.model_variant == "borzoi" else ""
+        model_name = f"johahi/{self.model_variant}-replicate-{replicate}{mouse_suffix}"
         print(f"Loading {model_name} on {self.device}")
-        self.model = Borzoi.from_pretrained(model_name)
+        self.model = Borzoi.from_pretrained(model_name, low_cpu_mem_usage=False)
+        self.materialize_meta_position_buffers()
         self.model.to(self.device)
         self.model.eval()
+
+    def materialize_meta_position_buffers(self) -> None:
+        if self.model is None:
+            return
+        restored = 0
+        for module in self.model.modules():
+            positions = getattr(module, "positions", None)
+            if positions is not None and getattr(positions, "is_meta", False):
+                device = torch.device("cpu")
+                dtype = getattr(getattr(module, "to_v", None), "weight", torch.empty((), device=device)).dtype
+                new_positions = get_positional_embed(4096, module.num_rel_pos_features, device).to(dtype=dtype)
+                module._buffers["positions"] = new_positions
+                restored += 1
+        if restored:
+            print(f"Materialized {restored} meta positional buffers before moving model to {self.device}")
 
     def unload_model(self) -> None:
         self.model = None
@@ -498,7 +599,7 @@ class Predictor:
         x = torch.from_numpy(one_hot_seq).permute(1, 0).unsqueeze(0).to(self.device)
         with torch.inference_mode():
             with self.get_autocast_context():
-                y = self.model(x)
+                y = self.model(x, is_human=(self.paths.species == "human"))
 
         pred = y[0].detach().float().cpu().numpy().transpose(1, 0)
         if pred.shape[0] != EXPECTED_OUTPUT_BINS:
@@ -626,8 +727,21 @@ def main() -> None:
     device = resolve_device(args.device)
     print(f"Device: {device}")
     print(f"Model variant: {args.model_variant}")
+    print(f"Species: {args.species}")
     print(f"Split: {args.split}")
     print(f"Replicates: {args.replicates}")
+    print(f"FASTA: {paths.fasta_path}")
+    print(f"GTF: {paths.annot_gtf}")
+    print(f"Targets: {paths.targets_file}")
+    print(f"Qnorm target map: {paths.qnorm_target_map_file}")
+    print(f"Intervals prefix: {paths.intervals_prefix}")
+    for required_path in [paths.fasta_path, paths.annot_gtf, paths.targets_file, paths.qnorm_target_map_file]:
+        if not required_path.is_file():
+            raise FileNotFoundError(
+                f"Required {args.species} input is missing: {required_path}. "
+                "Pass an explicit override such as --targets-file/--annot-gtf/"
+                "--fasta-path/--qnorm-target-map if needed."
+            )
 
     qnorm_target_id_map_df = load_qnorm_target_id_map(paths)
     target_context = build_target_context(paths, qnorm_target_id_map_df)
@@ -639,12 +753,16 @@ def main() -> None:
         undo_track_transform=not args.no_undo_track_transform,
     )
 
-    forward_path = paths.borzoi_dir / f"human.{args.split}.forward.csv"
-    reverse_path = paths.borzoi_dir / f"human.{args.split}.reverse.csv"
+    forward_path = Path(f"{paths.intervals_prefix}{args.split}.forward.csv")
+    reverse_path = Path(f"{paths.intervals_prefix}{args.split}.reverse.csv")
+    for interval_path in [forward_path, reverse_path]:
+        if not interval_path.is_file():
+            raise FileNotFoundError(f"Required {args.species} interval file is missing: {interval_path}")
+    output_species = "" if paths.species == "human" else f"_{paths.species}"
 
     for replicate in args.replicates:
         out_csv_path = output_dir / (
-            f"{args.model_variant}_predictions_{args.split}_replicate{replicate}_pytorch.csv"
+            f"{args.model_variant}_predictions{output_species}_{args.split}_replicate{replicate}_pytorch.csv"
         )
         if args.skip_existing and out_csv_path.is_file():
             print(f"Skipping replicate {replicate}, output already exists: {out_csv_path}")

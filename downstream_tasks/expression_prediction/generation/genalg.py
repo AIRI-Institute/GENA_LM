@@ -163,7 +163,7 @@ def encode(
 ):
     encoded = tokenizer(
         seq,
-        add_special_tokens=False,
+        add_special_tokens=True,
         return_attention_mask=True,
         return_tensors="pt"  
     )

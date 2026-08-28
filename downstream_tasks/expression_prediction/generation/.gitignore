@@ -1,0 +1,5 @@
+# Generated sequences and their scores. Scoped to generated_* at this level so
+# that the tracked SP8_vector_with_300N_insertion.fa and score_intervals/*.csv
+# are not affected.
+/generated_*.fa
+/generated_*.csv

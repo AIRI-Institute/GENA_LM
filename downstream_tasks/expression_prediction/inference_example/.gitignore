@@ -1,0 +1,23 @@
+# One-off inference and scoring runs: generated scripts, their logs and outputs.
+# The example itself (inference.ipynb, inference_input_utils.py, data/) stays tracked.
+
+compute_corr*.py
+compute_score*.py
+inference_815ct_*.py
+inference_mouse243ct_*.py
+inference_dev_loss_*.py
+inference_xlarge_*.py
+inference_test_all_datasets*.py
+inference_test_all_datasets.ipynb
+find_missing_genes.py
+test_xlarge_load.py
+
+# run logs and predicted expression matrices
+*.txt
+*.csv
+
+# editor backups
+*.bak_dscls
+
+# per-model prediction dumps
+data_v1_*/
