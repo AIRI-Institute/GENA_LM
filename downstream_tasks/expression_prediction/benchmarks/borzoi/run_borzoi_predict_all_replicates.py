@@ -3,15 +3,17 @@ from __future__ import annotations
 
 import argparse
 import gc
+import re
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
 import torch
-from borzoi_pytorch import Borzoi, Transcriptome
+from borzoi_pytorch import Borzoi
+from borzoi_pytorch.pytorch_borzoi_transformer import get_positional_embed
 from pyfaidx import Fasta
 from tqdm import tqdm
 
@@ -20,6 +22,7 @@ SEQ_LEN = 524_288
 MODEL_STRIDE = 32
 MODEL_CROP_BINS = 5120
 EXPECTED_OUTPUT_BINS = 6144
+MIN_BIN_OVERLAP_FRAC = 0.5
 DEFAULT_HOME = "/home/jovyan/shares/SR003.nfs2/aspeedok/"
 
 TPM_TO_TARGETS_TRACK = {
@@ -31,10 +34,15 @@ TPM_TO_TARGETS_TRACK = {
 @dataclass
 class Paths:
     borzoi_dir: Path
+    species: str
+    genome_name: str
     fasta_path: Path
     targets_file: Path
     annot_gtf: Path
     file_mappings_dir: Path
+    qnorm_target_map_file: Path
+    intersection_file: Path
+    intervals_prefix: str
 
 
 @dataclass
@@ -56,6 +64,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("model_variant", choices=["borzoi", "flashzoi"])
     parser.add_argument("split", choices=["valid", "test"])
+    parser.add_argument(
+        "--species",
+        choices=["human", "mouse"],
+        default="human",
+        help="Genome/species preset to use for intervals, FASTA, GTF, targets, and qnorm map.",
+    )
     parser.add_argument(
         "--replicates",
         type=int,
@@ -80,6 +94,34 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         default=None,
         help="Directory where per-replicate prediction CSVs will be saved.",
+    )
+    parser.add_argument(
+        "--targets-file",
+        default=None,
+        help="Override Borzoi targets file. Defaults to targets_human.txt or targets_mouse.txt in --borzoi-dir.",
+    )
+    parser.add_argument(
+        "--qnorm-target-map",
+        default=None,
+        help="Override qnorm id to Borzoi target map CSV.",
+    )
+    parser.add_argument(
+        "--fasta-path",
+        default=None,
+        help="Override genome FASTA path.",
+    )
+    parser.add_argument(
+        "--annot-gtf",
+        default=None,
+        help="Override annotation GTF path.",
+    )
+    parser.add_argument(
+        "--intervals-prefix",
+        default=None,
+        help=(
+            "Override interval prefix before '{split}.{strand}.csv'. "
+            "Defaults to <borzoi-dir>/human. for human and <expr_prediction_dir>/intervals/mouse. for mouse."
+        ),
     )
     parser.add_argument(
         "--device",
@@ -120,13 +162,47 @@ def build_paths(args: argparse.Namespace) -> Paths:
 
     expr_prediction_dir = borzoi_dir.parent.parent
     datasets_data_dir = expr_prediction_dir / "datasets" / "data"
+    species_defaults = {
+        "human": {
+            "genome_name": "hg38",
+            "targets_file": borzoi_dir / "targets_human.txt",
+            "annot_gtf": borzoi_dir / "gencode.v29.primary_assembly.annotation_UCSC_names.gtf.gz",
+            "qnorm_target_map_file": borzoi_dir / "qnorm_id_to_targets_map.csv",
+            "intersection_file": borzoi_dir / "qnorm_targets_human_intersection.csv",
+            "intervals_prefix": str(expr_prediction_dir / "intervals" / "human."),
+        },
+        "mouse": {
+            "genome_name": "mm10",
+            "targets_file": borzoi_dir / "targets_mouse.txt",
+            "annot_gtf": datasets_data_dir
+            / "genomes"
+            / "mm10"
+            / "gencode.vM21.primary_assembly.annotation_UCSC_names.gtf.gz",
+            "qnorm_target_map_file": borzoi_dir / "qnorm_id_to_targets_map_mouse.csv",
+            "intersection_file": borzoi_dir / "qnorm_targets_mouse_intersection.csv",
+            "intervals_prefix": str(expr_prediction_dir / "intervals" / "mouse."),
+        },
+    }
+    defaults = species_defaults[args.species]
+    genome_name = defaults["genome_name"]
 
     return Paths(
         borzoi_dir=borzoi_dir,
-        fasta_path=datasets_data_dir / "genomes" / "hg38" / "hg38.fa",
-        targets_file=borzoi_dir / "targets_human.txt",
-        annot_gtf=borzoi_dir / "gencode.v29.primary_assembly.annotation_UCSC_names.gtf.gz",
+        species=args.species,
+        genome_name=genome_name,
+        fasta_path=Path(args.fasta_path).expanduser()
+        if args.fasta_path
+        else datasets_data_dir / "genomes" / genome_name / f"{genome_name}.fa",
+        targets_file=Path(args.targets_file).expanduser()
+        if args.targets_file
+        else defaults["targets_file"],
+        annot_gtf=Path(args.annot_gtf).expanduser() if args.annot_gtf else defaults["annot_gtf"],
         file_mappings_dir=datasets_data_dir / "file_mappings",
+        qnorm_target_map_file=Path(args.qnorm_target_map).expanduser()
+        if args.qnorm_target_map
+        else defaults["qnorm_target_map_file"],
+        intersection_file=defaults["intersection_file"],
+        intervals_prefix=args.intervals_prefix if args.intervals_prefix else defaults["intervals_prefix"],
     )
 
 
@@ -137,8 +213,14 @@ def resolve_device(device_arg: str) -> torch.device:
 
 
 def build_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
-    expr_map_q = pd.read_csv(paths.file_mappings_dir / "Expression_dataset_v1_csv_file_mappings_qnorm.csv")
-    borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_human_qnorm.csv")
+    if paths.species == "human":
+        expr_map_q = pd.read_csv(
+            paths.file_mappings_dir / "Expression_dataset_v1_csv_file_mappings_qnorm.csv"
+        )
+        borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_human_qnorm.csv")
+    else:
+        expr_map_q = pd.read_csv(paths.file_mappings_dir / "full_mm10_csv_file_mappings_qnorm.csv")
+        borzoi_map_q = pd.read_csv(paths.file_mappings_dir / "file_mappings_borzoi_mouse_qnorm.csv")
 
     qnorm_target_id_map_df = (
         pd.concat([expr_map_q, borzoi_map_q], ignore_index=True)
@@ -180,8 +262,8 @@ def build_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
 
 
 def load_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
-    map_path = paths.borzoi_dir / "qnorm_id_to_targets_map.with_strand_specificity.csv"
-    required_columns = {"id", "original_id", "targets_identifier_base", "strand_specificity"}
+    map_path = paths.qnorm_target_map_file
+    required_columns = {"id", "original_id", "targets_identifier_base"}
 
     if not map_path.is_file():
         raise FileNotFoundError(f"Required target map is missing: {map_path}")
@@ -194,6 +276,10 @@ def load_qnorm_target_id_map(paths: Paths) -> pd.DataFrame:
     cached["id"] = cached["id"].astype(str)
     cached["original_id"] = cached["original_id"].astype(str)
     cached["targets_identifier_base"] = cached["targets_identifier_base"].astype("string")
+    if "strand_specificity" not in cached.columns:
+        # Version 2 ignores strand_specificity for plus/minus row selection, but
+        # keeps the column in downstream tables for a stable schema.
+        cached["strand_specificity"] = "direct"
     cached["strand_specificity"] = cached["strand_specificity"].astype("string").str.strip().str.lower()
 
     if cached["strand_specificity"].isna().any() or (cached["strand_specificity"] == "").any():
@@ -219,26 +305,82 @@ def choose_track_positions_for_gene_strand(
     gene_strand: str,
     strand_specificity: str,
 ) -> List[int]:
+    del strand_specificity
+
     plus_rows = track_rows.get("+", [])
     minus_rows = track_rows.get("-", [])
     common_rows = track_rows.get("common", [])
 
-    if plus_rows and minus_rows:
-        if strand_specificity == "forward":
-            return minus_rows if gene_strand == "+" else plus_rows
-        return plus_rows if gene_strand == "+" else minus_rows
-    if common_rows:
-        return common_rows
+    # No forward-strand swap: plus genes always use plus output rows, and
+    # minus genes always use minus output rows. This intentionally ignores
+    # strand_specificity for the row-selection rule.
     if gene_strand == "+" and plus_rows:
         return plus_rows
     if gene_strand == "-" and minus_rows:
         return minus_rows
+    if common_rows:
+        return common_rows
     if plus_rows:
         return plus_rows
     if minus_rows:
         return minus_rows
 
     raise ValueError(f"No target rows available for gene strand {gene_strand!r}: {track_rows}")
+
+
+def get_exons_for_transcript_from_gtf_df(
+    gtf_df: pd.DataFrame,
+    transcript_id: str,
+    chrom: Optional[str] = None,
+) -> List[tuple[int, int]]:
+    mask = (
+        gtf_df["feature"].eq("exon")
+        & gtf_df["attrs"].astype(str).str.contains(
+            fr'transcript_id "{re.escape(transcript_id)}"',
+            regex=True,
+            na=False,
+        )
+    )
+    exons_df = gtf_df[mask]
+    if chrom is not None:
+        exons_df = exons_df[exons_df["chrom"] == chrom]
+    if exons_df.empty:
+        return []
+
+    exons_df = exons_df.sort_values("start")
+    return [(int(start) - 1, int(end)) for start, end in exons_df[["start", "end"]].to_numpy()]
+
+
+def exons_to_bin_ids_min_overlap(
+    exons: Iterable[tuple[int, int]],
+    out_start: int,
+    n_bins: int,
+    bin_size: int = MODEL_STRIDE,
+    min_frac: float = MIN_BIN_OVERLAP_FRAC,
+) -> np.ndarray:
+    min_bp = int(np.ceil(bin_size * min_frac))
+    out_end = out_start + n_bins * bin_size
+    ids: List[int] = []
+
+    for start, end in exons:
+        start = max(start, out_start)
+        end = min(end, out_end)
+        if end <= start:
+            continue
+
+        bin0 = max(0, int((start - out_start) // bin_size))
+        bin1 = min(n_bins - 1, int((end - 1 - out_start) // bin_size))
+
+        for bin_idx in range(bin0, bin1 + 1):
+            bin_start = out_start + bin_idx * bin_size
+            bin_end = bin_start + bin_size
+            overlap = max(0, min(end, bin_end) - max(start, bin_start))
+            if overlap >= min_bp:
+                ids.append(bin_idx)
+
+    if not ids:
+        return np.array([], dtype=np.int64)
+    return np.unique(np.asarray(ids, dtype=np.int64))
 
 
 def build_target_context(paths: Paths, qnorm_target_id_map_df: pd.DataFrame) -> TargetContext:
@@ -295,7 +437,7 @@ def build_target_context(paths: Paths, qnorm_target_id_map_df: pd.DataFrame) -> 
                 np.asarray(selected_rows, dtype=int)
             )
 
-    intersection_path = paths.borzoi_dir / "qnorm_targets_human_intersection.csv"
+    intersection_path = paths.intersection_file
     targets_df_sub[
         [
             "identifier",
@@ -360,17 +502,35 @@ class Predictor:
             self.autocast_dtype = None
 
         self.genome = Fasta(str(paths.fasta_path))
-        self.transcriptome_by_id = Transcriptome(str(paths.annot_gtf), use_geneid=True)
-        self.transcriptome_by_name = Transcriptome(str(paths.annot_gtf), use_geneid=False)
+        gtf_cols = ["chrom", "source", "feature", "start", "end", "score", "strand", "frame", "attrs"]
+        self.gtf_df = pd.read_csv(paths.annot_gtf, sep="\t", comment="#", names=gtf_cols)
+        self.exon_cache: Dict[tuple[str, str], List[tuple[int, int]]] = {}
         self.model: Optional[torch.nn.Module] = None
         self.missing_gene_count = 0
 
     def load_model(self, replicate: int) -> None:
-        model_name = f"johahi/{self.model_variant}-replicate-{replicate}"
+        mouse_suffix = "-mouse" if self.paths.species == "mouse" and self.model_variant == "borzoi" else ""
+        model_name = f"johahi/{self.model_variant}-replicate-{replicate}{mouse_suffix}"
         print(f"Loading {model_name} on {self.device}")
-        self.model = Borzoi.from_pretrained(model_name)
+        self.model = Borzoi.from_pretrained(model_name, low_cpu_mem_usage=False)
+        self.materialize_meta_position_buffers()
         self.model.to(self.device)
         self.model.eval()
+
+    def materialize_meta_position_buffers(self) -> None:
+        if self.model is None:
+            return
+        restored = 0
+        for module in self.model.modules():
+            positions = getattr(module, "positions", None)
+            if positions is not None and getattr(positions, "is_meta", False):
+                device = torch.device("cpu")
+                dtype = getattr(getattr(module, "to_v", None), "weight", torch.empty((), device=device)).dtype
+                new_positions = get_positional_embed(4096, module.num_rel_pos_features, device).to(dtype=dtype)
+                module._buffers["positions"] = new_positions
+                restored += 1
+        if restored:
+            print(f"Materialized {restored} meta positional buffers before moving model to {self.device}")
 
     def unload_model(self) -> None:
         self.model = None
@@ -412,17 +572,15 @@ class Predictor:
 
         return seq, start
 
-    def find_gene_obj(self, row: pd.Series):
-        gene_id = str(row["gene_id_unversioned"])
-        if gene_id in self.transcriptome_by_id.genes:
-            return self.transcriptome_by_id.genes[gene_id]
-
-        gene_name = str(row["gene_name"])
-        if gene_name in self.transcriptome_by_name.genes:
-            return self.transcriptome_by_name.genes[gene_name]
-
-        self.missing_gene_count += 1
-        raise ValueError(f"Gene not found in transcriptome: {gene_id} / {gene_name}")
+    def get_transcript_exons(self, transcript_id: str, chrom: str) -> List[tuple[int, int]]:
+        key = (transcript_id, chrom)
+        if key not in self.exon_cache:
+            self.exon_cache[key] = get_exons_for_transcript_from_gtf_df(
+                self.gtf_df,
+                transcript_id=transcript_id,
+                chrom=chrom,
+            )
+        return self.exon_cache[key]
 
     def undo_track_transform_from_targets(self, pred_2d: np.ndarray) -> np.ndarray:
         x = pred_2d.astype(np.float32).copy()
@@ -441,7 +599,7 @@ class Predictor:
         x = torch.from_numpy(one_hot_seq).permute(1, 0).unsqueeze(0).to(self.device)
         with torch.inference_mode():
             with self.get_autocast_context():
-                y = self.model(x)
+                y = self.model(x, is_human=(self.paths.species == "human"))
 
         pred = y[0].detach().float().cpu().numpy().transpose(1, 0)
         if pred.shape[0] != EXPECTED_OUTPUT_BINS:
@@ -476,21 +634,30 @@ class Predictor:
         one_hot = self.one_hot_encode_dna(seq)
         pred = self.predict_one_sequence(one_hot)
 
-        gene_obj = self.find_gene_obj(row)
-        seq_out_start = seq_start + MODEL_STRIDE * MODEL_CROP_BINS
-        seq_out_len = MODEL_STRIDE * pred.shape[0]
+        transcript_id = str(row.get("transcript_id", "")).strip()
+        if not transcript_id or transcript_id.lower() == "nan":
+            self.missing_gene_count += 1
+            raise ValueError(f"Missing transcript_id for gene: {row['gene_id']}")
 
-        gene_slice = gene_obj.output_slice(
-            seq_out_start,
-            seq_out_len,
-            MODEL_STRIDE,
-            False,
+        chrom = str(row["chrom"])
+        seq_out_start = seq_start + MODEL_STRIDE * MODEL_CROP_BINS
+        exons = self.get_transcript_exons(transcript_id, chrom)
+        if not exons:
+            self.missing_gene_count += 1
+            raise ValueError(f"No exons found for transcript_id={transcript_id}")
+
+        exon_bin_ids = exons_to_bin_ids_min_overlap(
+            exons,
+            out_start=seq_out_start,
+            n_bins=pred.shape[0],
+            bin_size=MODEL_STRIDE,
+            min_frac=MIN_BIN_OVERLAP_FRAC,
         )
-        if len(gene_slice) == 0:
-            print(f"Gene has empty output slice: {row['gene_id']}")
+        if len(exon_bin_ids) == 0:
+            print(f"Transcript has empty exon-bin overlap: {row['gene_id']} / {transcript_id}")
             return None
 
-        exon_pred = pred[gene_slice, :]
+        exon_pred = pred[exon_bin_ids, :]
         expr_by_track = exon_pred.mean(axis=0)
         expr_by_id = self.collapse_track_expr_to_qnorm_id_expr(
             expr_by_track,
@@ -560,8 +727,21 @@ def main() -> None:
     device = resolve_device(args.device)
     print(f"Device: {device}")
     print(f"Model variant: {args.model_variant}")
+    print(f"Species: {args.species}")
     print(f"Split: {args.split}")
     print(f"Replicates: {args.replicates}")
+    print(f"FASTA: {paths.fasta_path}")
+    print(f"GTF: {paths.annot_gtf}")
+    print(f"Targets: {paths.targets_file}")
+    print(f"Qnorm target map: {paths.qnorm_target_map_file}")
+    print(f"Intervals prefix: {paths.intervals_prefix}")
+    for required_path in [paths.fasta_path, paths.annot_gtf, paths.targets_file, paths.qnorm_target_map_file]:
+        if not required_path.is_file():
+            raise FileNotFoundError(
+                f"Required {args.species} input is missing: {required_path}. "
+                "Pass an explicit override such as --targets-file/--annot-gtf/"
+                "--fasta-path/--qnorm-target-map if needed."
+            )
 
     qnorm_target_id_map_df = load_qnorm_target_id_map(paths)
     target_context = build_target_context(paths, qnorm_target_id_map_df)
@@ -573,12 +753,16 @@ def main() -> None:
         undo_track_transform=not args.no_undo_track_transform,
     )
 
-    forward_path = paths.borzoi_dir / f"human.{args.split}.forward.csv"
-    reverse_path = paths.borzoi_dir / f"human.{args.split}.reverse.csv"
+    forward_path = Path(f"{paths.intervals_prefix}{args.split}.forward.csv")
+    reverse_path = Path(f"{paths.intervals_prefix}{args.split}.reverse.csv")
+    for interval_path in [forward_path, reverse_path]:
+        if not interval_path.is_file():
+            raise FileNotFoundError(f"Required {args.species} interval file is missing: {interval_path}")
+    output_species = "" if paths.species == "human" else f"_{paths.species}"
 
     for replicate in args.replicates:
         out_csv_path = output_dir / (
-            f"{args.model_variant}_predictions_{args.split}_replicate{replicate}_pytorch.csv"
+            f"{args.model_variant}_predictions{output_species}_{args.split}_replicate{replicate}_pytorch.csv"
         )
         if args.skip_existing and out_csv_path.is_file():
             print(f"Skipping replicate {replicate}, output already exists: {out_csv_path}")
