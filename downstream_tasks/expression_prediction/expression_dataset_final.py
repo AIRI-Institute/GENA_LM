@@ -167,17 +167,9 @@ class ExpressionDataset(Dataset):
         self.text_max_seq_len = text_max_seq_len
         self.text_data = {}  
         self.text_data_keys = set()
-        tokenizer_tag = text_tokenizer.replace("/", "_")
-        descriptions_dir = Path(__file__).resolve().parent / "descriptions"
-        descriptions_dir.mkdir(parents=True, exist_ok=True)
-        targets_tag = hashlib.blake2b(
-            self._name_and_size(targets_path).encode("utf-8"),
-            digest_size=8,
-        ).hexdigest()
-        desc_cache_name = (
-            f"{Path(targets_path).name}.{targets_tag}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
+        self.desc_h5_cache_path = self.get_desc_hash_path(
+            targets_path, text_tokenizer, text_max_seq_len
         )
-        self.desc_h5_cache_path = str(descriptions_dir / desc_cache_name)
 
         if os.path.exists(self.desc_h5_cache_path):
             self.desc_h5_cache = h5py.File(self.desc_h5_cache_path, "r")
@@ -281,6 +273,19 @@ class ExpressionDataset(Dataset):
         signals_hash_path = self.get_signals_hash_path()
         return self.hash_prefix + ".tpm." + signals_hash_path[len(self.hash_prefix) + len(".signal."):]
     
+    def get_desc_hash_path(self, targets_path, text_tokenizer, text_max_seq_len):
+        tokenizer_tag = text_tokenizer.replace("/", "_")
+        descriptions_dir = Path(__file__).resolve().parent / "descriptions"
+        descriptions_dir.mkdir(parents=True, exist_ok=True)
+        targets_tag = hashlib.blake2b(
+            self._name_and_size(targets_path).encode("utf-8"),
+            digest_size=8,
+        ).hexdigest()
+        desc_cache_name = (
+            f"{Path(targets_path).name}.{targets_tag}.{tokenizer_tag}.{text_max_seq_len}.description.h5"
+        )
+        return str(descriptions_dir / desc_cache_name)
+
     def get_num_keys(self):
         return len(self.paths.keys())
 
@@ -1152,3 +1157,188 @@ class ExpressionDatasetMode2(ExpressionDataset):
             "desc_attention_mask": desc_attention_mask,
         }
         return features
+
+
+class FixedDescriptionsMixin:
+    """
+    Исправление бага в make_description_from_json.
+
+    В ExpressionDataset.make_description_from_json регулярки записаны с ДВОЙНЫМ backslash
+    внутри raw-строк:
+        r'^(Characteristics|...|Parameter)\\s*'  -> требует литеральный backslash после префикса
+        r'\\[|\\]'                              -> это "backslash, затем символ-класс [|\\]"
+    Обе компилируются без ошибок, но не делают ничего: префикс не срезается, скобки не удаляются.
+    В результате ключи вида 'Characteristics [cell type]' попадают в описание как есть
+    (задевает, например, ATACseq_Egor_Human — там такие ключи во всех файлах).
+
+    Миксин НЕ меняет поведение старых классов: они остаются как были, чтобы уже обученные
+    модели читали ровно те же описания.
+
+    Три вещи, которые он делает:
+      1. корректные регулярки;
+      2. вызов make_description_from_json через self — в базовом load_descriptions_from_json
+         он захардкожен как ExpressionDataset.make_description_from_json, поэтому одного
+         переопределения staticmethod было бы недостаточно;
+      3. отдельный путь кэша описаний (.fixeddesc) — иначе новые описания записались бы
+         в тот же h5, который читают старые модели.
+    """
+
+    @staticmethod
+    def make_description_from_json(meta, description_id, meta_path):
+        if not meta or not isinstance(meta, dict) or len(meta) == 0:
+            raise ValueError(f"No description data in metadata for id '{description_id}', file: {meta_path}")
+        line_texts = []
+        for k, v in meta.items():
+            k = k.replace('_', ' ')
+            v = str(v).replace('_', ' ')
+            clean_k = re.sub(r'^(Characteristics|Chracteristics|Charateristics|Parameter)\s*', '', k)
+            clean_k = re.sub(r'[\[\]]', '', clean_k).strip()
+            clean_k = clean_k if clean_k else k
+            clean_v = str(v).replace('"', '').strip()
+            line_texts.append(f'{clean_k} is {clean_v}.')
+        if not line_texts:
+            raise ValueError(f"No description text generated for id '{description_id}', file: {meta_path}")
+        return " ".join(line_texts)
+
+    def load_descriptions_from_json(self, targets_path):
+        # копия базовой версии; единственное отличие — вызов через self, а не через
+        # захардкоженный ExpressionDataset.make_description_from_json
+        df = pd.read_csv(targets_path)
+        base_dir = os.path.dirname(targets_path)
+        for idx, row in df.iterrows():
+            description_id = row["id"]
+            metadata_path = row["metadata"]
+            full_metadata_path = metadata_path if os.path.isabs(metadata_path) else os.path.join(base_dir, metadata_path)
+            if not os.path.exists(full_metadata_path):
+                raise ValueError(f"Metadata file not found for id '{description_id}': {full_metadata_path}")
+            with open(full_metadata_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            desc = self.make_description_from_json(meta, description_id, full_metadata_path)
+            self.text_data[description_id] = desc
+        self.text_data_keys = set(self.text_data.keys())
+
+    def get_desc_hash_path(self, targets_path, text_tokenizer, text_max_seq_len):
+        base = super().get_desc_hash_path(targets_path, text_tokenizer, text_max_seq_len)
+        return base.replace(".description.h5", ".fixeddesc.description.h5")
+
+
+class ExpressionDatasetFixedDesc(FixedDescriptionsMixin, ExpressionDataset):
+    """ExpressionDataset с исправленным make_description_from_json."""
+    pass
+
+
+class ExpressionDatasetMode2FixedDesc(FixedDescriptionsMixin, ExpressionDatasetMode2):
+    """ExpressionDatasetMode2 с исправленным make_description_from_json."""
+    pass
+
+
+class MethylationDataset(ExpressionDatasetFixedDesc):
+    """
+    WGBS methylation (WGBS_human).
+
+    Семантика BigWig (проверена на GSM5652176/GSM5652177):
+      * в треке лежат ТОЛЬКО CpG, каждый — интервалом ровно 2 bp (C и G), значение на обеих базах одинаковое;
+      * значение в [0, 1] — доля метилирования (beta) в данном образце;
+      * значение == -1  — CpG есть, но в ЭТОМ образце нет покрытия -> сигнал не определён;
+      * позиции нет в треке (.values() -> nan) — это не-CpG (или нет покрытия ни в одном образце) -> не определён;
+      * набор CpG-позиций одинаков во всех образцах, различаются только позиции с -1.
+
+    Таргет на токен = СРЕДНЕЕ по определённым CpG внутри токена.
+    Токен без единого определённого CpG -> NaN -> исключается из loss через labels_mask.
+    """
+
+    def __init__(self, *args, **kwargs):
+        assert not kwargs.get("norm_bw", False), (
+            "norm_bw не применим к метилированию: значение уже нормировано (доля 0..1), "
+            "а в metadata WGBS нет forward/reverse_total_coverage"
+        )
+        # beta уже в [0,1], поэтому logtransform здесь бессмыслен. Но главное требование —
+        # трансформация обязана СОХРАНЯТЬ NaN: им помечены токены без определённых CpG,
+        # и по ним строится labels_mask в __getitem__. Проверяем это фактически, а не по типу.
+        _tr = kwargs.get("transform_targets_bw")
+        if _tr is not None:
+            _probe = _tr(np.array([np.nan, 0.5], dtype=np.float32))
+            assert np.isnan(np.asarray(_probe)[0]), (
+                f"transform_targets_bw={_tr!r} не сохраняет NaN. NaN помечают токены без "
+                "определённых CpG; если их затереть, они попадут в loss как настоящие значения."
+            )
+        assert not kwargs.get("tpm"), "MethylationDataset работает только с bw-таргетами"
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, idx):
+        """
+        Базовый класс ставит labels_mask=True безусловно, но здесь 0 — это реальное значение
+        (CpG покрыт и не метилирован), а не "нет данных". Токены без определённых CpG приходят
+        из process_region_signals как NaN — их надо убрать из loss.
+
+        NaN обязательно зануляется в labels: в loss идёт unreduced_loss * labels_mask,
+        а NaN * 0 = NaN, то есть один незамаскированный NaN отравил бы сумму по всему батчу.
+
+        `&` сохраняет исходную семантику маски: padding-строки [n_real:] и позиции CLS/SEP
+        уже False и такими и остаются.
+        """
+        features = super().__getitem__(idx)
+        labels = features["labels"]
+        undefined = torch.isnan(labels)
+        features["labels"] = torch.nan_to_num(labels, nan=0.0)
+        features["labels_mask"] = features["labels_mask"] & ~undefined
+        return features
+
+    def get_signals_hash_path(self):
+        # дискриминатор, чтобы не переиспользовать кэш сигналов, посчитанный СУММОЙ
+        return super().get_signals_hash_path() + ".cpgmean"
+
+    def process_region_signals(self, bw_handler, chrom, starts, ends, l, strand):
+        """
+        Среднее по определённым CpG на токен (вместо суммы в базовом классе).
+
+        Два префиксных массива вместо одного: сумма значений и счётчик определённых позиций.
+        mean = sum / count, при count == 0 -> NaN (токен уйдёт под маску).
+
+        Позиции, не тронутые ни одним интервалом (не-CpG), остаются (0, 0) и не влияют
+        ни на числитель, ни на знаменатель. CpG со значением -1 пропускается целиком.
+
+        Каждый CpG занимает ровно 2 базы с одинаковым значением, поэтому sum/count по базам
+        численно равно среднему по CpG. Единственное отклонение — CpG, разрезанный границей
+        токена: он входит в каждый из соседних токенов с весом 1/2.
+        """
+        reverse = 0 if strand == "+" else 1
+
+        if reverse == 0:
+            region_start, region_end = int(starts[0]), int(ends[-1])
+        else:
+            region_start, region_end = int(starts[-1]), int(ends[0])
+
+        out = np.full(l, np.nan, dtype=np.float32)
+        if region_start >= region_end:
+            return out
+
+        intervals = bw_handler.intervals(chrom, region_start, region_end)
+        if not intervals:
+            return out
+
+        region_size = region_end - region_start
+        val = np.zeros(region_size, dtype=np.float64)
+        cnt = np.zeros(region_size, dtype=np.float64)
+
+        for s, e, v in intervals:
+            if v < 0:  # -1: CpG без покрытия в этом образце -> не определён
+                continue
+            rs = max(0, s - region_start)
+            re = min(region_size, e - region_start)
+            if rs < re:
+                val[rs:re] = v
+                cnt[rs:re] = 1.0
+
+        pref_v = np.concatenate(([0.0], np.cumsum(val)))
+        pref_c = np.concatenate(([0.0], np.cumsum(cnt)))
+
+        ts = np.clip(np.asarray(starts[:l], dtype=np.int64) - region_start, 0, region_size)
+        te = np.clip(np.asarray(ends[:l], dtype=np.int64) - region_start, 0, region_size)
+
+        sum_tok = pref_v[te] - pref_v[ts]
+        cnt_tok = pref_c[te] - pref_c[ts]
+
+        with np.errstate(invalid="ignore", divide="ignore"):
+            out = np.where(cnt_tok > 0, sum_tok / cnt_tok, np.nan).astype(np.float32)
+        return out

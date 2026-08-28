@@ -94,6 +94,22 @@ shared_dataset_params:
     "level": "DEBUG"
   seed: "${args_params.seed}"
 
+
+train_dataset_methyl_human:
+  _target_: downstream_tasks.expression_prediction.expression_dataset_final.MethylationDataset
+  forward_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.cre_modernbert.csv"
+  reverse_intervals_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/intervals/human.train.reverse.cre_modernbert.csv"
+  targets_path: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/WGBS_human/file_mappings.csv" 
+  genome: "${HOME_PATH}/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa" 
+
+  bw: bw
+  num_before: 0
+  token_len_for_fetch: 15
+
+  transform_targets_bw:
+    _target_: downstream_tasks.expression_prediction.expression_dataset_final.multiplytransform
+    coefficient: 2  
+
 #train
 train_dataset_mouse:
   _target_: downstream_tasks.expression_prediction.expression_dataset_final.ExpressionDatasetFixedDesc
