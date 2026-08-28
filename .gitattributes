@@ -1,3 +1,4 @@
 downstream_tasks/expression_prediction/benchmarks/borzoi/valid_true_human_all_qnorm_id.csv filter=lfs diff=lfs merge=lfs -text
 downstream_tasks/expression_prediction/benchmarks/borzoi/final/true_human_all_genes_qnorm_samples_by_genes.csv filter=lfs diff=lfs merge=lfs -text
 downstream_tasks/expression_prediction/benchmarks/borzoi/final/true_mouse_all_genes_qnorm_samples_by_genes.csv filter=lfs diff=lfs merge=lfs -text
+downstream_tasks/expression_prediction/benchmarks/borzoi/final/*.csv filter=lfs diff=lfs merge=lfs -text
