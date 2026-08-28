@@ -406,7 +406,7 @@ class ExpressionDataset(Dataset):
                 raise ValueError(f"Length of {ref} in genome and bigwig file are different. Ref: {ref}, Genome: {fasta_ref_lengths[ref]}, Bigwig: {bw_ref_lengths[ref]}")
 
     def open_files(self):
-        """Открытие bigWig и создание быстрого маппинга key->col."""
+        """Open the bigWigs and build a fast key->col mapping."""
         if not self.bw or self.files_opened:
             return
         if getattr(self, "signals_cache", None) is not None:
@@ -1161,26 +1161,26 @@ class ExpressionDatasetMode2(ExpressionDataset):
 
 class FixedDescriptionsMixin:
     """
-    Исправление бага в make_description_from_json.
+    Fix for the bug in make_description_from_json.
 
-    В ExpressionDataset.make_description_from_json регулярки записаны с ДВОЙНЫМ backslash
-    внутри raw-строк:
-        r'^(Characteristics|...|Parameter)\\s*'  -> требует литеральный backslash после префикса
-        r'\\[|\\]'                              -> это "backslash, затем символ-класс [|\\]"
-    Обе компилируются без ошибок, но не делают ничего: префикс не срезается, скобки не удаляются.
-    В результате ключи вида 'Characteristics [cell type]' попадают в описание как есть
-    (задевает, например, ATACseq_Egor_Human — там такие ключи во всех файлах).
+    In ExpressionDataset.make_description_from_json the regexes are written with a DOUBLED
+    backslash inside raw strings:
+        r'^(Characteristics|...|Parameter)\\s*'  -> requires a literal backslash after the prefix
+        r'\\[|\\]'                              -> means "a backslash, then the class [|\\]"
+    Both compile without errors but do nothing: the prefix is not stripped and the brackets
+    are not removed. As a result keys like 'Characteristics [cell type]' end up in the
+    description as is (this affects e.g. ATACseq_Egor_Human, where every file has such keys).
 
-    Миксин НЕ меняет поведение старых классов: они остаются как были, чтобы уже обученные
-    модели читали ровно те же описания.
+    The mixin does NOT change the behaviour of the old classes: they stay as they were, so
+    already trained models keep reading exactly the same descriptions.
 
-    Три вещи, которые он делает:
-      1. корректные регулярки;
-      2. вызов make_description_from_json через self — в базовом load_descriptions_from_json
-         он захардкожен как ExpressionDataset.make_description_from_json, поэтому одного
-         переопределения staticmethod было бы недостаточно;
-      3. отдельный путь кэша описаний (.fixeddesc) — иначе новые описания записались бы
-         в тот же h5, который читают старые модели.
+    It does three things:
+      1. correct regexes;
+      2. calls make_description_from_json through self — the base load_descriptions_from_json
+         hardcodes it as ExpressionDataset.make_description_from_json, so overriding the
+         staticmethod alone would not be enough;
+      3. a separate description cache path (.fixeddesc) — otherwise the new descriptions
+         would be written into the same h5 that the old models read.
     """
 
     @staticmethod
@@ -1201,8 +1201,8 @@ class FixedDescriptionsMixin:
         return " ".join(line_texts)
 
     def load_descriptions_from_json(self, targets_path):
-        # копия базовой версии; единственное отличие — вызов через self, а не через
-        # захардкоженный ExpressionDataset.make_description_from_json
+        # a copy of the base version; the only difference is the call through self instead of
+        # the hardcoded ExpressionDataset.make_description_from_json
         df = pd.read_csv(targets_path)
         base_dir = os.path.dirname(targets_path)
         for idx, row in df.iterrows():
@@ -1223,12 +1223,12 @@ class FixedDescriptionsMixin:
 
 
 class ExpressionDatasetFixedDesc(FixedDescriptionsMixin, ExpressionDataset):
-    """ExpressionDataset с исправленным make_description_from_json."""
+    """ExpressionDataset with a fixed make_description_from_json."""
     pass
 
 
 class ExpressionDatasetMode2FixedDesc(FixedDescriptionsMixin, ExpressionDatasetMode2):
-    """ExpressionDatasetMode2 с исправленным make_description_from_json."""
+    """ExpressionDatasetMode2 with a fixed make_description_from_json."""
     pass
 
 
@@ -1236,46 +1236,48 @@ class MethylationDataset(ExpressionDatasetFixedDesc):
     """
     WGBS methylation (WGBS_human).
 
-    Семантика BigWig (проверена на GSM5652176/GSM5652177):
-      * в треке лежат ТОЛЬКО CpG, каждый — интервалом ровно 2 bp (C и G), значение на обеих базах одинаковое;
-      * значение в [0, 1] — доля метилирования (beta) в данном образце;
-      * значение == -1  — CpG есть, но в ЭТОМ образце нет покрытия -> сигнал не определён;
-      * позиции нет в треке (.values() -> nan) — это не-CpG (или нет покрытия ни в одном образце) -> не определён;
-      * набор CpG-позиций одинаков во всех образцах, различаются только позиции с -1.
+    BigWig semantics (verified on GSM5652176/GSM5652177):
+      * the track holds ONLY CpGs, each as an interval of exactly 2 bp (C and G), with the same
+        value on both bases;
+      * a value in [0, 1] is the methylation fraction (beta) in this sample;
+      * a value == -1 means the CpG exists but has no coverage in THIS sample -> signal undefined;
+      * a position absent from the track (.values() -> nan) is a non-CpG (or has no coverage in any
+        sample) -> undefined;
+      * the set of CpG positions is identical across samples, only the -1 positions differ.
 
-    Таргет на токен = СРЕДНЕЕ по определённым CpG внутри токена.
-    Токен без единого определённого CpG -> NaN -> исключается из loss через labels_mask.
+    The per-token target is the MEAN over the defined CpGs inside that token.
+    A token without a single defined CpG -> NaN -> excluded from the loss via labels_mask.
     """
 
     def __init__(self, *args, **kwargs):
         assert not kwargs.get("norm_bw", False), (
-            "norm_bw не применим к метилированию: значение уже нормировано (доля 0..1), "
-            "а в metadata WGBS нет forward/reverse_total_coverage"
+            "norm_bw does not apply to methylation: the value is already normalised (a 0..1 "
+            "fraction), and WGBS metadata has no forward/reverse_total_coverage"
         )
-        # beta уже в [0,1], поэтому logtransform здесь бессмыслен. Но главное требование —
-        # трансформация обязана СОХРАНЯТЬ NaN: им помечены токены без определённых CpG,
-        # и по ним строится labels_mask в __getitem__. Проверяем это фактически, а не по типу.
+        # beta is already in [0, 1], so a logtransform makes no sense here. The key requirement
+        # is that the transform MUST PRESERVE NaN: NaN marks tokens without defined CpGs, and
+        # labels_mask is built from them in __getitem__. Check this by probing, not by type.
         _tr = kwargs.get("transform_targets_bw")
         if _tr is not None:
             _probe = _tr(np.array([np.nan, 0.5], dtype=np.float32))
             assert np.isnan(np.asarray(_probe)[0]), (
-                f"transform_targets_bw={_tr!r} не сохраняет NaN. NaN помечают токены без "
-                "определённых CpG; если их затереть, они попадут в loss как настоящие значения."
+                f"transform_targets_bw={_tr!r} does not preserve NaN. NaN marks tokens without "
+                "defined CpGs; if it is overwritten they enter the loss as real values."
             )
-        assert not kwargs.get("tpm"), "MethylationDataset работает только с bw-таргетами"
+        assert not kwargs.get("tpm"), "MethylationDataset only works with bw targets"
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, idx):
         """
-        Базовый класс ставит labels_mask=True безусловно, но здесь 0 — это реальное значение
-        (CpG покрыт и не метилирован), а не "нет данных". Токены без определённых CpG приходят
-        из process_region_signals как NaN — их надо убрать из loss.
+        The base class sets labels_mask=True unconditionally, but here 0 is a real value
+        (the CpG is covered and unmethylated), not "no data". Tokens without defined CpGs arrive
+        from process_region_signals as NaN and must be removed from the loss.
 
-        NaN обязательно зануляется в labels: в loss идёт unreduced_loss * labels_mask,
-        а NaN * 0 = NaN, то есть один незамаскированный NaN отравил бы сумму по всему батчу.
+        NaN must be zeroed in labels: the loss computes unreduced_loss * labels_mask, and
+        NaN * 0 = NaN, so a single unmasked NaN would poison the sum over the whole batch.
 
-        `&` сохраняет исходную семантику маски: padding-строки [n_real:] и позиции CLS/SEP
-        уже False и такими и остаются.
+        `&` preserves the original mask semantics: padding rows [n_real:] and the CLS/SEP
+        positions are already False and stay that way.
         """
         features = super().__getitem__(idx)
         labels = features["labels"]
@@ -1285,22 +1287,22 @@ class MethylationDataset(ExpressionDatasetFixedDesc):
         return features
 
     def get_signals_hash_path(self):
-        # дискриминатор, чтобы не переиспользовать кэш сигналов, посчитанный СУММОЙ
+        # discriminator so that a signal cache computed with the SUM is not reused
         return super().get_signals_hash_path() + ".cpgmean"
 
     def process_region_signals(self, bw_handler, chrom, starts, ends, l, strand):
         """
-        Среднее по определённым CpG на токен (вместо суммы в базовом классе).
+        Mean over the defined CpGs per token (instead of the sum used by the base class).
 
-        Два префиксных массива вместо одного: сумма значений и счётчик определённых позиций.
-        mean = sum / count, при count == 0 -> NaN (токен уйдёт под маску).
+        Two prefix arrays instead of one: the sum of values and the count of defined positions.
+        mean = sum / count; when count == 0 -> NaN (the token goes under the mask).
 
-        Позиции, не тронутые ни одним интервалом (не-CpG), остаются (0, 0) и не влияют
-        ни на числитель, ни на знаменатель. CpG со значением -1 пропускается целиком.
+        Positions untouched by any interval (non-CpG) stay (0, 0) and affect neither the
+        numerator nor the denominator. A CpG with value -1 is skipped entirely.
 
-        Каждый CpG занимает ровно 2 базы с одинаковым значением, поэтому sum/count по базам
-        численно равно среднему по CpG. Единственное отклонение — CpG, разрезанный границей
-        токена: он входит в каждый из соседних токенов с весом 1/2.
+        Each CpG spans exactly 2 bases with the same value, so sum/count over bases is
+        numerically equal to the mean over CpGs. The only deviation is a CpG split by a token
+        boundary: it enters each neighbouring token with weight 1/2.
         """
         reverse = 0 if strand == "+" else 1
 
@@ -1322,7 +1324,7 @@ class MethylationDataset(ExpressionDatasetFixedDesc):
         cnt = np.zeros(region_size, dtype=np.float64)
 
         for s, e, v in intervals:
-            if v < 0:  # -1: CpG без покрытия в этом образце -> не определён
+            if v < 0:  # -1: a CpG with no coverage in this sample -> undefined
                 continue
             rs = max(0, s - region_start)
             re = min(region_size, e - region_start)
