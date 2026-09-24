@@ -6,6 +6,7 @@ import time
 from functools import partial
 from itertools import chain, compress
 from pathlib import Path
+import subprocess
 
 # third-party
 import torch
@@ -328,10 +329,35 @@ def main():
         args_dict = collect_run_configuration(args)
         json.dump(args_dict, open(model_path / 'config.json', 'w'), indent=4)
         open(model_path / 'git.diff', 'w').write(get_git_diff())
+        
         # Сохраняем копию Hydra-конфига
+        
+        tmp_model_config = model_path / "experiment_config.yaml.tmp"
+        model_config_with_commit_hash = model_path / "experiment_config.yaml"
         content = "\n".join(open(experiment_config_path).readlines())
-        with open(Path(args.model_path) / "experiment_config.yaml", "w") as fout:
+        with open(tmp_model_config, "w") as fout:
             fout.write(content)
+
+        assert os.path.exists(tmp_model_config), f"TMP config ({tmp_model_config}) was not created in {Path(args.model_path)}"
+
+        def get_git_hash_commit() -> str:
+            try:
+                commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+            except subprocess.CalledProcessError:
+                # no git installed or we are not in repository
+                commit = ''
+            return commit
+
+        with open(tmp_model_config, 'a') as git_hash_target:
+            git_commit_hash = get_git_hash_commit()
+            git_hash_target.write('\n')
+            git_hash_target.write(f'git_commit_hash: "{git_commit_hash}"')
+
+        os.rename(tmp_model_config, model_config_with_commit_hash)
+
+        assert os.path.exists(model_config_with_commit_hash), "config with git has was not created"
+
+        alogger.debug(f'Added commit hash ({git_commit_hash}) to config {model_config_with_commit_hash}')
 
     accelerator.wait_for_everyone()
 
