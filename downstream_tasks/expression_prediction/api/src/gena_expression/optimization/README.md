@@ -6,14 +6,15 @@ on-target/off-target conditions through `SequenceModel.predict_multiple_sequence
 converts those absolute scores to fitness, selects a population, and records the
 run in Polars tables.
 
-`SequenceOptimizer` is the only public class in this folder.
+The folder exports `SequenceOptimizer` and the reusable
+`MinOnTargetMaxOffTargetFitness` callable.
 
 ## Module map
 
 | Module | Contents |
 | --- | --- |
-| `core.py` | `SequenceOptimizer` and its internal Polars dependency loader |
-| `__init__.py` | Exports `SequenceOptimizer` |
+| `core.py` | `SequenceOptimizer`, `MinOnTargetMaxOffTargetFitness`, and the internal Polars dependency loader |
+| `__init__.py` | Exports both public optimization classes |
 
 Read the package [README](../README.md) for `AnnotatedSequence`/`Feature`.
 Read [`inference/README.md`](../inference/README.md) for batching arguments and
@@ -92,6 +93,35 @@ mean(on-target scores, or 0 if none)
 mean(off-target scores, or 0 if none)
 ```
 
+### Worst-case target fitness with powers
+
+`MinOnTargetMaxOffTargetFitness` is a callable that can be passed directly as
+`fitness_function=`:
+
+```python
+from gena_expression import MinOnTargetMaxOffTargetFitness
+
+fitness = MinOnTargetMaxOffTargetFitness(
+    on_power=1.0,
+    off_power=2.0,
+    off_weight=1.0,
+)
+```
+
+For non-negative scores it computes:
+
+```text
+min(on-target scores) ** on_power
+-
+off_weight * max(off-target scores) ** off_power
+```
+
+The minimum and maximum make the objective conservative when several target
+conditions are present. Empty sides contribute zero. Signed powers preserve
+real values for negative scorer outputs; for ordinary non-negative activity
+scores they are identical to regular powers. Larger powers are scale-sensitive,
+so compare the untransformed on/off scores rather than fitness alone.
+
 ### Population and evolution arguments
 
 | Argument | Purpose and validation |
@@ -161,6 +191,47 @@ Only the first `offspring_size` yielded items are consumed. Candidate IDs
 deduplicate identical region strings within and across generations. Previously
 evaluated candidates may re-enter a selection pool without being rescored.
 
+### Reusable crossover/mutation generators
+
+Two default generators implement the notebook's parent selection, optional
+one-point crossover, and distinct point mutations:
+
+- `SequentialCrossoverMutationGenerator` runs in the optimizer process;
+- `ParallelCrossoverMutationGenerator` submits ordered batches to a persistent
+  spawn-based `ProcessPoolExecutor`.
+
+Both require `offspring_generator_mode="records"`. For equal configuration and
+seed they return identical ordered children, independent of worker count,
+because every child receives a deterministic seed derived from its generation
+and child index. Both also return `parent_ids` with each child.
+
+```python
+from gena_expression import (
+    ParallelCrossoverMutationGenerator,
+    SequenceOptimizer,
+)
+
+with ParallelCrossoverMutationGenerator(
+    max_workers=4,
+    crossover_probability=0.6,
+    mutations_per_child=20,
+    random_seed=44,
+) as offspring_generator:
+    optimizer = SequenceOptimizer(
+        # sequence, targets, scorer, and other arguments omitted
+        offspring_generator=offspring_generator,
+        offspring_generator_mode="records",
+    )
+    optimizer.run_evolution(model)
+```
+
+The parallel generator lazily creates its process pool and closes it on context
+exit. It uses the multiprocessing `"spawn"` context so workers do not inherit a
+CUDA-initialized parent process. In a standalone script, create and run it under
+`if __name__ == "__main__":`. Batch multiprocessing is most useful for large or
+expensive offspring workloads; benchmark it against the sequential generator
+for small populations.
+
 ### Selection strategies
 
 Fitness is maximized; ties are resolved deterministically by candidate ID.
@@ -201,7 +272,7 @@ run_evolution(
 | `preprocessing_backend` | `"process"` or `"thread"`, forwarded. |
 | `max_records_per_forward` | Optional inference forward-row limit. |
 | `prefetch_batches` | Inference look-ahead count. |
-| `show_progress` | Enable outer chunk progress when `tqdm` is available. Inner model progress is disabled. |
+| `show_progress` | Show one outer generation bar when `tqdm` is available. The bar advances after selection for generation zero and every reproduction generation. Inner evaluation/model bars are disabled. |
 
 Scoring flow:
 
@@ -271,6 +342,14 @@ One row for generation zero and each reproduction generation:
 | `evaluated_candidates` | Previously unseen IDs actually scored. |
 | `population_size` | Selected population size. |
 | `best_fitness`, `mean_fitness` | Population fitness summary. |
+| `best_min_on_target` | Highest candidate-level minimum on-target score in the selected population. Null when no on-targets are configured. |
+| `best_max_off_target` | Lowest candidate-level maximum off-target score in the selected population. Null when no off-targets are configured. |
+| `mean_min_on_target` | Mean of candidate-level minimum on-target scores in the selected population. Null when no on-targets are configured. |
+| `mean_max_off_target` | Mean of candidate-level maximum off-target scores in the selected population. Null when no off-targets are configured. |
+
+All history metrics are computed after selection. For example, with
+`selection_strategy="top_k"`, they summarize the retained top-k population, not
+all candidates proposed or evaluated in that generation.
 
 ## Other public methods and properties
 

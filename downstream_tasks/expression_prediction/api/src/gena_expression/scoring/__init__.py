@@ -15,6 +15,7 @@ from .results import (
 from .scorers import (
     ExpressionDeltaScorer,
     ExpressionScorer,
+    LinearCombinationScorer,
     RegressionScorer,
     ScorerSet,
     TokenWindowScorer,
@@ -29,6 +30,7 @@ __all__ = [
     "DisplayWindow",
     "ExpressionDeltaScorer",
     "ExpressionScorer",
+    "LinearCombinationScorer",
     "PredictionReport",
     "PredictionScoringResult",
     "RegressionScorer",

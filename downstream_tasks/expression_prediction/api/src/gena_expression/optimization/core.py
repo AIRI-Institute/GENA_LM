@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import random
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from itertools import islice
 from numbers import Real
 from pathlib import Path
@@ -13,6 +13,103 @@ from statistics import mean
 from typing import Any, Callable, Iterable, Literal, Mapping, Sequence
 
 from ..sequences import AnnotatedSequence, Feature
+
+
+@dataclass(frozen=True)
+class MinOnTargetMaxOffTargetFitness:
+    """Combine worst-case target scores with configurable power penalties.
+
+    For non-negative scores, the returned value is exactly::
+
+        min(on_scores) ** on_power
+        - off_weight * max(off_scores) ** off_power
+
+    Signed powers are used so fractional powers remain real when a scorer can
+    return negative values. Empty on-target or off-target mappings contribute
+    zero, matching :class:`SequenceOptimizer`'s default fitness convention.
+    """
+
+    on_power: float = 1.0
+    off_power: float = 2.0
+    off_weight: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate the power and weight parameters once at construction."""
+
+        for name, value in (
+            ("on_power", self.on_power),
+            ("off_power", self.off_power),
+        ):
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise TypeError(f"{name} must be a real number.")
+            if not math.isfinite(float(value)) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive.")
+        if isinstance(self.off_weight, bool) or not isinstance(
+            self.off_weight,
+            Real,
+        ):
+            raise TypeError("off_weight must be a real number.")
+        if not math.isfinite(float(self.off_weight)) or self.off_weight < 0:
+            raise ValueError("off_weight must be finite and non-negative.")
+
+    @staticmethod
+    def _extreme(
+        scores: Mapping[str, float],
+        *,
+        use_minimum: bool,
+    ) -> float:
+        """Return a validated minimum or maximum, using zero when empty."""
+
+        values: list[float] = []
+        for label, value in scores.items():
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise TypeError(
+                    f"Fitness score {label!r} must be a real number."
+                )
+            numeric = float(value)
+            if not math.isfinite(numeric):
+                raise ValueError(
+                    f"Fitness score {label!r} must be finite."
+                )
+            values.append(numeric)
+        if not values:
+            return 0.0
+        return min(values) if use_minimum else max(values)
+
+    @staticmethod
+    def _signed_power(value: float, power: float) -> float:
+        """Raise a magnitude to a power while preserving its original sign."""
+
+        if value == 0.0:
+            return 0.0
+        return math.copysign(abs(value) ** float(power), value)
+
+    def __call__(
+        self,
+        on_scores: Mapping[str, float],
+        off_scores: Mapping[str, float],
+    ) -> float:
+        """Return powered minimum-on minus weighted powered maximum-off."""
+
+        on_value = self._extreme(on_scores, use_minimum=True)
+        off_value = self._extreme(off_scores, use_minimum=False)
+        try:
+            fitness = self._signed_power(
+                on_value,
+                self.on_power,
+            ) - float(self.off_weight) * self._signed_power(
+                off_value,
+                self.off_power,
+            )
+        except OverflowError as exc:
+            raise ValueError(
+                "Powered fitness overflowed; reduce the score scale or powers."
+            ) from exc
+        if not math.isfinite(fitness):
+            raise ValueError(
+                "Powered fitness is not finite; reduce the score scale or powers."
+            )
+        return float(fitness)
 
 
 def _require_polars():
@@ -374,7 +471,6 @@ class SequenceOptimizer:
         preprocessing_backend: Literal["process", "thread"],
         max_records_per_forward: int | None,
         prefetch_batches: int,
-        show_progress: bool,
     ) -> None:
         """Predict and score each candidate under every configured target."""
 
@@ -386,20 +482,6 @@ class SequenceOptimizer:
         if not pending:
             return
 
-        starts: Any = range(0, len(pending), evaluation_chunk_size)
-        if show_progress:
-            try:
-                from tqdm.auto import tqdm
-
-                starts = tqdm(
-                    starts,
-                    total=math.ceil(len(pending) / evaluation_chunk_size),
-                    desc="Optimizing sequences",
-                    unit="chunk",
-                )
-            except ImportError:
-                pass
-
         targets = [
             ("on", target)
             for target in self.on_targets
@@ -409,7 +491,7 @@ class SequenceOptimizer:
         ]
         requires_tokens = bool(getattr(self.scorer, "requires_tokens", True))
 
-        for chunk_start in starts:
+        for chunk_start in range(0, len(pending), evaluation_chunk_size):
             chunk_ids = pending[
                 chunk_start : chunk_start + evaluation_chunk_size
             ]
@@ -606,11 +688,27 @@ class SequenceOptimizer:
         proposed: int,
         evaluated: int,
     ) -> None:
-        """Record one compact generation summary."""
+        """Record post-selection fitness and worst-target population metrics."""
 
         fitness_values = [
             float(self._records[candidate_id]["fitness"])
             for candidate_id in self._population
+        ]
+        candidate_min_on_target = [
+            min(
+                float(value)
+                for value in self._records[candidate_id]["on_scores"].values()
+            )
+            for candidate_id in self._population
+            if self._records[candidate_id]["on_scores"]
+        ]
+        candidate_max_off_target = [
+            max(
+                float(value)
+                for value in self._records[candidate_id]["off_scores"].values()
+            )
+            for candidate_id in self._population
+            if self._records[candidate_id]["off_scores"]
         ]
         self._history_rows.append(
             {
@@ -620,6 +718,26 @@ class SequenceOptimizer:
                 "population_size": len(self._population),
                 "best_fitness": max(fitness_values),
                 "mean_fitness": mean(fitness_values),
+                "best_min_on_target": (
+                    max(candidate_min_on_target)
+                    if candidate_min_on_target
+                    else None
+                ),
+                "best_max_off_target": (
+                    min(candidate_max_off_target)
+                    if candidate_max_off_target
+                    else None
+                ),
+                "mean_min_on_target": (
+                    mean(candidate_min_on_target)
+                    if candidate_min_on_target
+                    else None
+                ),
+                "mean_max_off_target": (
+                    mean(candidate_max_off_target)
+                    if candidate_max_off_target
+                    else None
+                ),
             }
         )
 
@@ -745,26 +863,68 @@ class SequenceOptimizer:
             "preprocessing_backend": preprocessing_backend,
             "max_records_per_forward": max_records_per_forward,
             "prefetch_batches": prefetch_batches,
-            "show_progress": show_progress,
         }
-        self._score_candidates(model, seed_ids, **score_options)
-        self._population = self._select_population(seed_ids)
-        self._add_history(
-            generation=0,
-            proposed=len(seed_ids),
-            evaluated=len(seed_ids),
-        )
+        progress = None
+        if show_progress:
+            try:
+                from tqdm.auto import tqdm
 
-        for generation in range(1, self.n_generations + 1):
-            proposed_ids, new_ids = self._generate_offspring(generation)
-            self._score_candidates(model, new_ids, **score_options)
-            pool = [*self._population, *proposed_ids]
-            self._population = self._select_population(pool)
+                progress = tqdm(
+                    total=self.n_generations + 1,
+                    desc=f"Evolution generation 0/{self.n_generations}",
+                    unit="generation",
+                )
+            except ImportError:  # pragma: no cover - tqdm is a core dependency
+                pass
+
+        def finish_generation(generation: int) -> None:
+            """Advance the outer bar with the latest post-selection metrics."""
+
+            if progress is None:
+                return
+            row = self._history_rows[-1]
+            postfix = {
+                "generation": f"{generation}/{self.n_generations}",
+                "best_fitness": f"{row['best_fitness']:.6g}",
+            }
+            for column in (
+                "best_min_on_target",
+                "best_max_off_target",
+            ):
+                value = row[column]
+                if value is not None:
+                    postfix[column] = f"{value:.6g}"
+            progress.set_postfix(postfix, refresh=False)
+            progress.update(1)
+
+        try:
+            self._score_candidates(model, seed_ids, **score_options)
+            self._population = self._select_population(seed_ids)
             self._add_history(
-                generation=generation,
-                proposed=len(proposed_ids),
-                evaluated=len(new_ids),
+                generation=0,
+                proposed=len(seed_ids),
+                evaluated=len(seed_ids),
             )
+            finish_generation(0)
+
+            for generation in range(1, self.n_generations + 1):
+                if progress is not None:
+                    progress.set_description_str(
+                        f"Evolution generation {generation}/{self.n_generations}"
+                    )
+                proposed_ids, new_ids = self._generate_offspring(generation)
+                self._score_candidates(model, new_ids, **score_options)
+                pool = [*self._population, *proposed_ids]
+                self._population = self._select_population(pool)
+                self._add_history(
+                    generation=generation,
+                    proposed=len(proposed_ids),
+                    evaluated=len(new_ids),
+                )
+                finish_generation(generation)
+        finally:
+            if progress is not None:
+                progress.close()
 
         self._has_run = True
         self._refresh_tables()

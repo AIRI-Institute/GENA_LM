@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -62,6 +62,12 @@ class _InMemoryAnnotation:
                 break
             overlapping.append(record)
         return overlapping
+
+    def iter_records(self) -> Iterator[_GtfRecord]:
+        """Yield every preloaded annotation record."""
+
+        for chrom in sorted(self.records_by_chrom):
+            yield from self.records_by_chrom[chrom]
 
 
 class _TabixGtfAnnotation:
@@ -156,6 +162,27 @@ class _TabixGtfAnnotation:
             if record is not None:
                 records.append(record)
         return records
+
+    def iter_records(self) -> Iterator[_GtfRecord]:
+        """Yield every annotation record in tabix contig order."""
+
+        handle = self._handle()
+        for chrom in handle.contigs:
+            try:
+                rows = handle.fetch(chrom)
+            except Exception as exc:
+                raise ValueError(
+                    "Could not iterate annotation records from tabix index. "
+                    f"debug={{'path': {str(self.path)!r}, 'chrom': {chrom!r}}}"
+                ) from exc
+            for raw_line in rows:
+                record = Genome._parse_gtf_line(
+                    raw_line,
+                    path=self.path,
+                    context=f"tabix contig {chrom}",
+                )
+                if record is not None:
+                    yield record
 
 
 class Genome:

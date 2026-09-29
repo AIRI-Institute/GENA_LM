@@ -1,5 +1,14 @@
 """Evolutionary optimization of annotated DNA sequence regions."""
 
-from .core import SequenceOptimizer
+from .core import MinOnTargetMaxOffTargetFitness, SequenceOptimizer
+from .offspring import (
+    ParallelCrossoverMutationGenerator,
+    SequentialCrossoverMutationGenerator,
+)
 
-__all__ = ["SequenceOptimizer"]
+__all__ = [
+    "MinOnTargetMaxOffTargetFitness",
+    "ParallelCrossoverMutationGenerator",
+    "SequenceOptimizer",
+    "SequentialCrossoverMutationGenerator",
+]

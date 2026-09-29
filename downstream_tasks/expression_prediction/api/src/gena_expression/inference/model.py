@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import logging
+import os
+import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,6 +40,51 @@ from .batching import (
 from .description import get_configured_description_formatter
 from .outputs import ExpressionPrediction, PairPrediction, Prediction, _simple_value
 from .tokenization import CenteredTokenizer, TokenizedSequence
+
+
+def _log_git_commit_comparison(experiment_config: Mapping[str, Any], logger: logging.Logger) -> None:
+    """Log whether the model config matches the local GENA_LM checkout."""
+
+    try:
+        config_commit = str(experiment_config.get("git_commit_hash") or "").strip()
+        if not config_commit:
+            logger.warning(
+                "\n##########    WARNING!    ##########\n"
+                "Model config does not contain a non-empty git_commit_hash; "
+                "compatibility was not checked.\n"
+            )
+            return
+
+        genalm_home = os.environ.get("GENALM_HOME")
+        if not genalm_home:
+            logger.warning(
+                "\n##########    WARNING!    ##########\n"
+                "GENALM_HOME is not set; GENA_LM commit compatibility was not checked.\n"
+            )
+            return
+
+        repository = Path(genalm_home).expanduser() / "GENA_LM"
+        local_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository,
+            stderr=subprocess.DEVNULL,
+        ).decode("ascii").strip()
+
+        if local_commit == config_commit:
+            logger.info("GENA_LM commit matches model config: %s", local_commit)
+        else:
+            logger.warning(
+                "\n##########    WARNING!    ##########\n"
+                "GENA_LM commit does not match model config (local: %s, config: %s).\n",
+                local_commit,
+                config_commit
+            )
+    except Exception as exc:
+        logger.warning(
+            "\n##########    WARNING!    ##########\n"
+            "Could not check GENA_LM commit compatibility: %s \n",
+            exc
+            )
 
 
 class SequenceModel:
@@ -171,6 +218,7 @@ class SequenceModel:
 
         with initialize_config_dir(str(config_path.parents[0])):
             experiment_config = compose(config_name=config_path.name)
+        _log_git_commit_comparison(experiment_config, logger)
         model_kwargs = instantiate(experiment_config["model_kwargs"])
         model = loaded_cls(**model_kwargs)
 

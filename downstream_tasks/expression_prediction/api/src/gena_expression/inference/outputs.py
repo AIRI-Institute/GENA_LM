@@ -34,7 +34,6 @@ class Prediction:
     """Raw model prediction for one sequence and one condition."""
 
     sequence: AnnotatedSequence | None
-    sequence_name: str | None
     condition: Condition
     logits: Any | None
     outputs: Mapping[str, Any]

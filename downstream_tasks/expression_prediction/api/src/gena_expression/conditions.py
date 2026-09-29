@@ -8,31 +8,17 @@ import inspect
 import json
 import re
 import sys
-from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Dict, Iterable, Mapping, Optional, Sequence
 
+from ._import_utils import temporary_sys_path
+
 
 DescriptionFormatter = Callable[..., str]
 ResolvedDescriptionFormatter = Callable[[Mapping[str, Any]], str]
 DescriptionFormatterSpec = DescriptionFormatter | str
-
-
-@contextmanager
-def _temporary_sys_path(path: Path):
-    """Temporarily make sibling imports available while loading a user file."""
-
-    path_str = str(path)
-    added = path_str not in sys.path
-    if added:
-        sys.path.insert(0, path_str)
-    try:
-        yield
-    finally:
-        if added:
-            sys.path.remove(path_str)
 
 
 def _load_static_description_formatter(reference: str) -> DescriptionFormatter:
@@ -58,7 +44,7 @@ def _load_static_description_formatter(reference: str) -> DescriptionFormatter:
 
     module = importlib.util.module_from_spec(spec)
     try:
-        with _temporary_sys_path(file_path.parent):
+        with temporary_sys_path(file_path.parent):
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
     except Exception:

@@ -380,6 +380,36 @@ otherwise the whole object is the model.
 takes the first flattened prediction as a float, and returns `ScoringResult`
 with bin metadata in `features`.
 
+## `LinearCombinationScorer`
+
+Combines named scalar scorers into one scorer accepted by
+`SequenceOptimizer`:
+
+```python
+LinearCombinationScorer(
+    {
+        "tss_window": (TrackWindowScorer(center="tss"), 0.25),
+        "insert": (TrackFeatureScorer(features="insert"), 0.50),
+        "expression": (ExpressionScorer(), 0.25),
+    }
+)
+```
+
+The final score is `sum(coefficient * component_score)`. Component scorers must
+return finite scalar results. `requires_tokens` is true when any component
+requires tokens, so the optimizer retains the data needed by track scorers.
+`score_prediction()` returns one `PredictionScoringResult` and records each raw
+score, coefficient, and weighted contribution under `result.provenance`.
+
+Pair `score()` is also available when every component implements pair scoring.
+For example, a combination containing `ExpressionScorer` supports absolute
+prediction scoring but not pair scoring because `ExpressionScorer` has no
+pair-score method.
+
+Coefficients act on raw scorer scales. A track sum, track mean, and expression
+value can differ by orders of magnitude, so inspect component contributions and
+calibrate coefficients before interpreting the combined score.
+
 ## `ScorerSet`
 
 Runs several scorers against the same prediction:

@@ -114,8 +114,8 @@ The package root re-exports the following names from `gena_expression`:
 | Tracks | `Track`, `TrackPrediction` |
 | dna | `Context`, `Genome`, `GenomeContext`, `GenomeInterval`, `GenomeRegion`, `SafeHarborSite`, `FeatureMatch`, `PlasmidMetadata`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, `infer_table18_primer_tails` |
 | Inference | `CenteredTokenizer`, `TokenizedSequence`, `SequenceModel`, `Prediction`, `ExpressionPrediction`, `PairPrediction` |
-| Scoring | `VariantInterpreter`, `ExpressionScorer`, `ExpressionDeltaScorer`, `TokenWindowScorer`, `TrackWindowScorer`, `TrackEffectPeakScorer`, `TrackFeatureScorer`, `TrackAllFeaturesScorer`, `TrackFeatureBuilder`, `RegressionScorer`, `ScorerSet`, `ScoreWindow`, `DisplayWindow`, `ResultIdentity`, `PredictionScoringResult`, `ScoringResult`, `PredictionReport`, `VariantReport` |
-| Workflows | `ISM`, `SequenceOptimizer` |
+| Scoring | `VariantInterpreter`, `ExpressionScorer`, `ExpressionDeltaScorer`, `TokenWindowScorer`, `TrackWindowScorer`, `TrackEffectPeakScorer`, `TrackFeatureScorer`, `TrackAllFeaturesScorer`, `TrackFeatureBuilder`, `RegressionScorer`, `LinearCombinationScorer`, `ScorerSet`, `ScoreWindow`, `DisplayWindow`, `ResultIdentity`, `PredictionScoringResult`, `ScoringResult`, `PredictionReport`, `VariantReport` |
+| Workflows | `ISM`, `SequenceOptimizer`, `MinOnTargetMaxOffTargetFitness`, `SequentialCrossoverMutationGenerator`, `ParallelCrossoverMutationGenerator` |
 
 Some module-level helpers and type aliases are intentionally available only from
 their defining module or subpackage. Their folder READMEs identify them.

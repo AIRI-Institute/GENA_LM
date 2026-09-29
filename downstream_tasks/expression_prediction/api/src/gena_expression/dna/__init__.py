@@ -2,6 +2,7 @@
 
 from .builders import Context, GenomeContext, PlasmidContext
 from .genome import Genome, GenomeInterval, GenomeRegion, SafeHarborSite
+from .samplers import PromoterSampler
 from .plasmid import (
     FeatureMatch,
     PlasmidCollection,
@@ -23,6 +24,7 @@ __all__ = [
     "PlasmidContext",
     "PlasmidMetadata",
     "PlasmidRecord",
+    "PromoterSampler",
     "PrimerTailEntry",
     "PrimerTails",
     "SafeHarborSite",

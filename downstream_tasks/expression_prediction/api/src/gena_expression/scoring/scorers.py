@@ -5,6 +5,7 @@ from __future__ import annotations
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from math import isfinite
+from numbers import Real
 from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping, Protocol, Sequence
 
@@ -1596,6 +1597,169 @@ class RegressionScorer:
             prediction=prediction,
             features=metadata,
             provenance={"scorer": type(self).__name__},
+        )
+
+
+@dataclass(frozen=True)
+class LinearCombinationScorer:
+    """Return a weighted sum of named scalar scorer results.
+
+    ``scorers`` maps each component name to ``(scorer, coefficient)``. The
+    absolute ``score_prediction()`` method works with ``SequenceOptimizer``.
+    Pair ``score()`` is also supported when every component implements it.
+    """
+
+    scorers: Mapping[str, tuple[Any, float]]
+    name: str = "linear_combination"
+
+    def __post_init__(self) -> None:
+        """Validate and detach the component mapping from caller mutation."""
+
+        if not isinstance(self.scorers, Mapping):
+            raise TypeError(
+                "scorers must map names to (scorer, coefficient) pairs."
+            )
+        if not self.scorers:
+            raise ValueError("scorers must contain at least one component.")
+
+        normalized: dict[str, tuple[Any, float]] = {}
+        for component_name, value in self.scorers.items():
+            if not isinstance(component_name, str) or not component_name.strip():
+                raise ValueError("Component names must be non-empty strings.")
+            if (
+                not isinstance(value, (tuple, list))
+                or len(value) != 2
+            ):
+                raise TypeError(
+                    "Each component must be a (scorer, coefficient) pair."
+                )
+            scorer, coefficient = value
+            if isinstance(coefficient, bool) or not isinstance(
+                coefficient,
+                Real,
+            ):
+                raise TypeError(
+                    f"Coefficient for {component_name!r} must be real."
+                )
+            numeric_coefficient = float(coefficient)
+            if not isfinite(numeric_coefficient):
+                raise ValueError(
+                    f"Coefficient for {component_name!r} must be finite."
+                )
+            normalized[component_name] = (scorer, numeric_coefficient)
+        object.__setattr__(self, "scorers", normalized)
+
+    @property
+    def requires_tokens(self) -> bool:
+        """Require tokens when any component scorer requires them."""
+
+        return any(
+            bool(getattr(scorer, "requires_tokens", True))
+            for scorer, _ in self.scorers.values()
+        )
+
+    @staticmethod
+    def _scalar_component(
+        component_name: str,
+        result: ScoringResult | PredictionScoringResult,
+    ) -> float:
+        """Extract one finite scalar score from a component result."""
+
+        score = result.score
+        if isinstance(score, bool) or not isinstance(score, Real):
+            raise TypeError(
+                "LinearCombinationScorer requires scalar component scores; "
+                f"{component_name!r} returned {type(score).__name__}."
+            )
+        numeric_score = float(score)
+        if not isfinite(numeric_score):
+            raise ValueError(
+                f"Component {component_name!r} returned a non-finite score."
+            )
+        return numeric_score
+
+    def score_prediction(
+        self,
+        prediction: Prediction,
+    ) -> PredictionScoringResult:
+        """Return the weighted sum of absolute single-prediction scores."""
+
+        components: dict[str, dict[str, Any]] = {}
+        total = 0.0
+        for component_name, (scorer, coefficient) in self.scorers.items():
+            method = getattr(scorer, "score_prediction", None)
+            if not callable(method):
+                raise TypeError(
+                    f"Component {component_name!r} does not implement "
+                    "score_prediction(prediction)."
+                )
+            result = method(prediction)
+            if not isinstance(result, PredictionScoringResult):
+                raise TypeError(
+                    f"Component {component_name!r} must return "
+                    "PredictionScoringResult."
+                )
+            score = self._scalar_component(component_name, result)
+            contribution = coefficient * score
+            total += contribution
+            components[component_name] = {
+                "scorer": type(scorer).__name__,
+                "score": score,
+                "coefficient": coefficient,
+                "contribution": contribution,
+            }
+
+        if not isfinite(total):
+            raise ValueError("The combined score is not finite.")
+        return PredictionScoringResult(
+            name=self.name,
+            score=float(total),
+            prediction=prediction,
+            provenance={
+                "scorer": type(self).__name__,
+                "mode": "absolute",
+                "components": components,
+            },
+        )
+
+    def score(self, prediction: PairPrediction) -> ScoringResult:
+        """Return a weighted pair score when all components support pairs."""
+
+        components: dict[str, dict[str, Any]] = {}
+        total = 0.0
+        for component_name, (scorer, coefficient) in self.scorers.items():
+            method = getattr(scorer, "score", None)
+            if not callable(method):
+                raise TypeError(
+                    f"Component {component_name!r} does not implement "
+                    "score(pair_prediction)."
+                )
+            result = method(prediction)
+            if not isinstance(result, ScoringResult):
+                raise TypeError(
+                    f"Component {component_name!r} must return ScoringResult."
+                )
+            score = self._scalar_component(component_name, result)
+            contribution = coefficient * score
+            total += contribution
+            components[component_name] = {
+                "scorer": type(scorer).__name__,
+                "score": score,
+                "coefficient": coefficient,
+                "contribution": contribution,
+            }
+
+        if not isfinite(total):
+            raise ValueError("The combined score is not finite.")
+        return ScoringResult(
+            name=self.name,
+            score=float(total),
+            prediction=prediction,
+            provenance={
+                "scorer": type(self).__name__,
+                "mode": "pair",
+                "components": components,
+            },
         )
 
 

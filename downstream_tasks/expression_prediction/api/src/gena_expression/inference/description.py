@@ -15,7 +15,7 @@ def get_make_description_from_json(
 ) -> Callable[[dict[str, Any], str | None, str | None], str]:
     """Return the configured dataset class's description function.
 
-    ``get_class`` imports the class named by ``*target*`` but, unlike
+    ``get_class`` imports the class named by ``_target_`` but, unlike
     ``hydra.utils.instantiate``, does not call its constructor. Imports stay
     local so importing :mod:`gena_expression` does not require model extras.
     """
@@ -41,7 +41,7 @@ def get_make_description_from_json(
     dataset: DictConfig = config[dataset_config]
     target = OmegaConf.select(dataset, "_target_")
     if not isinstance(target, str) or not target:
-        raise ValueError(f"Dataset config {dataset_config!r} has no valid _target_")
+        raise ValueError(f"Dataset config {dataset_config!r} has no valid *target*")
 
     dataset_class = get_class(target)
     make_description = getattr(dataset_class, "make_description_from_json", None)
