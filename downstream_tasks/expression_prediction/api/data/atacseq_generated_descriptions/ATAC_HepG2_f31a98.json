@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human liver carcinoma cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "child",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on HepG2 cells, an epithelial-like hepatocellular carcinoma/hepatoblastoma-like liver tumor line from a 15-year-old male and a common model for hepatic metabolism, toxicology, and liver regulatory elements.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from cultured hepatic tumor cells: nuclei are prepared from the full sample, accessible chromatin is tagmented with Tn5 transposase, and libraries measure population-average enhancer and promoter accessibility.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "HepG2",
+  "Characteristics [Tissue]": "liver",
+  "id": "BulkATAC_f31a98c20d47"
+}

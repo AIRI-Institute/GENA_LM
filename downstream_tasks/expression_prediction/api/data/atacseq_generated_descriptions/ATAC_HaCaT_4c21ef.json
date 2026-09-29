@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of an immortalized human keratinocyte cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on HaCaT cells, a spontaneously immortalized non-tumorigenic keratinocyte line from adult human skin, similar to epidermal keratinocytes and useful for skin differentiation and barrier biology.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from adherent keratinocyte cultures: cells are gently lysed to recover nuclei, accessible chromatin is tagmented with Tn5 transposase, and pooled libraries represent population-level regulatory accessibility.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "HaCaT",
+  "Characteristics [Tissue]": "skin epidermis",
+  "id": "BulkATAC_4c21ef8d6b03"
+}

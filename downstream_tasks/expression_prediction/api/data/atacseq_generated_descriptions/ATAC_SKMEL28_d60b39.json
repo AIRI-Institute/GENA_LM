@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human cutaneous melanoma cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on SK-MEL-28 cells, a lightly pigmented cutaneous malignant melanoma line from skin of a 51-year-old male and a melanocyte-derived cancer model included in major pharmacogenomic resources.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from adherent melanoma cells: nuclei are isolated from the cultured population and open chromatin regions are tagmented by Tn5 transposase before library amplification and sequencing.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "SK-MEL-28",
+  "Characteristics [Tissue]": "skin melanoma",
+  "id": "BulkATAC_d60b39e81724"
+}

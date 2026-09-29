@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human erythroleukemia cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on HEL92.1.7 cells, an erythroblast-like erythroleukemia model derived from a male patient with acute erythroid leukemia and useful for hematopoietic, erythroid, and leukemia regulatory programs.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from cultured suspension leukemia cells: nuclei are collected from the pooled cell population and accessible DNA is tagmented in situ with Tn5 transposase prior to library amplification.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "HEL92.1.7",
+  "Characteristics [Tissue]": "blood and bone marrow",
+  "id": "BulkATAC_b8f31d7a42c9"
+}

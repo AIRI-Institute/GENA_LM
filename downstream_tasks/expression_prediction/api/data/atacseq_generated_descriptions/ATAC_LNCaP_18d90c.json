@@ -1,0 +1,15 @@
+{
+  "Characteristics [Category]": "bulk ATAC-seq chromatin accessibility profiling of a human metastatic prostate adenocarcinoma cell line",
+  "Chracteristics [Species]": "Human (Homo sapiens)",
+  "Characteristics [Sex]": "male",
+  "Characteristics [Age]": "adult",
+  "Characteristics [Cell lot]": "NaN",
+  "Characteristics [replicas]": "two biological replicates per sample",
+  "Material Type": "Bulk Assay for Transposase-Accessible Chromatin using sequencing (bulk ATAC-seq) on LNCaP cells, an androgen-sensitive epithelial prostate adenocarcinoma line established from lymph node metastasis of a 50-year-old male and used for androgen receptor and prostate cancer enhancer biology.",
+  "Comment [organism]": "Homo sapiens",
+  "Parameter [dna_extraction]": "Bulk ATAC-seq nuclei preparation from adherent prostate cancer cells: nuclei are isolated from the cultured population, accessible chromatin is tagmented in bulk with Tn5 transposase, and sequencing captures shared regulatory accessibility.",
+  "genome": "GRCh38",
+  "Characteristics [Cell type]": "LNCaP",
+  "Characteristics [Tissue]": "prostate gland lymph node metastasis",
+  "id": "BulkATAC_18d90cb7e6a1"
+}

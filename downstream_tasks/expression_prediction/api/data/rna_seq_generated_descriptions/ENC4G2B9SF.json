@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human SF7996, a patient-derived early-passage glioblastoma/glioma neurosphere culture from UCSF, reported as a male IDH1-wild-type, TERT-promoter-mutant primary GBM model; brain tumor model enriched for glioma-propagating cell states.",
+  "biosample_summary": "Homo sapiens SF7996 patient-derived glioblastoma neurosphere cell line",
+  "life_stage_age": "adult",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC4G2B9SF",
+  "genome": "GRCh38"
+}
