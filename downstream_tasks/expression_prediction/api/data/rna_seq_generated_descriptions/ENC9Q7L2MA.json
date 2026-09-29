@@ -1,0 +1,12 @@
+{
+  "assay_term_name": "RNA-seq",
+  "description": "RNA-seq on human HEK293T, a transformed derivative of HEK293 from human fetal embryonic kidney cells, carrying SV40 large T antigen and widely used as an epithelial-like kidney/neuroectoderm-associated transfection and expression model; non-cancer transformed cell line.",
+  "biosample_summary": "Homo sapiens HEK293T transformed embryonic kidney-derived cell line",
+  "life_stage_age": "fetal",
+  "perturbed": false,
+  "strand_specificity": "unstranded",
+  "genome_annotation": "V29",
+  "mapped_run_type": "paired-ended",
+  "id": "ENC9Q7L2MA",
+  "genome": "GRCh38"
+}
