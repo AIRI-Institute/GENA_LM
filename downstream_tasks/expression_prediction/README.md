@@ -416,6 +416,29 @@ model_kwargs:
 
 Check that the backbone and the decoder are present in `$GENALM_HOME/models/` before launching — otherwise you will crash only after the caches have been warmed up.
 
+#### Freezing the DNA encoder
+
+`model_kwargs.freeze_dna_encoder: true` pins the whole DNA backbone (`self.bert`)
+to `requires_grad=False` and keeps it in `.eval()` for the entire run — including
+later calls to `model.train()`, so dropout and other stochastic layers in the
+frozen part never turn back on. Everything else (decoder, description model,
+cross-attention) still trains normally. Default is `false`; omit the key
+entirely for the old behaviour.
+
+```yaml
+model_kwargs:
+  _target_: builtins.dict
+  hf: True
+  hf_model_name: "${HOME_PATH}/models/<backbone>"
+  hf_model_name_decoder: "${HOME_PATH}/models/<decoder>"
+  desc_model_name: "Qwen/Qwen3-Embedding-0.6B"
+  freeze_dna_encoder: true
+```
+
+Useful when the backbone is already well-trained and you only want to adapt the
+decoder/description side to a new dataset mix, or when GPU memory is tight and
+you can drop the DNA encoder's gradients and optimizer state.
+
 ### 4.3. Dataset blocks
 
 #### How they are named
