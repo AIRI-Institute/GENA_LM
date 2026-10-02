@@ -168,7 +168,6 @@ class ExpressionCounts(nn.Module):
         dropout_prob: float = 0.1,
         max_position_embeddings: int = None,
         max_position_embeddings_decoder: int = None,
-        freeze_dna_encoder: bool = False,
     ):
         super().__init__()
 
@@ -247,17 +246,6 @@ class ExpressionCounts(nn.Module):
             if len(unexpected_k) != 0 and _is_main_process():
                 print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
 
-        # Optionally freeze the whole DNA encoder (self.bert). Kept in eval()
-        # so dropout/stochastic layers stay off even while the outer model
-        # trains, independent of calls to .train() elsewhere.
-        self.freeze_dna_encoder = freeze_dna_encoder
-        if freeze_dna_encoder:
-            for p in self.bert.parameters():
-                p.requires_grad = False
-            self.bert.eval()
-            if _is_main_process():
-                frozen_params = sum(p.numel() for p in self.bert.parameters())
-                print(f"[dna encoder] frozen: {frozen_params:,} params (requires_grad=False)")
 
         self.config = config
 
@@ -397,13 +385,6 @@ class ExpressionCounts(nn.Module):
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
 
-
-    def train(self, mode: bool = True):
-        """Keep a frozen DNA encoder in eval mode during outer training."""
-        super().train(mode)
-        if getattr(self, "freeze_dna_encoder", False):
-            self.bert.eval()
-        return self
 
     def forward(
         self,

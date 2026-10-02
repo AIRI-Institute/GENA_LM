@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from transformers import AutoModel, BertConfig, ModernBertModel
 from transformers.utils import cached_file
 from transformers.utils import logging as hf_logging
+try:
+    from .modernbert_description_cross_attention import DescriptionConditionedModernBert
+except ImportError:  # Allows direct execution/import from the file's directory.
+    from modernbert_description_cross_attention import DescriptionConditionedModernBert
 hf_logging.set_verbosity_warning()
 
 @dataclass
@@ -166,9 +170,10 @@ class ExpressionCounts(nn.Module):
         weight_deviation_loss: float = 1.0,
         weight_multinomial_loss: float = 1.0,
         dropout_prob: float = 0.1,
-        max_position_embeddings: int = None,
-        max_position_embeddings_decoder: int = None,
-        freeze_dna_encoder: bool = False,
+        cross_attention_after_layers=(3, 14, 28),
+        cross_attention_heads: Optional[int] = None,
+        cross_attention_residual_scale: float = 0.1,
+        gradient_checkpointing: bool = True,
     ):
         super().__init__()
 
@@ -188,9 +193,6 @@ class ExpressionCounts(nn.Module):
             if "modern" in model_name:
                 if _is_main_process():
                     print(f"Using ModernGENA from {hf_model_name}")
-                _encoder_overrides = {}
-                if max_position_embeddings is not None:
-                    _encoder_overrides["max_position_embeddings"] = max_position_embeddings
                 self.bert, info = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
@@ -199,7 +201,6 @@ class ExpressionCounts(nn.Module):
                     embedding_dropout=dropout_prob,
                     mlp_dropout=dropout_prob,
                     output_loading_info=True,
-                    **_encoder_overrides,
                 )
                 config = self.bert.config
                 if _is_main_process():
@@ -247,17 +248,6 @@ class ExpressionCounts(nn.Module):
             if len(unexpected_k) != 0 and _is_main_process():
                 print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
 
-        # Optionally freeze the whole DNA encoder (self.bert). Kept in eval()
-        # so dropout/stochastic layers stay off even while the outer model
-        # trains, independent of calls to .train() elsewhere.
-        self.freeze_dna_encoder = freeze_dna_encoder
-        if freeze_dna_encoder:
-            for p in self.bert.parameters():
-                p.requires_grad = False
-            self.bert.eval()
-            if _is_main_process():
-                frozen_params = sum(p.numel() for p in self.bert.parameters())
-                print(f"[dna encoder] frozen: {frozen_params:,} params (requires_grad=False)")
 
         self.config = config
 
@@ -337,43 +327,10 @@ class ExpressionCounts(nn.Module):
             if len(names) > 30:
                 print(f"  - ... (+{len(names)-30} more)")
 
-        # 3) Projection if dimensions do not match
+        # Hidden sizes are retained only for logging/configuration compatibility.
+        # The cross-attention wrapper owns the required description projection.
         self.gen_hidden_size = config.hidden_size
         self.desc_hidden_size = self.desc_model.config.hidden_size
-        self.dna_ln = nn.LayerNorm(self.gen_hidden_size)
-        self.desc_ln = nn.LayerNorm(self.gen_hidden_size)
-
-        # 4) Decoder
-        if _is_main_process():
-            print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        _decoder_overrides = {}
-        if max_position_embeddings_decoder is not None:
-            _decoder_overrides["max_position_embeddings"] = max_position_embeddings_decoder
-        self.decoder, info2 = ModernBertModel.from_pretrained(
-                hf_model_name_decoder,
-                trust_remote_code=True,
-                attn_implementation="flash_attention_2",
-                attention_dropout=dropout_prob,
-                embedding_dropout=dropout_prob,
-                mlp_dropout=dropout_prob,
-                output_loading_info=True,
-                **_decoder_overrides,
-            )
-        if _is_main_process():
-            print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
-            print("unexpected:", len(info2["unexpected_keys"]), info2["unexpected_keys"][:10])
-            print("mismatched:", info2.get("mismatched_keys", [])[:5])
-            print(
-                "decoder dropouts:",
-                {
-                    "attention_dropout": self.decoder.config.attention_dropout,
-                    "embedding_dropout": self.decoder.config.embedding_dropout,
-                    "mlp_dropout": self.decoder.config.mlp_dropout,
-                }
-            )
-
-
-
 
         # 6) Loss
         self.activation = activation
@@ -388,22 +345,31 @@ class ExpressionCounts(nn.Module):
         dtype = next(self.bert.parameters()).dtype
         device = next(self.bert.parameters()).device
 
-        self.desc_proj = nn.Linear(self.desc_hidden_size, self.gen_hidden_size, device=device, dtype=dtype)
-
         # 5) Classifier
-        self.classifier = nn.Linear(self.decoder.config.hidden_size, 1, device=device, dtype=dtype)
+        self.classifier = nn.Linear(self.bert.config.hidden_size, 1, device=device, dtype=dtype)
+
+        # This is the only architectural addition to the upstream model.
+        # Reassigning ``self.bert`` keeps the rest of the class familiar: calls
+        # still return ``last_hidden_state`` like a normal ModernBERT model.
+        if not isinstance(self.bert, ModernBertModel):
+            raise TypeError(
+                "The cross-attention wrapper requires a ModernBertModel DNA "
+                "encoder. Set hf=True and use the ModernGENA checkpoint."
+            )
+        self.bert = DescriptionConditionedModernBert(
+            dna_model=self.bert,
+            description_model=self.desc_model,
+            cross_attention_after_layers=cross_attention_after_layers,
+            cross_attention_heads=cross_attention_heads,
+            dropout=dropout_prob,
+            initial_residual_scale=cross_attention_residual_scale,
+            enable_gradient_checkpointing=gradient_checkpointing,
+            disable_reference_compile=True,
+        )
 
 
-        if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
-            self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
+        del self.desc_model
 
-
-    def train(self, mode: bool = True):
-        """Keep a frozen DNA encoder in eval mode during outer training."""
-        super().train(mode)
-        if getattr(self, "freeze_dna_encoder", False):
-            self.bert.eval()
-        return self
 
     def forward(
         self,
@@ -447,97 +413,41 @@ class ExpressionCounts(nn.Module):
         if desc_attention_mask is not None and desc_attention_mask.dim() == 3:                              # (B, N, D) -> (B*N, D)
                 desc_attention_mask = desc_attention_mask.reshape(B * N, desc_attention_mask.shape[-1])
 
-        # 2) DNA model, remove duplicates
-        src = input_ids 
-        if src is None:
+        # 2) Joint DNA/description encoder.
+        #
+        # The upstream model encoded DNA and descriptions independently, then
+        # added one pooled description vector.  The wrapper instead injects all
+        # description-token states after DNA layers 3, 14, and 28.
+        #
+        # DNA rows cannot be deduplicated here: after the first cross-attention
+        # block, identical DNA paired with different descriptions is no longer
+        # represented by identical hidden states.
+        if input_ids is None:
             raise ValueError("input_ids must be provided")
-        device = src.device
-        BxN, seq_len = src.shape[:2]
-        B, N = dataset_flag.shape
-        if B * N != BxN:
-            raise ValueError(f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs input_ids rows {BxN}")
-        
-        flag = dataset_flag.to(device).bool()     
-        block_flag = flag[:, 0]                  
-        idx_all = torch.arange(BxN, device=device)
-        idx_grid = idx_all.view(B, N)            
+        if desc_input_ids is None:
+            raise ValueError("desc_input_ids must be provided")
+        if input_ids.shape[0] != B * N:
+            raise ValueError(
+                f"Batch mismatch: dataset_flag {tuple(dataset_flag.shape)} vs "
+                f"input_ids rows {input_ids.shape[0]}"
+            )
 
-        rep_inputs_idx = idx_grid[block_flag, 0]                         
-        unique_inputs_idx_mode2 = idx_grid[~block_flag, :].reshape(-1)   
-        idx_unique_inputs = torch.cat([unique_inputs_idx_mode2, rep_inputs_idx], dim=0)
-
-        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
-        pos_in_compact[idx_unique_inputs] = torch.arange(idx_unique_inputs.numel(), device=device)
-
-        map_inputs = torch.empty(BxN, dtype=torch.long, device=device)
-        map_inputs[unique_inputs_idx_mode2] = pos_in_compact[unique_inputs_idx_mode2]
-        if rep_inputs_idx.numel() > 0:
-            rows_dup = idx_grid[block_flag, :].reshape(-1)
-            rep_pos = pos_in_compact[rep_inputs_idx]                     
-            map_inputs[rows_dup] = rep_pos.repeat_interleave(N)
-
-        if (map_inputs < 0).any():
-            bad = (map_inputs < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
-            raise RuntimeError(
-                f"map_inputs has -1 indices : {bad.tolist()}. "
-                "Check dataset_flag/idx_unique_inputs mapping."
-    )
+        flag = dataset_flag.to(input_ids.device).bool()
+        block_flag = flag[:, 0]
+        if not (flag == block_flag[:, None]).all():
+            raise ValueError(
+                "Every dataset_flag row must contain either all zeros or all ones"
+            )
 
         bert_outputs = self.bert(
-                input_ids=input_ids[idx_unique_inputs],                         
-                attention_mask=attention_mask[idx_unique_inputs],
-                return_dict=True,
-            )
-        seq_compact = bert_outputs.last_hidden_state                    # (U_inp, L, H)
-        sequence_output = seq_compact[map_inputs]                       # (B*N, L, H)
-        hidden_size = sequence_output.size(-1)
-
-        # 3) Description model, remove duplicates 
-        unique_desc_idx = idx_grid[block_flag, :].reshape(-1)   # (B_true*N,)
-        rep_desc_idx = idx_grid[~block_flag, 0]                 # (B_false,)
-        idx_unique_desc = torch.cat([unique_desc_idx, rep_desc_idx], dim=0)  # (U_desc,)
-
-        pos_in_compact = torch.full((BxN,), -1, dtype=torch.long, device=device)
-        pos_in_compact[idx_unique_desc] = torch.arange(idx_unique_desc.numel(), device=device)
-        map_desc = torch.empty((BxN,), dtype=torch.long, device=device)
-        if unique_desc_idx.numel() > 0:
-            map_desc[unique_desc_idx] = pos_in_compact[unique_desc_idx]
-        if rep_desc_idx.numel() > 0:
-            rows_dup = idx_grid[~block_flag, :].reshape(-1)          
-            rep_pos = pos_in_compact[rep_desc_idx]                  
-            map_desc[rows_dup] = rep_pos.repeat_interleave(N)       
-
-        if (map_desc < 0).any():
-            bad = (map_desc < 0).nonzero(as_tuple=False).squeeze(-1)[:20]
-            raise RuntimeError(f"map_desc has -1 indices: {bad.tolist()}")
-
-        desc_out = self.desc_model(
-                input_ids=desc_input_ids[idx_unique_desc],
-                attention_mask=desc_attention_mask[idx_unique_desc],
-                return_dict=True,
-                )
-        desc_pooled = desc_out.last_hidden_state[:, -1]
-        desc_pooled = self.desc_proj(desc_pooled)                    
-        desc_pooled = desc_pooled.to(sequence_output.dtype) 
-        desc_output = desc_pooled[map_desc] 
-
-
-        sequence_output = self.dna_ln(sequence_output)   # (B*N, L, H)
-        desc_output = self.desc_ln(desc_output)          # (B*N, H)
-
-        desc_broadcast = desc_output[:, None, :] * attention_mask[:, :, None].to(sequence_output.dtype)
-        sequence_output = sequence_output + desc_broadcast
-
-
-        # 4) Decoder
-        dec_out = self.decoder(
-            inputs_embeds=sequence_output,        # (B*N, L, H)
-            attention_mask=attention_mask,        # (B*N, L)
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            desc_input_ids=desc_input_ids,
+            desc_attention_mask=desc_attention_mask,
             return_dict=True,
-        )
-        decoder_output = dec_out.last_hidden_state  # (B*N, L, H)
+        ).last_hidden_state
 
-        logits = self.activation(self.classifier(decoder_output))  # (B*N, L, 1)
+        logits = self.activation(self.classifier(bert_outputs))  # (B*N, L, 1)
 
         # 5) Loss
         loss = None
@@ -592,20 +502,16 @@ class ExpressionCounts(nn.Module):
                         loss = loss + self.weight_deviation_loss * deviation_loss
                     if multinomial_loss is not None:
                         loss = loss + self.weight_multinomial_loss * multinomial_loss
-        
-        if loss is None and labels is not None:
-            loss = logits.sum() * 0.0
 
         if not return_dict:
             return (loss, logits)
 
-        hidden_states_out = (decoder_output,)
+        hidden_states_out = (bert_outputs,)
 
         return ExpressionModelOutput(
             loss=loss,
             logits=logits,
             hidden_states=hidden_states_out,
-            attentions=bert_outputs.attentions,
             labels_reshaped=labels_reshaped,
             labels_mask_reshaped=labels_mask_reshaped,
             cls_loss=cls_loss,

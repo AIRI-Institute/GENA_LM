@@ -166,9 +166,6 @@ class ExpressionCounts(nn.Module):
         weight_deviation_loss: float = 1.0,
         weight_multinomial_loss: float = 1.0,
         dropout_prob: float = 0.1,
-        max_position_embeddings: int = None,
-        max_position_embeddings_decoder: int = None,
-        freeze_dna_encoder: bool = False,
     ):
         super().__init__()
 
@@ -188,9 +185,6 @@ class ExpressionCounts(nn.Module):
             if "modern" in model_name:
                 if _is_main_process():
                     print(f"Using ModernGENA from {hf_model_name}")
-                _encoder_overrides = {}
-                if max_position_embeddings is not None:
-                    _encoder_overrides["max_position_embeddings"] = max_position_embeddings
                 self.bert, info = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
@@ -199,7 +193,6 @@ class ExpressionCounts(nn.Module):
                     embedding_dropout=dropout_prob,
                     mlp_dropout=dropout_prob,
                     output_loading_info=True,
-                    **_encoder_overrides,
                 )
                 config = self.bert.config
                 if _is_main_process():
@@ -247,17 +240,6 @@ class ExpressionCounts(nn.Module):
             if len(unexpected_k) != 0 and _is_main_process():
                 print(f"{unexpected_k} were found in checkpoint, but model is not expecting them!")
 
-        # Optionally freeze the whole DNA encoder (self.bert). Kept in eval()
-        # so dropout/stochastic layers stay off even while the outer model
-        # trains, independent of calls to .train() elsewhere.
-        self.freeze_dna_encoder = freeze_dna_encoder
-        if freeze_dna_encoder:
-            for p in self.bert.parameters():
-                p.requires_grad = False
-            self.bert.eval()
-            if _is_main_process():
-                frozen_params = sum(p.numel() for p in self.bert.parameters())
-                print(f"[dna encoder] frozen: {frozen_params:,} params (requires_grad=False)")
 
         self.config = config
 
@@ -346,9 +328,6 @@ class ExpressionCounts(nn.Module):
         # 4) Decoder
         if _is_main_process():
             print(f"Using ModernBERT for dercoder from {hf_model_name_decoder}")
-        _decoder_overrides = {}
-        if max_position_embeddings_decoder is not None:
-            _decoder_overrides["max_position_embeddings"] = max_position_embeddings_decoder
         self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
@@ -356,8 +335,7 @@ class ExpressionCounts(nn.Module):
                 attention_dropout=dropout_prob,
                 embedding_dropout=dropout_prob,
                 mlp_dropout=dropout_prob,
-                output_loading_info=True,
-                **_decoder_overrides,
+                output_loading_info=True
             )
         if _is_main_process():
             print("missing:", len(info2["missing_keys"]), info2["missing_keys"][:10])
@@ -397,13 +375,6 @@ class ExpressionCounts(nn.Module):
         if hasattr(self.decoder, "embeddings") and hasattr(self.decoder.embeddings, "tok_embeddings"):
             self.decoder.embeddings.tok_embeddings.weight.requires_grad_(False)
 
-
-    def train(self, mode: bool = True):
-        """Keep a frozen DNA encoder in eval mode during outer training."""
-        super().train(mode)
-        if getattr(self, "freeze_dna_encoder", False):
-            self.bert.eval()
-        return self
 
     def forward(
         self,
@@ -592,9 +563,6 @@ class ExpressionCounts(nn.Module):
                         loss = loss + self.weight_deviation_loss * deviation_loss
                     if multinomial_loss is not None:
                         loss = loss + self.weight_multinomial_loss * multinomial_loss
-        
-        if loss is None and labels is not None:
-            loss = logits.sum() * 0.0
 
         if not return_dict:
             return (loss, logits)

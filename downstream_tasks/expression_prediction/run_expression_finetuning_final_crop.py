@@ -6,7 +6,6 @@ import time
 from functools import partial
 from itertools import chain, compress
 from pathlib import Path
-import subprocess
 
 # third-party
 import torch
@@ -22,8 +21,7 @@ from omegaconf import OmegaConf
 # accelerate
 import accelerate
 import random
-from accelerate import DistributedDataParallelKwargs, InitProcessGroupKwargs
-from datetime import timedelta
+from accelerate import DistributedDataParallelKwargs
 from accelerate.logging import get_logger
 from accelerate.utils import broadcast_object_list
 
@@ -61,6 +59,12 @@ logger.info(f"CUDA DEVICE COUNT: {torch.cuda.device_count()}")
 parser = HfArgumentParser(TrainerArgs)
 parser.add_argument('--experiment_config', type=str, help='path to the experiment config')
 parser.add_argument('--log_level', type=int, default=logging.INFO, help='log level')
+parser.add_argument('--crop_probs', type=str, default='1.0:0.5,0.5:0.25,0.25:0.15,0.125:0.10',
+                    help='center-crop schedule for the train loader: "frac:prob,frac:prob,...". '
+                         'One fraction is drawn per batch and applied to every sample; '
+                         'frac=1.0 means no crop. Set to an empty string to disable cropping.')
+parser.add_argument('--crop_min_tokens', type=int, default=256,
+                    help='never crop a sample below this many DNA tokens (CLS/SEP excluded)')
 parser.add_argument('--save_predictions', action='store_true', help='save predictions to file')
 
 
@@ -143,7 +147,7 @@ def _target_class_name(cfg: Any) -> str:
 
 def _is_expression_dataset_cfg(cfg: Any) -> bool:
     """True только для ExpressionDataset и его FixedDesc-варианта (Mode2 не подходит)."""
-    return _target_class_name(cfg) in ("ExpressionDataset", "ExpressionDatasetFixedDesc", "ExpressionDatasetTSSWindow")
+    return _target_class_name(cfg) in ("ExpressionDataset", "ExpressionDatasetFixedDesc")
 
 
 def infer_global_n_keys_from_expression_datasets(
@@ -268,11 +272,10 @@ def main():
 
     #  Accelerate
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
-    init_pg_kwargs = InitProcessGroupKwargs(timeout=timedelta(seconds=3600))
     accelerator = accelerate.Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision="bf16",
-        kwargs_handlers=[ddp_kwargs, init_pg_kwargs]
+        kwargs_handlers=[ddp_kwargs]
     )
     #  mixed_precision="bf16",
     alogger = get_logger(__name__) 
@@ -331,35 +334,10 @@ def main():
         args_dict = collect_run_configuration(args)
         json.dump(args_dict, open(model_path / 'config.json', 'w'), indent=4)
         open(model_path / 'git.diff', 'w').write(get_git_diff())
-        
         # Сохраняем копию Hydra-конфига
-        
-        tmp_model_config = model_path / "experiment_config.yaml.tmp"
-        model_config_with_commit_hash = model_path / "experiment_config.yaml"
         content = "\n".join(open(experiment_config_path).readlines())
-        with open(tmp_model_config, "w") as fout:
+        with open(Path(args.model_path) / "experiment_config.yaml", "w") as fout:
             fout.write(content)
-
-        assert os.path.exists(tmp_model_config), f"TMP config ({tmp_model_config}) was not created in {Path(args.model_path)}"
-
-        def get_git_hash_commit() -> str:
-            try:
-                commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
-            except subprocess.CalledProcessError:
-                # no git installed or we are not in repository
-                commit = ''
-            return commit
-
-        with open(tmp_model_config, 'a') as git_hash_target:
-            git_commit_hash = get_git_hash_commit()
-            git_hash_target.write('\n')
-            git_hash_target.write(f'git_commit_hash: "{git_commit_hash}"')
-
-        os.rename(tmp_model_config, model_config_with_commit_hash)
-
-        assert os.path.exists(model_config_with_commit_hash), "config with git has was not created"
-
-        alogger.debug(f'Added commit hash ({git_commit_hash}) to config {model_config_with_commit_hash}')
 
     accelerator.wait_for_everyone()
 
@@ -470,6 +448,93 @@ def main():
         return batch_dict
 
 
+    def _parse_crop_probs(spec):
+        """'1.0:0.5,0.5:0.25' -> ([1.0, 0.5], [0.5, 0.25]) with probs normalised."""
+        if not spec or not spec.strip():
+            return None, None
+        fracs, probs = [], []
+        for part in spec.split(','):
+            f, p = part.split(':')
+            fracs.append(float(f))
+            probs.append(float(p))
+        total = sum(probs)
+        if total <= 0:
+            return None, None
+        return fracs, [p / total for p in probs]
+
+    def make_center_crop_collate(base_collate, spec, min_tokens):
+        """Crop the DNA sequence symmetrically around its centre.
+
+        One fraction is drawn per batch, so the whole batch stays rectangular and
+        short batches are genuinely cheaper. CLS and SEP are kept; an equal number
+        of tokens is dropped from both ends of the interior, which keeps whatever
+        sits in the middle of the window (the TSS for the TSS-window datasets).
+
+        Labels and labels_mask are sliced with exactly the same indices, so the
+        per-token alignment is preserved and nothing has to be recomputed.
+        """
+        fracs, probs = _parse_crop_probs(spec)
+        if not fracs:
+            return base_collate
+
+        seq_keys_2d = ['input_ids', 'attention_mask', 'token_type_ids']   # (B, n_keys, L)
+        seq_keys_3d = ['labels', 'labels_mask']                            # (B, n_keys, L, 1)
+
+        def wrapped(batch):
+            d = base_collate(batch)
+            frac = random.choices(fracs, weights=probs, k=1)[0]
+            if frac >= 1.0:
+                return d
+
+            am = d['attention_mask']                 # (B, n_keys, L)
+            real = am[:, 0, :].sum(dim=1).tolist()   # CLS + interior + SEP, same for every key
+            B_ = am.size(0)
+
+            keeps = []
+            for b in range(B_):
+                interior = int(real[b]) - 2
+                if interior <= min_tokens:
+                    keeps.append((0, interior))      # too short already: leave as is
+                    continue
+                target = max(min_tokens, int(round(interior * frac)))
+                drop = interior - target
+                k = drop // 2                        # equal number of tokens from both ends
+                keeps.append((k, interior - 2 * k))
+            new_len = max(kept for _, kept in keeps) + 2
+
+            def rebuild(x, is3d):
+                pad = tokenizer.pad_token_id
+                out_shape = list(x.shape)
+                out_shape[2] = new_len
+                out = x.new_zeros(out_shape)
+                for b, (k, kept) in enumerate(keeps):
+                    interior = int(real[b]) - 2
+                    # CLS
+                    out[b, :, 0] = x[b, :, 0]
+                    # interior, centred slice
+                    out[b, :, 1:1 + kept] = x[b, :, 1 + k:1 + k + kept]
+                    # SEP right after the kept interior
+                    out[b, :, 1 + kept] = x[b, :, 1 + interior]
+                return out
+
+            for key in seq_keys_2d:
+                if key in d and torch.is_tensor(d[key]):
+                    d[key] = rebuild(d[key], False)
+            for key in seq_keys_3d:
+                if key in d and torch.is_tensor(d[key]):
+                    d[key] = rebuild(d[key], True)
+            return d
+
+        return wrapped
+
+    train_collate_fn = make_center_crop_collate(collate_fn, args.crop_probs, args.crop_min_tokens)
+    if accelerator.is_main_process:
+        if train_collate_fn is collate_fn:
+            alogger.info('center crop: disabled')
+        else:
+            alogger.info(f'center crop: {args.crop_probs} (min {args.crop_min_tokens} tokens), train only')
+
+
     # Data
     per_worker_batch_size = args.batch_size * args.gradient_accumulation_steps
     kwargs_workers = args.data_n_workers
@@ -483,21 +548,27 @@ def main():
 
     shared_n_keys = get_shared_n_keys(shared_dataset_params)
 
-    n_keys_inferred_train = infer_global_n_keys_from_expression_datasets(
-        train_dataset_cfgs=train_cfgs,
-        shared_dataset_params=shared_dataset_params,
-        merge_fn=merge_default_params_with_dataset_config,
-        accelerator=accelerator,
-        alogger=alogger,
-    )
+    if shared_n_keys is not None:
+        if accelerator.is_main_process:
+            alogger.info(f"[n_keys] shared_dataset_params.n_keys={shared_n_keys} is set explicitly; skipping inference from ExpressionDataset configs")
+        n_keys_inferred_train = shared_n_keys
+        n_keys_inferred_valid = shared_n_keys
+    else:
+        n_keys_inferred_train = infer_global_n_keys_from_expression_datasets(
+            train_dataset_cfgs=train_cfgs,
+            shared_dataset_params=shared_dataset_params,
+            merge_fn=merge_default_params_with_dataset_config,
+            accelerator=accelerator,
+            alogger=alogger,
+        )
 
-    n_keys_inferred_valid = infer_global_n_keys_from_expression_datasets(
-                train_dataset_cfgs=valid_cfgs,
-                shared_dataset_params=shared_dataset_params,
-                merge_fn=merge_default_params_with_dataset_config,
-                accelerator=accelerator,
-                alogger=alogger,
-    )
+        n_keys_inferred_valid = infer_global_n_keys_from_expression_datasets(
+                    train_dataset_cfgs=valid_cfgs,
+                    shared_dataset_params=shared_dataset_params,
+                    merge_fn=merge_default_params_with_dataset_config,
+                    accelerator=accelerator,
+                    alogger=alogger,
+        )
 
     n_keys_global_train = n_keys_inferred_train
     n_keys_global_valid = n_keys_inferred_valid
@@ -561,7 +632,7 @@ def main():
         shuffle=True,
         drop_last=False,
         num_workers=kwargs_workers,
-        collate_fn=collate_fn,
+        collate_fn=train_collate_fn,
         worker_init_fn=worker_init_fn,   
     )
 
