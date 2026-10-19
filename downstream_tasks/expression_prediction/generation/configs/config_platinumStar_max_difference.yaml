@@ -1,0 +1,104 @@
+# Every generation-affecting setting is explicit. Local paths are resolved
+# relative to this file. Replace the genome and plasmid placeholders before use.
+
+project:
+  name: platinumStar_max_difference
+
+model:
+  genalm_home: /workspace-SR003.nfs2/estsoi/API/generation
+  model_cls: /workspace-SR003.nfs2/estsoi/API/generation/GENA_LM/downstream_tasks/expression_prediction/expression_model_final.py::ExpressionCounts
+  checkpoint: /workspace-SR003.nfs2/estsoi/runs/full8192filtcrop/full8192filtcrop_2000.bin
+  config: /workspace-SR003.nfs2/estsoi/runs/full8192filtcrop/full8192filtcrop.yaml
+  dna_tokenizer:
+    path: /workspace-SR003.nfs2/estsoi/API/generation/GENA_LM/data/tokenizers/t2t_1000h_multi_32k
+  description_tokenizer:
+    identifier: Qwen/Qwen3-Embedding-0.6B
+  dna_max_seq_len: 8192
+  desc_max_seq_len: 510
+  token_len_for_fetch: 15
+  num_before: 4096
+  device: cuda:2
+  output_names: null
+  description_formatter: null
+
+genome:
+  fasta_path: /workspace-SR003.nfs2/estsoi/scRNA_seq_experiments/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/hg38.fa
+  annotation_path: /workspace-SR003.nfs2/estsoi/scRNA_seq_experiments/GENA_LM/downstream_tasks/expression_prediction/datasets/data/genomes/hg38/gencode.v29.primary_assembly.annotation_UCSC_names.gtf
+  build: null
+  chrom_style: auto
+  cache: true
+
+sampler:
+  seq_len: 215
+  tss_sampling_window: 1000
+  seed: 49
+  transcript_feature_types: null
+  include_features: false
+  unique_sequences: true
+  max_attempts: 100000
+
+plasmid:
+  genbank_path: ../plasmids/platinum_starr_v1-winsert.gb
+  fasta_path: ../plasmids/pLatinumSTARR_v1_winsert.fa
+  reporter_feature_name: TSS
+  replacement_feature_name: INSERT
+  region_feature_name: CRE
+  tokenization_center_name: reporter_tss
+  circular: true
+  window_size: full
+
+conditions:
+  seed: 42
+  strict: true
+  search_fields: null
+  on_target:
+    directory: ../on_target
+    keys: [SRX13711120, SRX34494533]
+    filters: {}
+    key_filters: {}
+  off_target:
+    directory: ../off_target
+    keys: [SRX21227773, SRX26538054, SRX34493586]
+    filters: {}
+    key_filters: {}
+
+scorer:
+  type: track_window
+  params: {center: reporter_tss, width_bp: 501, aggregate: mean}
+
+fitness:
+  type: min_on_max_off
+  params:
+    on_power: 1.0
+    off_power: 1.0
+    off_weight: 1.0
+
+offspring:
+  type: sequential
+  params:
+    crossover_probability: 0.6
+    mutations_per_child: 20
+    random_seed: 42
+
+optimization:
+  population_size: 20000
+  offspring_size: 4000
+  n_generations: 200
+  selection_strategy: tournament
+  elite_count: 1
+  tournament_size: 10
+  offspring_generator_mode: records
+  random_seed: 42
+
+runtime:
+  evaluation_chunk_size: 5000
+  grouping: condition
+  preprocessing_workers: 20
+  preprocessing_backend: process
+  max_records_per_forward: 600
+  prefetch_batches: 3
+  show_progress: true
+
+output:
+  directory: ../results/platinumStar_max_difference
+  allow_existing: false

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gena-sequence-generation"
+version = "0.1.0"
+description = "Config-driven promoter sequence generation with gena_expression."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "gena-expression>=0.1.0",
+    "polars>=1.38",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+gena-generate = "run_generation:main"
+
+[tool.setuptools]
+py-modules = ["run_generation"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["utils*"]
