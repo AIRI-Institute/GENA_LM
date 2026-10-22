@@ -11,7 +11,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from numbers import Real
-from typing import Any
+from typing import Any, Literal
 
 
 DNA_ALPHABET = "ACGT"
@@ -22,6 +22,7 @@ def _validate_generator_parameters(
     crossover_probability: float,
     mutations_per_child: int,
     random_seed: int,
+    parent_selection: str,
 ) -> None:
     """Validate parameters shared by serial and parallel generators."""
 
@@ -43,6 +44,12 @@ def _validate_generator_parameters(
         raise ValueError("mutations_per_child must be non-negative.")
     if isinstance(random_seed, bool) or not isinstance(random_seed, int):
         raise TypeError("random_seed must be an integer.")
+    if not isinstance(parent_selection, str):
+        raise TypeError("parent_selection must be a string.")
+    if parent_selection not in {"uniform", "shifted_fitness"}:
+        raise ValueError(
+            "parent_selection must be 'uniform' or 'shifted_fitness'."
+        )
 
 
 def _normalize_parents(
@@ -66,6 +73,44 @@ def _normalize_parents(
     return tuple(parents)
 
 
+def _parent_weights(
+    parent_records: Sequence[Mapping[str, Any]],
+    *,
+    parent_selection: str,
+) -> tuple[float, ...] | None:
+    """Return shifted fitness weights, or ``None`` for uniform selection."""
+
+    if parent_selection == "uniform":
+        return None
+
+    fitness_values: list[float] = []
+    for record in parent_records:
+        if "fitness" not in record:
+            raise KeyError(
+                "Parent records must contain 'fitness' when "
+                "parent_selection='shifted_fitness'."
+            )
+        fitness = record["fitness"]
+        if isinstance(fitness, bool) or not isinstance(fitness, Real):
+            raise TypeError("Parent fitness values must be real numbers.")
+        value = float(fitness)
+        if not math.isfinite(value):
+            raise ValueError("Parent fitness values must be finite.")
+        fitness_values.append(value)
+
+    if not fitness_values:
+        return None
+
+    minimum = min(fitness_values)
+    weights = tuple(value - minimum for value in fitness_values)
+    if not all(math.isfinite(weight) for weight in weights):
+        raise ValueError("Parent fitness values span too large a range.")
+    maximum = max(weights)
+    if maximum == 0.0:
+        return None
+    return tuple(weight / maximum for weight in weights)
+
+
 def _context_integer(context: Mapping[str, Any], key: str) -> int:
     """Read one non-negative integer from an optimizer generator context."""
 
@@ -86,9 +131,48 @@ def _child_seed(base_seed: int, generation: int, child_index: int) -> int:
     return int.from_bytes(hashlib.sha256(payload).digest()[:16], "big")
 
 
+def _select_parent(
+    rng: random.Random,
+    parents: tuple[tuple[str, str], ...],
+    parent_weights: tuple[float, ...] | None,
+) -> tuple[str, str]:
+    """Select one parent uniformly or by its configured fitness weight."""
+
+    if parent_weights is None:
+        return rng.choice(parents)
+    return rng.choices(parents, weights=parent_weights, k=1)[0]
+
+
+def _select_parent_pair(
+    rng: random.Random,
+    parents: tuple[tuple[str, str], ...],
+    parent_weights: tuple[float, ...] | None,
+) -> tuple[tuple[str, str], tuple[str, str]]:
+    """Select two distinct parents uniformly or by fitness weight."""
+
+    if parent_weights is None:
+        parent_a, parent_b = rng.sample(parents, 2)
+        return parent_a, parent_b
+
+    indexes = tuple(range(len(parents)))
+    first_index = rng.choices(indexes, weights=parent_weights, k=1)[0]
+    remaining_indexes = tuple(index for index in indexes if index != first_index)
+    remaining_weights = tuple(parent_weights[index] for index in remaining_indexes)
+    if any(remaining_weights):
+        second_index = rng.choices(
+            remaining_indexes,
+            weights=remaining_weights,
+            k=1,
+        )[0]
+    else:
+        second_index = rng.choice(remaining_indexes)
+    return parents[first_index], parents[second_index]
+
+
 def _generate_child(
     parents: tuple[tuple[str, str], ...],
     *,
+    parent_weights: tuple[float, ...] | None,
     seed: int,
     crossover_probability: float,
     mutations_per_child: int,
@@ -96,7 +180,11 @@ def _generate_child(
     """Generate one child with the notebook's crossover/mutation procedure."""
 
     rng = random.Random(seed)
-    parent_a_id, parent_a_sequence = rng.choice(parents)
+    parent_a_id, parent_a_sequence = _select_parent(
+        rng,
+        parents,
+        parent_weights,
+    )
     child = parent_a_sequence
     parent_ids = [parent_a_id]
 
@@ -105,10 +193,10 @@ def _generate_child(
         and len(parent_a_sequence) >= 2
         and rng.random() < crossover_probability
     ):
-        (
-            (parent_a_id, parent_a_sequence),
-            (parent_b_id, parent_b_sequence),
-        ) = rng.sample(parents, 2)
+        (parent_a_id, parent_a_sequence), (
+            parent_b_id,
+            parent_b_sequence,
+        ) = _select_parent_pair(rng, parents, parent_weights)
         crossover_position = rng.randrange(1, len(parent_a_sequence))
         child = (
             parent_a_sequence[:crossover_position]
@@ -135,6 +223,7 @@ class _BatchJob:
     """Pickle-friendly description of one contiguous offspring batch."""
 
     parents: tuple[tuple[str, str], ...]
+    parent_weights: tuple[float, ...] | None
     start: int
     count: int
     generation: int
@@ -149,6 +238,7 @@ def _generate_batch(job: _BatchJob) -> list[dict[str, Any]]:
     return [
         _generate_child(
             job.parents,
+            parent_weights=job.parent_weights,
             seed=_child_seed(
                 job.random_seed,
                 job.generation,
@@ -181,12 +271,15 @@ class SequentialCrossoverMutationGenerator:
 
     Use this callable with ``offspring_generator_mode="records"``. It implements
     the notebook's parent selection, optional one-point crossover, and distinct
-    point mutations while also retaining parent candidate IDs.
+    point mutations while also retaining parent candidate IDs. Set
+    ``parent_selection="shifted_fitness"`` to sample parents proportionally to
+    their fitness after shifting the lowest fitness to zero.
     """
 
     crossover_probability: float = 0.6
     mutations_per_child: int = 20
     random_seed: int = 0
+    parent_selection: Literal["uniform", "shifted_fitness"] = "uniform"
 
     def __post_init__(self) -> None:
         """Validate configuration once at construction."""
@@ -195,6 +288,7 @@ class SequentialCrossoverMutationGenerator:
             crossover_probability=self.crossover_probability,
             mutations_per_child=self.mutations_per_child,
             random_seed=self.random_seed,
+            parent_selection=self.parent_selection,
         )
 
     def __call__(
@@ -207,11 +301,16 @@ class SequentialCrossoverMutationGenerator:
         parents = _normalize_parents(parent_records)
         if not parents:
             return
+        parent_weights = _parent_weights(
+            parent_records,
+            parent_selection=self.parent_selection,
+        )
         generation = _context_integer(context, "generation")
         n_offspring = _context_integer(context, "n_offspring")
         for child_index in range(n_offspring):
             yield _generate_child(
                 parents,
+                parent_weights=parent_weights,
                 seed=_child_seed(
                     self.random_seed,
                     generation,
@@ -230,6 +329,7 @@ class ParallelCrossoverMutationGenerator:
     a context manager, or call :meth:`close` after evolution. Spawned workers
     never receive the model or other CUDA objects. Serial and parallel
     generators return identical children for equal parameters and seeds.
+    Parent selection can be uniform or shifted-fitness weighted.
     """
 
     max_workers: int | None = None
@@ -237,6 +337,7 @@ class ParallelCrossoverMutationGenerator:
     crossover_probability: float = 0.6
     mutations_per_child: int = 20
     random_seed: int = 0
+    parent_selection: Literal["uniform", "shifted_fitness"] = "uniform"
     _executor: ProcessPoolExecutor | None = field(
         init=False,
         default=None,
@@ -250,6 +351,7 @@ class ParallelCrossoverMutationGenerator:
             crossover_probability=self.crossover_probability,
             mutations_per_child=self.mutations_per_child,
             random_seed=self.random_seed,
+            parent_selection=self.parent_selection,
         )
         for name, value in (
             ("max_workers", self.max_workers),
@@ -288,6 +390,10 @@ class ParallelCrossoverMutationGenerator:
         parents = _normalize_parents(parent_records)
         if not parents:
             return
+        parent_weights = _parent_weights(
+            parent_records,
+            parent_selection=self.parent_selection,
+        )
         generation = _context_integer(context, "generation")
         n_offspring = _context_integer(context, "n_offspring")
         if n_offspring == 0:
@@ -300,6 +406,7 @@ class ParallelCrossoverMutationGenerator:
         jobs = [
             _BatchJob(
                 parents=parents,
+                parent_weights=parent_weights,
                 start=start,
                 count=count,
                 generation=generation,

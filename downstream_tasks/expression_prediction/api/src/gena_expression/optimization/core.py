@@ -688,11 +688,19 @@ class SequenceOptimizer:
         proposed: int,
         evaluated: int,
     ) -> None:
-        """Record post-selection fitness and worst-target population metrics."""
+        """Record post-selection population metrics and one coherent champion."""
 
         fitness_values = [
             float(self._records[candidate_id]["fitness"])
             for candidate_id in self._population
+        ]
+        best_candidate_id = min(self._population, key=self._fitness_sort_key)
+        best_record = self._records[best_candidate_id]
+        best_on_scores = [
+            float(value) for value in best_record["on_scores"].values()
+        ]
+        best_off_scores = [
+            float(value) for value in best_record["off_scores"].values()
         ]
         candidate_min_on_target = [
             min(
@@ -716,16 +724,17 @@ class SequenceOptimizer:
                 "proposed_candidates": proposed,
                 "evaluated_candidates": evaluated,
                 "population_size": len(self._population),
-                "best_fitness": max(fitness_values),
+                "best_candidate_id": best_candidate_id,
+                "best_fitness": float(best_record["fitness"]),
                 "mean_fitness": mean(fitness_values),
                 "best_min_on_target": (
-                    max(candidate_min_on_target)
-                    if candidate_min_on_target
+                    min(best_on_scores)
+                    if best_on_scores
                     else None
                 ),
                 "best_max_off_target": (
-                    min(candidate_max_off_target)
-                    if candidate_max_off_target
+                    max(best_off_scores)
+                    if best_off_scores
                     else None
                 ),
                 "mean_min_on_target": (
@@ -758,6 +767,40 @@ class SequenceOptimizer:
             row[target["column"]] = record["off_scores"][target["label"]]
         return row
 
+    def population_snapshot(self):
+        """Return the current selected population without plasmid sequences.
+
+        The returned table is ranked by fitness and contains only insertion
+        sequences plus lineage, fitness, and target-score columns. It is safe
+        to call from ``on_generation_complete`` while evolution is running.
+        """
+
+        pl = _require_polars()
+        ordered_population = sorted(
+            self._population,
+            key=self._fitness_sort_key,
+        )
+        rows = []
+        for rank, candidate_id in enumerate(ordered_population, start=1):
+            row = self._evaluation_row(self._records[candidate_id])
+            row["rank"] = rank
+            rows.append(row)
+        if not rows:
+            return pl.DataFrame()
+        return pl.DataFrame(rows, strict=False).select(
+            "candidate_id",
+            "region_sequence",
+            "rank",
+            "generation_born",
+            "source",
+            "parent_ids",
+            "fitness",
+            *[
+                target["column"]
+                for target in (*self.on_targets, *self.off_targets)
+            ],
+        )
+
     def _refresh_tables(self) -> None:
         """Rebuild public Polars tables from compact internal records."""
 
@@ -775,19 +818,17 @@ class SequenceOptimizer:
             else pl.DataFrame()
         )
 
-        ordered_population = sorted(
-            self._population,
-            key=self._fitness_sort_key,
-        )
-        final_rows = []
-        for rank, candidate_id in enumerate(ordered_population, start=1):
-            record = self._records[candidate_id]
-            row = self._evaluation_row(record)
-            row["rank"] = rank
-            row["sequence"] = self.materialize(candidate_id).sequence
-            final_rows.append(row)
+        population = self.population_snapshot()
         self.final_population = (
-            pl.DataFrame(final_rows, strict=False).select(
+            population.with_columns(
+                pl.Series(
+                    "sequence",
+                    [
+                        self.materialize(candidate_id).sequence
+                        for candidate_id in population["candidate_id"]
+                    ],
+                )
+            ).select(
                 "candidate_id",
                 "sequence",
                 "region_sequence",
@@ -801,7 +842,7 @@ class SequenceOptimizer:
                     for target in (*self.on_targets, *self.off_targets)
                 ],
             )
-            if final_rows
+            if not population.is_empty()
             else pl.DataFrame()
         )
         self.history = (
@@ -827,13 +868,24 @@ class SequenceOptimizer:
         max_records_per_forward: int | None = None,
         prefetch_batches: int = 1,
         show_progress: bool = True,
+        on_generation_complete: (
+            Callable[["SequenceOptimizer", int], None] | None
+        ) = None,
     ) -> "SequenceOptimizer":
-        """Run generation zero followed by ``n_generations`` reproduction rounds."""
+        """Run evolution and optionally notify a callback after each generation.
+
+        ``on_generation_complete`` receives this optimizer and the completed
+        generation number after scoring, selection, and history collection.
+        """
 
         if self._has_run:
             raise RuntimeError("This optimizer has already run; call reset() first.")
         if not hasattr(model, "predict_multiple_sequences"):
             raise TypeError("model must provide predict_multiple_sequences(...).")
+        if on_generation_complete is not None and not callable(
+            on_generation_complete
+        ):
+            raise TypeError("on_generation_complete must be callable or None.")
         self._validate_positive_int(
             evaluation_chunk_size,
             name="evaluation_chunk_size",
@@ -878,7 +930,10 @@ class SequenceOptimizer:
                 pass
 
         def finish_generation(generation: int) -> None:
-            """Advance the outer bar with the latest post-selection metrics."""
+            """Notify the callback and advance the outer progress bar."""
+
+            if on_generation_complete is not None:
+                on_generation_complete(self, generation)
 
             if progress is None:
                 return

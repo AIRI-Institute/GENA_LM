@@ -205,6 +205,12 @@ seed they return identical ordered children, independent of worker count,
 because every child receives a deterministic seed derived from its generation
 and child index. Both also return `parent_ids` with each child.
 
+`parent_selection="uniform"` preserves uniform random selection and is the
+default. `parent_selection="shifted_fitness"` uses weights proportional to
+`fitness - min(fitness)`, so it also supports negative fitness values. If all
+parents have equal fitness, selection falls back to uniform. Fitness values
+must be finite real numbers.
+
 ```python
 from gena_expression import (
     ParallelCrossoverMutationGenerator,
@@ -216,6 +222,7 @@ with ParallelCrossoverMutationGenerator(
     crossover_probability=0.6,
     mutations_per_child=20,
     random_seed=44,
+    parent_selection="shifted_fitness",
 ) as offspring_generator:
     optimizer = SequenceOptimizer(
         # sequence, targets, scorer, and other arguments omitted
@@ -260,6 +267,7 @@ run_evolution(
     max_records_per_forward=None,
     prefetch_batches=1,
     show_progress=True,
+    on_generation_complete=None,
 )
 ```
 
@@ -273,6 +281,7 @@ run_evolution(
 | `max_records_per_forward` | Optional inference forward-row limit. |
 | `prefetch_batches` | Inference look-ahead count. |
 | `show_progress` | Show one outer generation bar when `tqdm` is available. The bar advances after selection for generation zero and every reproduction generation. Inner evaluation/model bars are disabled. |
+| `on_generation_complete` | Optional callable receiving `(optimizer, generation)` after scoring, selection, and history collection for every generation, including generation zero. |
 
 Scoring flow:
 
@@ -285,7 +294,8 @@ Scoring flow:
 7. compute/validate fitness;
 8. select generation zero;
 9. generate, evaluate, and select each reproduction generation;
-10. populate public tables.
+10. call `on_generation_complete`, when configured, after each selected generation;
+11. populate public tables.
 
 The same materialized `AnnotatedSequence` object is reused across a candidate's
 conditions so the inference layer can deduplicate tokenization.
@@ -341,17 +351,28 @@ One row for generation zero and each reproduction generation:
 | `proposed_candidates` | Unique proposed IDs considered in that generation. |
 | `evaluated_candidates` | Previously unseen IDs actually scored. |
 | `population_size` | Selected population size. |
-| `best_fitness`, `mean_fitness` | Population fitness summary. |
-| `best_min_on_target` | Highest candidate-level minimum on-target score in the selected population. Null when no on-targets are configured. |
-| `best_max_off_target` | Lowest candidate-level maximum off-target score in the selected population. Null when no off-targets are configured. |
+| `best_candidate_id` | ID of the best-fitness candidate, using the same deterministic tie-break as final ranking. |
+| `best_fitness` | Fitness of `best_candidate_id`. |
+| `mean_fitness` | Mean fitness of the selected population. |
+| `best_min_on_target` | Minimum on-target score of `best_candidate_id`. Null when no on-targets are configured. |
+| `best_max_off_target` | Maximum off-target score of the same `best_candidate_id`. Null when no off-targets are configured. |
 | `mean_min_on_target` | Mean of candidate-level minimum on-target scores in the selected population. Null when no on-targets are configured. |
 | `mean_max_off_target` | Mean of candidate-level maximum off-target scores in the selected population. Null when no off-targets are configured. |
 
 All history metrics are computed after selection. For example, with
 `selection_strategy="top_k"`, they summarize the retained top-k population, not
-all candidates proposed or evaluated in that generation.
+all candidates proposed or evaluated in that generation. The `best_*` fields
+describe one coherent candidate; the `mean_*` fields remain population
+aggregates.
 
 ## Other public methods and properties
+
+### `population_snapshot()`
+
+Return the currently selected population ordered by rank. The table contains
+`region_sequence`, lineage, fitness, and target scores, but does not materialize
+or include the full source sequence. It is available during
+`on_generation_complete` and after a run.
 
 ### `materialize(candidate_id) -> AnnotatedSequence`
 

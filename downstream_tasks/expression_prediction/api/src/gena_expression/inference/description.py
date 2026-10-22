@@ -41,7 +41,7 @@ def get_make_description_from_json(
     dataset: DictConfig = config[dataset_config]
     target = OmegaConf.select(dataset, "_target_")
     if not isinstance(target, str) or not target:
-        raise ValueError(f"Dataset config {dataset_config!r} has no valid *target*")
+        raise ValueError(f"Dataset config {dataset_config!r} has no valid _target_")
 
     dataset_class = get_class(target)
     make_description = getattr(dataset_class, "make_description_from_json", None)
