@@ -1,0 +1,200 @@
+[
+  {
+    "file": "plots/score_distribution.png",
+    "source": "max_difference_dashboard.png",
+    "panel": "00",
+    "crop_box": [
+      0,
+      118,
+      1780,
+      1040
+    ]
+  },
+  {
+    "file": "plots/linear_tradeoff.png",
+    "source": "max_difference_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/generation_born.png",
+    "source": "max_difference_dashboard.png",
+    "panel": "10",
+    "crop_box": [
+      0,
+      1040,
+      1780,
+      2020
+    ]
+  },
+  {
+    "file": "plots/baseline_similarity.png",
+    "source": "max_difference_dashboard.png",
+    "panel": "11",
+    "crop_box": [
+      1780,
+      1040,
+      3600,
+      2020
+    ]
+  },
+  {
+    "file": "plots/baseline_distance.png",
+    "source": "max_difference_dashboard.png",
+    "panel": "21",
+    "crop_box": [
+      1780,
+      2020,
+      3600,
+      3000
+    ]
+  },
+  {
+    "file": "plots/mutations_5_similarity.png",
+    "source": "mutations_5_dashboard.png",
+    "panel": "11",
+    "crop_box": [
+      1780,
+      1040,
+      3600,
+      2020
+    ]
+  },
+  {
+    "file": "plots/mutations_5_distance.png",
+    "source": "mutations_5_dashboard.png",
+    "panel": "21",
+    "crop_box": [
+      1780,
+      2020,
+      3600,
+      3000
+    ]
+  },
+  {
+    "file": "plots/mutations_10_distance.png",
+    "source": "mutations_10_dashboard.png",
+    "panel": "21",
+    "crop_box": [
+      1780,
+      2020,
+      3600,
+      3000
+    ]
+  },
+  {
+    "file": "plots/mutations_40_tradeoff.png",
+    "source": "mutations_40_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/mutations_40_distance.png",
+    "source": "mutations_40_dashboard.png",
+    "panel": "21",
+    "crop_box": [
+      1780,
+      2020,
+      3600,
+      3000
+    ]
+  },
+  {
+    "file": "plots/off_power_1p2_tradeoff.png",
+    "source": "off_power_1p2_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/off_power_1p4_tradeoff.png",
+    "source": "off_power_1p4_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/off_power_1p6_tradeoff.png",
+    "source": "off_power_1p6_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/off_power_1p8_tradeoff.png",
+    "source": "off_power_1p8_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1780,
+      118,
+      3600,
+      1040
+    ]
+  },
+  {
+    "file": "plots/pooled_scores.png",
+    "source": "sp8dgg_top_500_d100_no_GGTCTC_dashboard.png",
+    "panel": "00",
+    "crop_box": [
+      0,
+      62,
+      1290,
+      1060
+    ]
+  },
+  {
+    "file": "plots/selected_tradeoff.png",
+    "source": "sp8dgg_top_500_d100_no_GGTCTC_dashboard.png",
+    "panel": "01",
+    "crop_box": [
+      1290,
+      62,
+      2880,
+      1060
+    ]
+  },
+  {
+    "file": "plots/experiment_scores.png",
+    "source": "sp8dgg_top_500_d100_no_GGTCTC_dashboard.png",
+    "panel": "10",
+    "crop_box": [
+      0,
+      1060,
+      1290,
+      2160
+    ]
+  },
+  {
+    "file": "plots/selected_sources.png",
+    "source": "sp8dgg_top_500_d100_no_GGTCTC_dashboard.png",
+    "panel": "11",
+    "crop_box": [
+      1290,
+      1060,
+      2880,
+      2160
+    ]
+  }
+]
