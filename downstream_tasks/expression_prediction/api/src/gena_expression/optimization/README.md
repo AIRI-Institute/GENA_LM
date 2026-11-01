@@ -129,13 +129,22 @@ so compare the untransformed on/off scores rather than fitness alone.
 | `offspring_generator` | Required callable. Its call signature depends on `offspring_generator_mode`; return/yield values are described below. |
 | `population_size` | Positive maximum selected population size. |
 | `offspring_size` | Positive maximum generator items consumed per generation. `None` uses `population_size`. Duplicate/existing sequences may make the number of newly evaluated candidates smaller. |
-| `n_generations` | Non-negative integer. Generation zero scores seeds; values above zero add that many reproduction rounds. |
+| `n_generations` | Non-negative absolute final generation. A fresh run scores generation zero; a restored run continues through this generation. |
 | `initial_population` | Optional iterable of region-only DNA strings. The original region is always inserted before these. |
+| `initial_generation` | Non-negative starting generation, at most `n_generations`. Use zero for a fresh run and the restored snapshot generation for a warm restart. Starting candidates are rescored before reproduction continues. |
 | `selection_strategy` | `"top_k"`, `"tournament"`, or `"rank_weighted"`. |
 | `elite_count` | Integer from `0` through `population_size`; top candidates protected before stochastic selection. |
 | `tournament_size` | Positive number of available candidates sampled per tournament. |
 | `offspring_generator_mode` | `"sequences"` or `"records"`. |
 | `random_seed` | Seed for selection and the advanced generator context's `rng`. `reset()` recreates the same seeded RNG. |
+
+For a warm restart, construct the template with one restored region, pass the
+remaining restored regions as `initial_population`, and set
+`initial_generation` to the snapshot generation. Offspring then begin at the
+next absolute generation. Deterministic per-child generator seeds therefore
+retain the correct generation index. With `top_k`, a restart can match an
+uninterrupted deterministic run. Stochastic selection strategies restart the
+optimizer RNG stream unless its state is restored separately.
 
 ### Offspring generator contracts
 

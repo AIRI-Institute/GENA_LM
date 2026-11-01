@@ -154,6 +154,7 @@ class SequenceOptimizer:
         offspring_size: int | None = None,
         n_generations: int = 20,
         initial_population: Iterable[str] | None = None,
+        initial_generation: int = 0,
         selection_strategy: Literal[
             "top_k",
             "tournament",
@@ -168,7 +169,8 @@ class SequenceOptimizer:
 
         ``initial_population`` and every generated string represent only the
         evolvable region. Their lengths must equal the original region length.
-        Generation zero always includes the original region.
+        ``initial_generation`` labels the supplied starting population. It is
+        zero for a fresh run and may be positive when restoring a population.
         """
 
         if not isinstance(sequence, AnnotatedSequence):
@@ -187,6 +189,14 @@ class SequenceOptimizer:
             raise TypeError("n_generations must be an integer.")
         if n_generations < 0:
             raise ValueError("n_generations must be non-negative.")
+        if isinstance(initial_generation, bool) or not isinstance(
+            initial_generation, int
+        ):
+            raise TypeError("initial_generation must be an integer.")
+        if not 0 <= initial_generation <= n_generations:
+            raise ValueError(
+                "initial_generation must be between 0 and n_generations."
+            )
         if isinstance(elite_count, bool) or not isinstance(elite_count, int):
             raise TypeError("elite_count must be an integer.")
         if not 0 <= elite_count <= population_size:
@@ -222,6 +232,7 @@ class SequenceOptimizer:
         self.offspring_size = offspring_size or population_size
         self.n_generations = n_generations
         self.initial_population = tuple(initial_population or ())
+        self.initial_generation = initial_generation
         self.selection_strategy = selection_strategy
         self.elite_count = elite_count
         self.tournament_size = tournament_size
@@ -903,8 +914,12 @@ class SequenceOptimizer:
                 continue
             self._records[candidate_id] = self._new_record(
                 normalized,
-                generation=0,
-                source="reference" if index == 0 else "initial",
+                generation=self.initial_generation,
+                source=(
+                    "restored"
+                    if self.initial_generation > 0
+                    else "reference" if index == 0 else "initial"
+                ),
             )
             seed_ids.append(candidate_id)
 
@@ -922,8 +937,11 @@ class SequenceOptimizer:
                 from tqdm.auto import tqdm
 
                 progress = tqdm(
-                    total=self.n_generations + 1,
-                    desc=f"Evolution generation 0/{self.n_generations}",
+                    total=self.n_generations - self.initial_generation + 1,
+                    desc=(
+                        "Evolution generation "
+                        f"{self.initial_generation}/{self.n_generations}"
+                    ),
                     unit="generation",
                 )
             except ImportError:  # pragma: no cover - tqdm is a core dependency
@@ -956,13 +974,16 @@ class SequenceOptimizer:
             self._score_candidates(model, seed_ids, **score_options)
             self._population = self._select_population(seed_ids)
             self._add_history(
-                generation=0,
+                generation=self.initial_generation,
                 proposed=len(seed_ids),
                 evaluated=len(seed_ids),
             )
-            finish_generation(0)
+            finish_generation(self.initial_generation)
 
-            for generation in range(1, self.n_generations + 1):
+            for generation in range(
+                self.initial_generation + 1,
+                self.n_generations + 1,
+            ):
                 if progress is not None:
                     progress.set_description_str(
                         f"Evolution generation {generation}/{self.n_generations}"
@@ -1024,6 +1045,7 @@ class SequenceOptimizer:
                 "end": self.region.end,
             },
             "selection_strategy": self.selection_strategy,
+            "initial_generation": self.initial_generation,
             "generations": self.n_generations,
             "evaluated_candidates": len(self._records),
             "final_population": len(self._population),
