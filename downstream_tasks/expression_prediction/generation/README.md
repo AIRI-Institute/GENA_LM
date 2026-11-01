@@ -25,6 +25,8 @@ gene provenance is saved separately with the results.
 gena_sequence_generation/
 ├── config.yaml
 ├── run_generation.py
+├── scripts/
+├── wheelhouse/
 ├── plasmids/
 ├── on_target/
 ├── off_target/
@@ -39,18 +41,65 @@ serialization live in small modules under `utils/`.
 
 ## Installation
 
-Install the local API checkout first, then this project:
+All paths below are placeholders. Replace them with paths to your package
+checkouts, virtual environment, and input resources.
+
+### Local installation
+
+Install the API checkout (`gena_expression`, in the `api/` directory), then
+the generation project:
 
 ```bash
-python -m pip install -e "/path/to/gena_expression_refactored[all]"
-python -m pip install -e .
+python -m pip install -e /path/to/expression_prediction/api
+python -m pip install -e /path/to/generation
 ```
 
-The API checkout used while building this project was:
+### Remote server installation
 
-```text
-C:\Users\Lenovo\Documents\Codex\2026-07-21\i-have-an-expression-model-api-3\outputs\gena_expression_refactored
-```
+Prepare the wheels on an internet-connected machine before transferring the
+project to the remote server. Use Python 3.10 or newer and a build environment
+compatible with the server's Python version, operating system, CPU architecture,
+and PyTorch/CUDA setup.
+
+1. Follow the [wheelhouse README](wheelhouse/README.md) to run
+   `scripts/build_wheels.sh`. It takes two package directory paths:
+   **generation** first and **gena_expression API** second.
+   Wheels are written directly to `generation/wheelhouse/` (`../wheelhouse`
+   relative to the script), and that directory is created if needed.
+2. Copy the generation directory, including `scripts/`, the populated
+   `wheelhouse/`, and `requirements.txt`, to the server. Transfer the model
+   checkpoint, tokenizer files, genome FASTA, transcript annotation, plasmid,
+   and condition JSON files separately as needed. These resources are not
+   included in dependency wheels.
+3. On the server, create and activate a virtual environment, then run the
+   installer from the transferred project:
+
+   ```bash
+   cd /path/to/generation
+   python3 -m venv /path/to/venvs/generation
+   source /path/to/venvs/generation/bin/activate
+   PYTHON_BIN=python bash scripts/install_offline.sh
+   ```
+
+   The installer reads wheels from `generation/wheelhouse/`, installs its
+   requirements with `--no-index`, reinstalls the bundled API wheel, and
+   installs the generation project from the transferred source in editable
+   mode. Keep that source directory in place. It then runs `pip check` and
+   import checks, and reports whether CUDA is available.
+
+   The wheelhouse must contain exactly one `gena_expression-*.whl`, all
+   runtime dependency wheels, and the build tools needed for the editable
+   install. See the wheelhouse README for the requirements-file preparation
+   details.
+
+4. Edit `config.yaml` to point to the server's resources. Configuration paths
+   are resolved relative to the configuration file. For an offline server,
+   provide local model and tokenizer resources rather than resources that
+   require a model-hub download. Start generation in the activated environment:
+
+   ```bash
+   python run_generation.py --config config.yaml
+   ```
 
 ## Configuration
 
@@ -245,3 +294,4 @@ python -B -m unittest discover -s tests -v
 
 The test suite uses synthetic genomes, conditions, plasmids, optimizer tables,
 and models. It does not require the real checkpoint or a GPU.
+

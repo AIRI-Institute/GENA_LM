@@ -17,7 +17,9 @@ for package_dir in "$@"; do
     fi
 done
 
-wheelhouse_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+mkdir -p -- "$script_dir/../wheelhouse"
+wheelhouse_dir="$(cd -- "$script_dir/../wheelhouse" && pwd -P)"
 generation_dir="$(cd -- "$1" && pwd -P)"
 api_dir="$(cd -- "$2" && pwd -P)"
 python="${PYTHON:-python3}"
