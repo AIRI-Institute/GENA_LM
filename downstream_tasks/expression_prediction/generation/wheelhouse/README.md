@@ -36,27 +36,11 @@ directory. This is the directory used by the offline installer.
 The build includes both projects and their declared dependencies. It may need
 compilers or other build tools when suitable prebuilt wheels are unavailable.
 
-## Prepare the offline installer's requirements
+## Build wheels for the included requirements
 
-The current checkout does not include `requirements.txt`, but
-`scripts/install_offline.sh` requires it (or `requirements.py`, which takes
-precedence if present). Create `requirements.txt` in the generation directory
-before transferring the project.
-
-The installer also imports Biopython and FlashAttention and installs the
-generation source without build isolation. Its requirements therefore need
-to cover those packages and the build tools in addition to the project
-dependencies. A starting requirements file is:
-
-```text
-gena_expression>=0.1.0
-polars>=1.38
-PyYAML>=6.0
-biopython
-flash-attn
-setuptools>=68
-wheel
-```
+The generation directory includes `requirements.txt`, which is used by
+`scripts/install_offline.sh`. Build wheels for those requirements before
+transferring the project, and include `requirements.txt` in the transfer.
 
 Use versions compatible with the target server, especially for FlashAttention
 and the API's pinned PyTorch version. Preparing a FlashAttention wheel may
@@ -64,7 +48,7 @@ require a matching CUDA build environment and additional build prerequisites.
 Include its wheel even if it is already installed on the build machine:
 the installer imports it on the server.
 
-With the same build interpreter used above, build the remaining requirements
+With the same build interpreter used above, build the included requirements
 into the wheelhouse. `--find-links` lets pip use the API wheel built in the
 previous step:
 

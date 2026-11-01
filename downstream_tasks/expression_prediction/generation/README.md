@@ -67,7 +67,7 @@ and PyTorch/CUDA setup.
    Wheels are written directly to `generation/wheelhouse/` (`../wheelhouse`
    relative to the script), and that directory is created if needed.
 2. Copy the generation directory, including `scripts/`, the populated
-   `wheelhouse/`, and `requirements.txt`, to the server. Transfer the model
+   `wheelhouse/`, and the included `requirements.txt`, to the server. Transfer the model
    checkpoint, tokenizer files, genome FASTA, transcript annotation, plasmid,
    and condition JSON files separately as needed. These resources are not
    included in dependency wheels.
@@ -89,8 +89,8 @@ and PyTorch/CUDA setup.
 
    The wheelhouse must contain exactly one `gena_expression-*.whl`, all
    runtime dependency wheels, and the build tools needed for the editable
-   install. See the wheelhouse README for the requirements-file preparation
-   details.
+   install. See the wheelhouse README for building wheels from the included
+   requirements.
 
 4. Edit `config.yaml` to point to the server's resources. Configuration paths
    are resolved relative to the configuration file. For an offline server,
