@@ -8,10 +8,12 @@ The sampling and plasmid steps are independent:
 
 1. `PromoterSampler` reads only the configured genome FASTA and transcript
    annotation.
-2. The project samples `optimization.population_size` promoters.
+2. The project samples `optimization.initial_population_size` promoters.
 3. Sample zero replaces the named plasmid feature and becomes the optimizer's
    reference region.
-4. Samples one through `population_size - 1` become `initial_population`.
+4. The remaining samples become `initial_population`.
+5. Generation zero evaluates all sampled candidates and reduces them to
+   `optimization.population_size` using the configured selection strategy.
 
 Genomic features are not copied into the plasmid because they would become
 stale after evolution. Their chromosome, coordinate, strand, transcript, and
@@ -81,6 +83,20 @@ feature must not overlap the reporter TSS.
 `plasmid.window_size: full` preserves the current runner's full-plasmid context.
 An integer requests a fixed reporter-centered window.
 
+Initial and retained population sizes are configured separately:
+
+```yaml
+optimization:
+  initial_population_size: 30000
+  population_size: 800
+```
+
+`initial_population_size` must be at least `population_size`, and
+`sampler.max_attempts` must be at least `initial_population_size`. Generation
+zero evaluates all unique sampled insertions before selection. Consequently, a
+large initial population can dominate the total runtime even when later
+generations are small.
+
 Supported component types are:
 
 - scorer: `expression`, `track_feature`, `track_window`, or
@@ -120,9 +136,67 @@ python run_generation.py --config config.yaml
 The parallel offspring generator and process-based preprocessing are safe
 because the executable work remains behind the script's `__main__` guard.
 
+Population snapshots are controlled by an explicit list:
+
+```yaml
+snapshots:
+  generations: [0, 200, 400, 600, 800, 1000]
+```
+
+Each requested generation is saved after scoring and selection under
+`results/<run>/snapshots/generation_XXXXXX/`. Use an empty list to disable
+snapshots. Each directory contains:
+
+- `population.{parquet,csv}` with insertion sequence, rank, lineage, fitness,
+  and target scores;
+- `insertion_sequences.fasta`;
+- `metrics.json` with fitness summaries, the best candidate's target scores,
+  and population complexity metrics.
+
+### Resuming from the latest snapshot
+
+Resume is a warm restart from the latest complete selected population:
+
+```yaml
+resume:
+  from_latest_snapshot: true
+  source_directory: null
+  genome_sequences_to_add: 0
+```
+
+`source_directory: null` uses `output.directory`. A different experiment
+directory may be supplied when the resumed run should write into a new output
+directory. A snapshot is complete when both `population.parquet` and
+`metrics.json` exist; newer partial directories are ignored.
+
+The loader validates insertion length, alphabet, uniqueness, candidate IDs,
+population size, generation number, and the absence of plasmid sequences. If
+the source contains `run_config.json`, model, plasmid, condition, scorer,
+fitness, offspring, and population settings must be compatible. Older
+snapshots without that file remain usable and are marked as unverified in
+`resume.json`.
+
+Restored insertions are placed back into the configured plasmid and rescored.
+For a snapshot at generation 200, offspring start at generation 201.
+`optimization.n_generations` is the absolute final generation, so a value of
+1000 runs through generation 1000 rather than adding another 1000 generations.
+The source generation snapshot is not overwritten.
+
+Resume does not expand the selected population back to
+`optimization.initial_population_size`. Set `genome_sequences_to_add` to a
+positive number only when intentionally injecting additional genome-sampled
+promoters. Those additions are scored with the restored population before it
+is selected back down to `optimization.population_size`.
+
+With `top_k` selection and deterministic model execution, generation-indexed
+offspring seeds allow a resumed run to match an uninterrupted run from the
+same population. `tournament` and `rank_weighted` restart the optimizer RNG
+stream because optimizer state is deliberately not saved.
+
 ## Outputs
 
-The original runner's outputs are preserved:
+All sequence-bearing project outputs contain insertion sequences only. Full
+materialized plasmid sequences are used for scoring but are not written.
 
 - `evaluations.{parquet,csv}`
 - `final_population.{parquet,csv}`
@@ -133,8 +207,20 @@ The original runner's outputs are preserved:
 - `output_manifest.json`
 - `evaluated_region_sequences.fasta`
 - `final_population_region_sequences.fasta`
-- `final_population_full_sequences.fasta`
-- `best_full_sequence.fasta`
+- `best_insertion_sequence.fasta`
+
+A resumed run writes `resume_config.json` and `resume.json` instead of
+overwriting the source `run_config.json`. When genomic additions are enabled,
+it also writes `resume_genome_additions.fasta` and
+`resume_genome_additions_metadata.json`. Root-level evaluations and history
+cover the restored population and later generations; earlier populations
+remain available in their original snapshot directories.
+
+In `history.{parquet,csv}`, `best_candidate_id`, `best_fitness`,
+`best_min_on_target`, and `best_max_off_target` all describe the same
+best-fitness sequence for that generation. The compact
+`generation_min_on_max_off` tables include that candidate ID and fitness as
+well as its target metrics.
 
 Two additional files make genome sampling auditable:
 
@@ -142,7 +228,8 @@ Two additional files make genome sampling auditable:
 - `initial_population_metadata.json`
 
 The manifest records the actual configured region length; it does not contain a
-hard-coded 600 bp description.
+hard-coded 600 bp description. It also records that materialized plasmids are
+absent from sequence exports.
 
 By default, the runner refuses to write into a non-empty result directory.
 Set `output.allow_existing: true` only when overwriting the known files is

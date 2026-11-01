@@ -76,10 +76,12 @@ def collect_promoter_population(
     seq_len: int,
     unique_sequences: bool,
     max_attempts: int,
+    excluded_sequences: Sequence[str] = (),
 ) -> tuple[AnnotatedSequence, ...]:
     """Collect the requested number of valid genomic promoter samples."""
 
     collected: list[AnnotatedSequence] = []
+    excluded = set(excluded_sequences)
     seen: set[str] = set()
     attempts = 0
     while len(collected) < population_size and attempts < max_attempts:
@@ -96,7 +98,9 @@ def collect_promoter_population(
             raise ValueError(
                 "PromoterSampler returned unsupported DNA symbols: " + ", ".join(invalid)
             )
-        if unique_sequences and sample.sequence in seen:
+        if sample.sequence in excluded or (
+            unique_sequences and sample.sequence in seen
+        ):
             continue
         seen.add(sample.sequence)
         collected.append(sample)
@@ -149,9 +153,9 @@ def _exact_feature(sequence: AnnotatedSequence, name: str) -> Feature:
 
 def build_plasmid_template(
     config: Mapping[str, Any],
-    sampled_promoter: AnnotatedSequence,
+    starting_promoter: AnnotatedSequence,
 ) -> AnnotatedSequence:
-    """Replace one named plasmid feature with one genome-sampled promoter.
+    """Replace one named plasmid feature with one starting insertion.
 
     Genomic annotations are deliberately not copied into the plasmid. The new
     region receives one stable optimization feature, while the sample's full
@@ -188,15 +192,15 @@ def build_plasmid_template(
     )
     region_name = config["region_feature_name"]
     replacement = AnnotatedSequence(
-        sampled_promoter.sequence,
+        starting_promoter.sequence,
         name=region_name,
         features=(
             Feature(
                 name=region_name,
                 start=0,
-                end=len(sampled_promoter),
+                end=len(starting_promoter),
                 type="optimization_region",
-                source="genome_sample",
+                source="starting_population",
             ),
         ),
     )
@@ -205,8 +209,8 @@ def build_plasmid_template(
         end=replacement_feature.end,
         replacement=replacement,
     ).with_metadata(
-        reference_promoter_name=sampled_promoter.name,
-        reference_promoter_metadata=dict(sampled_promoter.metadata),
+        reference_promoter_name=starting_promoter.name,
+        reference_promoter_metadata=dict(starting_promoter.metadata),
         replaced_feature=config["replacement_feature_name"],
     )
 

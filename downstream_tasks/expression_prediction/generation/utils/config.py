@@ -26,6 +26,8 @@ _REQUIRED_SECTIONS = (
     "offspring",
     "optimization",
     "runtime",
+    "snapshots",
+    "resume",
     "output",
 )
 
@@ -71,6 +73,7 @@ _REQUIRED_KEYS = {
     "fitness": ("type", "params"),
     "offspring": ("type", "params"),
     "optimization": (
+        "initial_population_size",
         "population_size",
         "offspring_size",
         "n_generations",
@@ -88,6 +91,12 @@ _REQUIRED_KEYS = {
         "max_records_per_forward",
         "prefetch_batches",
         "show_progress",
+    ),
+    "snapshots": ("generations",),
+    "resume": (
+        "from_latest_snapshot",
+        "source_directory",
+        "genome_sequences_to_add",
     ),
     "output": ("directory", "allow_existing"),
 }
@@ -228,6 +237,10 @@ def _validate(data: dict[str, Any]) -> None:
         ("sampler.seq_len", data["sampler"]["seq_len"]),
         ("sampler.tss_sampling_window", data["sampler"]["tss_sampling_window"]),
         ("sampler.max_attempts", data["sampler"]["max_attempts"]),
+        (
+            "optimization.initial_population_size",
+            data["optimization"]["initial_population_size"],
+        ),
         ("optimization.population_size", data["optimization"]["population_size"]),
         ("optimization.offspring_size", data["optimization"]["offspring_size"]),
         ("optimization.tournament_size", data["optimization"]["tournament_size"]),
@@ -242,8 +255,18 @@ def _validate(data: dict[str, Any]) -> None:
 
     if data["sampler"]["tss_sampling_window"] < data["sampler"]["seq_len"]:
         raise ConfigError("sampler.tss_sampling_window must be at least sampler.seq_len.")
-    if data["sampler"]["max_attempts"] < data["optimization"]["population_size"]:
-        raise ConfigError("sampler.max_attempts must be at least optimization.population_size.")
+    initial_population_size = data["optimization"]["initial_population_size"]
+    population_size = data["optimization"]["population_size"]
+    if initial_population_size < population_size:
+        raise ConfigError(
+            "optimization.initial_population_size must be at least "
+            "optimization.population_size."
+        )
+    if data["sampler"]["max_attempts"] < initial_population_size:
+        raise ConfigError(
+            "sampler.max_attempts must be at least "
+            "optimization.initial_population_size."
+        )
 
     generations = data["optimization"]["n_generations"]
     if isinstance(generations, bool) or not isinstance(generations, int) or generations < 0:
@@ -258,12 +281,53 @@ def _validate(data: dict[str, Any]) -> None:
     if max_records is not None:
         _require_positive_int(max_records, label="runtime.max_records_per_forward")
 
+    snapshot_generations = data["snapshots"]["generations"]
+    if not isinstance(snapshot_generations, list) or any(
+        isinstance(generation, bool)
+        or not isinstance(generation, int)
+        or generation < 0
+        for generation in snapshot_generations
+    ):
+        raise ConfigError(
+            "snapshots.generations must be a list of non-negative integers."
+        )
+    if len(set(snapshot_generations)) != len(snapshot_generations):
+        raise ConfigError("snapshots.generations must not contain duplicates.")
+    if any(generation > generations for generation in snapshot_generations):
+        raise ConfigError(
+            "snapshots.generations must not exceed optimization.n_generations."
+        )
+    data["snapshots"]["generations"] = sorted(snapshot_generations)
+
+    resume = data["resume"]
+    if not isinstance(resume["from_latest_snapshot"], bool):
+        raise ConfigError("resume.from_latest_snapshot must be a boolean.")
+    source_directory = resume["source_directory"]
+    if source_directory is not None and not isinstance(
+        source_directory, (str, Path)
+    ):
+        raise ConfigError("resume.source_directory must be null or a path.")
+    additions = resume["genome_sequences_to_add"]
+    if isinstance(additions, bool) or not isinstance(additions, int) or additions < 0:
+        raise ConfigError(
+            "resume.genome_sequences_to_add must be a non-negative integer."
+        )
+    if additions and not resume["from_latest_snapshot"]:
+        raise ConfigError(
+            "resume.genome_sequences_to_add requires "
+            "resume.from_latest_snapshot=true."
+        )
+    if additions > data["sampler"]["max_attempts"]:
+        raise ConfigError(
+            "sampler.max_attempts must be at least "
+            "resume.genome_sequences_to_add."
+        )
+
     window_size = data["plasmid"]["window_size"]
     if window_size != "full":
         _require_positive_int(window_size, label="plasmid.window_size")
 
     elite_count = data["optimization"]["elite_count"]
-    population_size = data["optimization"]["population_size"]
     if (
         isinstance(elite_count, bool)
         or not isinstance(elite_count, int)
@@ -326,6 +390,12 @@ def _resolve_paths(data: dict[str, Any], base: Path) -> None:
         group = data["conditions"][role]
         group["directory"] = _resolve_path(base, group["directory"])
     data["output"]["directory"] = _resolve_path(base, data["output"]["directory"])
+    source_directory = data["resume"]["source_directory"]
+    data["resume"]["source_directory"] = (
+        data["output"]["directory"]
+        if source_directory is None
+        else _resolve_path(base, source_directory)
+    )
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,7 @@ description = "Config-driven promoter sequence generation with gena_expression."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "gena-expression>=0.1.0",
+    "gena_expression>=0.1.0",
     "polars>=1.38",
     "PyYAML>=6.0",
 ]

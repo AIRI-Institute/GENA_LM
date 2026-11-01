@@ -84,6 +84,7 @@ def complete_config(root: Path) -> dict:
             },
         },
         "optimization": {
+            "initial_population_size": 5,
             "population_size": 3,
             "offspring_size": 2,
             "n_generations": 1,
@@ -102,6 +103,7 @@ def complete_config(root: Path) -> dict:
             "prefetch_batches": 1,
             "show_progress": False,
         },
+        "snapshots": {"generations": [0, 1]},
         "output": {"directory": "results/run", "allow_existing": False},
     }
 

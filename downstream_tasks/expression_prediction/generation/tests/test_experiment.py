@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from gena_expression import AnnotatedSequence, Condition, ExpressionScorer, Feature, Prediction
 
@@ -98,7 +98,8 @@ class ExperimentTests(unittest.TestCase):
                 Feature("reporter_tss", 5, 6, type="tokenization_center"),
             ),
         )
-        samples = tuple(AnnotatedSequence(value) for value in ("AAAA", "CCCC", "GGGG"))
+        sample_sequences = ("AAAA", "CCCC", "GGGG", "TTTT", "ACGT")
+        samples = tuple(AnnotatedSequence(value) for value in sample_sequences)
         optimizer = build_optimizer(
             self.config,
             template=template,
@@ -110,10 +111,11 @@ class ExperimentTests(unittest.TestCase):
             offspring_generator=_Offspring(),
         ).run_evolution(_ExpressionModel(), show_progress=False)
 
-        self.assertEqual(optimizer.evaluations.height, 3)
+        self.assertEqual(optimizer.evaluations.height, 5)
+        self.assertEqual(optimizer.final_population.height, 3)
         self.assertEqual(
             set(optimizer.evaluations["region_sequence"].to_list()),
-            {"AAAA", "CCCC", "GGGG"},
+            set(sample_sequences),
         )
         reference = optimizer.evaluations.filter(
             optimizer.evaluations["source"] == "reference"
@@ -127,6 +129,8 @@ class ExperimentTests(unittest.TestCase):
             AnnotatedSequence("AAAA", name="reference"),
             AnnotatedSequence("CCCC", name="initial_1"),
             AnnotatedSequence("GGGG", name="initial_2"),
+            AnnotatedSequence("TTTT", name="initial_3"),
+            AnnotatedSequence("ACGT", name="initial_4"),
         )
         template = AnnotatedSequence("TAAAAG")
         offspring = Mock()
@@ -152,7 +156,7 @@ class ExperimentTests(unittest.TestCase):
         fake_genome.close.assert_called_once_with()
         collect.assert_called_once_with(
             fake_sampler,
-            population_size=3,
+            population_size=5,
             seq_len=4,
             unique_sequences=True,
             max_attempts=20,
@@ -161,6 +165,7 @@ class ExperimentTests(unittest.TestCase):
         optimizer_builder.assert_called_once()
         optimizer.run_evolution.assert_called_once_with(
             model="model",
+            on_generation_complete=ANY,
             **self.config.section("runtime"),
         )
         offspring.close.assert_called_once_with()

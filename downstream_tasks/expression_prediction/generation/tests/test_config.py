@@ -93,6 +93,42 @@ class ConfigTests(unittest.TestCase):
         config = RunConfig.load(write_config(self.root, data))
         self.assertEqual(config.section("runtime")["prefetch_batches"], 0)
 
+    def test_snapshot_generations_are_validated_and_sorted(self):
+        data = complete_config(self.root)
+        data["snapshots"]["generations"] = [1, 0]
+        config = RunConfig.load(write_config(self.root, data))
+        self.assertEqual(config.section("snapshots")["generations"], [0, 1])
+
+        invalid_cases = [
+            ([0, 0], "duplicates"),
+            ([-1], "non-negative"),
+            ([2], "must not exceed"),
+            ("0,1", "must be a list"),
+        ]
+        for generations, message in invalid_cases:
+            with self.subTest(generations=generations):
+                data = complete_config(self.root)
+                data["snapshots"]["generations"] = generations
+                with self.assertRaisesRegex(ConfigError, message):
+                    RunConfig.load(write_config(self.root, data))
+
+    def test_initial_population_size_is_validated(self):
+        smaller_than_selected = complete_config(self.root)
+        smaller_than_selected["optimization"]["initial_population_size"] = 2
+        with self.assertRaisesRegex(
+            ConfigError,
+            "initial_population_size must be at least",
+        ):
+            RunConfig.load(write_config(self.root, smaller_than_selected))
+
+        too_few_attempts = complete_config(self.root)
+        too_few_attempts["sampler"]["max_attempts"] = 4
+        with self.assertRaisesRegex(
+            ConfigError,
+            "max_attempts must be at least",
+        ):
+            RunConfig.load(write_config(self.root, too_few_attempts))
+
 
 if __name__ == "__main__":
     unittest.main()
