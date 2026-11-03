@@ -131,6 +131,10 @@ The schema can be entirely different — in `RNAseq_homebrew` there is no `id` f
 
 ### 2.4. Genome and intervals
 
+For the human hg38 and mouse mm10 genomes, we have all files prepared in this repo. See [intervals](intervals) for ready files and [README](datasets/README.md) in the datasets folder for instructions about how they were produced.
+
+For other species, you need to prepare the following layout:
+
 ```
 $EP/datasets/data/genomes/<genome>/
 ├── <genome>.fa                 # required
@@ -143,6 +147,8 @@ $EP/intervals/<genome>.<split>.<strand>.csv
 ```
 
 `<split>`: `train` | `valid` | `test`, `<strand>`: `forward` | `reverse`. **The separator is a tab.** Required columns: `gene_id`, `strand`, `chromosome`, `TSS`, `TES`; `gene_name` is desirable. For multi-species the layout is nested: `intervals/<ASSEMBLY>/<ASSEMBLY>.train.forward.tsv`.
+
+Note that we have recommended genomes for many species [here](https://github.com/minjaf/ExpressionPredict/blob/main/data/available_genomes.tsv)
 
 ---
 
@@ -367,9 +373,9 @@ python qnorm_bw_apply_reference.py \
 
 The remaining flags (`--grid-size`, `--upper-tail-p`, `--tie-stat`, `--skip-existing`, `--chroms`, `--chunk-size-bp`) are in `--help`; the defaults work.
 
-### 3.3. `norm_bw` — division by a coefficient, not qnorm
+### 3.3. `norm_bw` — division by a coefficient
 
-This is not an alternative to 3.2 but a different operation, and the two do not conflict. Qnorm remaps values onto a common distribution and does so in advance, into separate files. `norm_bw` is a single coefficient per track, applied at read time:
+Note: this is not an alternative to qnorm described in 3.2. While 3.2 makes the shape of the target signal distribution similar for within-dataset samples, this (3.3) needs to make between-dataset samples similarly scaled. Qnorm remaps values onto a common distribution and does so in advance, into separate files. `norm_bw` is a single coefficient per track, applied at read time:
 
 ```yaml
 train_dataset_<name>:
