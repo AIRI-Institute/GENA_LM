@@ -9,6 +9,7 @@ import json
 import math
 import random
 import sqlite3
+import sys
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, closing
 from dataclasses import asdict, dataclass, field
@@ -142,6 +143,8 @@ def _rows_for_run(
     records_per_call: int,
     track_channel: int | None,
     pair_check: bool,
+    *,
+    show_progress: bool,
 ) -> Iterator[tuple]:
     n_conditions = len(conditions)
     row_order = range(len(sequences) * n_conditions)
@@ -157,8 +160,15 @@ def _rows_for_run(
             provenance=False,
         ),
     )
-    for offset in range(0, len(row_order), records_per_call):
+    chunk_count = (len(row_order) + records_per_call - 1) // records_per_call
+    for chunk_index, offset in enumerate(range(0, len(row_order), records_per_call), start=1):
         row_ids = row_order[offset : offset + records_per_call]
+        if show_progress and chunk_count > 1:
+            print(
+                f"Run {run_id!r} processing chunk {chunk_index}/{chunk_count} ({len(row_ids):,} rows)",
+                file=sys.stderr,
+                flush=True,
+            )
         inputs = [sequences[row_id // n_conditions] for row_id in row_ids]
         options = dict(
             conditions=[conditions[row_id % n_conditions] for row_id in row_ids],
@@ -167,7 +177,7 @@ def _rows_for_run(
             preprocessing_workers=run.preprocessing_workers,
             preprocessing_backend=run.preprocessing_backend,
             prefetch_batches=run.prefetch_batches,
-            show_progress=False,
+            show_progress=show_progress,
             retention=retention,
         )
         if pair_check:
@@ -200,6 +210,8 @@ def _measure_all(
     records_per_call: int,
     track_channel: int | None,
     pair_check: bool,
+    *,
+    show_progress: bool,
 ) -> None:
     database.execute(
         """CREATE TABLE observations (
@@ -211,7 +223,14 @@ def _measure_all(
     model = None
     previous_options = None
     with ExitStack() as model_lifetime:
-        for name, run in runs.items():
+        for index, (name, run) in enumerate(runs.items(), start=1):
+            if show_progress:
+                print(
+                    f"Starting run {index}/{len(runs)} {name!r} "
+                    f"(batch size {run.batch_size}, grouping {run.grouping})",
+                    file=sys.stderr,
+                    flush=True,
+                )
             options = {**model_options, **run.model_overrides}
             if model is None or options != previous_options:
                 model_lifetime.close()
@@ -221,9 +240,14 @@ def _measure_all(
                 if close_model is not None:
                     model_lifetime.callback(close_model)
                 previous_options = options
-            rows = _rows_for_run(model, sequences, conditions, name, run, records_per_call, track_channel, pair_check)
+            rows = _rows_for_run(
+                model, sequences, conditions, name, run, records_per_call, track_channel, pair_check,
+                show_progress=show_progress,
+            )
             database.executemany("INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
             database.commit()
+            if show_progress:
+                print(f"Completed run {index}/{len(runs)} {name!r}", file=sys.stderr, flush=True)
 
     mismatch = database.execute(
         """SELECT row_id, metric, token_position FROM observations
@@ -329,6 +353,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--records-per-call", type=_positive_int, default=256, help="Maximum rows per API call")
     parser.add_argument("--track-channel", type=int, help="Also compare one prediction track channel")
     parser.add_argument("--pair-check", action="store_true", help="Compare pair execution on deterministic REF/ALT fixtures")
+    parser.add_argument("--progress", action="store_true", help="Show run status and inference progress bars on stderr")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epsilon", type=float, default=1e-8, help="Floor for the relative-error denominator")
     parser.add_argument("--output", type=Path, required=True, help="Directory for manifest.json, predictions.csv, and summary.json")
@@ -405,7 +430,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         with closing(sqlite3.connect(work / "results.sqlite")) as database:
             _measure_all(
                 database, pairs if pairs is not None else sequences, conditions, runs, model_options,
-                args.records_per_call, args.track_channel, args.pair_check,
+                args.records_per_call, args.track_channel, args.pair_check, show_progress=args.progress,
             )
             summary = _summarize(database, runs, args.epsilon, work)
         for filename, content in (("manifest.json", manifest), ("summary.json", summary)):

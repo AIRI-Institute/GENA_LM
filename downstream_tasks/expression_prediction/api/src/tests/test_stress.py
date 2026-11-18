@@ -92,7 +92,7 @@ def workload(tmp_path):
     return argv, output
 
 
-def test_stress_compares_fixed_input_ids_and_reports_drift(monkeypatch, workload):
+def test_stress_compares_fixed_input_ids_and_reports_drift(monkeypatch, workload, capsys):
     argv, output = workload
     models = []
 
@@ -112,6 +112,8 @@ def test_stress_compares_fixed_input_ids_and_reports_drift(monkeypatch, workload
     assert models[1].calls[0][1]["preprocessing_workers"] == 2
     assert models[1].calls[0][1]["prefetch_batches"] == 3
     assert all(model.closed for model in models)
+    assert all(not options["show_progress"] for model in models for _, options in model.calls)
+    assert capsys.readouterr().err == ""
 
     with (output / "predictions.csv").open(newline="") as stream:
         rows = list(csv.DictReader(stream))
@@ -134,6 +136,31 @@ def test_stress_compares_fixed_input_ids_and_reports_drift(monkeypatch, workload
     assert expression["serial_absolute_error"]["p95"] == 2.0
     assert summary["reversed"]["track"]["count"] == 4
     assert summary["reversed"]["track"]["non_finite"] == 2
+
+
+@pytest.mark.parametrize("pair_check", [False, True])
+def test_progress_identifies_runs_and_enables_inference_bars(monkeypatch, workload, capsys, pair_check):
+    argv, _ = workload
+    model = _FakeModel()
+    monkeypatch.setattr("gena_expression.stress.SequenceModel.load", lambda **options: model)
+
+    progress_args = ["--progress", "--records-per-call", "2"]
+    if pair_check:
+        progress_args.append("--pair-check")
+    main(argv + progress_args)
+
+    assert model.calls
+    assert all(options["show_progress"] for _, options in model.calls)
+    assert capsys.readouterr().err.splitlines() == [
+        "Starting run 1/2 'serial' (batch size 1, grouping serial)",
+        "Run 'serial' processing chunk 1/2 (2 rows)",
+        "Run 'serial' processing chunk 2/2 (2 rows)",
+        "Completed run 1/2 'serial'",
+        "Starting run 2/2 'reversed' (batch size 2, grouping sequence)",
+        "Run 'reversed' processing chunk 1/2 (2 rows)",
+        "Run 'reversed' processing chunk 2/2 (2 rows)",
+        "Completed run 2/2 'reversed'",
+    ]
 
 
 @pytest.mark.parametrize("failure", ["coordinates", "count"])

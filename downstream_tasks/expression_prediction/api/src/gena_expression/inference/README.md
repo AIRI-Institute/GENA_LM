@@ -639,7 +639,7 @@ python -m gena_expression.stress \
     --descriptions descriptions/ \
     --genome reference.fa --annotation transcripts.gtf \
     --n-descriptions 4 --n-sequences 20 --sequence-length 501 \
-    --seed 42 --output stress-results/
+    --seed 42 --progress --output stress-results/
 ```
 
 The default compares ungrouped, condition-grouped, sequence-grouped, and
@@ -647,6 +647,10 @@ automatic grouping against a serial reference. Each description file must
 contain a JSON string or object. The serial reference uses the base model
 options with one row per forward.
 
+- `--progress` prints the active run, batch size, and grouping to stderr. It
+  enables the model's tqdm bars for forward batches within each API call and
+  labels each chunk when a run spans multiple calls. The first run is
+  `serial` with batch size 1.
 - `--track-channel 0` includes per-token track comparisons in addition to
   expression. Compared track coordinates must match across runs.
 - `--pair-check` switches the workload to deterministic REF/ALT pairs and
