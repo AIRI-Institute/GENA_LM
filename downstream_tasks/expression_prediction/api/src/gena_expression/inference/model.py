@@ -8,7 +8,7 @@ import logging
 import os
 import subprocess
 import sys
-from contextlib import contextmanager, nullcontext
+from contextlib import closing, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
@@ -46,6 +46,7 @@ from .outputs import (
     _simple_value,
 )
 from .tokenization import CenteredTokenizer, TokenizedSequence
+from .workers import _CudaWorkerPool, _ModelLoadSpec, _cuda_devices
 
 
 def _log_git_commit_comparison(experiment_config: Mapping[str, Any], logger: logging.Logger) -> None:
@@ -93,6 +94,101 @@ def _log_git_commit_comparison(experiment_config: Mapping[str, Any], logger: log
             )
 
 
+def _load_model_runtime(spec: _ModelLoadSpec) -> tuple[Any, dict[str, Any]]:
+    """Instantiate one model and restore its checkpoint on CPU."""
+
+    import torch
+    from hydra import compose, initialize_config_dir
+    from hydra.utils import instantiate
+    from safetensors.torch import load_file
+
+    logger = logging.getLogger(__name__)
+    model_path_or_module, class_name = spec.model_cls.split("::")
+
+    def _load_model_class():
+        """Load the configured model class from a file or module."""
+
+        maybe_path = Path(model_path_or_module)
+        if maybe_path.exists() or maybe_path.suffix == ".py":
+            model_path = maybe_path.resolve()
+            module_name = f"_loaded_model_{model_path.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, model_path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not load module from {model_path}")
+
+            module = importlib.util.module_from_spec(spec)
+            with temporary_sys_path(model_path.parent):
+                sys.modules[module_name] = module
+                spec.loader.exec_module(module)
+
+            try:
+                return getattr(module, class_name), {"model_path": str(model_path), "model_class": class_name}
+            except AttributeError as exc:
+                raise ImportError(f"{class_name!r} not found in {model_path}") from exc
+
+        module = importlib.import_module(model_path_or_module)
+        try:
+            return getattr(module, class_name), {"model_module": model_path_or_module, "model_class": class_name}
+        except AttributeError as exc:
+            raise ImportError(f"{class_name!r} not found in module {model_path_or_module!r}") from exc
+
+    loaded_cls, model_provenance = _load_model_class()
+
+    with initialize_config_dir(str(spec.config.parent)):
+        experiment_config = compose(config_name=spec.config.name)
+    _log_git_commit_comparison(experiment_config, logger)
+    model_kwargs = instantiate(experiment_config["model_kwargs"])
+    if spec.precision == "float32":
+        model_kwargs = {**model_kwargs, "attn_implementation": "sdpa"}
+    model = loaded_cls(**model_kwargs)
+    if spec.precision == "float32":
+        # Casting before restoring weights prevents FP32 checkpoint values
+        # from being rounded to the constructor's original dtype.
+        model = model.to(dtype=torch.float32)
+
+    checkpoint_path = spec.checkpoint
+    if checkpoint_path.suffix == ".tensors":
+        state_dict = load_file(str(checkpoint_path), device="cpu")
+    else:
+        state_dict = torch.load(
+            str(checkpoint_path),
+            map_location=torch.device("cpu"),
+            weights_only=True,
+        )
+    model.load_state_dict(state_dict)
+    return model, model_provenance
+
+
+@contextmanager
+def _inference_context(
+    device_type: str,
+    autocast_enabled: bool,
+    precision: Literal["default", "float32"],
+):
+    """Apply the same forward precision policy in local and worker processes."""
+
+    import torch
+
+    use_fp32 = precision == "float32"
+    attention_context = nullcontext()
+    if use_fp32:
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        attention_context = sdpa_kernel(SDPBackend.MATH)
+    with (
+        torch.no_grad(),
+        torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled and not use_fp32),
+        attention_context,
+    ):
+        yield
+
+
+def _call_model(model: Any, inputs: Mapping[str, Any]) -> Any:
+    """Forward prepared model arguments without labels."""
+
+    return model(labels_mask=None, labels=None, return_dict=None, **inputs)
+
+
 class SequenceModel:
     """Load tokenizers/model checkpoint and expose prediction helpers.
 
@@ -102,6 +198,7 @@ class SequenceModel:
     """
 
     _precision: Literal["default", "float32"] = "default"
+    _worker_pool: _CudaWorkerPool | None = None
 
     def __init__(
         self,
@@ -117,6 +214,7 @@ class SequenceModel:
         output_names: Mapping[str, int | str] | None = None,
         provenance: Mapping[str, Any] | None = None,
         description_formatter: DescriptionFormatterSpec | None = None,
+        _worker_pool: _CudaWorkerPool | None = None,
     ) -> None:
         """Attach model runtime objects and configure centered tokenization."""
 
@@ -153,8 +251,10 @@ class SequenceModel:
             sep_id=self.dna_tokenizer.sep_token_id,
             pad_id=self.dna_tokenizer.pad_token_id,
         )
-        self.model = self.model.to(self.device)
-        self.model.eval()
+        self._worker_pool = _worker_pool
+        if _worker_pool is None:
+            self.model = self.model.to(self.device)
+            self.model.eval()
 
     @classmethod
     def load(
@@ -181,11 +281,14 @@ class SequenceModel:
 
         Float32 mode requires the model constructor to accept SDPA attention.
         It uses FP32 parameters and the SDPA math kernel for prediction.
-        The process-wide CUDA matmul TF32 setting still applies.
+        The process-wide CUDA matmul TF32 setting still applies. A device
+        list such as ``cuda:0,2`` starts one resident model per selected GPU.
+        Use the context manager or call ``close()`` to release replicas.
         """
 
         if precision not in {"default", "float32"}:
             raise ValueError("precision must be 'default' or 'float32'.")
+        devices = _cuda_devices(device)
         use_fp32 = precision == "float32"
         config_path = Path(config).expanduser().resolve()
         resolved_formatter = cls._resolve_description_formatter(
@@ -194,92 +297,79 @@ class SequenceModel:
         )
 
         import torch
-        from hydra import compose, initialize_config_dir
-        from hydra.utils import instantiate
-        from safetensors.torch import load_file
         from transformers import AutoTokenizer
 
-        logger = logging.getLogger(__name__)
-        model_path_or_module, class_name = model_cls.split("::")
-
-        def _load_model_class():
-            """Load the configured model class from a file or module."""
-
-            maybe_path = Path(model_path_or_module)
-            if maybe_path.exists() or maybe_path.suffix == ".py":
-                model_path = maybe_path.resolve()
-                module_name = f"_loaded_model_{model_path.stem}"
-                spec = importlib.util.spec_from_file_location(module_name, model_path)
-                if spec is None or spec.loader is None:
-                    raise ImportError(f"Could not load module from {model_path}")
-
-                module = importlib.util.module_from_spec(spec)
-                with temporary_sys_path(model_path.parent):
-                    sys.modules[module_name] = module
-                    spec.loader.exec_module(module)
-
-                try:
-                    return getattr(module, class_name), {"model_path": str(model_path), "model_class": class_name}
-                except AttributeError as exc:
-                    raise ImportError(f"{class_name!r} not found in {model_path}") from exc
-
-            module = importlib.import_module(model_path_or_module)
-            try:
-                return getattr(module, class_name), {"model_module": model_path_or_module, "model_class": class_name}
-            except AttributeError as exc:
-                raise ImportError(f"{class_name!r} not found in module {model_path_or_module!r}") from exc
-
-        logger.info("Loading model on %s", device)
-        loaded_cls, model_provenance = _load_model_class()
-
-        with initialize_config_dir(str(config_path.parents[0])):
-            experiment_config = compose(config_name=config_path.name)
-        _log_git_commit_comparison(experiment_config, logger)
-        model_kwargs = instantiate(experiment_config["model_kwargs"])
-        if use_fp32:
-            model_kwargs = {**model_kwargs, "attn_implementation": "sdpa"}
-        model = loaded_cls(**model_kwargs)
-        if use_fp32:
-            # Casting before restoring weights prevents FP32 checkpoint values
-            # from being rounded to the constructor's original dtype.
-            model = model.to(dtype=torch.float32)
-
         checkpoint_path = Path(checkpoint)
-        if checkpoint_path.suffix == ".tensors":
-            state_dict = load_file(str(checkpoint_path), device="cpu")
-        else:
-            state_dict = torch.load(
-                str(checkpoint_path),
-                map_location=torch.device("cpu"),
-                weights_only=True,
-            )
-        model.load_state_dict(state_dict)
-
-        dna_tok = AutoTokenizer.from_pretrained(str(dna_tokenizer))
-        desc_tok = AutoTokenizer.from_pretrained(str(description_tokenizer), padding_side="left")
-        predictor = cls(
-            model=model,
-            dna_tokenizer=dna_tok,
-            description_tokenizer=desc_tok,
-            dna_max_seq_len=dna_max_seq_len,
-            desc_max_seq_len=desc_max_seq_len,
-            token_len_for_fetch=token_len_for_fetch,
-            num_before=num_before,
-            device=device,
-            output_names=output_names,
-            description_formatter=resolved_formatter,
-            provenance={
-                **model_provenance,
-                "checkpoint": str(checkpoint_path),
-                "config": str(config_path),
-                "dna_tokenizer": str(dna_tokenizer),
-                "description_tokenizer": str(description_tokenizer),
-            },
+        load_spec = _ModelLoadSpec(
+            model_cls=model_cls,
+            checkpoint=checkpoint_path,
+            config=config_path,
+            precision=precision,
+            matmul_precision=torch.get_float32_matmul_precision() if devices else None,
+            cudnn_allow_tf32=torch.backends.cudnn.allow_tf32 if devices else None,
         )
+        worker_pool = None
+        if devices:
+            # Resolve tokenizers and the formatter here only. Workers need the
+            # checkpoint configuration and prepared forward tensors.
+            dna_tok = AutoTokenizer.from_pretrained(str(dna_tokenizer))
+            desc_tok = AutoTokenizer.from_pretrained(str(description_tokenizer), padding_side="left")
+            worker_pool = _CudaWorkerPool(devices, load_spec)
+            model, model_provenance = None, worker_pool.provenance
+        else:
+            logging.getLogger(__name__).info("Loading model on %s", device)
+            model, model_provenance = _load_model_runtime(load_spec)
+            dna_tok = AutoTokenizer.from_pretrained(str(dna_tokenizer))
+            desc_tok = AutoTokenizer.from_pretrained(str(description_tokenizer), padding_side="left")
+        try:
+            predictor = cls(
+                model=model,
+                dna_tokenizer=dna_tok,
+                description_tokenizer=desc_tok,
+                dna_max_seq_len=dna_max_seq_len,
+                desc_max_seq_len=desc_max_seq_len,
+                token_len_for_fetch=token_len_for_fetch,
+                num_before=num_before,
+                device=device,
+                output_names=output_names,
+                description_formatter=resolved_formatter,
+                provenance={
+                    **model_provenance,
+                    "checkpoint": str(checkpoint_path),
+                    "config": str(config_path),
+                    "dna_tokenizer": str(dna_tokenizer),
+                    "description_tokenizer": str(description_tokenizer),
+                },
+                **({"_worker_pool": worker_pool} if worker_pool is not None else {}),
+            )
+        except BaseException:
+            if worker_pool is not None:
+                worker_pool.close()
+            raise
+        if devices:
+            predictor.provenance["devices"] = list(devices)
         predictor._precision = precision
         if use_fp32:
             predictor.provenance.update(precision=precision, attn_implementation="sdpa")
         return predictor
+
+    def __enter__(self) -> "SequenceModel":
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Release worker replicas created for a multi-GPU device list."""
+
+        if self._worker_pool is not None:
+            self._worker_pool.close()
+
+    @property
+    def _batch_device(self):
+        """Place model inputs on the CPU before sending them to CUDA workers."""
+
+        return "cpu" if self._worker_pool is not None else self.device
 
     @staticmethod
     def _resolve_description_formatter(
@@ -392,7 +482,7 @@ class SequenceModel:
                 )
             input_rows.append(input_ids)
             mask_rows.append(attention_mask)
-        return torch.stack(input_rows, dim=0).to(self.device), torch.stack(mask_rows, dim=0).to(self.device)
+        return torch.stack(input_rows, dim=0).to(self._batch_device), torch.stack(mask_rows, dim=0).to(self._batch_device)
 
     def _stack_description_encodings(self, encoded_descriptions: Sequence[dict[str, Any]]):
         """Pad description rows within a forward call and move them to the model device."""
@@ -421,7 +511,7 @@ class SequenceModel:
                     mask_row = torch.cat([mask_row, mask_pad])
             input_rows.append(input_row)
             mask_rows.append(mask_row)
-        return torch.stack(input_rows, dim=0).to(self.device), torch.stack(mask_rows, dim=0).to(self.device)
+        return torch.stack(input_rows, dim=0).to(self._batch_device), torch.stack(mask_rows, dim=0).to(self._batch_device)
 
     def _model_autocast_device(self) -> tuple[str, bool]:
         """Return the autocast device type and whether it should be enabled."""
@@ -433,21 +523,17 @@ class SequenceModel:
     def _forward_context(self):
         """Apply the runtime precision policy around one model forward."""
 
-        import torch
-
         device_type, autocast_enabled = self._model_autocast_device()
-        use_fp32 = self._precision == "float32"
-        attention_context = nullcontext()
-        if use_fp32:
-            from torch.nn.attention import SDPBackend, sdpa_kernel
-
-            attention_context = sdpa_kernel(SDPBackend.MATH)
-        with (
-            torch.no_grad(),
-            torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled and not use_fp32),
-            attention_context,
-        ):
+        with _inference_context(device_type, autocast_enabled, self._precision):
             yield
+
+    def _forward_prepared(self, **inputs):
+        """Run a local forward or hand its CPU inputs to the worker scheduler."""
+
+        if self._worker_pool is not None:
+            return inputs
+        with self._forward_context():
+            return _call_model(self.model, inputs)
 
     @staticmethod
     def _validate_preprocessing_backend(backend: PreprocessingBackend) -> None:
@@ -784,19 +870,15 @@ class SequenceModel:
         desc_input_ids, desc_attention_mask = self._stack_description_encodings(desc_encodings)
         desc_input_ids = desc_input_ids.unsqueeze(1)
         desc_attention_mask = desc_attention_mask.unsqueeze(1)
-        dataset_flag = torch.zeros((len(tokenized_sequences), 1), dtype=torch.bool, device=self.device)
+        dataset_flag = torch.zeros((len(tokenized_sequences), 1), dtype=torch.bool, device=self._batch_device)
 
-        with self._forward_context():
-            return self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels_mask=None,
-                labels=None,
-                return_dict=None,
-                desc_input_ids=desc_input_ids,
-                desc_attention_mask=desc_attention_mask,
-                dataset_flag=dataset_flag,
-            )
+        return self._forward_prepared(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            desc_input_ids=desc_input_ids,
+            desc_attention_mask=desc_attention_mask,
+            dataset_flag=dataset_flag,
+        )
 
     def _run_tokenized_pairs(
         self,
@@ -821,19 +903,15 @@ class SequenceModel:
         # the condition is repeated and should be encoded once for both alleles.
         desc_input_ids = desc_input_ids.unsqueeze(1).repeat(1, 2, 1)
         desc_attention_mask = desc_attention_mask.unsqueeze(1).repeat(1, 2, 1)
-        dataset_flag = torch.zeros((len(pair_descriptions), 2), dtype=torch.bool, device=self.device)
+        dataset_flag = torch.zeros((len(pair_descriptions), 2), dtype=torch.bool, device=self._batch_device)
 
-        with self._forward_context():
-            return self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels_mask=None,
-                labels=None,
-                return_dict=None,
-                desc_input_ids=desc_input_ids,
-                desc_attention_mask=desc_attention_mask,
-                dataset_flag=dataset_flag,
-            )
+        return self._forward_prepared(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            desc_input_ids=desc_input_ids,
+            desc_attention_mask=desc_attention_mask,
+            dataset_flag=dataset_flag,
+        )
 
     def _run_tokenized_repeated_condition(
         self,
@@ -849,21 +927,17 @@ class SequenceModel:
 
         input_ids, attention_mask = self._stack_tokenized_dna(tokenized_sequences)
         n = len(tokenized_sequences)
-        desc_input_ids = desc_encoded["desc_input_ids"].repeat(n, 1).unsqueeze(0).to(self.device)
-        desc_attention_mask = desc_encoded["desc_attention_mask"].repeat(n, 1).unsqueeze(0).to(self.device)
-        dataset_flag = torch.zeros((1, n), dtype=torch.bool, device=self.device)
+        desc_input_ids = desc_encoded["desc_input_ids"].repeat(n, 1).unsqueeze(0).to(self._batch_device)
+        desc_attention_mask = desc_encoded["desc_attention_mask"].repeat(n, 1).unsqueeze(0).to(self._batch_device)
+        dataset_flag = torch.zeros((1, n), dtype=torch.bool, device=self._batch_device)
 
-        with self._forward_context():
-            return self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels_mask=None,
-                labels=None,
-                return_dict=None,
-                desc_input_ids=desc_input_ids,
-                desc_attention_mask=desc_attention_mask,
-                dataset_flag=dataset_flag,
-            )
+        return self._forward_prepared(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            desc_input_ids=desc_input_ids,
+            desc_attention_mask=desc_attention_mask,
+            dataset_flag=dataset_flag,
+        )
 
     def _run_tokenized_repeated_sequence(
         self,
@@ -889,20 +963,16 @@ class SequenceModel:
         n = len(desc_encodings)
         # The model still expects B*N physical rows; dataset_flag=True only
         # tells it that these DNA rows are duplicates and can be encoded once.
-        input_ids = tokenized_sequence.input_ids.unsqueeze(0).repeat(n, 1).to(self.device)
-        attention_mask = tokenized_sequence.attention_mask.unsqueeze(0).repeat(n, 1).to(self.device)
-        dataset_flag = torch.ones((1, n), dtype=torch.bool, device=self.device)
-        with self._forward_context():
-            return self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                labels_mask=None,
-                labels=None,
-                return_dict=None,
-                desc_input_ids=desc_input_ids,
-                desc_attention_mask=desc_attention_mask,
-                dataset_flag=dataset_flag,
-            )
+        input_ids = tokenized_sequence.input_ids.unsqueeze(0).repeat(n, 1).to(self._batch_device)
+        attention_mask = tokenized_sequence.attention_mask.unsqueeze(0).repeat(n, 1).to(self._batch_device)
+        dataset_flag = torch.ones((1, n), dtype=torch.bool, device=self._batch_device)
+        return self._forward_prepared(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            desc_input_ids=desc_input_ids,
+            desc_attention_mask=desc_attention_mask,
+            dataset_flag=dataset_flag,
+        )
 
     @staticmethod
     def _logits_to_cpu(model_output: Any) -> Any:
@@ -1101,6 +1171,14 @@ class SequenceModel:
             raise ValueError("Use max_pairs_per_forward for joint pair execution.")
         if not paired_rows and max_pairs_per_forward is not None:
             raise ValueError("max_pairs_per_forward is only valid for joint pair execution.")
+        worker_pool = self._worker_pool
+        if worker_pool is not None:
+            device_count = len(worker_pool.devices)
+            if paired_rows and max_pairs_per_forward is None:
+                pair_count = len(tokenized_list) // 2
+                max_pairs_per_forward = min(4, (pair_count + device_count - 1) // device_count)
+            elif not paired_rows and max_records_per_forward is None:
+                max_records_per_forward = min(8, (len(tokenized_list) + device_count - 1) // device_count)
         valid_grouping = {"serial", "no_grouping", "condition", "sequence", "auto"}
         if grouping not in valid_grouping:
             raise ValueError(f"grouping must be one of {sorted(valid_grouping)}, got {grouping!r}.")
@@ -1251,11 +1329,17 @@ class SequenceModel:
             batch: _ForwardBatch,
             logits: Any,
             desc_encodings: Sequence[dict[str, Any]],
+            *,
+            forward_device: str | None = None,
         ) -> None:
             """Store one forward batch using the resolved retention policy."""
 
             nonlocal forward_group_id
-            for row_pos, (idx, desc_encoded) in enumerate(zip(batch.indices, desc_encodings)):
+            if len(logits) != len(batch.indices):
+                raise RuntimeError(
+                    f"Forward batch {forward_group_id} returned {len(logits)} rows for {len(batch.indices)} inputs."
+                )
+            for row_pos, (idx, desc_encoded) in enumerate(zip(batch.indices, desc_encodings, strict=True)):
                 tokenized = tokenized_list[idx]
                 assert tokenized is not None
                 row_logits = logits[row_pos : row_pos + 1]
@@ -1283,6 +1367,7 @@ class SequenceModel:
                         "group_key_kind": batch.group_key_kind,
                         "group_key": batch.group_key,
                         "forward_group_id": forward_group_id,
+                        **({"forward_device": forward_device} if forward_device is not None else {}),
                         "group_size": len(batch.indices),
                         "dataset_flag_shape": batch.dataset_flag_shape,
                         "dataset_flag_meaning": batch.dataset_flag_meaning,
@@ -1428,7 +1513,7 @@ class SequenceModel:
 
                 yield batch, tokenized_batch, desc_encodings
 
-                # Refill only after the current GPU forward has finished.
+                # Refill as the consumer pulls prepared batches.
                 if next_batch < len(batches):
                     submit(batches[next_batch])
                     next_batch += 1
@@ -1444,30 +1529,46 @@ class SequenceModel:
             preprocessing_workers,
             prefetch_batches,
         )
-        try:
-            prepared = prefetched_batches()
-            for batch, tokenized_batch, desc_encodings in _progress(
-                prepared,
-                total=len(batches),
-                description=stage,
-                enabled=show_progress,
-                unit="batch",
-            ):
-                if batch.grouping in {"serial", "no_grouping"}:
-                    model_output = self._run_tokenized_no_grouping(tokenized_batch, desc_encodings)
-                elif batch.grouping == "pair":
-                    model_output = self._run_tokenized_pairs(tokenized_batch, desc_encodings)
-                elif batch.grouping == "condition":
-                    model_output = self._run_tokenized_repeated_condition(tokenized_batch, desc_encodings[0])
-                elif batch.grouping == "sequence":
-                    model_output = self._run_tokenized_repeated_sequence(tokenized_batch[0], desc_encodings)
-                else:
-                    raise RuntimeError(f"Unexpected forward grouping: {batch.grouping!r}")
-                store_predictions(batch, self._logits_to_cpu(model_output), desc_encodings)
-        finally:
-            self.clear_cuda_cache()
+        def forward_batch(batch, tokenized_batch, desc_encodings):
+            if batch.grouping in {"serial", "no_grouping"}:
+                return self._run_tokenized_no_grouping(tokenized_batch, desc_encodings)
+            if batch.grouping == "pair":
+                return self._run_tokenized_pairs(tokenized_batch, desc_encodings)
+            if batch.grouping == "condition":
+                return self._run_tokenized_repeated_condition(tokenized_batch, desc_encodings[0])
+            if batch.grouping == "sequence":
+                return self._run_tokenized_repeated_sequence(tokenized_batch[0], desc_encodings)
+            raise RuntimeError(f"Unexpected forward grouping: {batch.grouping!r}")
+
+        progress_options = dict(total=len(batches), description=stage, enabled=show_progress, unit="batch")
+        if worker_pool is None:
+            try:
+                for batch, tokenized_batch, desc_encodings in _progress(prefetched_batches(), **progress_options):
+                    model_output = forward_batch(batch, tokenized_batch, desc_encodings)
+                    store_predictions(batch, self._logits_to_cpu(model_output), desc_encodings)
+            finally:
+                self.clear_cuda_cache()
+        else:
+            pending_descriptions = {}
+
+            def worker_jobs():
+                for group_id, (batch, tokenized_batch, desc_encodings) in enumerate(prefetched_batches()):
+                    pending_descriptions[group_id] = desc_encodings
+                    yield group_id, forward_batch(batch, tokenized_batch, desc_encodings)
+
+            with closing(worker_pool.run(worker_jobs())) as results:
+                for group_id, device, logits in _progress(results, **progress_options):
+                    if group_id != forward_group_id:
+                        raise RuntimeError(f"Expected forward batch {forward_group_id}, received {group_id}.")
+                    # Predictions can outlive the worker pool. Copy the
+                    # received batch out of multiprocessing shared memory.
+                    store_predictions(
+                        batches[group_id], logits.clone(), pending_descriptions.pop(group_id), forward_device=device,
+                    )
 
         self.logger.info("%s complete", stage)
+        if any(prediction is None for prediction in output):
+            raise RuntimeError("Inference completed with missing prediction rows.")
         return [prediction for prediction in output if prediction is not None]
 
     def predict_multiple_sequences(
@@ -1664,7 +1765,9 @@ class SequenceModel:
                 condition=condition,
                 _coordinate_mapper=_retained_coordinate_mapper(pair, prediction_retention),
             )
-            for pair, condition, ref_pred, alt_pred in zip(pair_list, condition_list, ref_predictions, alt_predictions)
+            for pair, condition, ref_pred, alt_pred in zip(
+                pair_list, condition_list, ref_predictions, alt_predictions, strict=True,
+            )
         ]
 
     @staticmethod
