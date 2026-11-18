@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
-from ..conditions import Condition
+from ..conditions import Condition, ConditionInput, PooledCondition
 from ..config import FULL_RETENTION, RetentionLike, RetentionPolicy, retention_policy_for
 from ..sequences import Feature, SequencePair
 from ..variants import Variant
@@ -33,7 +33,7 @@ class VariantInterpreter:
         variant: Any,
         *,
         context: Any | None = None,
-        condition: Condition | str | Mapping[str, Any],
+        condition: ConditionInput,
         scorer: Any,
         genome: Any | None = None,
         center: int | str | Feature = "tss",
@@ -67,10 +67,10 @@ class VariantInterpreter:
     def score_variants(
         self,
         variants: Iterable[Any],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
+        conditions: Iterable[ConditionInput] | None = None,
         *,
         context: Any | None = None,
-        condition: Condition | str | Mapping[str, Any] | None = None,
+        condition: ConditionInput | None = None,
         scorer: Any,
         genome: Any | None = None,
         center: int | str | Feature = "tss",
@@ -183,7 +183,7 @@ class VariantInterpreter:
         self,
         pair: SequencePair,
         *,
-        condition: Condition | str | Mapping[str, Any],
+        condition: ConditionInput,
         scorer: Any,
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
@@ -209,9 +209,9 @@ class VariantInterpreter:
     def score_sequence_pairs(
         self,
         pairs: Iterable[SequencePair],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
+        conditions: Iterable[ConditionInput] | None = None,
         *,
-        condition: Condition | str | Mapping[str, Any] | None = None,
+        condition: ConditionInput | None = None,
         scorer: Any,
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
@@ -293,7 +293,7 @@ class VariantInterpreter:
     def _score_pairs(
         self,
         pairs: Sequence[SequencePair],
-        conditions: Sequence[Condition],
+        conditions: Sequence[Condition | PooledCondition],
         labels: Sequence[str],
         *,
         scorer: Any,

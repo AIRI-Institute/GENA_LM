@@ -231,6 +231,54 @@ class Condition:
         }
 
 
+@dataclass(frozen=True)
+class PooledCondition:
+    """Define one condition as the equal-weight logit mean of its descriptions."""
+
+    name: str
+    descriptions: Sequence[str | Mapping[str, Any]]
+    assay: str | None = None
+    cell_type: str | None = None
+    tissue: str | None = None
+    metadata: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        descriptions = self.descriptions
+        if isinstance(descriptions, (str, bytes)) or not isinstance(descriptions, Sequence):
+            raise TypeError("PooledCondition descriptions must be an ordered sequence.")
+        if not descriptions:
+            raise ValueError("PooledCondition requires at least one description.")
+        for description in descriptions:
+            if not isinstance(description, (str, Mapping)):
+                raise TypeError("Each pooled description must be a string or metadata mapping.")
+            if isinstance(description, str) and not description.strip():
+                raise ValueError("Pooled descriptions must be nonempty.")
+        object.__setattr__(self, "descriptions", tuple(descriptions))
+
+    def texts(self) -> tuple[str, ...]:
+        """Render each member with the current runtime description formatter."""
+
+        return tuple(Condition(self.name, description).text() for description in self.descriptions)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize condition metadata and the ordered description members."""
+
+        return {
+            "name": self.name,
+            "descriptions": [
+                dict(description) if isinstance(description, Mapping) else description
+                for description in self.descriptions
+            ],
+            "assay": self.assay,
+            "cell_type": self.cell_type,
+            "tissue": self.tissue,
+            "metadata": dict(self.metadata or {}),
+        }
+
+
+ConditionInput = Condition | PooledCondition | str | Mapping[str, Any]
+
+
 def metadata_to_description(meta: Mapping[str, Any]) -> str:
     """Convert structured metadata to the sentence format used by the attached code."""
 

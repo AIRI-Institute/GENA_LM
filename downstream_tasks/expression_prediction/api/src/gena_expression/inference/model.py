@@ -15,7 +15,9 @@ from typing import Any, Iterable, Literal, Mapping, Sequence
 from .._import_utils import temporary_sys_path
 from ..conditions import (
     Condition,
+    ConditionInput,
     DescriptionFormatterSpec,
+    PooledCondition,
     ResolvedDescriptionFormatter,
     resolve_description_formatter,
 )
@@ -45,6 +47,7 @@ from .outputs import (
     _retained_coordinate_mapper,
     _simple_value,
 )
+from .pooling import _PooledLogits, _expand_condition_rows
 from .tokenization import CenteredTokenizer, TokenizedSequence
 from .workers import _CudaWorkerPool, _ModelLoadSpec, _cuda_devices
 
@@ -400,6 +403,8 @@ class SequenceModel:
     def make_description(self, condition: Condition | str | Mapping[str, Any]) -> str:
         """Render condition metadata with this model's snapshotted formatter."""
 
+        if isinstance(condition, PooledCondition):
+            raise TypeError("PooledCondition has multiple descriptions. Use it with a prediction method.")
         if isinstance(condition, Condition):
             description = condition.description
         else:
@@ -413,10 +418,10 @@ class SequenceModel:
 
         return self.description_formatter(meta)
 
-    def _as_condition(self, condition: Condition | str | Mapping[str, Any]) -> Condition:
-        """Normalize user condition input to a :class:`Condition`."""
+    def _as_condition(self, condition: ConditionInput) -> Condition | PooledCondition:
+        """Normalize user condition input for prediction."""
 
-        if isinstance(condition, Condition):
+        if isinstance(condition, (Condition, PooledCondition)):
             return condition
         if isinstance(condition, str):
             return Condition(name="condition", description=condition)
@@ -636,9 +641,9 @@ class SequenceModel:
 
     def _condition_list(
         self,
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None,
-        condition: Condition | str | Mapping[str, Any] | None,
-    ) -> list[Condition]:
+        conditions: Iterable[ConditionInput] | None,
+        condition: ConditionInput | None,
+    ) -> list[Condition | PooledCondition]:
         """Normalize exactly one of the singular or plural condition inputs."""
 
         if (conditions is None) == (condition is None):
@@ -650,9 +655,9 @@ class SequenceModel:
     def _broadcast_conditions(
         self,
         row_count: int,
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None,
-        condition: Condition | str | Mapping[str, Any] | None,
-    ) -> list[Condition]:
+        conditions: Iterable[ConditionInput] | None,
+        condition: ConditionInput | None,
+    ) -> list[Condition | PooledCondition]:
         """Broadcast one condition or validate row-wise conditions."""
 
         condition_list = self._condition_list(conditions, condition)
@@ -665,9 +670,9 @@ class SequenceModel:
     def _sequence_condition_rows(
         self,
         sequences: AnnotatedSequence | str | Iterable[AnnotatedSequence | str],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None,
-        condition: Condition | str | Mapping[str, Any] | None,
-    ) -> tuple[list[AnnotatedSequence | str], list[Condition]]:
+        conditions: Iterable[ConditionInput] | None,
+        condition: ConditionInput | None,
+    ) -> tuple[list[AnnotatedSequence | str], list[Condition | PooledCondition]]:
         """Broadcast compatible sequence and condition inputs into rows."""
 
         sequence_list = self._as_sequence_list(sequences)
@@ -1001,7 +1006,7 @@ class SequenceModel:
     def _predict_tokenized_sequence(
         self,
         tokenized: TokenizedSequence,
-        condition_obj: Condition,
+        condition_obj: Condition | PooledCondition,
         *,
         grouping: GroupingMode = "no_grouping",
         return_tokens: bool = True,
@@ -1025,7 +1030,7 @@ class SequenceModel:
         self,
         sequence: AnnotatedSequence | str,
         *,
-        condition: Condition | str | Mapping[str, Any],
+        condition: ConditionInput,
         center: int | str | Feature = "tss",
         strand: str = "+",
         grouping: GroupingMode = "no_grouping",
@@ -1048,7 +1053,7 @@ class SequenceModel:
     def _predict_sequence_tasks(
         self,
         tasks: Sequence[tuple[AnnotatedSequence | str, int | str | Feature, str]],
-        conditions: Sequence[Condition],
+        conditions: Sequence[Condition | PooledCondition],
         *,
         grouping: GroupingMode,
         preprocessing_workers: int,
@@ -1112,7 +1117,7 @@ class SequenceModel:
     def _predict_multiple_tokenized_sequences(
         self,
         tokenized_sequences: Sequence[TokenizedSequence | None],
-        conditions: Sequence[Condition],
+        conditions: Sequence[Condition | PooledCondition],
         *,
         grouping: GroupingMode = "no_grouping",
         preprocessing_workers: int = 0,
@@ -1146,11 +1151,11 @@ class SequenceModel:
         from concurrent.futures import Future
 
         tokenized_list = list(tokenized_sequences)
-        condition_list = list(conditions)
-        if len(tokenized_list) != len(condition_list):
+        logical_conditions = list(conditions)
+        if len(tokenized_list) != len(logical_conditions):
             raise ValueError("tokenized_sequences and conditions must have the same length.")
         task_list = list(sequence_tasks) if sequence_tasks is not None else None
-        if task_list is not None and len(task_list) != len(condition_list):
+        if task_list is not None and len(task_list) != len(logical_conditions):
             raise ValueError("sequence_tasks and conditions must have the same length.")
         if task_list is None and any(tokenized is None for tokenized in tokenized_list):
             raise ValueError("Missing tokenized sequences without sequence_tasks to prepare them.")
@@ -1171,14 +1176,6 @@ class SequenceModel:
             raise ValueError("Use max_pairs_per_forward for joint pair execution.")
         if not paired_rows and max_pairs_per_forward is not None:
             raise ValueError("max_pairs_per_forward is only valid for joint pair execution.")
-        worker_pool = self._worker_pool
-        if worker_pool is not None:
-            device_count = len(worker_pool.devices)
-            if paired_rows and max_pairs_per_forward is None:
-                pair_count = len(tokenized_list) // 2
-                max_pairs_per_forward = min(4, (pair_count + device_count - 1) // device_count)
-            elif not paired_rows and max_records_per_forward is None:
-                max_records_per_forward = min(8, (len(tokenized_list) + device_count - 1) // device_count)
         valid_grouping = {"serial", "no_grouping", "condition", "sequence", "auto"}
         if grouping not in valid_grouping:
             raise ValueError(f"grouping must be one of {sorted(valid_grouping)}, got {grouping!r}.")
@@ -1187,6 +1184,24 @@ class SequenceModel:
                 "Joint pair execution does not support grouping='sequence'; "
                 "use 'no_grouping', 'condition', 'auto', or pair_execution='separate'."
             )
+
+        expanded_rows = None
+        condition_list = logical_conditions
+        if any(isinstance(condition, PooledCondition) for condition in logical_conditions):
+            expanded_rows = _expand_condition_rows(logical_conditions, paired_rows=paired_rows)
+            condition_list = [row.condition for row in expanded_rows]
+            tokenized_list = [tokenized_list[row.logical_index] for row in expanded_rows]
+            if task_list is not None:
+                task_list = [task_list[row.logical_index] for row in expanded_rows]
+
+        worker_pool = self._worker_pool
+        if worker_pool is not None:
+            device_count = len(worker_pool.devices)
+            if paired_rows and max_pairs_per_forward is None:
+                pair_count = len(tokenized_list) // 2
+                max_pairs_per_forward = min(4, (pair_count + device_count - 1) // device_count)
+            elif not paired_rows and max_records_per_forward is None:
+                max_records_per_forward = min(8, (len(tokenized_list) + device_count - 1) // device_count)
 
         pair_condition_groups: dict[str, list[int]] = {}
         if paired_rows:
@@ -1320,10 +1335,36 @@ class SequenceModel:
         else:
             raise RuntimeError(f"Unexpected resolved grouping: {resolved_grouping!r}")
 
-        output: list[Prediction | None] = [None] * len(tokenized_list)
+        output: list[Prediction | None] = [None] * len(logical_conditions)
+        pools: dict[int, _PooledLogits] = {}
         forward_group_id = 0
         extra = dict(extra_provenance or {})
         encoded_by_key = description_cache if description_cache is not None else {}
+
+        def build_prediction(
+            tokenized: TokenizedSequence,
+            condition: Condition | PooledCondition,
+            row_logits: Any,
+            provenance: Mapping[str, Any] | None,
+        ) -> Prediction:
+            expression = self._expression_from_logits(row_logits)
+            retained_outputs = (
+                {
+                    "expression": expression,
+                    **({"logits": row_logits} if retention.logits else {}),
+                }
+                if retention.outputs == "full"
+                else {"expression": _simple_value(expression)}
+            )
+            return Prediction(
+                sequence=tokenized.source if retention.sequence else None,
+                condition=condition,
+                logits=row_logits if retention.logits else None,
+                outputs=retained_outputs,
+                tokens=tokenized if return_tokens and retention.tokens else None,
+                provenance=provenance,
+                description_tokens=None,
+            )
 
         def store_predictions(
             batch: _ForwardBatch,
@@ -1343,22 +1384,13 @@ class SequenceModel:
                 tokenized = tokenized_list[idx]
                 assert tokenized is not None
                 row_logits = logits[row_pos : row_pos + 1]
-                expression = self._expression_from_logits(row_logits)
-                retained_outputs = (
+                row = expanded_rows[idx] if expanded_rows is not None else None
+                logical_index = row.logical_index if row is not None else idx
+                condition = logical_conditions[logical_index]
+                if output[logical_index] is not None:
+                    raise RuntimeError(f"Prediction row {logical_index} was already filled.")
+                provenance = (
                     {
-                        "expression": expression,
-                        **({"logits": row_logits} if retention.logits else {}),
-                    }
-                    if retention.outputs == "full"
-                    else {"expression": _simple_value(expression)}
-                )
-                prediction = Prediction(
-                    sequence=tokenized.source if retention.sequence else None,
-                    condition=condition_list[idx],
-                    logits=row_logits if retention.logits else None,
-                    outputs=retained_outputs,
-                    tokens=tokenized if return_tokens and retention.tokens else None,
-                    provenance={
                         **self.provenance,
                         **extra,
                         "batch_method": batch_method,
@@ -1377,13 +1409,54 @@ class SequenceModel:
                         "prefetch_batches": prefetch_batches,
                         "preprocessing_workers": preprocessing_workers,
                         "preprocessing_backend": preprocessing_backend,
-                        "record_index": idx,
+                        "record_index": idx if row is not None and row.member_index is not None else logical_index,
                     }
                     if retention.provenance
-                    else None,
-                    description_tokens=None,
+                    else None
                 )
-                output[idx] = (
+                if row is not None and row.member_index is not None:
+                    assert isinstance(condition, PooledCondition)
+                    if logical_index not in pools:
+                        pools[logical_index] = _PooledLogits()
+                    pool = pools[logical_index]
+                    member_index = row.member_index
+                    pool.add(member_index, row_logits, int(tokenized.input_ids.numel()))
+                    if retention.description_tokens:
+                        pool.description_tokens[member_index] = self._description_token_payload(desc_encoded)
+                    if provenance is not None:
+                        pool.provenance[member_index] = provenance
+                    count = len(condition.descriptions)
+                    if len(pool.members) < count:
+                        continue
+                    pooled_provenance = (
+                        {
+                            **self.provenance,
+                            **extra,
+                            "batch_method": batch_method,
+                            "grouping": grouping,
+                            "paired_rows": paired_rows,
+                            "record_index": logical_index,
+                            "description_pool": {
+                                "aggregation": "mean_logits",
+                                "members": [pool.provenance[i] for i in range(count)],
+                            },
+                        }
+                        if retention.provenance
+                        else None
+                    )
+                    prediction = build_prediction(
+                        tokenized, condition, pool.total.div_(count), pooled_provenance,
+                    )
+                    if retention.description_tokens:
+                        prediction.description_tokens = {
+                            "members": [pool.description_tokens[i] for i in range(count)],
+                        }
+                    output[logical_index] = prediction
+                    del pools[logical_index]
+                    continue
+
+                prediction = build_prediction(tokenized, condition, row_logits, provenance)
+                output[logical_index] = (
                     self._attach_description_tokens(prediction, desc_encoded)
                     if retention.description_tokens
                     else prediction
@@ -1574,9 +1647,9 @@ class SequenceModel:
     def predict_multiple_sequences(
         self,
         sequences: AnnotatedSequence | str | Iterable[AnnotatedSequence | str],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
+        conditions: Iterable[ConditionInput] | None = None,
         *,
-        condition: Condition | str | Mapping[str, Any] | None = None,
+        condition: ConditionInput | None = None,
         center: int | str | Feature = "tss",
         strand: str = "+",
         grouping: GroupingMode = "no_grouping",
@@ -1624,7 +1697,7 @@ class SequenceModel:
         self,
         pair: SequencePair,
         *,
-        condition: Condition | str | Mapping[str, Any],
+        condition: ConditionInput,
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         pair_execution: PairExecutionMode = "separate",
@@ -1646,9 +1719,9 @@ class SequenceModel:
     def predict_multiple_pairs(
         self,
         pairs: Iterable[SequencePair],
-        conditions: Iterable[Condition | str | Mapping[str, Any]] | None = None,
+        conditions: Iterable[ConditionInput] | None = None,
         *,
-        condition: Condition | str | Mapping[str, Any] | None = None,
+        condition: ConditionInput | None = None,
         center: int | str | Feature = "tss",
         grouping: GroupingMode = "no_grouping",
         pair_execution: PairExecutionMode = "separate",

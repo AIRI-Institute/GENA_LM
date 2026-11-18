@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from ..conditions import Condition
+from ..conditions import Condition, PooledCondition
 from ..config import RetentionLike, retention_policy_for
 from ..inference.batching import (
     GroupingMode,
@@ -178,6 +178,8 @@ class AlphaGenomeSequenceModel:
     def _as_condition(self, condition: Condition | str | Mapping[str, Any]) -> Condition:
         """Normalize a condition in the same way as ``SequenceModel``."""
 
+        if isinstance(condition, PooledCondition):
+            raise TypeError("AlphaGenomeSequenceModel does not support PooledCondition.")
         if isinstance(condition, Condition):
             return condition
         return Condition(name="condition", description=condition)

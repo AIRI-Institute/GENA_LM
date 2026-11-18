@@ -1,6 +1,6 @@
 """Benchmark-neutral API for sequence prediction and variant interpretation."""
 
-from .conditions import Condition, DescriptionLookup
+from .conditions import Condition, DescriptionLookup, PooledCondition
 from .config import (
     FULL_RETENTION,
     SCALAR_RETENTION,
@@ -80,6 +80,7 @@ __all__ = [
     "AnnotatedSequence",
     "CenteredTokenizer",
     "Condition",
+    "PooledCondition",
     "Context",
     "CoordinateMap",
     "CoordinateSegment",

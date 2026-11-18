@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Mapping
 
-from ..conditions import Condition
+from ..conditions import Condition, PooledCondition
 from ..config import FULL_RETENTION, PredictionRetention, RetainedDataError
 from ..sequences import AnnotatedSequence, SequencePair, _PairCoordinateMapper
 from ..tracks import TrackPrediction, _aligned_delta_rows, _track_rows
@@ -34,7 +34,7 @@ class Prediction:
     """Raw model prediction for one sequence and one condition."""
 
     sequence: AnnotatedSequence | None
-    condition: Condition
+    condition: Condition | PooledCondition
     logits: Any | None
     outputs: Mapping[str, Any]
     tokens: TokenizedSequence | None = None
@@ -127,7 +127,7 @@ class PairPrediction:
     ref: Prediction
     alt: Prediction
     pair: SequencePair | None
-    condition: Condition
+    condition: Condition | PooledCondition
     _coordinate_mapper: _PairCoordinateMapper | None = field(default=None, repr=False, compare=False)
 
     def delta_scalar(

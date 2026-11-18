@@ -15,7 +15,7 @@ from tokenizers.pre_tokenizers import Split
 from tokenizers.processors import TemplateProcessing
 from transformers import PreTrainedTokenizerFast
 
-from gena_expression import AnnotatedSequence, SequenceModel, SequencePair
+from gena_expression import AnnotatedSequence, PooledCondition, SequenceModel, SequencePair
 from gena_expression.inference.workers import _CudaWorkerPool, _ModelLoadSpec, _cuda_devices
 
 
@@ -178,6 +178,23 @@ def _check_cuda_predictions(load_options, device, expected_devices):
             assert not actual.logits.is_shared()
             assert actual.tokens.tokens == reference.tokens.tokens
             assert actual.description_tokens["description"] == reference.description_tokens["description"]
+
+        pooled = PooledCondition("pool", ("A", {"text": "C"}, "GAA"))
+        expected_logits = torch.stack([
+            local.predict_sequence(sequences[0], center=2, condition=description).logits
+            for description in pooled.descriptions
+        ]).mean(dim=0)
+        pooled_prediction = model.predict_sequence(sequences[0], center=2, condition=pooled)
+        assert pooled_prediction.condition is pooled
+        torch.testing.assert_close(pooled_prediction.logits, expected_logits)
+        assert [
+            member["description"] for member in pooled_prediction.description_tokens["members"]
+        ] == ["A", "C", "GAA"]
+        members = pooled_prediction.provenance["description_pool"]["members"]
+        assert len(members) == 3
+        assert {member["forward_device"] for member in members} <= set(expected_devices)
+        expected_cap = 3 if len(expected_devices) == 1 else 2
+        assert {member["max_records_per_forward"] for member in members} == {expected_cap}
 
         pair_options = dict(
             condition="C", pair_execution="joint", max_pairs_per_forward=2, preprocessing_backend="thread",
