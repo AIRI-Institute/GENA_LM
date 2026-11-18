@@ -8,9 +8,9 @@ import logging
 import os
 import subprocess
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from .._import_utils import temporary_sys_path
 from ..conditions import (
@@ -101,6 +101,8 @@ class SequenceModel:
     are copied from the attached benchmark/scorer code.
     """
 
+    _precision: Literal["default", "float32"] = "default"
+
     def __init__(
         self,
         model: Any,
@@ -170,13 +172,21 @@ class SequenceModel:
         device: str | None = None,
         output_names: Mapping[str, int | str] | None = None,
         description_formatter: DescriptionFormatterSpec | None = None,
+        precision: Literal["default", "float32"] = "default",
     ) -> "SequenceModel":
         """Load model class, Hydra config, checkpoint, and tokenizers.
 
         ``model_cls`` accepts either ``/path/to/file.py::ClassName`` as in the
         attached code, or an import path such as ``package.module::ClassName``.
+
+        Float32 mode requires the model constructor to accept SDPA attention.
+        It uses FP32 parameters and the SDPA math kernel for prediction.
+        The process-wide CUDA matmul TF32 setting still applies.
         """
 
+        if precision not in {"default", "float32"}:
+            raise ValueError("precision must be 'default' or 'float32'.")
+        use_fp32 = precision == "float32"
         config_path = Path(config).expanduser().resolve()
         resolved_formatter = cls._resolve_description_formatter(
             description_formatter,
@@ -226,7 +236,13 @@ class SequenceModel:
             experiment_config = compose(config_name=config_path.name)
         _log_git_commit_comparison(experiment_config, logger)
         model_kwargs = instantiate(experiment_config["model_kwargs"])
+        if use_fp32:
+            model_kwargs = {**model_kwargs, "attn_implementation": "sdpa"}
         model = loaded_cls(**model_kwargs)
+        if use_fp32:
+            # Casting before restoring weights prevents FP32 checkpoint values
+            # from being rounded to the constructor's original dtype.
+            model = model.to(dtype=torch.float32)
 
         checkpoint_path = Path(checkpoint)
         if checkpoint_path.suffix == ".tensors":
@@ -241,7 +257,7 @@ class SequenceModel:
 
         dna_tok = AutoTokenizer.from_pretrained(str(dna_tokenizer))
         desc_tok = AutoTokenizer.from_pretrained(str(description_tokenizer), padding_side="left")
-        return cls(
+        predictor = cls(
             model=model,
             dna_tokenizer=dna_tok,
             description_tokenizer=desc_tok,
@@ -260,6 +276,10 @@ class SequenceModel:
                 "description_tokenizer": str(description_tokenizer),
             },
         )
+        predictor._precision = precision
+        if use_fp32:
+            predictor.provenance.update(precision=precision, attn_implementation="sdpa")
+        return predictor
 
     @staticmethod
     def _resolve_description_formatter(
@@ -408,6 +428,26 @@ class SequenceModel:
 
         device_type = "cuda" if str(self.device).startswith("cuda") else "cpu"
         return device_type, device_type == "cuda"
+
+    @contextmanager
+    def _forward_context(self):
+        """Apply the runtime precision policy around one model forward."""
+
+        import torch
+
+        device_type, autocast_enabled = self._model_autocast_device()
+        use_fp32 = self._precision == "float32"
+        attention_context = nullcontext()
+        if use_fp32:
+            from torch.nn.attention import SDPBackend, sdpa_kernel
+
+            attention_context = sdpa_kernel(SDPBackend.MATH)
+        with (
+            torch.no_grad(),
+            torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled and not use_fp32),
+            attention_context,
+        ):
+            yield
 
     @staticmethod
     def _validate_preprocessing_backend(backend: PreprocessingBackend) -> None:
@@ -746,8 +786,7 @@ class SequenceModel:
         desc_attention_mask = desc_attention_mask.unsqueeze(1)
         dataset_flag = torch.zeros((len(tokenized_sequences), 1), dtype=torch.bool, device=self.device)
 
-        device_type, autocast_enabled = self._model_autocast_device()
-        with torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled), torch.no_grad():
+        with self._forward_context():
             return self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -784,8 +823,7 @@ class SequenceModel:
         desc_attention_mask = desc_attention_mask.unsqueeze(1).repeat(1, 2, 1)
         dataset_flag = torch.zeros((len(pair_descriptions), 2), dtype=torch.bool, device=self.device)
 
-        device_type, autocast_enabled = self._model_autocast_device()
-        with torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled), torch.no_grad():
+        with self._forward_context():
             return self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -815,8 +853,7 @@ class SequenceModel:
         desc_attention_mask = desc_encoded["desc_attention_mask"].repeat(n, 1).unsqueeze(0).to(self.device)
         dataset_flag = torch.zeros((1, n), dtype=torch.bool, device=self.device)
 
-        device_type, autocast_enabled = self._model_autocast_device()
-        with torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled), torch.no_grad():
+        with self._forward_context():
             return self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
@@ -855,8 +892,7 @@ class SequenceModel:
         input_ids = tokenized_sequence.input_ids.unsqueeze(0).repeat(n, 1).to(self.device)
         attention_mask = tokenized_sequence.attention_mask.unsqueeze(0).repeat(n, 1).to(self.device)
         dataset_flag = torch.ones((1, n), dtype=torch.bool, device=self.device)
-        device_type, autocast_enabled = self._model_autocast_device()
-        with torch.autocast(device_type=device_type, dtype=torch.bfloat16, enabled=autocast_enabled), torch.no_grad():
+        with self._forward_context():
             return self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,

@@ -166,8 +166,13 @@ class ExpressionCounts(nn.Module):
         weight_deviation_loss: float = 1.0,
         weight_multinomial_loss: float = 1.0,
         dropout_prob: float = 0.1,
+        attn_implementation: str = "flash_attention_2",
     ):
         super().__init__()
+        fp32_attention = attn_implementation == "sdpa"
+        if fp32_attention and (not hf or "modern" not in hf_model_name.lower()):
+            raise ValueError("SDPA inference requires the ModernGENA DNA encoder.")
+        fp32_load_kwargs = {"torch_dtype": torch.float32} if fp32_attention else {}
 
         def _is_main_process():
             return (
@@ -188,7 +193,8 @@ class ExpressionCounts(nn.Module):
                 self.bert, info = ModernBertModel.from_pretrained(
                     hf_model_name,
                     trust_remote_code=True,
-                    attn_implementation="flash_attention_2",
+                    attn_implementation=attn_implementation,
+                    **fp32_load_kwargs,
                     attention_dropout=dropout_prob,
                     embedding_dropout=dropout_prob,
                     mlp_dropout=dropout_prob,
@@ -247,8 +253,8 @@ class ExpressionCounts(nn.Module):
         self.desc_model_name = desc_model_name
         self.desc_model = AutoModel.from_pretrained(
             self.desc_model_name,
-            attn_implementation="flash_attention_2",
-            torch_dtype=torch.bfloat16,
+            attn_implementation=attn_implementation,
+            torch_dtype=torch.float32 if fp32_attention else torch.bfloat16,
             attention_dropout=dropout_prob,
         )
 
@@ -331,7 +337,8 @@ class ExpressionCounts(nn.Module):
         self.decoder, info2 = ModernBertModel.from_pretrained(
                 hf_model_name_decoder,
                 trust_remote_code=True,
-                attn_implementation="flash_attention_2",
+                attn_implementation=attn_implementation,
+                **fp32_load_kwargs,
                 attention_dropout=dropout_prob,
                 embedding_dropout=dropout_prob,
                 mlp_dropout=dropout_prob,
