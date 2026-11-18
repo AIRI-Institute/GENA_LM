@@ -470,7 +470,10 @@ class ScoringResult:
 
         import matplotlib.pyplot as plt
 
-        self._require_tracks()
+        if self.delta_track is None:
+            raise RetainedDataError(
+                "This result does not retain delta track rows. Use tracks='delta' or tracks='all'."
+            )
         fig, ax = plt.subplots(figsize=figsize)
         self._plot_track_axis(ax, self.delta_track, "delta", "delta ATAC", color="tab:green", color_by_sign=True)
         self._mark_score_windows(ax, which="delta")
@@ -581,15 +584,19 @@ class ScoringResult:
         directory.mkdir(parents=True, exist_ok=True)
         paths = []
         stem = self._safe_filename(self.name)
-        variant_path = directory / f"{stem}.variant.png"
-        self.plot_variant(save_path=variant_path)
-        paths.append(variant_path)
+        has_pair = self.prediction is not None and self.prediction.pair is not None
+        if has_pair or self.delta_track is None:
+            variant_path = directory / f"{stem}.variant.png"
+            self.plot_variant(save_path=variant_path)
+            paths.append(variant_path)
         if self.ref_track is not None and self.alt_track is not None and self.delta_track is not None:
             tracks_path = directory / f"{stem}.tracks.png"
-            delta_path = directory / f"{stem}.delta.png"
             self.plot_tracks(save_path=tracks_path)
+            paths.append(tracks_path)
+        if self.delta_track is not None:
+            delta_path = directory / f"{stem}.delta.png"
             self.plot_delta_track(save_path=delta_path)
-            paths.extend([tracks_path, delta_path])
+            paths.append(delta_path)
         return paths
 
     @staticmethod
