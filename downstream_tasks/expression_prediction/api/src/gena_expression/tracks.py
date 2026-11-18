@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Iterable, Literal, Mapping, Sequence
+
+if TYPE_CHECKING:
+    from .sequences import _PairCoordinateMapper
 
 
 @dataclass
@@ -246,3 +251,197 @@ class TrackPrediction(Track):
     """Backward-compatible name for model prediction tracks."""
 
 
+class _TrackIntervalIndex:
+    """Fast weighted interval queries over ordinary model-track rows.
+
+    Model token rows are normally coordinate-sorted, non-overlapping, and
+    finite. That common case uses prefix integrals. Unusual overlapping,
+    unsorted, or non-finite rows retain the original scan semantics.
+    """
+
+    def __init__(self, rows: Sequence[Mapping[str, Any]], *, value_key: str = "value") -> None:
+        """Index valid track rows and prepare optional prefix integrals."""
+
+        self.rows = [dict(row) for row in rows if int(row["end"]) > int(row["start"])]
+        self.value_key = value_key
+        self.starts = [int(row["start"]) for row in self.rows]
+        self.ends = [int(row["end"]) for row in self.rows]
+        self.values = [float(row[value_key]) for row in self.rows]
+        self.fast = all(
+            self.starts[index] >= self.ends[index - 1]
+            for index in range(1, len(self.rows))
+        ) and all(isfinite(value) for value in self.values)
+
+        self.prefix_area = [0.0]
+        self.prefix_coverage = [0]
+        if self.fast:
+            for start, end, value in zip(self.starts, self.ends, self.values):
+                width = end - start
+                self.prefix_area.append(self.prefix_area[-1] + value * width)
+                self.prefix_coverage.append(self.prefix_coverage[-1] + width)
+
+    def _scan_integral(self, start: int, end: int) -> tuple[float, int]:
+        """Compute weighted area by scanning every overlapping row."""
+
+        if end <= start:
+            return 0.0, 0
+        weighted_sum = 0.0
+        total_weight = 0
+        for row, value in zip(self.rows, self.values):
+            overlap_start = max(int(row["start"]), start)
+            overlap_end = min(int(row["end"]), end)
+            if overlap_end <= overlap_start:
+                continue
+            weight = overlap_end - overlap_start
+            weighted_sum += value * weight
+            total_weight += weight
+        return weighted_sum, total_weight
+
+    def integral(self, start: int, end: int) -> tuple[float, int]:
+        """Return weighted area and covered bases inside ``[start, end)``."""
+
+        start = int(start)
+        end = int(end)
+        if end <= start:
+            return 0.0, 0
+        if not self.fast:
+            return self._scan_integral(start, end)
+
+        left = bisect_right(self.ends, start)
+        right = bisect_left(self.starts, end)
+        if right <= left:
+            return 0.0, 0
+
+        weighted_sum = self.prefix_area[right] - self.prefix_area[left]
+        total_weight = self.prefix_coverage[right] - self.prefix_coverage[left]
+        first = left
+        last = right - 1
+        left_clip = max(0, start - self.starts[first])
+        right_clip = max(0, self.ends[last] - end)
+        if left_clip:
+            weighted_sum -= self.values[first] * left_clip
+            total_weight -= left_clip
+        if right_clip:
+            weighted_sum -= self.values[last] * right_clip
+            total_weight -= right_clip
+        return weighted_sum, max(0, total_weight)
+
+    def integral_multiple(self, intervals: Iterable[tuple[int, int]]) -> tuple[float, int]:
+        """Return combined weighted area and coverage for supplied intervals."""
+
+        weighted_sum = 0.0
+        total_weight = 0
+        for start, end in intervals:
+            window_sum, window_weight = self.integral(start, end)
+            weighted_sum += window_sum
+            total_weight += window_weight
+        return weighted_sum, total_weight
+
+    def prefix_at_sorted(self, positions: Sequence[int]) -> tuple[list[float], list[int]] | None:
+        """Evaluate cumulative area/coverage at nondecreasing coordinates in O(N+T)."""
+
+        if not self.fast or any(positions[index] < positions[index - 1] for index in range(1, len(positions))):
+            return None
+        areas: list[float] = []
+        coverages: list[int] = []
+        row_index = 0
+        completed_area = 0.0
+        completed_coverage = 0
+        for position in positions:
+            position = int(position)
+            while row_index < len(self.rows) and self.ends[row_index] <= position:
+                width = self.ends[row_index] - self.starts[row_index]
+                completed_area += self.values[row_index] * width
+                completed_coverage += width
+                row_index += 1
+            area = completed_area
+            coverage = completed_coverage
+            if (
+                row_index < len(self.rows)
+                and self.starts[row_index] < position < self.ends[row_index]
+            ):
+                width = position - self.starts[row_index]
+                area += self.values[row_index] * width
+                coverage += width
+            areas.append(area)
+            coverages.append(coverage)
+        return areas, coverages
+
+    def weighted_means_for_sorted_intervals(
+        self,
+        intervals: Sequence[tuple[int, int]],
+    ) -> list[float | None] | None:
+        """Return overlap-weighted means using two linear prefix sweeps."""
+
+        starts = [int(start) for start, _ in intervals]
+        ends = [int(end) for _, end in intervals]
+        start_prefix = self.prefix_at_sorted(starts)
+        end_prefix = self.prefix_at_sorted(ends)
+        if start_prefix is None or end_prefix is None:
+            return None
+        start_areas, start_coverages = start_prefix
+        end_areas, end_coverages = end_prefix
+        means: list[float | None] = []
+        for start, end, start_area, end_area, start_coverage, end_coverage in zip(
+            starts,
+            ends,
+            start_areas,
+            end_areas,
+            start_coverages,
+            end_coverages,
+        ):
+            if end <= start:
+                means.append(None)
+                continue
+            coverage = end_coverage - start_coverage
+            means.append((end_area - start_area) / coverage if coverage > 0 else None)
+        return means
+
+
+def _track_rows(track: Track) -> list[dict[str, Any]]:
+    """Combine track token metadata with its numeric values."""
+
+    return [{**row, "value": value} for row, value in zip(track.tokens, track.values)]
+
+
+def _aligned_delta_rows(
+    ref_rows: list[dict[str, Any]],
+    alt_rows: list[dict[str, Any]],
+    sign: str,
+    *,
+    mapper: _PairCoordinateMapper,
+    alt_index: _TrackIntervalIndex | None = None,
+) -> list[dict[str, Any]]:
+    """Subtract REF values from overlap-weighted ALT values in REF coordinates."""
+
+    multiplier = -1.0 if sign == "ref-alt" else 1.0
+    if alt_index is None:
+        alt_index = _TrackIntervalIndex(alt_rows)
+    mapped_intervals = [
+        mapper.map_ref_interval_to_alt(int(row["start"]), int(row["end"]))
+        for row in ref_rows
+    ]
+    alt_values = alt_index.weighted_means_for_sorted_intervals(mapped_intervals)
+    if alt_values is None:
+        alt_values = []
+        for alt_start, alt_end in mapped_intervals:
+            area, coverage = alt_index._scan_integral(alt_start, alt_end)
+            alt_values.append(area / coverage if coverage else None)
+
+    rows: list[dict[str, Any]] = []
+    for ref_row, (alt_start, alt_end), alt_value in zip(ref_rows, mapped_intervals, alt_values):
+        row = dict(ref_row)
+        ref_value = float(ref_row["value"])
+        row["ref_value"] = ref_value
+        row["alt_start"] = alt_start
+        row["alt_end"] = alt_end
+        if alt_value is None:
+            row["alt_value"] = float("nan")
+            row["delta"] = float("nan")
+            row["alignment_status"] = "deleted" if alt_end <= alt_start else "uncovered"
+        else:
+            row["alt_value"] = float(alt_value)
+            row["delta"] = multiplier * (float(alt_value) - ref_value)
+            row["alignment_status"] = "mapped"
+        rows.append(row)
+    return rows

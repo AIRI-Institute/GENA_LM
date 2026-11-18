@@ -7,8 +7,8 @@ from typing import Any, Literal, Mapping
 
 from ..conditions import Condition
 from ..config import FULL_RETENTION, PredictionRetention, RetainedDataError
-from ..sequences import AnnotatedSequence, SequencePair
-from ..tracks import TrackPrediction
+from ..sequences import AnnotatedSequence, SequencePair, _PairCoordinateMapper
+from ..tracks import TrackPrediction, _aligned_delta_rows, _track_rows
 from .tokenization import TokenizedSequence
 
 
@@ -128,6 +128,7 @@ class PairPrediction:
     alt: Prediction
     pair: SequencePair | None
     condition: Condition
+    _coordinate_mapper: _PairCoordinateMapper | None = field(default=None, repr=False, compare=False)
 
     def delta_scalar(
         self,
@@ -149,16 +150,45 @@ class PairPrediction:
         name: str = "delta_track",
         sign: Literal["alt-ref", "ref-alt"] = "alt-ref",
         channel: int | None = 0,
+        *,
+        alignment: Literal["coordinate", "index"] = "coordinate",
     ) -> TrackPrediction:
-        """Return token-wise alternative-reference track difference."""
+        """Return a delta track in REF coordinates, with uncovered intervals as NaN.
+
+        Index alignment reproduces legacy token-wise subtraction in ALT
+        coordinates.
+        """
+
+        if alignment not in {"coordinate", "index"}:
+            raise ValueError("alignment must be 'coordinate' or 'index'.")
+        if sign not in {"alt-ref", "ref-alt"}:
+            raise ValueError("sign must be 'alt-ref' or 'ref-alt'.")
 
         ref_track = self.ref.track(name="ref", channel=channel)
         alt_track = self.alt.track(name="alt", channel=channel)
-        n = min(len(ref_track.values), len(alt_track.values))
-        values = [alt_track.values[i] - ref_track.values[i] for i in range(n)]
-        if sign == "ref-alt":
-            values = [-value for value in values]
-        return TrackPrediction(name=name, values=values, tokens=alt_track.tokens[:n], channel=channel)
+        if alignment == "index":
+            values = [alt - ref for ref, alt in zip(ref_track.values, alt_track.values)]
+            if sign == "ref-alt":
+                values = [-value for value in values]
+            return TrackPrediction(
+                name=name, values=values, tokens=alt_track.tokens[:len(values)], channel=channel,
+            )
+
+        mapper = self.pair.coordinate_mapper() if self.pair is not None else self._coordinate_mapper
+        if mapper is None:
+            raise RetainedDataError(
+                "Coordinate alignment requires a sequence pair or its retained coordinate mapping."
+            )
+        rows = _aligned_delta_rows(_track_rows(ref_track), _track_rows(alt_track), sign, mapper=mapper)
+        return TrackPrediction(
+            name=name,
+            values=[row["delta"] for row in rows],
+            tokens=[
+                {key: value for key, value in row.items() if key not in {"value", "delta"}}
+                for row in rows
+            ],
+            channel=channel,
+        )
 
 
 def retain_prediction(
@@ -206,4 +236,20 @@ def retain_pair_prediction(
         ref=retain_prediction(prediction.ref, retention),
         alt=retain_prediction(prediction.alt, retention),
         pair=prediction.pair if retention.sequence else None,
+        _coordinate_mapper=_retained_coordinate_mapper(
+            prediction.pair, retention, existing=prediction._coordinate_mapper,
+        ),
     )
+
+
+def _retained_coordinate_mapper(
+    pair: SequencePair | None,
+    retention: PredictionRetention,
+    *,
+    existing: _PairCoordinateMapper | None = None,
+) -> _PairCoordinateMapper | None:
+    """Keep the small allele transform when only track inputs are retained."""
+
+    if retention.logits and retention.tokens and (pair is None or not retention.sequence):
+        return pair.coordinate_mapper() if pair is not None else existing
+    return None

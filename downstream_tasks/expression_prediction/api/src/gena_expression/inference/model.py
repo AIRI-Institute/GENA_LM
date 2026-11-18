@@ -38,7 +38,13 @@ from .batching import (
     _thread_worker_init,
 )
 from .description import get_configured_description_formatter
-from .outputs import ExpressionPrediction, PairPrediction, Prediction, _simple_value
+from .outputs import (
+    ExpressionPrediction,
+    PairPrediction,
+    Prediction,
+    _retained_coordinate_mapper,
+    _simple_value,
+)
 from .tokenization import CenteredTokenizer, TokenizedSequence
 
 
@@ -1620,6 +1626,7 @@ class SequenceModel:
                 alt=self._to_expression_prediction(alt_pred),
                 pair=pair if prediction_retention.sequence else None,
                 condition=condition,
+                _coordinate_mapper=_retained_coordinate_mapper(pair, prediction_retention),
             )
             for pair, condition, ref_pred, alt_pred in zip(pair_list, condition_list, ref_predictions, alt_predictions)
         ]

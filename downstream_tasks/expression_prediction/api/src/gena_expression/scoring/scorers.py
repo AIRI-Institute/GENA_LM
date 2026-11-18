@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from math import isfinite
 from numbers import Real
@@ -20,6 +19,7 @@ from .results import (
     retain_scoring_result,
 )
 from ..sequences import Feature
+from ..tracks import _TrackIntervalIndex, _aligned_delta_rows, _track_rows
 
 
 class Scorer(Protocol):
@@ -92,153 +92,6 @@ def _validate_prediction_aggregate(aggregate: str) -> None:
             "aggregate='max_abs_delta' requires a reference/alternative pair "
             "and cannot score one prediction."
         )
-
-
-class _TrackIntervalIndex:
-    """Fast weighted interval queries over ordinary model-track rows.
-
-    Model token rows are normally coordinate-sorted, non-overlapping, and
-    finite. That common case uses prefix integrals. Unusual overlapping,
-    unsorted, or non-finite rows retain the original scan semantics.
-    """
-
-    def __init__(self, rows: Sequence[Mapping[str, Any]], *, value_key: str = "value") -> None:
-        """Index valid track rows and prepare optional prefix integrals."""
-
-        self.rows = [dict(row) for row in rows if int(row["end"]) > int(row["start"])]
-        self.value_key = value_key
-        self.starts = [int(row["start"]) for row in self.rows]
-        self.ends = [int(row["end"]) for row in self.rows]
-        self.values = [float(row[value_key]) for row in self.rows]
-        self.fast = all(
-            self.starts[index] >= self.ends[index - 1]
-            for index in range(1, len(self.rows))
-        ) and all(isfinite(value) for value in self.values)
-
-        self.prefix_area = [0.0]
-        self.prefix_coverage = [0]
-        if self.fast:
-            for start, end, value in zip(self.starts, self.ends, self.values):
-                width = end - start
-                self.prefix_area.append(self.prefix_area[-1] + value * width)
-                self.prefix_coverage.append(self.prefix_coverage[-1] + width)
-
-    def _scan_integral(self, start: int, end: int) -> tuple[float, int]:
-        """Compute weighted area by scanning every overlapping row."""
-
-        if end <= start:
-            return 0.0, 0
-        weighted_sum = 0.0
-        total_weight = 0
-        for row, value in zip(self.rows, self.values):
-            overlap_start = max(int(row["start"]), start)
-            overlap_end = min(int(row["end"]), end)
-            if overlap_end <= overlap_start:
-                continue
-            weight = overlap_end - overlap_start
-            weighted_sum += value * weight
-            total_weight += weight
-        return weighted_sum, total_weight
-
-    def integral(self, start: int, end: int) -> tuple[float, int]:
-        """Return weighted area and covered bases inside ``[start, end)``."""
-
-        start = int(start)
-        end = int(end)
-        if end <= start:
-            return 0.0, 0
-        if not self.fast:
-            return self._scan_integral(start, end)
-
-        left = bisect_right(self.ends, start)
-        right = bisect_left(self.starts, end)
-        if right <= left:
-            return 0.0, 0
-
-        weighted_sum = self.prefix_area[right] - self.prefix_area[left]
-        total_weight = self.prefix_coverage[right] - self.prefix_coverage[left]
-        first = left
-        last = right - 1
-        left_clip = max(0, start - self.starts[first])
-        right_clip = max(0, self.ends[last] - end)
-        if left_clip:
-            weighted_sum -= self.values[first] * left_clip
-            total_weight -= left_clip
-        if right_clip:
-            weighted_sum -= self.values[last] * right_clip
-            total_weight -= right_clip
-        return weighted_sum, max(0, total_weight)
-
-    def integral_multiple(self, windows: Sequence[ScoreWindow]) -> tuple[float, int]:
-        """Return combined weighted area and coverage for supplied windows."""
-
-        weighted_sum = 0.0
-        total_weight = 0
-        for window in windows:
-            window_sum, window_weight = self.integral(window.start, window.end)
-            weighted_sum += window_sum
-            total_weight += window_weight
-        return weighted_sum, total_weight
-
-    def prefix_at_sorted(self, positions: Sequence[int]) -> tuple[list[float], list[int]] | None:
-        """Evaluate cumulative area/coverage at nondecreasing coordinates in O(N+T)."""
-
-        if not self.fast or any(positions[index] < positions[index - 1] for index in range(1, len(positions))):
-            return None
-        areas: list[float] = []
-        coverages: list[int] = []
-        row_index = 0
-        completed_area = 0.0
-        completed_coverage = 0
-        for position in positions:
-            position = int(position)
-            while row_index < len(self.rows) and self.ends[row_index] <= position:
-                width = self.ends[row_index] - self.starts[row_index]
-                completed_area += self.values[row_index] * width
-                completed_coverage += width
-                row_index += 1
-            area = completed_area
-            coverage = completed_coverage
-            if (
-                row_index < len(self.rows)
-                and self.starts[row_index] < position < self.ends[row_index]
-            ):
-                width = position - self.starts[row_index]
-                area += self.values[row_index] * width
-                coverage += width
-            areas.append(area)
-            coverages.append(coverage)
-        return areas, coverages
-
-    def weighted_means_for_sorted_intervals(
-        self,
-        intervals: Sequence[tuple[int, int]],
-    ) -> list[float | None] | None:
-        """Return overlap-weighted means using two linear prefix sweeps."""
-
-        starts = [int(start) for start, _ in intervals]
-        ends = [int(end) for _, end in intervals]
-        start_prefix = self.prefix_at_sorted(starts)
-        end_prefix = self.prefix_at_sorted(ends)
-        if start_prefix is None or end_prefix is None:
-            return None
-        start_areas, start_coverages = start_prefix
-        end_areas, end_coverages = end_prefix
-        means: list[float | None] = []
-        for start, end, start_area, end_area, start_coverage, end_coverage in zip(
-            starts,
-            ends,
-            start_areas,
-            end_areas,
-            start_coverages,
-            end_coverages,
-        ):
-            if end <= start:
-                means.append(None)
-                continue
-            coverage = end_coverage - start_coverage
-            means.append((end_area - start_area) / coverage if coverage > 0 else None)
-        return means
 
 
 @dataclass(frozen=True)
@@ -453,12 +306,6 @@ class TrackWindowScorer:
             end = center + int(self.right_bp)
         return ScoreWindow(start=start, end=end, center=center, units="sequence")
 
-    @staticmethod
-    def _rows_with_values(track_prediction) -> list[dict[str, Any]]:
-        """Combine track token metadata with its numeric values."""
-
-        return [{**row, "value": value} for row, value in zip(track_prediction.tokens, track_prediction.values)]
-
     def _aggregate_rows(
         self,
         rows: list[dict[str, Any]],
@@ -492,96 +339,14 @@ class TrackWindowScorer:
             return float(min(values))
         raise ValueError("max_abs_delta is computed from ref and alt rows together.")
 
-    @staticmethod
-    def _mean_over_interval(rows: list[dict[str, Any]], start: int, end: int) -> float | None:
-        """Return an overlap-weighted mean track value for one interval."""
-
-        if end <= start:
-            return None
-        weighted_sum = 0.0
-        total_weight = 0
-        for row in rows:
-            overlap_start = max(int(row["start"]), start)
-            overlap_end = min(int(row["end"]), end)
-            if overlap_end <= overlap_start:
-                continue
-            weight = overlap_end - overlap_start
-            weighted_sum += float(row["value"]) * weight
-            total_weight += weight
-        if total_weight == 0:
-            return None
-        return weighted_sum / total_weight
-
-    @classmethod
-    def _delta_rows(
-        cls,
-        ref_rows: list[dict[str, Any]],
-        alt_rows: list[dict[str, Any]],
-        sign: str,
-        *,
-        pair: Any | None = None,
-        mapper: Any | None = None,
-        alt_index: _TrackIntervalIndex | None = None,
-    ) -> list[dict[str, Any]]:
-        """Return delta rows in reference coordinates.
-
-        When a sequence pair is supplied, every reference token interval is
-        mapped into alternative-local coordinates before alternative values are
-        aggregated. Deleted or otherwise uncovered intervals stay masked as
-        ``nan``; no synthetic zero or average value is inserted.
-        """
-
-        rows: list[dict[str, Any]] = []
-        multiplier = -1.0 if sign == "ref-alt" else 1.0
-        if pair is None:
-            n = min(len(ref_rows), len(alt_rows))
-            for idx in range(n):
-                row = dict(alt_rows[idx])
-                row["ref_value"] = ref_rows[idx]["value"]
-                row["alt_value"] = alt_rows[idx]["value"]
-                row["delta"] = multiplier * (alt_rows[idx]["value"] - ref_rows[idx]["value"])
-                row["alignment_status"] = "index"
-                rows.append(row)
-            return rows
-
-        mapper = mapper or pair.coordinate_mapper()
-        alt_index = alt_index or _TrackIntervalIndex(alt_rows)
-        mapped_intervals = [
-            mapper.map_ref_interval_to_alt(int(ref_row["start"]), int(ref_row["end"]))
-            for ref_row in ref_rows
-        ]
-        alt_values = alt_index.weighted_means_for_sorted_intervals(mapped_intervals)
-        if alt_values is None:
-            alt_values = [
-                cls._mean_over_interval(alt_rows, alt_start, alt_end)
-                for alt_start, alt_end in mapped_intervals
-            ]
-
-        for ref_row, (alt_start, alt_end), alt_value in zip(ref_rows, mapped_intervals, alt_values):
-            row = dict(ref_row)
-            ref_value = float(ref_row["value"])
-            row["ref_value"] = ref_value
-            row["alt_start"] = alt_start
-            row["alt_end"] = alt_end
-            if alt_value is None:
-                row["alt_value"] = float("nan")
-                row["delta"] = float("nan")
-                row["alignment_status"] = "deleted" if alt_end <= alt_start else "uncovered"
-            else:
-                row["alt_value"] = float(alt_value)
-                row["delta"] = multiplier * (float(alt_value) - ref_value)
-                row["alignment_status"] = "mapped"
-            rows.append(row)
-        return rows
-
     def score(self, prediction: PairPrediction) -> ScoringResult:
         """Return a windowed track-effect score."""
 
         window = self.window_for(prediction)
         ref_track = prediction.ref.track(self.track, channel=self.channel)
         alt_track = prediction.alt.track(self.track, channel=self.channel)
-        ref_rows = self._rows_with_values(ref_track)
-        alt_rows = self._rows_with_values(alt_track)
+        ref_rows = _track_rows(ref_track)
+        alt_rows = _track_rows(alt_track)
         mapper = prediction.pair.coordinate_mapper()
         ref_index = _TrackIntervalIndex(ref_rows)
         alt_index = _TrackIntervalIndex(alt_rows)
@@ -592,11 +357,10 @@ class TrackWindowScorer:
             center=(alt_start + alt_end) // 2,
             units="sequence",
         )
-        delta_rows = self._delta_rows(
+        delta_rows = _aligned_delta_rows(
             ref_rows,
             alt_rows,
             self.sign,
-            pair=prediction.pair,
             mapper=mapper,
             alt_index=alt_index,
         )
@@ -643,7 +407,7 @@ class TrackWindowScorer:
         _validate_prediction_aggregate(self.aggregate)
         window = self.window_for_prediction(prediction)
         track = prediction.track(self.track, channel=self.channel)
-        rows = self._rows_with_values(track)
+        rows = _track_rows(track)
         score = self._aggregate_rows(rows, window)
         return PredictionScoringResult(
             name=self.name,
@@ -862,7 +626,7 @@ class TrackEffectPeakScorer:
     ) -> float:
         """Aggregate an indexed track across a union of disjoint windows."""
 
-        area, coverage = index.integral_multiple(windows)
+        area, coverage = index.integral_multiple((window.start, window.end) for window in windows)
         if coverage <= 0:
             return float("nan")
         if self.spatial_aggregate == "mean":
@@ -892,16 +656,15 @@ class TrackEffectPeakScorer:
         search_window = self._search_window(prediction)
         ref_track = prediction.ref.track(self.track, channel=self.channel)
         alt_track = prediction.alt.track(self.track, channel=self.channel)
-        ref_rows = TrackWindowScorer._rows_with_values(ref_track)
-        alt_rows = TrackWindowScorer._rows_with_values(alt_track)
+        ref_rows = _track_rows(ref_track)
+        alt_rows = _track_rows(alt_track)
         mapper = prediction.pair.coordinate_mapper()
         ref_index = _TrackIntervalIndex(ref_rows)
         alt_index = _TrackIntervalIndex(alt_rows)
-        delta_rows = TrackWindowScorer._delta_rows(
+        delta_rows = _aligned_delta_rows(
             ref_rows,
             alt_rows,
             self.sign,
-            pair=prediction.pair,
             mapper=mapper,
             alt_index=alt_index,
         )
@@ -1156,7 +919,7 @@ class TrackFeatureScorer:
 
         if self.aggregate in {"sum", "auc", "weighted_sum", "mean"}:
             index = index or _TrackIntervalIndex(rows)
-            weighted_sum, total_weight = index.integral_multiple(windows)
+            weighted_sum, total_weight = index.integral_multiple((window.start, window.end) for window in windows)
             if total_weight <= 0:
                 return float("nan")
             if self.aggregate == "mean":
@@ -1199,15 +962,14 @@ class TrackFeatureScorer:
         )
         ref_track = prediction.ref.track(self.track, channel=self.channel)
         alt_track = prediction.alt.track(self.track, channel=self.channel)
-        ref_rows = TrackWindowScorer._rows_with_values(ref_track)
-        alt_rows = TrackWindowScorer._rows_with_values(alt_track)
+        ref_rows = _track_rows(ref_track)
+        alt_rows = _track_rows(alt_track)
         ref_index = _TrackIntervalIndex(ref_rows)
         alt_index = _TrackIntervalIndex(alt_rows)
-        delta_rows = TrackWindowScorer._delta_rows(
+        delta_rows = _aligned_delta_rows(
             ref_rows,
             alt_rows,
             self.sign,
-            pair=prediction.pair,
             mapper=mapper,
             alt_index=alt_index,
         )
@@ -1260,7 +1022,7 @@ class TrackFeatureScorer:
         selectors = self._feature_specs()
         windows = self._feature_windows(sequence, selectors)
         track = prediction.track(self.track, channel=self.channel)
-        rows = TrackWindowScorer._rows_with_values(track)
+        rows = _track_rows(track)
         score = self._aggregate_rows_in_windows(
             rows,
             windows,
@@ -1345,16 +1107,15 @@ class TrackAllFeaturesScorer:
         features = tuple(sequence.features)
         ref_track = prediction.ref.track(self.track, channel=self.channel)
         alt_track = prediction.alt.track(self.track, channel=self.channel)
-        ref_rows = TrackWindowScorer._rows_with_values(ref_track)
-        alt_rows = TrackWindowScorer._rows_with_values(alt_track)
+        ref_rows = _track_rows(ref_track)
+        alt_rows = _track_rows(alt_track)
         mapper = prediction.pair.coordinate_mapper()
         ref_index = _TrackIntervalIndex(ref_rows)
         alt_index = _TrackIntervalIndex(alt_rows)
-        delta_rows = TrackWindowScorer._delta_rows(
+        delta_rows = _aligned_delta_rows(
             ref_rows,
             alt_rows,
             self.sign,
-            pair=prediction.pair,
             mapper=mapper,
             alt_index=alt_index,
         )
@@ -1461,7 +1222,7 @@ class TrackAllFeaturesScorer:
         sequence = _prediction_sequence(prediction)
         features = tuple(sequence.features)
         track = prediction.track(self.track, channel=self.channel)
-        rows = TrackWindowScorer._rows_with_values(track)
+        rows = _track_rows(track)
         index = _TrackIntervalIndex(rows)
         aggregator = TrackFeatureScorer(
             features=(),
@@ -1516,7 +1277,11 @@ class TrackAllFeaturesScorer:
 
 @dataclass(frozen=True)
 class TrackFeatureBuilder:
-    """Build binned delta-track features for regression scorers."""
+    """Build binned delta-track features for regression scorers.
+
+    Index alignment preserves legacy token-based features. Coordinate alignment
+    weights each finite delta by the bases it covers within the reference bin.
+    """
 
     track: str = "atac"
     center: str | int | Feature = "variant"
@@ -1524,6 +1289,7 @@ class TrackFeatureBuilder:
     bin_size: int = 50
     aggregate: Literal["mean", "sum"] = "mean"
     channel: int | None = 0
+    alignment: Literal["index", "coordinate"] = "index"
 
     def build(self, prediction: PairPrediction) -> tuple[list[float], list[dict[str, Any]]]:
         """Return feature vector and feature metadata."""
@@ -1536,23 +1302,34 @@ class TrackFeatureBuilder:
             channel=self.channel,
         )
         window = scorer.window_for(prediction)
-        delta = prediction.delta_track(self.track, channel=self.channel)
-        rows = [{**row, "delta": value} for row, value in zip(delta.tokens, delta.values)]
+        delta = prediction.delta_track(
+            self.track, channel=self.channel, alignment=self.alignment,
+        )
+        rows = _track_rows(delta)
+        index = (
+            _TrackIntervalIndex([row for row in rows if isfinite(row["value"])])
+            if self.alignment == "coordinate"
+            else None
+        )
         features: list[float] = []
         metadata: list[dict[str, Any]] = []
         for start in range(window.start, window.end, self.bin_size):
             end = min(start + self.bin_size, window.end)
-            values = [
-                float(row["delta"])
-                for row in rows
-                if max(int(row["start"]), start) < min(int(row["end"]), end)
-            ]
-            if not values:
-                feature_value = 0.0
-            elif self.aggregate == "sum":
-                feature_value = float(sum(values))
+            if index is not None:
+                area, coverage = index.integral(start, end)
+                feature_value = area / coverage if coverage and self.aggregate == "mean" else area
             else:
-                feature_value = float(sum(values) / len(values))
+                values = [
+                    float(row["value"])
+                    for row in rows
+                    if max(int(row["start"]), start) < min(int(row["end"]), end)
+                ]
+                if not values:
+                    feature_value = 0.0
+                elif self.aggregate == "sum":
+                    feature_value = float(sum(values))
+                else:
+                    feature_value = float(sum(values) / len(values))
             features.append(feature_value)
             metadata.append({"feature_start": start, "feature_end": end, "feature_center": (start + end) / 2})
         return features, metadata
