@@ -1337,7 +1337,13 @@ class SequenceModel:
 
         output: list[Prediction | None] = [None] * len(logical_conditions)
         pools: dict[int, _PooledLogits] = {}
-        forward_group_id = 0
+        pooled_member_order: dict[int, list[int]] = {}
+        if worker_pool is not None and expanded_rows is not None:
+            for batch in batches:
+                for index in batch.indices:
+                    row = expanded_rows[index]
+                    if row.member_index is not None:
+                        pooled_member_order.setdefault(row.logical_index, []).append(row.member_index)
         extra = dict(extra_provenance or {})
         encoded_by_key = description_cache if description_cache is not None else {}
 
@@ -1367,6 +1373,7 @@ class SequenceModel:
             )
 
         def store_predictions(
+            forward_group_id: int,
             batch: _ForwardBatch,
             logits: Any,
             desc_encodings: Sequence[dict[str, Any]],
@@ -1375,7 +1382,6 @@ class SequenceModel:
         ) -> None:
             """Store one forward batch using the resolved retention policy."""
 
-            nonlocal forward_group_id
             if len(logits) != len(batch.indices):
                 raise RuntimeError(
                     f"Forward batch {forward_group_id} returned {len(logits)} rows for {len(batch.indices)} inputs."
@@ -1417,7 +1423,7 @@ class SequenceModel:
                 if row is not None and row.member_index is not None:
                     assert isinstance(condition, PooledCondition)
                     if logical_index not in pools:
-                        pools[logical_index] = _PooledLogits()
+                        pools[logical_index] = _PooledLogits(member_order=pooled_member_order.get(logical_index))
                     pool = pools[logical_index]
                     member_index = row.member_index
                     pool.add(member_index, row_logits, int(tokenized.input_ids.numel()))
@@ -1461,7 +1467,6 @@ class SequenceModel:
                     if retention.description_tokens
                     else prediction
                 )
-            forward_group_id += 1
 
         def prefetched_batches():
             """Yield batches while the selected CPU backend prepares future work."""
@@ -1616,9 +1621,10 @@ class SequenceModel:
         progress_options = dict(total=len(batches), description=stage, enabled=show_progress, unit="batch")
         if worker_pool is None:
             try:
-                for batch, tokenized_batch, desc_encodings in _progress(prefetched_batches(), **progress_options):
+                prepared = _progress(prefetched_batches(), **progress_options)
+                for group_id, (batch, tokenized_batch, desc_encodings) in enumerate(prepared):
                     model_output = forward_batch(batch, tokenized_batch, desc_encodings)
-                    store_predictions(batch, self._logits_to_cpu(model_output), desc_encodings)
+                    store_predictions(group_id, batch, self._logits_to_cpu(model_output), desc_encodings)
             finally:
                 self.clear_cuda_cache()
         else:
@@ -1631,12 +1637,11 @@ class SequenceModel:
 
             with closing(worker_pool.run(worker_jobs())) as results:
                 for group_id, device, logits in _progress(results, **progress_options):
-                    if group_id != forward_group_id:
-                        raise RuntimeError(f"Expected forward batch {forward_group_id}, received {group_id}.")
                     # Predictions can outlive the worker pool. Copy the
                     # received batch out of multiprocessing shared memory.
                     store_predictions(
-                        batches[group_id], logits.clone(), pending_descriptions.pop(group_id), forward_device=device,
+                        group_id, batches[group_id], logits.clone(),
+                        pending_descriptions.pop(group_id), forward_device=device,
                     )
 
         self.logger.info("%s complete", stage)

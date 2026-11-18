@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import multiprocessing as mp
 import os
 from pathlib import Path
-from time import sleep
+from queue import Queue
+from threading import Lock
+from time import monotonic, sleep
 
 import pytest
 import torch
@@ -16,7 +19,7 @@ from tokenizers.processors import TemplateProcessing
 from transformers import PreTrainedTokenizerFast
 
 from gena_expression import AnnotatedSequence, PooledCondition, SequenceModel, SequencePair
-from gena_expression.inference.workers import _CudaWorkerPool, _ModelLoadSpec, _cuda_devices
+from gena_expression.inference.workers import _CudaWorkerPool, _ModelLoadSpec, _WorkerResponse, _cuda_devices
 
 
 _SPEC = _ModelLoadSpec("unused::Model", Path("weights.pt"), Path("model.yaml"), "default")
@@ -31,7 +34,15 @@ def _cpu_replica(device, spec):
             raise ValueError("replica test failure")
         if action == "exit":
             os._exit(20)
-        sleep(input_tensors.pop("delay", 0))
+        if action == "wait":
+            gate = input_tensors["gate"]
+            deadline = monotonic() + 30
+            while not gate.exists():
+                if monotonic() >= deadline:
+                    raise TimeoutError("A later batch never reached the gate")
+                sleep(0.005)
+        elif action == "release":
+            input_tensors["gate"].touch()
         return input_tensors["values"] * 2
 
     return forward, {"model_module": spec.model_cls}
@@ -60,31 +71,71 @@ def test_invalid_selector_fails_before_loading_resources():
         )
 
 
-def test_spawned_cpu_pool_reuses_workers_and_bounds_lookahead():
+def test_spawned_cpu_pool_refills_before_slow_first_batch(tmp_path):
     pool = _CudaWorkerPool(("first", "second"), _SPEC, initialize=_cpu_replica, timeout=30)
+    gate = tmp_path / "later_batch"
     submitted = []
+    completed = {}
+    total = 10
+    capacity = 4
+    release_group = 7
 
     def jobs():
-        for index in range(10):
+        for index in range(total):
             submitted.append(index)
-            yield index, {"values": torch.tensor([index]), "delay": 0.5 if index == 0 else 0}
+            yield index, {
+                "values": torch.tensor([index]),
+                "action": {0: "wait", release_group: "release"}.get(index),
+                "gate": gate,
+            }
 
     try:
-        results = pool.run(jobs())
-        first_id, _, first_result = next(results)
-        assert first_id == 0
-        assert first_result.item() == 0
-        assert submitted == list(range(4))
-        tail = list(results)
-        assert [group_id for group_id, _, _ in tail] == list(range(1, 10))
-        assert [tensor.item() for _, _, tensor in tail] == list(range(2, 20, 2))
-        assert {device for _, device, _ in tail} == {"first", "second"}
+        for group_id, device, result in pool.run(jobs()):
+            assert group_id not in completed
+            assert result.item() == group_id * 2
+            completed[group_id] = device
+            assert len(submitted) - len(completed) == min(capacity, total - len(completed))
+        assert set(completed) == set(range(total))
+        # Only a batch outside the initial queue can unblock batch zero.
+        assert next(iter(completed)) != 0
+        assert completed[0] != completed[release_group]
         assert list(pool.run([(0, {"values": torch.tensor([3])})]))[0][2].item() == 6
     finally:
         pool.close()
     pool.close()
     with pytest.raises(RuntimeError, match="workers are closed"):
         list(pool.run([]))
+
+
+def test_completions_do_not_reset_the_oldest_pending_batch_timeout(monkeypatch):
+    pool = object.__new__(_CudaWorkerPool)
+    pool._closed = False
+    pool._capacity = 2
+    pool._lock = Lock()
+    pool._timeout = 4
+    pool._requests = Queue()
+    elapsed = 0
+    responses = iter((1, 2))
+    failures = []
+
+    def receive(deadline, stage):
+        nonlocal elapsed
+        assert stage == "waiting for forward batch 0"
+        assert deadline == 4
+        elapsed += 1
+        completed_id = next(responses, None)
+        if completed_id is None:
+            raise TimeoutError(stage)
+        return _WorkerResponse("fast", completed_id)
+
+    monkeypatch.setattr("gena_expression.inference.workers.monotonic", lambda: elapsed)
+    monkeypatch.setattr(pool, "_receive", receive)
+    monkeypatch.setattr(pool, "_close", lambda *, force: failures.append(force))
+    results = pool.run((group_id, {}) for group_id in range(4))
+    assert [next(results)[0], next(results)[0]] == [1, 2]
+    with pytest.raises(TimeoutError, match="waiting for forward batch 0"):
+        next(results)
+    assert failures == [True]
 
 
 @pytest.mark.parametrize(
@@ -112,14 +163,17 @@ def load_options(tmp_path):
     model_file = tmp_path / "replica.py"
     model_file.write_text(
         """
+from pathlib import Path
+from time import monotonic, sleep
 from types import SimpleNamespace
 import torch
 
 class Replica(torch.nn.Module):
-    def __init__(self, attn_implementation=None):
+    def __init__(self, attn_implementation=None, gate_path=None):
         super().__init__()
         self.weight = torch.nn.Parameter(torch.ones(1))
         self.attn_implementation = attn_implementation
+        self.gate = Path(gate_path) if gate_path else None
 
     def forward(self, *, input_ids, attention_mask, desc_input_ids,
                 desc_attention_mask, dataset_flag, labels, labels_mask, return_dict):
@@ -129,6 +183,17 @@ class Replica(torch.nn.Module):
             assert not torch.is_autocast_enabled(input_ids.device.type)
         assert dataset_flag.numel() == input_ids.shape[0]
         description = (desc_input_ids * desc_attention_mask).sum(dim=-1).reshape(-1, 1)
+        if self.gate is not None and input_ids.is_cuda:
+            # Sum of token IDs including [CLS] and [SEP]: A=7, T=10.
+            score = description.item()
+            if score == 7:
+                deadline = monotonic() + 30
+                while not self.gate.exists():
+                    if monotonic() >= deadline:
+                        raise TimeoutError("A later CUDA batch never reached the gate")
+                    sleep(0.005)
+            elif score == 10:
+                self.gate.touch()
         value = input_ids + description
         return SimpleNamespace(logits=value.unsqueeze(-1) * self.weight)
 """,
@@ -228,3 +293,23 @@ def test_spawned_real_cuda_worker(load_options, monkeypatch):
 @pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two visible CUDA devices")
 def test_two_cuda_replicas_match_local_predictions(load_options):
     _check_cuda_predictions(load_options, "cuda:0,1", ["cuda:0", "cuda:1"])
+
+
+@pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two visible CUDA devices")
+def test_two_cuda_replicas_refill_before_slow_first_batch(load_options, tmp_path):
+    gate = tmp_path / "cuda_later_batch"
+    load_options["config"].write_text(json.dumps({"model_kwargs": {"gate_path": str(gate)}}), encoding="utf-8")
+    descriptions = ["A"] + ["C"] * 6 + ["T"]
+    sequences = [AnnotatedSequence("ACGT", name=f"row_{i}") for i in range(len(descriptions))]
+    requested = dict(conditions=descriptions, center=2, max_records_per_forward=1, show_progress=False)
+    with SequenceModel.load(device="cpu", **load_options) as local:
+        expected = local.predict_multiple_sequences(sequences, **requested)
+    with SequenceModel.load(device="cuda:0,1", **load_options) as model:
+        observed = model.predict_multiple_sequences(sequences, **requested)
+
+    assert gate.exists()
+    assert [prediction.sequence.name for prediction in observed] == [sequence.name for sequence in sequences]
+    assert [prediction.provenance["forward_group_id"] for prediction in observed] == list(range(len(sequences)))
+    assert observed[0].provenance["forward_device"] != observed[-1].provenance["forward_device"]
+    for actual, reference in zip(observed, expected, strict=True):
+        torch.testing.assert_close(actual.logits, reference.logits)

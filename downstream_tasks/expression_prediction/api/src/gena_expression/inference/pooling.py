@@ -49,23 +49,46 @@ def _expand_condition_rows(
 class _PooledLogits:
     """Accumulate one logical prediction while forward batches are consumed."""
 
+    member_order: Sequence[int] | None = None
     total: Any = None
     members: set[int] = field(default_factory=set)
     description_tokens: dict[int, dict[str, Any]] = field(default_factory=dict)
     provenance: dict[int, dict[str, Any]] = field(default_factory=dict)
 
-    def add(self, member_index: int, logits: Any, token_count: int) -> None:
-        import torch
+    _next_member: int = field(default=0, init=False)
+    _deferred: dict[int, Any] = field(default_factory=dict, init=False)
 
+    def add(self, member_index: int, logits: Any, token_count: int) -> None:
         if member_index in self.members:
             raise RuntimeError(f"Pool member {member_index} produced more than one output.")
         if logits.ndim != 3 or logits.shape[1] < token_count:
             raise RuntimeError("Pooled logits must cover all positions in the tokenized input.")
         values = logits[:, :token_count, :]
+        self.members.add(member_index)
+        if self.member_order is None:
+            self._accumulate(values)
+            return
+
+        # Keep the FP32 reduction in planned order. Copy only an early member's
+        # valid positions, so a deferred row does not hold the entire batch.
+        if member_index != self.member_order[self._next_member]:
+            self._deferred[member_index] = values.clone()
+            return
+        self._accumulate(values)
+        self._next_member += 1
+        while self._next_member < len(self.member_order):
+            deferred = self._deferred.pop(self.member_order[self._next_member], None)
+            if deferred is None:
+                break
+            self._accumulate(deferred)
+            self._next_member += 1
+
+    def _accumulate(self, values: Any) -> None:
+        import torch
+
         if self.total is None:
             self.total = values.to(dtype=torch.float32, copy=True)
+        elif values.shape != self.total.shape:
+            raise RuntimeError("Pooled descriptions produced incompatible logit shapes.")
         else:
-            if values.shape != self.total.shape:
-                raise RuntimeError("Pooled descriptions produced incompatible logit shapes.")
             self.total.add_(values)
-        self.members.add(member_index)

@@ -5,7 +5,6 @@ from __future__ import annotations
 import multiprocessing as mp
 import re
 import traceback
-from collections import deque
 from dataclasses import dataclass
 from multiprocessing.util import Finalize
 from pathlib import Path
@@ -134,7 +133,7 @@ def _shutdown_pool(processes, requests, responses, *, force=True) -> None:
 
 
 class _CudaWorkerPool:
-    """Own one spawned replica per device and yield results in forward-plan order."""
+    """Own one spawned replica per device and yield results as workers finish."""
 
     def __init__(
         self,
@@ -202,15 +201,14 @@ class _CudaWorkerPool:
             return response
 
     def run(self, jobs: Iterable[_ForwardJob]) -> Iterator[tuple[int, str, Any]]:
-        """Run a bounded stream of batches and deliver each result in submission order."""
+        """Keep a bounded number of unfinished batches and yield results as they arrive."""
 
         with self._lock:
             if self._closed:
                 raise RuntimeError("CUDA workers are closed. Load a new SequenceModel to resume prediction.")
 
-            order: deque[int] = deque()
-            pending: set[int] = set()
-            completed: dict[int, _WorkerResponse] = {}
+            pending: dict[int, float] = {}
+            submitted: set[int] = set()
             iterator = iter(jobs)
 
             def submit() -> bool:
@@ -218,30 +216,27 @@ class _CudaWorkerPool:
                 if job is None:
                     return False
                 group_id, _ = job
-                if group_id in pending or group_id in completed:
+                if group_id in submitted:
                     raise RuntimeError(f"Duplicate CUDA forward batch {group_id}.")
                 self._requests.put_nowait(job)
-                order.append(group_id)
-                pending.add(group_id)
+                pending[group_id] = monotonic() + self._timeout
+                submitted.add(group_id)
                 return True
 
             try:
                 for _ in range(self._capacity):
                     if not submit():
                         break
-                while order:
-                    group_id = order[0]
-                    deadline = monotonic() + self._timeout
-                    while group_id not in completed:
-                        response = self._receive(deadline, f"waiting for forward batch {group_id}")
-                        response_id = response.group_id
-                        if response_id not in pending:
-                            raise RuntimeError(f"Received unexpected CUDA forward batch {response_id}.")
-                        pending.remove(response_id)
-                        completed[response_id] = response
-                    response = completed.pop(order.popleft())
-                    yield group_id, response.device, response.result
+                while pending:
+                    # Later results must leave the oldest unfinished batch's deadline intact.
+                    oldest = next(iter(pending))
+                    response = self._receive(pending[oldest], f"waiting for forward batch {oldest}")
+                    group_id = response.group_id
+                    if group_id is None or group_id not in pending:
+                        raise RuntimeError(f"Received unexpected CUDA forward batch {group_id}.")
+                    del pending[group_id]
                     submit()
+                    yield group_id, response.device, response.result
             except BaseException:
                 self._close(force=True)
                 raise

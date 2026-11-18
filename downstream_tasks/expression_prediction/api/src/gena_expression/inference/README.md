@@ -300,9 +300,11 @@ inside that process.
 Each selected GPU runs one resident model replica in a spawned process. Each
 GPU must hold a full model replica and its forward batch. Tokenization and
 description formatting stay in the parent. Workers take complete forward
-batches, and predictions are assembled in input order. The queue holds up to
-two forward batches per worker in total. `prefetch_batches` continues to
-control CPU preprocessing look-ahead separately.
+batches. Each completed forward frees a slot for another batch, including
+when an earlier forward is still running. The pool holds up to two unfinished
+batches per selected GPU across all workers. Predictions are assembled by
+planned batch and row IDs and returned in input order. `prefetch_batches`
+controls CPU preprocessing look-ahead separately.
 
 Use the context manager or `model.close()` to release all replicas. If a
 worker fails, load a fresh model before retrying. A model

@@ -125,6 +125,38 @@ def test_single_prediction_reduces_fp32_logits_and_retains_each_member(model):
     assert model.model.forward_calls[0][0] == (1, 3)
 
 
+def test_pooled_fp32_reduction_keeps_plan_order_with_reversed_completions(model, monkeypatch):
+    def canceling_forward(*, input_ids, desc_input_ids, **kwargs):
+        scores = torch.tensor([0.0, -1e8, 1.0, 1e8])[desc_input_ids.reshape(-1)]
+        logits = scores[:, None, None].expand(*input_ids.shape, 1)
+        return SimpleNamespace(logits=logits)
+
+    class ReversePool:
+        devices = ("cuda:0", "cuda:1")
+
+        def run(self, jobs):
+            for group_id, inputs in reversed(list(jobs)):
+                yield group_id, self.devices[group_id % len(self.devices)], canceling_forward(**inputs).logits
+
+    monkeypatch.setattr(model.model, "forward", canceling_forward)
+    pool = PooledCondition("pool", ("1", "2", "3"))
+    sequence = AnnotatedSequence("ACGT")
+    options = dict(conditions=["3", pool], center=0, grouping="condition", max_records_per_forward=1,
+                   show_progress=False)
+    local = model.predict_multiple_sequences([sequence, sequence], **options)
+    # The ordinary "3" row puts that member's batch first in the planned order.
+    assert local[1].expression == pytest.approx(1 / 3)
+
+    monkeypatch.setattr(model, "_worker_pool", ReversePool())
+    distributed = model.predict_multiple_sequences([sequence, sequence], **options)
+
+    assert [prediction.condition for prediction in distributed] == [local[0].condition, pool]
+    torch.testing.assert_close(distributed[1].logits, local[1].logits, rtol=0, atol=0)
+    members = distributed[1].provenance["description_pool"]["members"]
+    assert [member["forward_group_id"] for member in members] == [2, 3, 1]
+    assert [member["description"] for member in distributed[1].description_tokens["members"]] == ["1", "2", "3"]
+
+
 @pytest.mark.parametrize("grouping", ["serial", "no_grouping", "condition", "sequence", "auto"])
 def test_mixed_predictions_keep_logical_order_and_remove_batch_padding(model, grouping):
     pool = PooledCondition("pool", ("1", "29", "1"))
