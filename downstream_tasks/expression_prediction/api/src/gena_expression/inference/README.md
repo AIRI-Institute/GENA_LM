@@ -5,7 +5,8 @@ and condition descriptions to model inputs, plans forward batches, and returns
 prediction containers.
 
 The package-level [README](../README.md) documents `Condition`,
-`AnnotatedSequence`, `SequencePair`, tracks, and retention configuration. This
+`PooledCondition`, `AnnotatedSequence`, `SequencePair`, tracks, and retention
+configuration. This
 README focuses on inference-specific classes and arguments.
 
 ## Module map
@@ -15,7 +16,10 @@ README focuses on inference-specific classes and arguments.
 | `model.py` | `SequenceModel` loading, preprocessing, batching orchestration, and public prediction methods |
 | `tokenization.py` | `CenteredTokenizer` and `TokenizedSequence` |
 | `outputs.py` | `Prediction`, `ExpressionPrediction`, `PairPrediction`, and prediction-retention helpers |
-| `batching.py` | Grouping/pair/preprocessing type aliases, forward-batch records, progress, and worker functions |
+| `batching.py` | Grouping, pair execution, CPU preprocessing, forward-batch records, and progress |
+| `pooling.py` | Expansion and reduction of pooled description rows |
+| `workers.py` | CUDA replica workers and bounded batch dispatch |
+| `AG_model.py` | Module-level AlphaGenome adapter |
 | `__init__.py` | Public inference exports |
 
 ## Shared option sets
@@ -45,6 +49,27 @@ based only on `Condition.name` or `AnnotatedSequence.name`.
 
 Joint execution rejects `grouping="sequence"` and rejects
 `max_records_per_forward`. Separate execution rejects `max_pairs_per_forward`.
+
+### Pooled conditions
+
+Use a [`PooledCondition`](../README.md#pooledcondition) in any `SequenceModel`
+prediction method. Each description is rendered and evaluated separately
+through the usual batching and grouping path. For each logical prediction,
+the model averages logits in FP32 across all members, before expression or
+track values are extracted. Each member receives equal weight, including
+repeated descriptions. The average excludes batch padding.
+
+A pool counts as one entry for broadcast and output ordering. Forward limits
+apply after expansion. Each member consumes one ordinary row or one whole
+REF/ALT pair in joint execution. The model reduces REF and ALT
+independently and attaches the original pool to both predictions and the
+`PairPrediction`.
+
+With description-token retention enabled, pooled predictions carry a
+`{"members": [...]}` payload in the supplied description order. Retained
+provenance contains per-member entries under `description_pool["members"]`.
+With multiple GPUs, each member entry records its `forward_device`.
+`make_description()` and `tokenize_description()` accept single descriptions.
 
 ### CPU preprocessing
 
@@ -215,6 +240,7 @@ SequenceModel.load(
     device=None,
     output_names=None,
     description_formatter=None,
+    precision="default",
 )
 ```
 
@@ -225,17 +251,20 @@ SequenceModel.load(
 | `config` | Hydra config file. The code composes its file name from its parent directory and instantiates `experiment_config["model_kwargs"]`. |
 | `dna_tokenizer`, `description_tokenizer` | Paths/names passed to `AutoTokenizer.from_pretrained()`. The description tokenizer is loaded with left padding. |
 | `description_formatter` | Per-model formatter specification. `None` uses the current `Condition` runtime formatter, then falls back to `make_description_from_json` on the dataset class selected by `config`. |
+| `device` | A single PyTorch device, `None` for automatic selection, or a comma-separated [CUDA device list](#multi-gpu-inference). |
+| `precision` | `"default"` or `"float32"`. See [precision](#precision). |
 | Remaining keyword arguments | Same runtime/tokenization meanings as the direct constructor. |
 
-The method constructs the model class with the instantiated `model_kwargs`,
-loads its state dictionary, builds tokenizers, records paths/class information
-as provenance, and delegates to the constructor.
+The method uses the instantiated `model_kwargs` and restores the checkpoint
+state dictionary. It builds tokenizers and records model class and path
+information in provenance. With a CUDA list, the workers construct and
+restore their own model replicas.
 
 Description formatters are resolved in this order: the explicit
 `description_formatter`, the current `Condition` runtime formatter, then the
 configured dataset class. The final fallback reads the first
 `train_dataset_*` entry, or the first `valid_dataset_*` entry when no training
-entry exists, and imports its `*target*` through `hydra.utils.get_class()`
+entry exists, and imports its `_target_` through `hydra.utils.get_class()`
 without constructing the dataset. During that import,
 `${GENALM_HOME}/GENA_LM` is temporarily prepended to `sys.path`. A missing
 environment variable, directory, dataset config, target, or callable
@@ -245,6 +274,62 @@ runtime state.
 
 Dependencies used by `load()` are PyTorch, Hydra, Safetensors, and Transformers.
 
+### Precision
+
+`precision="default"` preserves the configured attention backend and enables
+BF16 autocast on CUDA. `precision="float32"` requests
+`attn_implementation="sdpa"` from the model constructor, promotes parameters and
+floating-point buffers before loading the checkpoint, and runs inference with
+autocast disabled and PyTorch's SDPA math kernel selected. The model constructor
+must support the SDPA option. For `ExpressionCounts`, this mode requires the
+ModernGENA DNA encoder.
+
+The process-wide CUDA TF32 settings still apply. For multi-GPU inference, workers
+copy the parent's float32 matmul precision and cuDNN TF32 settings at load time.
+Measure tolerances on the checkpoint and hardware you plan to use.
+The FP32 smoke test uses a tiny local model on CPU and CUDA. The CUDA list
+parity test requires two available GPUs.
+
+### Multi-GPU inference
+
+Pass a CUDA device list such as `device="cuda:0,2,5"` to `SequenceModel.load()`.
+Use the `cuda:` prefix and distinct, visible PyTorch device indices. With
+`CUDA_VISIBLE_DEVICES`, indices refer to the devices as numbered by PyTorch
+inside that process.
+
+Each selected GPU runs one resident model replica in a spawned process. Each
+GPU must hold a full model replica and its forward batch. Tokenization and
+description formatting stay in the parent. Workers take complete forward
+batches, and predictions are assembled in input order. The queue holds up to
+two forward batches per worker in total. `prefetch_batches` continues to
+control CPU preprocessing look-ahead separately.
+
+Use the context manager or `model.close()` to release all replicas. If a
+worker fails, load a fresh model before retrying. A model
+loaded with a CUDA list exposes its devices in `model.provenance["devices"]`.
+Retained forward provenance records the worker device under `forward_device`.
+Access the model through prediction methods because each replica lives in its
+worker. In standalone scripts, start the workers under the
+`if __name__ == "__main__":` guard.
+
+```python
+from gena_expression import SequenceModel
+
+
+def predict_on_two_gpus(model_options, sequences, condition):
+    options = {**model_options, "device": "cuda:0,2"}
+    with SequenceModel.load(**options) as model:
+        return model.predict_multiple_sequences(
+            sequences, condition=condition, max_records_per_forward=4,
+        )
+```
+
+With a CUDA list and no explicit limit, ordinary or separate execution caps
+forwards at the smaller of 8 rows and the row count divided by the device
+count, rounded up. Joint execution applies the same rule with a cap of 4
+complete pairs. These counts are computed after condition pools expand into
+their member rows or pairs. Explicit limits and serial grouping still apply.
+
 ### Description/tokenization methods
 
 | Method | Arguments and result | Used elsewhere |
@@ -253,7 +338,7 @@ Dependencies used by `load()` are PyTorch, Hydra, Safetensors, and Transformers.
 | `make_description_from_json(meta)` | Render one metadata mapping with the model's formatter. |
 | `tokenize_description(condition)` | Tokenize without padding, with truncation to `desc_max_seq_len`, returning description text plus `desc_input_ids` and `desc_attention_mask`. | Batch execution and description caching. |
 | `tokenize_sequence(sequence, center="tss", strand="+")` | Delegate to the configured `CenteredTokenizer`. | `predict_sequence()` and preprocessing paths. |
-| `clear_cuda_cache()` | Static helper calling `torch.cuda.empty_cache()` only when CUDA is available. The batch prediction path calls it in `finally`. |
+| `clear_cuda_cache()` | Static helper that clears the local CUDA cache when CUDA is available. In-process batch prediction calls it in `finally`. Multi-GPU worker lifetime is controlled by `close()`. |
 
 ### `predict_sequence(...)`
 
@@ -270,9 +355,9 @@ predict_sequence(
 ) -> ExpressionPrediction
 ```
 
-This is the one-row expression API. `condition` may be a `Condition`, string, or
-metadata mapping. Strings/mappings are wrapped as a condition named
-`"condition"`. `center`, `strand`, grouping, token return, and retention follow
+This is the one-row expression API. `condition` may be a `Condition`,
+`PooledCondition`, string, or metadata mapping. Strings and mappings are
+wrapped as a condition named `"condition"`. `center`, `strand`, grouping, token return, and retention follow
 the shared rules above.
 
 ### `predict_multiple_sequences(...)`
@@ -307,8 +392,9 @@ Pass exactly one of `conditions` and `condition`. Incompatible lengths raise.
 An empty sequence collection returns `[]` and requires the plural condition
 input to be empty/absent.
 
-`max_records_per_forward=None` leaves each resolved group unbounded. A positive
-integer chunks each group while preserving returned input order.
+On a single device, `max_records_per_forward=None` leaves each resolved group
+unbounded. A CUDA device list uses the [default batch cap](#multi-gpu-inference).
+A positive integer chunks each group while preserving returned input order.
 
 ### `predict_pair(...)`
 
@@ -382,12 +468,12 @@ Prediction(
 | Field | Meaning |
 | --- | --- |
 | `sequence` | Retained `AnnotatedSequence`, or `None`. |
-| `condition` | Normalized `Condition`; always present. |
+| `condition` | Normalized `Condition` or `PooledCondition`. Always present. |
 | `logits` | CPU model logits after prediction, or `None` under retention. |
 | `outputs` | Named output mapping. `SequenceModel` always places expression here and may include logits. |
 | `tokens` | `TokenizedSequence`, required for track extraction. |
 | `provenance` | Model and forward-batch metadata, when retained. |
-| `description_tokens` | Encoded description payload, hidden from repr/comparison and optionally retained. |
+| `description_tokens` | Encoded description payload, hidden from repr/comparison and optionally retained. A pool stores an ordered list under `members`. |
 
 Methods:
 
@@ -440,14 +526,23 @@ PairPrediction(ref, alt, pair, condition)
 | --- | --- |
 | `ref`, `alt` | Allele predictions. |
 | `pair` | Original `SequencePair`, or `None` when sequence retention is disabled. |
-| `condition` | Shared `Condition`. |
+| `condition` | Shared `Condition` or `PooledCondition`. |
 
 Methods:
 
 | Method | Arguments and behavior | Used elsewhere |
 | --- | --- | --- |
 | `delta_scalar(name="expression", sign="alt-ref")` | Subtract aligned scalar/list elements up to the shorter length. `"ref-alt"` negates the result. | Simple expression-effect consumers; `ExpressionDeltaScorer` computes its own transformed version. |
-| `delta_track(name="delta_track", sign="alt-ref", channel=0)` | Build REF/ALT tracks, subtract values by list index up to the shorter length, and attach ALT token rows. | `TrackFeatureBuilder`; coordinate-aware scorers instead map intervals explicitly. |
+| `delta_track(name="delta_track", sign="alt-ref", channel=0, *, alignment="coordinate")` | Return REF-local deltas using the pair's coordinate mapping and overlap-weighted ALT values. `alignment="index"` reproduces legacy token-by-token subtraction with ALT token rows. | Coordinate-aware scorers share the alignment implementation. `TrackFeatureBuilder` defaults to index alignment for existing regressors. |
+
+Coordinate alignment maps each REF interval to its ALT interval. The result
+subtracts the REF score from the mean ALT score over overlapping bases.
+`sign="ref-alt"` reverses the subtraction. Rows carry REF and ALT values
+and an `alignment_status` of `mapped`, `deleted`, or `uncovered`. Deleted
+and uncovered intervals produce `NaN`. Both alleles need retained logits and
+tokens. When a retention policy drops the source sequences while keeping
+those data, `SequenceModel` retains the coordinate mapping needed by the
+delta calculation.
 
 ### Prediction retention helpers
 
@@ -466,7 +561,22 @@ Exported from `gena_expression.inference`:
 
 `_ForwardBatch` and names beginning with `_process_worker_` or `_thread_worker_`
 are internal. Process workers reconstruct compact `AnnotatedSequence`/`Feature`
-payloads and reload tokenizers; they never receive the CUDA model.
+payloads and reload tokenizers. GPU replicas use spawned workers in
+`workers.py` with their own resident model instances.
+
+## AlphaGenome adapter
+
+Import `AlphaGenomeSequenceModel` from `gena_expression.inference.AG_model`.
+The adapter takes an initialized AlphaGenome client and a GENA DNA tokenizer
+identifier or path. Choose an output type such as `"DNASE"`. It converts
+base-resolution outputs to GENA token spans by averaging bases covered by
+each token.
+
+Conditions carry ontology CURIEs, such as `"UBERON:0000178"`, in the condition
+name or description, or under a key such as `ontology_terms` in a description
+mapping or the condition metadata. The adapter issues serial calls and uses
+separate REF/ALT execution. Pooled text conditions and the `SequenceModel.load()`
+CUDA and precision options are specific to `SequenceModel`.
 
 ## Example
 
@@ -491,3 +601,93 @@ atac = prediction.track("atac", channel=0)
 ```
 
 Here `model` must be an already constructed or loaded `SequenceModel`.
+
+## Inference stress test
+
+Run `python -m gena_expression.stress` to compare execution settings on the
+same inputs. The CLI samples the requested number of JSON descriptions from
+one directory and uses [`PromoterSampler`](../dna/README.md#promotersampler)
+to draw transcript-oriented sequences with a retained local TSS. Every run
+scores the same sequence-description combinations. An explicit seed makes the
+draws reproducible for unchanged inputs.
+
+Create a `model.json` file with the keyword arguments for
+[`SequenceModel.load()`](#sequencemodelload). Substitute paths and token
+limits for your checkpoint. Use the configured dataset formatter or provide
+`description_formatter` as a static-method reference in the JSON.
+
+```json
+{
+  "model_cls": "../expression_model_final.py::ExpressionCounts",
+  "checkpoint": "checkpoint.pt",
+  "config": "model.yaml",
+  "dna_tokenizer": "dna-tokenizer",
+  "description_tokenizer": "description-tokenizer",
+  "dna_max_seq_len": 512,
+  "desc_max_seq_len": 256,
+  "token_len_for_fetch": 6,
+  "num_before": 128,
+  "device": "cuda:0"
+}
+```
+
+Run the command from the API directory with an indexed FASTA and its transcript annotation.
+
+```bash
+python -m gena_expression.stress \
+    --model-options model.json \
+    --descriptions descriptions/ \
+    --genome reference.fa --annotation transcripts.gtf \
+    --n-descriptions 4 --n-sequences 20 --sequence-length 501 \
+    --seed 42 --output stress-results/
+```
+
+The default compares ungrouped, condition-grouped, sequence-grouped, and
+automatic grouping against a serial reference. Each description file must
+contain a JSON string or object. The serial reference uses the base model
+options with one row per forward.
+
+- `--track-channel 0` includes per-token track comparisons in addition to
+  expression. Compared track coordinates must match across runs.
+- `--pair-check` switches the workload to deterministic REF/ALT pairs and
+  compares separate and joint forwards by default. It reports REF and ALT
+  predictions separately.
+- `--tss-window` changes the total sampling window. It defaults to
+  `--sequence-length`. `--max-attempts` caps sampling when draws miss the TSS.
+- `--records-per-call` limits the number of rows per API request and must
+  cover the largest configured `batch_size`.
+
+To choose comparison settings, pass `--runs runs.json` with a mapping from
+run names to options. `serial` is reserved. Each run can set `grouping`,
+`batch_size`, `preprocessing_workers`, `preprocessing_backend`,
+`prefetch_batches`, `reverse_order`, and `model_overrides`. Pair checks
+also accept `pair_execution`. The serial reference still runs.
+
+```json
+{
+  "regrouped": {"grouping": "condition", "batch_size": 8, "reverse_order": true},
+  "fp32": {"batch_size": 4, "model_overrides": {"precision": "float32"}},
+  "two_gpus": {"batch_size": 4, "model_overrides": {"device": "cuda:0,2"}}
+}
+```
+
+Omit runs unsupported by your checkpoint or visible devices. The example FP32
+run needs a compatible model constructor. The two-GPU run needs CUDA indices
+0 and 2 to be visible.
+
+The output directory receives three files.
+
+- `manifest.json` records the sampled inputs, source metadata, sequence hashes,
+  seed, and model/run options. A row ID is `sequence index × description count
+  + description index`, using zero-based indices.
+- `predictions.csv` contains predictions and errors by run, row, and metric.
+  Relative error is `abs(prediction - mean) / max(abs(mean), epsilon)`, where
+  `mean` uses finite predictions for that exact output across runs.
+  `serial_absolute_error` compares the output directly with the serial reference.
+  `--epsilon` sets the denominator floor.
+- `summary.json` reports counts, non-finite values, quantiles, and the largest
+  relative error per run and metric.
+
+Use a fresh output directory for each run. The tests verify the CLI and
+reporting on synthetic fixtures. Numerical drift on a real checkpoint depends
+on the checkpoint, hardware, and execution settings.

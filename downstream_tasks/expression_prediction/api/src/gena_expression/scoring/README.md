@@ -328,8 +328,7 @@ the feature entries returned by this class and also work with peak entries.
 
 ### `TrackFeatureBuilder`
 
-Builds a fixed-length numeric feature vector by binning a token-index-aligned
-delta track:
+Builds a fixed-length numeric feature vector by binning a delta track:
 
 ```python
 TrackFeatureBuilder(
@@ -339,18 +338,22 @@ TrackFeatureBuilder(
     bin_size=50,
     aggregate="mean",
     channel=0,
+    alignment="index",
 )
 ```
 
-`build(pair_prediction)`:
+`build(pair_prediction)` uses `TrackWindowScorer.window_for()` to resolve the
+REF span and calls `PairPrediction.delta_track()` with the requested alignment.
+Each bin with no usable values receives `0.0`.
 
-1. uses `TrackWindowScorer.window_for()` to resolve the span;
-2. calls `PairPrediction.delta_track()`—this is index-aligned, not the
-   coordinate-mapped delta used by coordinate-aware scorers;
-3. walks bins of `bin_size`;
-4. selects rows with any overlap;
-5. uses `"sum"` or otherwise the arithmetic mean of selected token deltas;
-6. fills bins with no values using `0.0`.
+- `alignment="index"` preserves the feature definition used by existing
+  regressors. It counts each overlapping ALT token once and computes the sum
+  or arithmetic mean of token deltas.
+- `alignment="coordinate"` uses the REF-local delta and weights each finite
+  value by the number of bases it overlaps in the bin. `"sum"` returns the
+  weighted area. `"mean"` divides that area by the total covered bases.
+
+Use the same alignment when training a regression model and applying it.
 
 It returns `(feature_values, metadata_rows)`, where each metadata row has
 `feature_start`, `feature_end`, and `feature_center`. Supply positive
@@ -448,7 +451,7 @@ The constructor stores the model used by all workflows.
 
 | Argument | Purpose |
 | --- | --- |
-| `condition` / `conditions` | Singular broadcast condition or plural row-wise conditions. Pass exactly one form. Accepted items are `Condition`, string, or mapping. |
+| `condition` / `conditions` | Singular broadcast condition or plural row-wise conditions. Pass exactly one form. Accepted items are `Condition`, `PooledCondition`, string, or mapping when using `SequenceModel`. |
 | `scorer` | Object with pair `score()`; often one of the classes above or `ScorerSet`. |
 | `center` | Tokenization center forwarded to `SequenceModel.predict_multiple_pairs()`. Default `"tss"` can fall back to `"variant"` only under the model's exact pair fallback rule. |
 | `grouping`, `pair_execution` | Inference choices documented in the inference README. |
@@ -627,7 +630,7 @@ Key properties:
 | Property | Behavior |
 | --- | --- |
 | `variant` | Return `prediction.pair.variant`, or retained `ResultIdentity`; otherwise raise `RetainedDataError`. |
-| `condition` | Return full `Condition`; requires retained prediction. |
+| `condition` | Return the full `Condition` or `PooledCondition` when the prediction is retained. |
 | `condition_name` | Return name from prediction or lightweight identity. |
 | `input_ref`, `input_alt` | Return annotated allele inputs; require retained prediction and pair. |
 | `ref_prediction`, `alt_prediction` | Return allele predictions; require retained prediction. |
@@ -655,9 +658,9 @@ Plot methods:
 | `plot_sequence(which=None, save_path=None, **kwargs)` | Delegate to `AnnotatedSequence.plot_annotations()`. Default allele comes from display window or REF. Requires retained pair. |
 | `plot_variant(flank=40, save_path=None, **kwargs)` | Delegate to `SequencePair.plot_difference()`. Requires retained pair. |
 | `plot_tracks(figsize=(12, 6.4), title=None, save_path=None)` | Plot REF, ALT, and delta rows; requires all three retained tracks. |
-| `plot_delta_track(figsize=(12, 3), title=None, save_path=None)` | Still calls the same all-track requirement, so all three tracks must be retained even though only delta is drawn. |
+| `plot_delta_track(figsize=(12, 3), title=None, save_path=None)` | Plot the retained delta track. A scoring retention policy with `tracks='delta'` or `tracks='all'` keeps it. |
 | `plot_summary(figsize=(12, 8), include_annotations=False, annotation_which=None, annotation_kwargs=None, save_path=None)` | Plot variant plus available tracks, optionally annotations. Without tracks it falls back to variant-only or variant-plus-annotations. |
-| `save_plots(directory)` | Create the directory, save a variant plot, and save track/delta plots only when all three track fields are non-`None`; return written paths. |
+| `save_plots(directory)` | Create the directory and return the written paths. Save the variant plot when the pair is retained, a combined track plot when all three tracks are retained, and a delta plot when the delta track is retained. Requires the pair or the delta track. |
 
 Precise `ref_score_windows`/`alt_score_windows` are used for track shading.
 `score_window` remains the broad/legacy field.
@@ -695,9 +698,10 @@ scoring; scores are computed from full inputs.
 ## Internal implementation types
 
 `Scorer` is the protocol used for typing but is not exported through
-`scoring.__init__`. `_TrackIntervalIndex` is an internal weighted interval
-index. It uses prefix integrals for sorted, non-overlapping, finite rows and
-falls back to scan semantics otherwise.
+`scoring.__init__`. `tracks.py` provides the shared internal weighted interval
+index used by coordinate-aware scorers and `PairPrediction.delta_track()`. It
+uses prefix integrals for sorted, non-overlapping, finite rows and falls back
+to scan semantics otherwise.
 
 ## Example
 

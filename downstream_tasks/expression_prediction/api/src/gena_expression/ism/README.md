@@ -13,7 +13,8 @@ helpers called by its methods.
 | Module | Contents |
 | --- | --- |
 | `core.py` | `ISM`, mutation generation, pair construction, scoring, queries, and Parquet export |
-| `plotting.py` | Lollipop and substitution-matrix plotting helpers |
+| `motifs.py` | MEME parsing, reference motif matching, and genomic coordinate projection |
+| `plotting.py` | Lollipop, substitution-matrix, and motif-interval plotting helpers |
 | `__init__.py` | Exports `ISM` |
 
 Coordinates follow the package-wide 0-based, half-open convention. Read the
@@ -27,7 +28,7 @@ Constructing `ISM` immediately imports Polars and creates its public table. If
 Polars is unavailable, construction raises an `ImportError` directing the user
 to the project's `tables` extra.
 
-Plot methods additionally import Matplotlib and NumPy.
+Motif annotation uses NumPy and Polars. Plot methods also use Matplotlib.
 
 ## `ISM`
 
@@ -85,6 +86,7 @@ remain eligible for a requested single-base deletion.
 | `condition` | Condition value supplied at construction. |
 | `random_seed`, `center_overlap`, `n_substitutions`, `n_deletions` | Normalized constructor controls. |
 | `variants` | Polars DataFrame containing structural mutation columns and any score/error columns. |
+| `tf_hits` | Most recent motif-hit table, or `None` until `tf_annotate()` succeeds. |
 | `scorer_names` | Property returning non-structural, non-`__error` column names. |
 
 ## Mutation-table schema
@@ -203,7 +205,53 @@ structural columns or end in `__error`.
 | `summary()` | Return sequence/region/center metadata, total and per-mutation counts, plus scored/pending/failed counts for every score column. |
 | `write_parquet(path)` | Create parent directories, write the entire current table, and return the `Path`. |
 
+## TF motif annotation
+
+### `tf_annotate(motif_file, *, p_value_threshold=1e-4, peak_intervals=None)`
+
+Scan the reference sequence in the selected ISM region on both strands. Pass
+a local MEME DNA motif file with letter-probability matrices. Each retained hit
+has a per-window p-value at or below the threshold. Windows containing
+ambiguous bases are skipped.
+
+Scores are log2 odds with a small background mixture. The p-value calculation
+uses a zero-order background and quantizes per-position scores to 0.01 bits.
+These are unadjusted tests across positions and motifs. A hit is a predicted
+motif match and does not establish TF occupancy.
+
+The method returns a Polars DataFrame and also stores it in `ism.tf_hits`.
+
+| Columns | Meaning |
+| --- | --- |
+| `motif_id`, `tf` | MEME motif identifier and TF display label. |
+| `start`, `end`, `start_in_region`, `end_in_region`, `strand` | Coordinates and strand in the reference sequence, plus the interval relative to the selected region. |
+| `source_chrom`, `source_start`, `source_end`, `source_strand` | Genomic projection when the interval maps contiguously to one chromosome and orientation. Otherwise these fields are null. |
+| `score`, `p_value`, `p_value_threshold` | Log2-odds score, approximate motif-specific p-value, and applied cutoff. |
+| `overlaps_peak` | True when the hit overlaps a supplied peak interval by at least one base. Null when `peak_intervals` is omitted. |
+
+All intervals are 0-based and half-open. Supply `peak_intervals` as reference
+sequence-local `(start, end)` pairs. The overlap column labels hits without
+changing which ones pass the motif threshold.
+
+The example uses a clustered motif library with 648 matrices and 593
+distinct representative TF labels. Download the file and pass its local path
+to `tf_annotate()`. [H14CORE-CLUSTERED MEME file](https://github.com/WenyaWeiss/sirius2026/blob/main/motifs/H14CORE-CLUSTERED_meme_format.meme)
+
+```python
+hits = ism.tf_annotate("H14CORE-CLUSTERED_meme_format.meme")
+fig, ax = ism.tf_plot(position_mode="region")
+# After scoring, add the hits on the same x-axis as the variant effects.
+fig, axes = ism.plot("expression_delta", show_tf=True)
+```
+
 ## Plotting
+
+### `tf_plot(*, position_mode="genomic", figsize=None)`
+
+Plot the latest motif hits as labeled intervals in strand-specific colors.
+Returns `(figure, axis)`. The default height grows with the number of TF
+labels. Use `position_mode="region"` or `"sequence"` when the reference region
+does not map contiguously to one genomic interval.
 
 ### `plot(...)`
 
@@ -215,6 +263,7 @@ plot(
     target_col=None,
     position_mode="region",
     figsize=None,
+    show_tf=False,
 )
 ```
 
@@ -223,8 +272,9 @@ plot(
 | `scorer_name` | Existing score column with at least one finite value. |
 | `mutation_type` | `"substitution"`, `"deletion"`, or `"all"`. The filtered table must be non-empty. |
 | `target_col` | Optional existing numeric table column plotted as a measured-effect panel above the model score. |
-| `position_mode` | `"region"` uses `position_in_region`; `"sequence"` uses absolute local sequence `position`. |
-| `figsize` | Matplotlib figure size. `None` selects a one- or two-panel default. |
+| `position_mode` | `"region"` uses `position_in_region`. `"sequence"` uses local sequence `position`. `"genomic"` uses source coordinates and requires a contiguous genomic projection of the region. |
+| `figsize` | Matplotlib figure size. `None` sizes the figure for the selected panels and TF labels. |
+| `show_tf` | After `tf_annotate()`, add a motif panel below the scores with the same x-axis. |
 
 The plot uses ALT bases as colors, REF bases as marker shapes, and returns
 `(figure, axes_array)`.
@@ -253,9 +303,8 @@ scores.
 Unsampled substitutions remain masked. At least one finite substitution score
 is required. Returns `(figure, axes)`.
 
-`plot_variant_effects()` and `plot_substitution_matrix()` are callable from
-`gena_expression.ism.plotting`, but `ISM.plot()` and
-`ISM.plot_substitution_matrix()` are the public object methods.
+The plotting helpers in `gena_expression.ism.plotting` are used by
+`ISM.plot()`, `ISM.tf_plot()`, and `ISM.plot_substitution_matrix()`.
 
 ## Typical lifecycle
 

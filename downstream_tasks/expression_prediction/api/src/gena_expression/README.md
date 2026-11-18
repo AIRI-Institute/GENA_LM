@@ -12,12 +12,13 @@ duplicate the detailed class references in those subpackage READMEs.
 
 | Path | Responsibility | What its README covers |
 | --- | --- | --- |
-| [`dna/`](dna/README.md) | FASTA/GTF-backed genome access, genomic windows, GenBank plasmids, MPRA insertion, and context builders | `Context`, `Genome`, `GenomeContext`, `GenomeRegion`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, related value classes, and primer/context utilities |
-| [`inference/`](inference/README.md) | Model loading, centered tokenization, batching, prediction, and prediction retention | `SequenceModel`, `CenteredTokenizer`, `TokenizedSequence`, `Prediction`, `ExpressionPrediction`, `PairPrediction`, grouping modes, pair execution, and preprocessing arguments |
+| [`dna/`](dna/README.md) | FASTA/GTF-backed genome access, genomic windows, GenBank plasmids, MPRA insertion, and context builders | `Context`, `Genome`, `GenomeContext`, `GenomeRegion`, `PromoterSampler`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, related value classes, and primer/context utilities |
+| [`inference/`](inference/README.md) | Model loading, centered tokenization, batching, prediction, and prediction retention | `SequenceModel`, `CenteredTokenizer`, `TokenizedSequence`, `Prediction`, `ExpressionPrediction`, `PairPrediction`, pooled conditions, pair execution, multi-GPU inference, precision, and preprocessing arguments |
 | [`scoring/`](scoring/README.md) | Pair interpretation, absolute and pair-effect scorers, result containers, plotting, and result retention | `VariantInterpreter`, every scorer, `ScoringResult`, report classes, scorer arguments, aggregation rules, and retained-data requirements |
-| [`ism/`](ism/README.md) | In-silico substitution/deletion library generation, resumable scoring, tables, and plots | `ISM`, its mutation-table schema, constructor controls, scoring lifecycle, query/export methods, and plotting arguments |
+| [`ism/`](ism/README.md) | In-silico substitution/deletion library generation, resumable scoring, tables, and plots | `ISM`, its mutation-table schema, constructor controls, scoring lifecycle, query/export methods, TF motif annotation, and plotting arguments |
 | [`optimization/`](optimization/README.md) | Evolutionary optimization of a fixed-length sequence region | `SequenceOptimizer`, generator contracts, target scoring, fitness, selection strategies, public tables, and run/export methods |
-| `conditions.py` | Condition text and deterministic JSON metadata lookup | Documented below |
+| `conditions.py` | Single and pooled descriptions and deterministic JSON metadata lookup | Documented below |
+| `stress.py` | Reproducible inference comparisons on promoter sequences | [Stress test CLI](inference/README.md#inference-stress-test) |
 | `config.py` | Context-local prediction/scoring retention policy | Documented below |
 | `sequences.py` | Features, annotated sequences, coordinate maps, and allele pairs | Documented below |
 | `tracks.py` | Interval-level track containers, bigWig conversion, and plotting | Documented below |
@@ -31,7 +32,7 @@ source or documentation folders.
 
 The main object flow is:
 
-1. `Condition` supplies the natural-language model condition.
+1. `Condition` supplies one model description. `PooledCondition` combines predictions across multiple descriptions.
 2. `AnnotatedSequence` holds DNA, interval features, coordinate provenance, and
    metadata.
 3. `Variant` and a context builder produce a `SequencePair`.
@@ -108,11 +109,11 @@ The package root re-exports the following names from `gena_expression`:
 
 | Domain | Public names |
 | --- | --- |
-| Conditions | `Condition`, `DescriptionLookup` |
+| Conditions | `Condition`, `PooledCondition`, `DescriptionLookup` |
 | Retention | `PredictionRetention`, `ScoringRetention`, `RetentionPolicy`, `RetentionMode`, `RetainedDataError`, `FULL_RETENTION`, `SCALAR_RETENTION`, `get_retention_policy`, `set_retention_mode`, `set_retention_policy`, `retention_mode` |
 | Sequences and variants | `Feature`, `SourceCoordinate`, `CoordinateSegment`, `CoordinateMap`, `AnnotatedSequence`, `SequencePair`, `Variant` |
 | Tracks | `Track`, `TrackPrediction` |
-| dna | `Context`, `Genome`, `GenomeContext`, `GenomeInterval`, `GenomeRegion`, `SafeHarborSite`, `FeatureMatch`, `PlasmidMetadata`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, `infer_table18_primer_tails` |
+| dna | `Context`, `Genome`, `GenomeContext`, `GenomeInterval`, `GenomeRegion`, `PromoterSampler`, `SafeHarborSite`, `FeatureMatch`, `PlasmidMetadata`, `PlasmidRecord`, `PlasmidCollection`, `PlasmidContext`, `infer_table18_primer_tails` |
 | Inference | `CenteredTokenizer`, `TokenizedSequence`, `SequenceModel`, `Prediction`, `ExpressionPrediction`, `PairPrediction` |
 | Scoring | `VariantInterpreter`, `ExpressionScorer`, `ExpressionDeltaScorer`, `TokenWindowScorer`, `TrackWindowScorer`, `TrackEffectPeakScorer`, `TrackFeatureScorer`, `TrackAllFeaturesScorer`, `TrackFeatureBuilder`, `RegressionScorer`, `LinearCombinationScorer`, `ScorerSet`, `ScoreWindow`, `DisplayWindow`, `ResultIdentity`, `PredictionScoringResult`, `ScoringResult`, `PredictionReport`, `VariantReport` |
 | Workflows | `ISM`, `SequenceOptimizer`, `MinOnTargetMaxOffTargetFitness`, `SequentialCrossoverMutationGenerator`, `ParallelCrossoverMutationGenerator` |
@@ -128,9 +129,9 @@ their defining module or subpackage. Their folder READMEs identify them.
 
 ### `Condition`
 
-`Condition` is the structured condition attached to every prediction. The
-inference layer converts strings and mappings to a `Condition`; prediction and
-scoring results retain it or its name depending on the retention policy.
+`Condition` describes one model condition. Inference wraps plain strings and
+metadata mappings in a `Condition`. Prediction and scoring results retain the
+condition object or its name according to the retention policy.
 
 Constructor:
 
@@ -163,6 +164,30 @@ Methods:
 | `get_description_formatter()` | Return the resolved runtime formatter, or `None`. | `SequenceModel` snapshots it during construction. |
 | `text()` | Returns `description` unchanged when it is a string; otherwise uses the configured runtime formatter. | Standalone condition rendering. Model inference uses the model's snapshotted formatter. |
 | `to_dict()` | Returns all constructor fields in a JSON-friendly dictionary; `metadata=None` becomes `{}`. | `Prediction.to_dict()` includes it. |
+
+### `PooledCondition`
+
+`PooledCondition(name, descriptions, assay=None, cell_type=None, tissue=None,
+metadata=None)` uses the same labels as `Condition` and holds an ordered tuple
+of descriptions. Supply a nonempty sequence of text strings or metadata
+mappings. Standalone `texts()` renders the members with the runtime formatter
+configured on `Condition`, and `to_dict()` serializes them under `descriptions`.
+During inference, `SequenceModel` uses its own formatter for the member
+descriptions.
+
+```python
+from gena_expression import PooledCondition
+
+condition = PooledCondition(
+    "example",
+    descriptions=["cell type is example.", {"cell_type": "example"}],
+)
+prediction = model.predict_sequence(sequence, condition=condition, center="middle")
+```
+
+This produces one prediction. With `conditions=[condition_a, condition_b]`,
+each entry remains a distinct condition. See
+[pooled prediction semantics](inference/README.md#pooled-conditions).
 
 ### `metadata_to_description(meta)`
 

@@ -14,6 +14,7 @@ immutability conventions. This README covers only the classes and functions in
 | --- | --- |
 | `builders.py` | `Context`, `GenomeContext`, and `PlasmidContext` |
 | `genome.py` | `Genome`, `GenomeRegion`, `GenomeInterval`, `SafeHarborSite`, and internal GTF/tabix backends |
+| `samplers.py` | `PromoterSampler` for transcript-oriented sampling around TSSs |
 | `plasmid.py` | `PlasmidRecord`, `PlasmidCollection`, plasmid value classes, primer-tail inference, MCS insertion, and circular window helpers |
 | `__init__.py` | The subpackage export list |
 
@@ -128,6 +129,39 @@ coordinates, score, frame, and parsed attributes are stored in metadata.
 
 `pysam` is required for FASTA and tabix operations. Polars is additionally
 required only for the unsorted-annotation fallback.
+
+### `PromoterSampler`
+
+`PromoterSampler(genome, seq_len, tss_sampling_window, *, seed=None,
+transcript_feature_types=None, include_features=True)` yields random
+transcript-oriented `AnnotatedSequence` objects from an annotated `Genome`.
+`tss_sampling_window` is the total window width around each TSS and must be
+at least `seq_len`. By default the sampler uses transcript feature types
+such as `transcript` and `mRNA`. Pass a feature type or a sequence of types
+to override that set.
+
+Overlapping TSS windows on a chromosome form one sampling unit. Each cycle
+visits all units and draws one TSS window and one valid sequence start per
+unit. The iterator continues across cycles. `len(sampler)` is the number of
+units, and a fixed `seed` reproduces the draws for a fixed input genome and
+annotation.
+
+Samples carry genomic coordinates, strand, transcript identifiers, and
+`tss_in_sequence` in their metadata. A local `tss` feature is added whenever
+the sampled interval contains its TSS, even with `include_features=False`.
+Filter on that feature before passing `center="tss"` to inference if your
+sampling window allows intervals that miss the TSS.
+
+```python
+from contextlib import closing
+from itertools import islice
+
+from gena_expression import Genome, PromoterSampler
+
+with closing(Genome("reference.fa", annotation="transcripts.gtf")) as genome:
+    sampler = PromoterSampler(genome, seq_len=501, tss_sampling_window=501, seed=42)
+    sequences = list(islice(sampler, 10))
+```
 
 ### `GenomeContext`
 
