@@ -119,6 +119,7 @@ class ISM:
             "source_strand": pl.Utf8,
         }
         self.variants = pl.DataFrame(records, schema=schema)
+        self.tf_hits = None
 
     @property
     def scorer_names(self) -> tuple[str, ...]:
@@ -707,16 +708,73 @@ class ISM:
         self.variants.write_parquet(output)
         return output
 
+    def tf_annotate(
+        self,
+        motif_file: str | Path,
+        *,
+        p_value_threshold: float = 1e-4,
+        peak_intervals: Sequence[tuple[int, int]] | None = None,
+    ):
+        """Scan the reference region and retain the resulting motif-hit table.
+
+        Scan both strands regardless of the MEME strand declaration. Scores
+        use log2 odds and a 1e-4 background mixture. Unadjusted per-window
+        p-values use a zero-order background and 0.01-bit score quantization
+        per position. Peak intervals and hit start/end are sequence-local, 0-based, and
+        half-open. Genomic columns are null where projection is discontinuous.
+        """
+        from .motifs import scan_motifs
+
+        if (
+            isinstance(p_value_threshold, bool)
+            or not isinstance(p_value_threshold, Real)
+            or not 0 < p_value_threshold <= 1
+        ):
+            raise ValueError("p_value_threshold must be in (0, 1].")
+        validated_peaks = None
+        if peak_intervals is not None:
+            validated_peaks = []
+            for start, end in peak_intervals:
+                if (
+                    type(start) is not int
+                    or type(end) is not int
+                    or not 0 <= start < end <= len(self.sequence)
+                ):
+                    raise ValueError("Peak intervals must be nonempty and within the sequence.")
+                validated_peaks.append((start, end))
+
+        self.tf_hits = scan_motifs(
+            self.sequence.sequence,
+            self.sequence.coordinate_map,
+            self.region,
+            motif_file,
+            p_value_threshold=float(p_value_threshold),
+            peak_intervals=validated_peaks,
+        )
+        return self.tf_hits
+
+    def tf_plot(
+        self,
+        *,
+        position_mode: Literal["region", "sequence", "genomic"] = "genomic",
+        figsize: tuple[float, float] | None = None,
+    ):
+        """Plot the most recent motif hits on labeled, strand-colored tracks."""
+        from .plotting import plot_tf_hits
+
+        return plot_tf_hits(self, position_mode=position_mode, figsize=figsize)
+
     def plot(
         self,
         scorer_name: str,
         *,
         mutation_type: Literal["substitution", "deletion", "all"] = "substitution",
         target_col: str | None = None,
-        position_mode: Literal["region", "sequence"] = "region",
+        position_mode: Literal["region", "sequence", "genomic"] = "region",
         figsize: tuple[float, float] | None = None,
+        show_tf: bool = False,
     ):
-        """Plot one scorer's effects as colored, reference-shaped lollipops."""
+        """Plot one scorer's effects and optionally display motif-hit tracks."""
 
         from .plotting import plot_variant_effects
 
@@ -727,6 +785,7 @@ class ISM:
             target_col=target_col,
             position_mode=position_mode,
             figsize=figsize,
+            show_tf=show_tf,
         )
 
     def plot_substitution_matrix(

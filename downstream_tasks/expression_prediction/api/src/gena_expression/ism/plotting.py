@@ -43,14 +43,91 @@ def _validated_frame(
     return frame
 
 
+def _position_axis(
+    ism: "ISM", position_mode: Literal["region", "sequence", "genomic"]
+) -> tuple[str, str, tuple[int, int]]:
+    if position_mode == "region":
+        return "position_in_region", "Position relative to region start (bp)", (0, ism.region.length())
+    if position_mode == "sequence":
+        return "position", "Sequence position (0-based)", (ism.region.start, ism.region.end)
+    if position_mode == "genomic":
+        from .motifs import genomic_interval
+
+        interval = genomic_interval(ism.sequence.coordinate_map, ism.region.start, ism.region.end)
+        if interval is None:
+            raise ValueError(
+                "The ISM region has no contiguous genomic projection. "
+                "Use position_mode='region' or 'sequence'."
+            )
+        return "source_position", f"{interval.chrom} position (0-based)", (interval.start, interval.end)
+    raise ValueError("position_mode must be 'region', 'sequence', or 'genomic'.")
+
+
+def _tf_hits_and_labels(ism: "ISM"):
+    if ism.tf_hits is None:
+        raise ValueError("Call tf_annotate() before plotting motif hits.")
+    return ism.tf_hits, sorted(ism.tf_hits.get_column("tf").unique().to_list())
+
+
+def _draw_tf_hits(ax, hits, labels: list[str], position_mode: str) -> None:
+    if position_mode == "genomic":
+        start_col, end_col, strand_col = "source_start", "source_end", "source_strand"
+    elif position_mode == "region":
+        start_col, end_col, strand_col = "start_in_region", "end_in_region", "strand"
+    else:
+        start_col, end_col, strand_col = "start", "end", "strand"
+
+    label_rows = {label: index for index, label in enumerate(labels)}
+    colors = {"+": "#2866A7", "-": "#A34952"}
+    plot_rows = hits.select("tf", start_col, end_col, strand_col).drop_nulls().rows()
+    if plot_rows:
+        ax.barh(
+            [label_rows[label] for label, _, _, _ in plot_rows],
+            [end - start for _, start, end, _ in plot_rows],
+            left=[start for _, start, _, _ in plot_rows],
+            color=[colors[strand] for _, _, _, strand in plot_rows],
+            height=0.48,
+        )
+    else:
+        ax.text(0.5, 0.5, "No motif hits", ha="center", va="center", transform=ax.transAxes)
+    ax.set_yticks(range(len(labels)), labels=labels)
+    ax.set_ylim(max(len(labels), 1) - 0.5, -0.5)
+    ax.tick_params(axis="y", length=0)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.set_title("Predicted TF motif matches", loc="left")
+
+
+def plot_tf_hits(
+    ism: "ISM",
+    *,
+    position_mode: Literal["region", "sequence", "genomic"] = "genomic",
+    figsize: tuple[float, float] | None = None,
+):
+    """Plot the stored motif-hit intervals on a standalone axis."""
+    import matplotlib.pyplot as plt
+
+    hits, labels = _tf_hits_and_labels(ism)
+    _, xlabel, bounds = _position_axis(ism, position_mode)
+    if figsize is None:
+        figsize = (16.0, 1.1 + 0.40 * max(len(labels), 1))
+    fig, ax = plt.subplots(figsize=figsize)
+    _draw_tf_hits(ax, hits, labels, position_mode)
+    ax.set_xlim(*bounds)
+    ax.set_xlabel(xlabel)
+    ax.ticklabel_format(axis="x", style="plain", useOffset=False)
+    fig.tight_layout()
+    return fig, ax
+
+
 def plot_variant_effects(
     ism: "ISM",
     scorer_name: str,
     *,
     mutation_type: Literal["substitution", "deletion", "all"] = "substitution",
     target_col: str | None = None,
-    position_mode: Literal["region", "sequence"] = "region",
+    position_mode: Literal["region", "sequence", "genomic"] = "region",
     figsize: tuple[float, float] | None = None,
+    show_tf: bool = False,
 ):
     """Plot optional measured and predicted effects for one ISM library."""
 
@@ -62,10 +139,7 @@ def plot_variant_effects(
     frame = _validated_frame(ism, scorer_name, mutation_type)
     if target_col is not None and target_col not in frame.columns:
         raise KeyError(f"Target column {target_col!r} is not present in the ISM dataframe.")
-    if position_mode not in {"region", "sequence"}:
-        raise ValueError("position_mode must be 'region' or 'sequence'.")
-
-    position_col = "position_in_region" if position_mode == "region" else "position"
+    position_col, xlabel, bounds = _position_axis(ism, position_mode)
     value_columns = ([target_col] if target_col is not None else []) + [scorer_name]
     labels = ([f"Measured — {target_col}"] if target_col is not None else []) + [
         f"Model prediction — {scorer_name}"
@@ -87,10 +161,20 @@ def plot_variant_effects(
     if invalid_alt:
         raise ValueError(f"Unsupported alternative alleles: {invalid_alt}")
 
-    nrows = len(value_columns)
+    effect_rows = len(value_columns)
+    base_height = 4.5 if effect_rows == 1 else 8.0
+    panel_height = 0.0
+    if show_tf:
+        hits, tf_labels = _tf_hits_and_labels(ism)
+        panel_height = 0.45 + 0.40 * max(len(tf_labels), 1)
     if figsize is None:
-        figsize = (16.0, 4.5 if nrows == 1 else 8.0)
-    fig, axes_value = plt.subplots(nrows=nrows, ncols=1, sharex=True, figsize=figsize)
+        figsize = (16.0, base_height + panel_height)
+    heights = [base_height / effect_rows] * effect_rows
+    if show_tf:
+        heights.append(panel_height)
+    fig, axes_value = plt.subplots(
+        nrows=len(heights), ncols=1, sharex=True, figsize=figsize, height_ratios=heights
+    )
     axes = np.atleast_1d(axes_value)
 
     for ax, value_col, title in zip(axes, value_columns, labels):
@@ -133,11 +217,11 @@ def plot_variant_effects(
             padding = 0.08 * (upper - lower)
             ax.set_ylim(lower - padding, upper + padding)
 
-    axes[-1].set_xlabel(
-        "Position relative to region start (bp)"
-        if position_mode == "region"
-        else "Sequence position (0-based)"
-    )
+    if show_tf:
+        _draw_tf_hits(axes[-1], hits, tf_labels, position_mode)
+    if show_tf or position_mode == "genomic":
+        axes[-1].set_xlim(*bounds)
+    axes[-1].set_xlabel(xlabel)
     axes[-1].ticklabel_format(axis="x", style="plain", useOffset=False)
     alt_bases = [base for base in _ALT_COLORS if base in set(alternatives)]
     alt_handles = [
@@ -185,7 +269,10 @@ def plot_variant_effects(
     )
     title = ism.sequence.name or ism.region.name or "ISM"
     fig.suptitle(str(title), fontsize=16, fontweight="bold")
-    fig.subplots_adjust(left=0.09, right=0.98, top=0.88, bottom=0.22, hspace=0.10)
+    margin_scale = base_height / (base_height + panel_height)
+    fig.subplots_adjust(
+        left=0.09, right=0.98, top=1 - 0.12 * margin_scale, bottom=0.22 * margin_scale, hspace=0.10
+    )
     fig.align_ylabels(axes)
     return fig, axes
 
