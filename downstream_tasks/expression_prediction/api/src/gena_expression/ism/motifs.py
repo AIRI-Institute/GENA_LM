@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,7 @@ _DNA = "ACGT"
 _BASE_INDEX = {base: index for index, base in enumerate(_DNA)}
 _BACKGROUND_FRACTION = 1e-4
 _SCORE_SCALE = 100
+_MotifHit = tuple[int, int, str, str, str]
 _HIT_SCHEMA = {
     "motif_id": pl.String,
     "tf": pl.String,
@@ -162,6 +164,32 @@ def read_meme(path: str | Path) -> MotifLibrary:
         tf = alternate[0] if alternate else identifier.split(".H14CORE.", 1)[0]
         motifs.append(_Motif(identifier, tf, probabilities))
     return MotifLibrary(background, motifs)
+
+
+def limit_motif_overlaps(
+    hits: Iterable[_MotifHit],
+    *,
+    origin: int,
+    width: int,
+    max_overlapping_tfs: int | None,
+) -> Iterator[_MotifHit]:
+    """Keep prioritized motif hits whose full footprints fit the per-base cap."""
+    if max_overlapping_tfs is None:
+        yield from hits
+        return
+    if type(max_overlapping_tfs) is not int or max_overlapping_tfs < 0:
+        raise ValueError("max_overlapping_tfs must be a nonnegative integer or None.")
+    if max_overlapping_tfs == 0:
+        return
+
+    coverage = np.zeros(width, dtype=np.intp)
+    for hit in hits:
+        start, end, *_ = hit
+        footprint = coverage[start - origin:end - origin]
+        if (footprint >= max_overlapping_tfs).any():
+            continue
+        footprint += 1
+        yield hit
 
 
 def _motif_log_odds(probabilities: np.ndarray, background: np.ndarray) -> np.ndarray:

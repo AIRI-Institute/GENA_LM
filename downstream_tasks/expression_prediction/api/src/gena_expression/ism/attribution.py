@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import polars as pl
 
-from .motifs import _motif_log_odds
+from .motifs import _motif_log_odds, limit_motif_overlaps
 
 if TYPE_CHECKING:
     from .core import ISM
@@ -82,6 +82,7 @@ def rank_motif_hits(
     min_profile_similarity: float,
     min_peak_coverage: float,
     profile_direction: Literal["positive", "negative", "either"],
+    max_overlapping_tfs: int | None,
 ) -> pl.DataFrame:
     """Rank overlapping candidates from the reference scan for each attribution peak."""
     for name, value in (
@@ -154,7 +155,7 @@ def rank_motif_hits(
                         "_agreement": agreement,
                     })
 
-    return (
+    ranked = (
         pl.DataFrame(rows, schema={
             **hits.schema,
             "peak_start": pl.Int64,
@@ -174,3 +175,14 @@ def rank_motif_hits(
         )
         .drop("_agreement")
     )
+    if max_overlapping_tfs is None:
+        return ranked
+
+    hit_columns = ["start_in_region", "end_in_region", "motif_id", "tf", "strand"]
+    unique_hits = ranked.select(hit_columns).unique(maintain_order=True)
+    accepted = limit_motif_overlaps(
+        unique_hits.iter_rows(), origin=0, width=len(attribution),
+        max_overlapping_tfs=max_overlapping_tfs,
+    )
+    selected = pl.DataFrame(list(accepted), schema=unique_hits.schema, orient="row")
+    return ranked.join(selected, on=hit_columns, how="semi", maintain_order="left")

@@ -338,11 +338,13 @@ def test_incomplete_position_splits_peaks_and_ranks_each_one(tmp_path):
     )
 
     ranked = ism.rank_tf_hits(
-        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute"
+        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute",
+        max_overlapping_tfs=1,
     )
-    assert ranked.filter(pl.col("tf") == "ProfileMatch").select(
-        "peak_start", "peak_end", "peak_rank"
-    ).sort("peak_start").rows() == [(1, 2, 1), (3, 5, 1)]
+    assert ranked.select("tf", "peak_start", "peak_end", "peak_rank").sort("peak_start").rows() == [
+        ("ProfileMatch", 1, 2, 1),
+        ("ProfileMatch", 3, 5, 1),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -413,5 +415,72 @@ def test_attribution_logo_accepts_quantile_with_profile_ranking(quantile_ism):
         frames = [patch for patch in attribution_ax.patches if isinstance(patch, Rectangle)]
         assert [(frame.get_x(), frame.get_width()) for frame in frames] == [(4.5, 2.0)]
         assert [label.get_text() for label in motif_ax.texts] == ["Example (-)"]
+    finally:
+        plt.close(fig)
+
+
+def test_overlapping_motif_logos_fill_lanes_from_the_top(tmp_path):
+    from matplotlib import pyplot as plt
+
+    pytest.importorskip("logomaker")
+    ism = _profile_ranking_ism(tmp_path)
+    fig, (_, motif_ax) = ism.plot_attribution(
+        "expression_delta", show_tf=True,
+        attribution_threshold=0.1, attribution_threshold_mode="absolute",
+    )
+    try:
+        fig.canvas.draw()
+        first_logo, second_logo = motif_ax.child_axes
+        assert first_logo.bbox.ymin > second_logo.bbox.ymax
+        first_label, second_label = motif_ax.texts
+        assert first_label.get_position()[1] > second_label.get_position()[1]
+    finally:
+        plt.close(fig)
+
+
+@pytest.fixture
+def overlapping_ism(tmp_path):
+    ism = ISM(AnnotatedSequence("ACGACG"), center=2, region=(0, 6), condition="test")
+    path = _meme_file(tmp_path)
+    original_matrix = path.read_text(encoding="utf-8").splitlines()[-3:]
+    with path.open("a", encoding="utf-8") as out:
+        for name, matrix in (
+            ("Example2", original_matrix),
+            ("Example3", original_matrix),
+            ("Bridge", [*original_matrix[1:], original_matrix[0]]),
+        ):
+            out.write(f"\nMOTIF {name}\nletter-probability matrix: alength= 4 w= 3 nsites= 20\n")
+            out.write("\n".join(matrix) + "\n")
+    ism.tf_annotate(path, p_value_threshold=1 / 64)
+    ism.variants = ism.variants.with_columns(pl.lit(-4.0).alias("expression_delta"))
+    return ism
+
+
+@pytest.mark.parametrize("limit", [0, 1, 2])
+def test_ranked_tf_overlap_cap_covers_full_intervals(overlapping_ism, limit):
+    ranked = overlapping_ism.rank_tf_hits("expression_delta", max_overlapping_tfs=limit)
+    expected_labels = ["Example", "Example2"][:limit]
+    assert ranked.select("start", "end", "tf").rows() == [
+        (start, start + 3, label) for start in (0, 3) for label in expected_labels
+    ]
+
+
+@pytest.mark.parametrize("min_similarity", [None, 0.9])
+def test_overlap_cap_applies_before_plot_hit_limit(overlapping_ism, min_similarity):
+    from matplotlib import pyplot as plt
+
+    pytest.importorskip("logomaker")
+    fig, (_, motif_ax) = overlapping_ism.plot_attribution(
+        "expression_delta", show_tf=True, max_motif_hits=2, max_overlapping_tfs=1,
+        min_profile_similarity=min_similarity,
+    )
+    try:
+        fig.canvas.draw()
+        bounds = [
+            motif_ax.transData.inverted().transform_bbox(logo.bbox)
+            for logo in motif_ax.child_axes
+        ]
+        assert [bbox.xmin for bbox in bounds] == pytest.approx([-0.5, 2.5])
+        assert [bbox.xmax for bbox in bounds] == pytest.approx([2.5, 5.5])
     finally:
         plt.close(fig)

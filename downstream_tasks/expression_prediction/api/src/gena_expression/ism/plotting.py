@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import islice
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -286,7 +287,7 @@ def plot_variant_effects(
     return fig, axes
 
 
-def _attribution_motif_candidates(hits, position_mode, origin, magnitudes, highlighted, limit):
+def _attribution_motif_candidates(hits, position_mode, origin, magnitudes, highlighted):
     start_col, end_col, strand_col = _tf_hit_columns(position_mode)
     candidates = []
     for hit in hits.select("motif_id", "tf", "p_value", start_col, end_col, strand_col).drop_nulls().iter_rows():
@@ -297,7 +298,7 @@ def _attribution_motif_candidates(hits, position_mode, origin, magnitudes, highl
             strength = float(magnitudes[footprint][overlap].max())
             candidates.append((-strength, p_value, start, end, motif_id, tf, strand))
 
-    return [candidate[2:] for candidate in sorted(candidates)[:limit]]
+    return (candidate[2:] for candidate in sorted(candidates))
 
 
 def _assign_motif_lanes(candidates, region_width):
@@ -334,8 +335,9 @@ def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo, empty
         )
         information = 2 + (probabilities * log_probabilities).sum(axis=1, keepdims=True)
         heights = probabilities * np.maximum(information, 0)
+        lane_bottom = lane_count - 1 - lane
         inset = ax.inset_axes(
-            [start - 0.5, lane + 0.24, end - start, 0.66], transform=ax.transData
+            [start - 0.5, lane_bottom + 0.24, end - start, 0.66], transform=ax.transData
         )
         for left, right in spans:
             overlap_start = max(start, left)
@@ -360,7 +362,7 @@ def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo, empty
             spine.set_color("#718096")
             spine.set_linewidth(0.8)
         ax.text(
-            (start + end - 1) / 2, lane + 0.17, f"{tf} ({strand})",
+            (start + end - 1) / 2, lane_bottom + 0.17, f"{tf} ({strand})",
             ha="center", va="top", fontsize=8, clip_on=True,
         )
 
@@ -384,6 +386,7 @@ def plot_attribution_logo(
     show_tf: bool,
     attribution_threshold: float | None,
     max_motif_hits: int,
+    max_overlapping_tfs: int | None = None,
     attribution_threshold_mode: Literal["quantile", "absolute"] = "quantile",
     min_profile_similarity: float | None = None,
     min_peak_coverage: float | None = None,
@@ -395,6 +398,7 @@ def plot_attribution_logo(
     import pandas as pd
 
     from .attribution import attribution_peaks
+    from .motifs import limit_motif_overlaps
 
     if type(max_motif_hits) is not int or max_motif_hits < 1:
         raise ValueError("max_motif_hits must be a positive integer.")
@@ -432,6 +436,7 @@ def plot_attribution_logo(
                 min_profile_similarity=0.0 if min_profile_similarity is None else min_profile_similarity,
                 min_peak_coverage=0.0 if min_peak_coverage is None else min_peak_coverage,
                 profile_direction=profile_direction,
+                max_overlapping_tfs=max_overlapping_tfs,
             )
             start_col, end_col, strand_col = _tf_hit_columns(position_mode)
             candidates = (
@@ -444,10 +449,17 @@ def plot_attribution_logo(
             empty_message = "No motif hits meet the attribution criteria"
         else:
             hits, _ = _tf_hits_and_labels(ism)
-            candidates = _attribution_motif_candidates(
-                hits, position_mode, origin, magnitudes, highlighted, max_motif_hits
+            eligible = limit_motif_overlaps(
+                _attribution_motif_candidates(hits, position_mode, origin, magnitudes, highlighted),
+                origin=origin,
+                width=len(attribution),
+                max_overlapping_tfs=max_overlapping_tfs,
             )
-            empty_message = "No motif hits overlap high attribution"
+            candidates = list(islice(eligible, max_motif_hits))
+            empty_message = (
+                "No motif hits meet the overlap limit"
+                if max_overlapping_tfs == 0 else "No motif hits overlap high attribution"
+            )
         lanes, lane_count = _assign_motif_lanes(candidates, len(attribution))
         matrices = getattr(ism, "_tf_matrices", {})
         if any(motif_id not in matrices for _, _, _, motif_id, _, _ in lanes):

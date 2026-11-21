@@ -841,6 +841,7 @@ class ISM:
         min_profile_similarity: float = 0.0,
         min_peak_coverage: float = 0.0,
         profile_direction: Literal["positive", "negative", "either"] = "positive",
+        max_overlapping_tfs: int | None = None,
     ):
         """Rank scanned motif hits by agreement with the ISM profile at each peak."""
         from .attribution import rank_motif_hits
@@ -853,6 +854,7 @@ class ISM:
             min_profile_similarity=min_profile_similarity,
             min_peak_coverage=min_peak_coverage,
             profile_direction=profile_direction,
+            max_overlapping_tfs=max_overlapping_tfs,
         )
 
     def plot_attribution(
@@ -865,6 +867,7 @@ class ISM:
         attribution_threshold: float | None = None,
         attribution_threshold_mode: Literal["quantile", "absolute"] = "quantile",
         max_motif_hits: int = 12,
+        max_overlapping_tfs: int | None = None,
         min_profile_similarity: float | None = None,
         min_peak_coverage: float | None = None,
         profile_direction: Literal["positive", "negative", "either"] = "positive",
@@ -881,6 +884,7 @@ class ISM:
             attribution_threshold=attribution_threshold,
             attribution_threshold_mode=attribution_threshold_mode,
             max_motif_hits=max_motif_hits,
+            max_overlapping_tfs=max_overlapping_tfs,
             min_profile_similarity=min_profile_similarity,
             min_peak_coverage=min_peak_coverage,
             profile_direction=profile_direction,

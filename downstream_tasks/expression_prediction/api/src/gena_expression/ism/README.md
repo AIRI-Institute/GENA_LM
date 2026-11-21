@@ -318,6 +318,11 @@ Each row is one hit at one peak. Profile agreement ranks hits within each peak,
 with the sequence p-value breaking ties. The top hit from each peak is listed
 before second-ranked hits.
 
+Set `max_overlapping_tfs=5` to allow at most five motif hits over any DNA base.
+The cap considers each hit's full footprint in priority order across all peaks.
+A hit shared by several peaks counts once, and `peak_rank` records its rank
+before the overlap cap is applied.
+
 `profile_direction="positive"` looks for agreement between motif affinity and
 model output. Use `"negative"` for inverse agreement or `"either"` to rank
 by the magnitude of the similarity while retaining its sign. Both cutoffs are
@@ -351,7 +356,10 @@ genomic projection, the letters and motifs are oriented to the genomic axis.
   motif p-value to break ties.
 - With `show_tf=True`, set `min_profile_similarity`, `min_peak_coverage`, or
   a nondefault `profile_direction` to use `rank_tf_hits()` for motif selection.
-  The display cap applies after ranking and repeated hits are drawn once.
+  Repeated hits are drawn once.
+- `max_overlapping_tfs` caps how many displayed motif hits cover each base.
+  It applies before `max_motif_hits`, which caps the total number displayed.
+  Use `None` for unlimited overlap or `0` to show zero motif hits.
 - `position_mode` and `figsize` follow the other plots. The method returns
   a Matplotlib `(figure, axes_array)`.
 
