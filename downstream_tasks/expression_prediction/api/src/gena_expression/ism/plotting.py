@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from numbers import Real
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -287,7 +286,7 @@ def plot_variant_effects(
     return fig, axes
 
 
-def _attribution_motif_lanes(hits, position_mode, origin, magnitudes, highlighted, limit):
+def _attribution_motif_candidates(hits, position_mode, origin, magnitudes, highlighted, limit):
     start_col, end_col, strand_col = _tf_hit_columns(position_mode)
     candidates = []
     for hit in hits.select("motif_id", "tf", "p_value", start_col, end_col, strand_col).drop_nulls().iter_rows():
@@ -298,12 +297,15 @@ def _attribution_motif_lanes(hits, position_mode, origin, magnitudes, highlighte
             strength = float(magnitudes[footprint][overlap].max())
             candidates.append((-strength, p_value, start, end, motif_id, tf, strand))
 
-    selected = sorted(candidates)[:limit]
+    return [candidate[2:] for candidate in sorted(candidates)[:limit]]
+
+
+def _assign_motif_lanes(candidates, region_width):
     lane_ends = []
     lanes = []
     # Leave room for labels that extend beyond the logo's footprint.
-    gap = max(1, round(len(highlighted) * 0.03))
-    for _, _, start, end, motif_id, tf, strand in sorted(selected, key=lambda hit: hit[2:]):
+    gap = max(1, round(region_width * 0.03))
+    for start, end, motif_id, tf, strand in sorted(candidates):
         lane = next(
             (index for index, last_end in enumerate(lane_ends) if start >= last_end + gap),
             len(lane_ends),
@@ -316,7 +318,7 @@ def _attribution_motif_lanes(hits, position_mode, origin, magnitudes, highlighte
     return lanes, max(1, len(lane_ends))
 
 
-def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo) -> None:
+def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo, empty_message) -> None:
     import numpy as np
     import pandas as pd
 
@@ -364,7 +366,7 @@ def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo) -> No
 
     if not lanes:
         ax.text(
-            0.5, 0.5, "No motif hits overlap high attribution",
+            0.5, 0.5, empty_message,
             ha="center", va="center", transform=ax.transAxes,
         )
     ax.set_ylim(0, lane_count)
@@ -382,19 +384,18 @@ def plot_attribution_logo(
     show_tf: bool,
     attribution_threshold: float | None,
     max_motif_hits: int,
+    attribution_threshold_mode: Literal["quantile", "absolute"] = "quantile",
+    min_profile_similarity: float | None = None,
+    min_peak_coverage: float | None = None,
+    profile_direction: Literal["positive", "negative", "either"] = "positive",
 ):
     """Draw an observed ISM logo with aligned motif matches under highlighted positions."""
     import matplotlib.pyplot as plt
     import numpy as np
     import pandas as pd
 
-    if attribution_threshold is not None and (
-        isinstance(attribution_threshold, bool)
-        or not isinstance(attribution_threshold, Real)
-        or not np.isfinite(attribution_threshold)
-        or attribution_threshold < 0
-    ):
-        raise ValueError("attribution_threshold must be finite and nonnegative.")
+    from .attribution import attribution_peaks
+
     if type(max_motif_hits) is not int or max_motif_hits < 1:
         raise ValueError("max_motif_hits must be a positive integer.")
 
@@ -408,21 +409,46 @@ def plot_attribution_logo(
             sequence = sequence[::-1].translate(_DNA_COMPLEMENT)
             attribution = attribution[::-1]
 
+    highlighted, peak_intervals = attribution_peaks(
+        attribution, attribution_threshold, mode=attribution_threshold_mode
+    )
     finite = np.isfinite(attribution)
     if not finite.any():
         raise ValueError(f"{scorer_name!r} has no positions with three finite SNV scores.")
     magnitudes = np.abs(attribution)
-    if attribution_threshold is None:
-        attribution_threshold = np.quantile(magnitudes[finite], 0.90)
-    highlighted = finite & (magnitudes > 0) & (magnitudes >= attribution_threshold)
-    edges = np.flatnonzero(np.diff(np.r_[False, highlighted, False])) + origin
-    spans = list(zip(edges[::2], edges[1::2]))
+    spans = [(origin + start, origin + stop) for start, stop in peak_intervals]
 
     if show_tf:
-        hits, _ = _tf_hits_and_labels(ism)
-        lanes, lane_count = _attribution_motif_lanes(
-            hits, position_mode, origin, magnitudes, highlighted, max_motif_hits
+        rank_by_profile = (
+            min_profile_similarity is not None
+            or min_peak_coverage is not None
+            or profile_direction != "positive"
         )
+        if rank_by_profile:
+            ranked = ism.rank_tf_hits(
+                scorer_name,
+                attribution_threshold=attribution_threshold,
+                attribution_threshold_mode=attribution_threshold_mode,
+                min_profile_similarity=0.0 if min_profile_similarity is None else min_profile_similarity,
+                min_peak_coverage=0.0 if min_peak_coverage is None else min_peak_coverage,
+                profile_direction=profile_direction,
+            )
+            start_col, end_col, strand_col = _tf_hit_columns(position_mode)
+            candidates = (
+                ranked.select(start_col, end_col, "motif_id", "tf", strand_col)
+                .drop_nulls()
+                .unique(maintain_order=True)
+                .head(max_motif_hits)
+                .rows()
+            )
+            empty_message = "No motif hits meet the attribution criteria"
+        else:
+            hits, _ = _tf_hits_and_labels(ism)
+            candidates = _attribution_motif_candidates(
+                hits, position_mode, origin, magnitudes, highlighted, max_motif_hits
+            )
+            empty_message = "No motif hits overlap high attribution"
+        lanes, lane_count = _assign_motif_lanes(candidates, len(attribution))
         matrices = getattr(ism, "_tf_matrices", {})
         if any(motif_id not in matrices for _, _, _, motif_id, _, _ in lanes):
             raise ValueError("Call tf_annotate() again to load the motif matrices for logos.")
@@ -466,7 +492,7 @@ def plot_attribution_logo(
     ax.spines[["top", "right"]].set_visible(False)
 
     if show_tf:
-        _draw_attribution_motifs(axes[1], lanes, lane_count, matrices, spans, Logo)
+        _draw_attribution_motifs(axes[1], lanes, lane_count, matrices, spans, Logo, empty_message)
     axes[-1].set_xlim(origin - 0.5, end - 0.5)
     axes[-1].set_xlabel(xlabel)
     axes[-1].ticklabel_format(axis="x", style="plain", useOffset=False)
@@ -486,16 +512,13 @@ def plot_substitution_matrix(
 
     import matplotlib.pyplot as plt
     import numpy as np
-    import polars as pl
+
+    from .attribution import substitution_effect_matrix
 
     frame = _validated_frame(ism, scorer_name, "substitution")
     width = ism.region.end - ism.region.start
     bases = list(_DNA_ALPHABET)
-    matrix = np.full((len(bases), width), np.nan, dtype=float)
-    for row in frame.select("position_in_region", "alt", scorer_name).to_dicts():
-        value = row[scorer_name]
-        if value is not None:
-            matrix[bases.index(row["alt"]), int(row["position_in_region"])] = float(value)
+    matrix = substitution_effect_matrix(frame, scorer_name, width).T
 
     finite = matrix[np.isfinite(matrix)]
     if finite.size == 0:

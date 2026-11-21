@@ -164,6 +164,11 @@ def read_meme(path: str | Path) -> MotifLibrary:
     return MotifLibrary(background, motifs)
 
 
+def _motif_log_odds(probabilities: np.ndarray, background: np.ndarray) -> np.ndarray:
+    smoothed = (1 - _BACKGROUND_FRACTION) * probabilities + _BACKGROUND_FRACTION * background
+    return np.log2(smoothed / background)
+
+
 def _score_tail(scores: np.ndarray, background: np.ndarray) -> np.ndarray:
     """Compute the inclusive tail for sums of nonnegative integer position scores."""
     mass = np.ones(1)
@@ -211,8 +216,7 @@ def scan_motifs(
                 ("+", motif.probabilities),
                 ("-", motif.probabilities[::-1, ::-1]),
             ):
-                smoothed = (1 - _BACKGROUND_FRACTION) * probabilities + _BACKGROUND_FRACTION * background
-                log_odds = np.log2(smoothed / background)
+                log_odds = _motif_log_odds(probabilities, background)
                 quantized = np.rint(log_odds * _SCORE_SCALE).astype(int)
                 quantized -= quantized.min(axis=1, keepdims=True)
                 tail = _score_tail(quantized, background)

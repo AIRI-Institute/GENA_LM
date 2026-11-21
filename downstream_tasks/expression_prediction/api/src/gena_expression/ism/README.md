@@ -14,6 +14,7 @@ helpers called by its methods.
 | --- | --- |
 | `core.py` | `ISM`, mutation generation, pair construction, scoring, queries, and Parquet export |
 | `motifs.py` | MEME parsing, reference motif matching, and genomic coordinate projection |
+| `attribution.py` | SNV effect matrices, peak detection, and motif profile ranking |
 | `plotting.py` | Lollipop, substitution-matrix, motif-interval, and attribution-logo plotting |
 | `__init__.py` | Exports `ISM` |
 
@@ -288,6 +289,41 @@ because the unchanged reference contributes a zero effect to the four-base mean.
 A positive value means the three substitutions lower the predicted score on
 average. Positions with fewer than three finite SNV scores have null attribution.
 
+### `rank_tf_hits(...)`
+
+After `tf_annotate()`, rank scanned motif hits by their agreement with a selected
+ISM scorer. The sequence p-value threshold used for the scan sets the candidate
+pool. To include weaker sequence matches, choose the candidate cutoff when
+calling `tf_annotate()`.
+
+```python
+ranked = ism.rank_tf_hits(
+    "expression_delta", min_profile_similarity=0.4, min_peak_coverage=0.5
+)
+```
+
+Peaks are contiguous bases selected by the same `attribution_threshold` and
+`attribution_threshold_mode` used in the logo plot. At each overlapping base,
+the method centers the four ISM
+effects (including zero for REF) and the strand-aligned motif log-odds weights
+across A/C/G/T. It compares these profiles with cosine similarity weighted by
+absolute attribution. Sites need all three finite SNV scores at a base for
+that base to contribute.
+
+The returned Polars table keeps the scan columns and adds
+`peak_start`, `peak_end` (sequence-local, zero-based, half-open),
+`peak_coverage` (the fraction of the peak's absolute attribution covered by
+the hit), signed `profile_similarity` (-1 to 1), and one-based `peak_rank`.
+Each row is one hit at one peak. Profile agreement ranks hits within each peak,
+with the sequence p-value breaking ties. The top hit from each peak is listed
+before second-ranked hits.
+
+`profile_direction="positive"` looks for agreement between motif affinity and
+model output. Use `"negative"` for inverse agreement or `"either"` to rank
+by the magnitude of the similarity while retaining its sign. Both cutoffs are
+between 0 and 1. The profile cutoff measures effect agreement on the chosen
+scorer, so tune it for the scorer and data.
+
 ### `plot_attribution(...)`
 
 Install the optional logo renderer from the API directory with
@@ -304,14 +340,18 @@ With `show_tf=True`, a lower panel draws motif logos in bits against a uniform
 DNA background. The panels share their position axis. On a reverse-strand
 genomic projection, the letters and motifs are oriented to the genomic axis.
 
-- `attribution_threshold=None` highlights nonzero positions at or above the
-  90th percentile of finite absolute attributions. Set a numeric threshold to
-  compare figures using the same cutoff. Adjacent highlighted bases share a
-  filled frame.
+- `attribution_threshold` is a quantile of finite absolute attribution.
+  For example, `0.7` highlights nonzero bases at or above the 70th percentile,
+  and `None` uses the 90th percentile. Set
+  `attribution_threshold_mode="absolute"` with a numeric threshold to use a
+  fixed cutoff in score units. Adjacent highlighted bases share a filled frame.
 - The motif panel shows hits that overlap at least one highlighted base and
   shades the corresponding part of each motif. `max_motif_hits=12` limits the
   display to hits with the strongest overlapping attribution, using the
   motif p-value to break ties.
+- With `show_tf=True`, set `min_profile_similarity`, `min_peak_coverage`, or
+  a nondefault `profile_direction` to use `rank_tf_hits()` for motif selection.
+  The display cap applies after ranking and repeated hits are drawn once.
 - `position_mode` and `figsize` follow the other plots. The method returns
   a Matplotlib `(figure, axes_array)`.
 

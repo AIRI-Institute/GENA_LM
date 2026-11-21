@@ -121,6 +121,7 @@ class ISM:
         self.variants = pl.DataFrame(records, schema=schema)
         self.tf_hits = None
         self._tf_matrices = {}
+        self._tf_background = None
 
     @property
     def scorer_names(self) -> tuple[str, ...]:
@@ -759,6 +760,7 @@ class ISM:
             for motif in library.motifs
             if motif.identifier in matched_ids
         }
+        self._tf_background = library.background
         self.tf_hits = hits
         return hits
 
@@ -830,6 +832,29 @@ class ISM:
             )
         )
 
+    def rank_tf_hits(
+        self,
+        scorer_name: str,
+        *,
+        attribution_threshold: float | None = None,
+        attribution_threshold_mode: Literal["quantile", "absolute"] = "quantile",
+        min_profile_similarity: float = 0.0,
+        min_peak_coverage: float = 0.0,
+        profile_direction: Literal["positive", "negative", "either"] = "positive",
+    ):
+        """Rank scanned motif hits by agreement with the ISM profile at each peak."""
+        from .attribution import rank_motif_hits
+
+        return rank_motif_hits(
+            self,
+            scorer_name,
+            attribution_threshold=attribution_threshold,
+            attribution_threshold_mode=attribution_threshold_mode,
+            min_profile_similarity=min_profile_similarity,
+            min_peak_coverage=min_peak_coverage,
+            profile_direction=profile_direction,
+        )
+
     def plot_attribution(
         self,
         scorer_name: str,
@@ -838,7 +863,11 @@ class ISM:
         figsize: tuple[float, float] | None = None,
         show_tf: bool = False,
         attribution_threshold: float | None = None,
+        attribution_threshold_mode: Literal["quantile", "absolute"] = "quantile",
         max_motif_hits: int = 12,
+        min_profile_similarity: float | None = None,
+        min_peak_coverage: float | None = None,
+        profile_direction: Literal["positive", "negative", "either"] = "positive",
     ):
         """Draw signed reference-base letters and optional aligned TF motif logos."""
         from .plotting import plot_attribution_logo
@@ -850,7 +879,11 @@ class ISM:
             figsize=figsize,
             show_tf=show_tf,
             attribution_threshold=attribution_threshold,
+            attribution_threshold_mode=attribution_threshold_mode,
             max_motif_hits=max_motif_hits,
+            min_profile_similarity=min_profile_similarity,
+            min_peak_coverage=min_peak_coverage,
+            profile_direction=profile_direction,
         )
 
     def plot_substitution_matrix(

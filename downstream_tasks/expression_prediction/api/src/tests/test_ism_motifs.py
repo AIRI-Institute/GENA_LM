@@ -191,7 +191,8 @@ def test_attribution_logo_shades_matching_motif_bases(
     )
 
     fig, (attribution_ax, motif_ax) = ism.plot_attribution(
-        "expression_delta", position_mode=position_mode, show_tf=True, attribution_threshold=1
+        "expression_delta", position_mode=position_mode, show_tf=True,
+        attribution_threshold=1, attribution_threshold_mode="absolute",
     )
     try:
         fig.canvas.draw()
@@ -248,5 +249,169 @@ def test_logo_without_motif_overlap_and_zero_effects(tmp_path):
         assert not attribution_ax.patches
         assert not motif_ax.child_axes
         assert [text.get_text() for text in motif_ax.texts] == ["No motif hits overlap high attribution"]
+    finally:
+        plt.close(fig)
+
+
+def _profile_ranking_ism(tmp_path, *, reverse=False):
+    import numpy as np
+
+    probabilities = np.array([
+        [0.34, 0.60, 0.03, 0.03],
+        [0.01, 0.80, 0.18, 0.01],
+        [0.04, 0.16, 0.75, 0.05],
+    ])
+    path = _meme_file(tmp_path)
+    with path.open("a", encoding="utf-8") as out:
+        out.write("\nMOTIF ProfileMatch\nletter-probability matrix: alength= 4 w= 3 nsites= 20\n")
+        for row in probabilities:
+            out.write(" ".join(map(str, row)) + "\n")
+
+    coordinates = CoordinateMap([CoordinateSegment(0, 6, "genome", "chr3", 101, 107, "-")])
+    sequence = AnnotatedSequence("NTCGTN" if reverse else "NACGAN", coordinate_map=coordinates)
+    ism = ISM(sequence, center=2, region=(1, 5), condition="test")
+    ism.tf_annotate(path, p_value_threshold=0.04)
+    path.unlink()
+    start = 2 if reverse else 1
+    oriented = probabilities[::-1, ::-1] if reverse else probabilities
+    motif_scores = np.log2((0.9999 * oriented + 0.000025) / 0.25)
+    bases = "ACGT"
+    effects = []
+    for position, ref, alt in ism.variants.select("position", "ref", "alt").iter_rows():
+        if start <= position < start + 3:
+            row = motif_scores[position - start]
+            effects.append(float(row[bases.index(alt)] - row[bases.index(ref)]))
+        else:
+            effects.append(-4.0)
+    ism.variants = ism.variants.with_columns(pl.Series("expression_delta", effects))
+    return ism
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_profile_agreement_outranks_better_sequence_match(tmp_path, reverse):
+    ism = _profile_ranking_ism(tmp_path, reverse=reverse)
+    ranked = ism.rank_tf_hits(
+        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute"
+    )
+
+    assert ranked.select("tf", "strand", "peak_start", "peak_end", "peak_rank").rows() == [
+        ("ProfileMatch", "-" if reverse else "+", 1, 5, 1),
+        ("Example", "-" if reverse else "+", 1, 5, 2),
+    ]
+    assert ranked["p_value"].to_list() == pytest.approx([2 / 64, 1 / 64])
+    assert ranked["profile_similarity"].to_list() == pytest.approx([1.0, 0.734697], abs=1e-6)
+    attribution = ism.position_attributions("expression_delta")["attribution"].abs().sum()
+    assert ranked["peak_coverage"].to_list() == pytest.approx([1 - 3 / attribution] * 2)
+
+    only_profile_match = ism.rank_tf_hits(
+        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute",
+        min_profile_similarity=0.9
+    )
+    assert only_profile_match["tf"].to_list() == ["ProfileMatch"]
+    assert ism.rank_tf_hits(
+        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute",
+        min_peak_coverage=0.95
+    ).is_empty()
+
+
+def test_negative_profile_direction_preserves_sign(tmp_path):
+    ism = _profile_ranking_ism(tmp_path)
+    ism.variants = ism.variants.with_columns(-pl.col("expression_delta"))
+    options = dict(
+        attribution_threshold=0.1, attribution_threshold_mode="absolute", min_profile_similarity=0.9
+    )
+    assert ism.rank_tf_hits("expression_delta", **options).is_empty()
+
+    for direction in ("negative", "either"):
+        ranked = ism.rank_tf_hits("expression_delta", profile_direction=direction, **options)
+        assert ranked["tf"].to_list() == ["ProfileMatch"]
+        assert ranked["profile_similarity"].to_list() == pytest.approx([-1.0])
+
+
+def test_incomplete_position_splits_peaks_and_ranks_each_one(tmp_path):
+    ism = _profile_ranking_ism(tmp_path)
+    ism.variants = ism.variants.with_columns(
+        pl.when((pl.col("position") == 2) & (pl.col("alt") == "A"))
+        .then(None)
+        .otherwise(pl.col("expression_delta"))
+        .alias("expression_delta")
+    )
+
+    ranked = ism.rank_tf_hits(
+        "expression_delta", attribution_threshold=0.1, attribution_threshold_mode="absolute"
+    )
+    assert ranked.filter(pl.col("tf") == "ProfileMatch").select(
+        "peak_start", "peak_end", "peak_rank"
+    ).sort("peak_start").rows() == [(1, 2, 1), (3, 5, 1)]
+
+
+@pytest.mark.parametrize(
+    ("position_mode", "strand", "motif_bounds"),
+    [("region", "+", (-0.5, 2.5)), ("genomic", "-", (102.5, 105.5))],
+)
+def test_attribution_plot_can_select_motifs_by_profile_similarity(
+    tmp_path, position_mode, strand, motif_bounds
+):
+    from matplotlib import pyplot as plt
+
+    pytest.importorskip("logomaker")
+    ism = _profile_ranking_ism(tmp_path)
+    options = dict(
+        show_tf=True, attribution_threshold=0.1, attribution_threshold_mode="absolute",
+        max_motif_hits=1, position_mode=position_mode,
+    )
+    fig_legacy, (_, motif_legacy) = ism.plot_attribution("expression_delta", **options)
+    fig_profile, (_, motif_profile) = ism.plot_attribution(
+        "expression_delta", min_profile_similarity=0.4, **options
+    )
+    try:
+        assert [label.get_text() for label in motif_legacy.texts] == [f"Example ({strand})"]
+        assert [label.get_text() for label in motif_profile.texts] == [f"ProfileMatch ({strand})"]
+        fig_profile.canvas.draw()
+        (logo_axis,) = motif_profile.child_axes
+        bbox = motif_profile.transData.inverted().transform_bbox(logo_axis.bbox)
+        assert (bbox.xmin, bbox.xmax) == pytest.approx(motif_bounds)
+    finally:
+        plt.close(fig_legacy)
+        plt.close(fig_profile)
+
+
+@pytest.fixture
+def quantile_ism(tmp_path):
+    ism = _ism()
+    ism.tf_annotate(_meme_file(tmp_path), p_value_threshold=1 / 64)
+    ism.variants = ism.variants.with_columns(
+        (-4.0 * pl.col("position")).alias("expression_delta")
+    )
+    return ism
+
+
+@pytest.mark.parametrize(("quantile", "start"), [(0.7, 6), (0.9, 7), (None, 7)])
+def test_attribution_peak_quantiles(quantile_ism, quantile, start):
+    ranked = quantile_ism.rank_tf_hits("expression_delta", attribution_threshold=quantile)
+    assert ranked.select("peak_start", "peak_end").rows() == [(start, 8)]
+
+
+def test_attribution_threshold_validation(quantile_ism):
+    with pytest.raises(ValueError, match="quantile between 0 and 1"):
+        quantile_ism.rank_tf_hits("expression_delta", attribution_threshold=1.5)
+    ranked = quantile_ism.rank_tf_hits(
+        "expression_delta", attribution_threshold=1.5, attribution_threshold_mode="absolute"
+    )
+    assert ranked.select("peak_start", "peak_end").sort("peak_start").rows() == [(1, 4), (5, 8)]
+
+
+def test_attribution_logo_accepts_quantile_with_profile_ranking(quantile_ism):
+    from matplotlib import pyplot as plt
+    from matplotlib.patches import Rectangle
+
+    pytest.importorskip("logomaker")
+    fig, (attribution_ax, motif_ax) = quantile_ism.plot_attribution(
+        "expression_delta", show_tf=True, attribution_threshold=0.7, min_profile_similarity=0.9
+    )
+    try:
+        frames = [patch for patch in attribution_ax.patches if isinstance(patch, Rectangle)]
+        assert [(frame.get_x(), frame.get_width()) for frame in frames] == [(4.5, 2.0)]
+        assert [label.get_text() for label in motif_ax.texts] == ["Example (-)"]
     finally:
         plt.close(fig)
