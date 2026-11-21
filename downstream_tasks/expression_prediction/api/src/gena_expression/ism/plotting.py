@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from numbers import Real
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -22,6 +23,13 @@ _REF_MARKERS = {
     "T": "D",
 }
 _DNA_ALPHABET = "ACGT"
+_DNA_COMPLEMENT = str.maketrans("ACGT", "TGCA")
+_HIGHLIGHT_STYLE = {
+    "facecolor": "#dfe7fb",
+    "edgecolor": "#8198cb",
+    "linewidth": 0.8,
+    "zorder": 0,
+}
 
 
 def _validated_frame(
@@ -69,14 +77,16 @@ def _tf_hits_and_labels(ism: "ISM"):
     return ism.tf_hits, sorted(ism.tf_hits.get_column("tf").unique().to_list())
 
 
-def _draw_tf_hits(ax, hits, labels: list[str], position_mode: str) -> None:
+def _tf_hit_columns(position_mode: str) -> tuple[str, str, str]:
     if position_mode == "genomic":
-        start_col, end_col, strand_col = "source_start", "source_end", "source_strand"
-    elif position_mode == "region":
-        start_col, end_col, strand_col = "start_in_region", "end_in_region", "strand"
-    else:
-        start_col, end_col, strand_col = "start", "end", "strand"
+        return "source_start", "source_end", "source_strand"
+    if position_mode == "region":
+        return "start_in_region", "end_in_region", "strand"
+    return "start", "end", "strand"
 
+
+def _draw_tf_hits(ax, hits, labels: list[str], position_mode: str) -> None:
+    start_col, end_col, strand_col = _tf_hit_columns(position_mode)
     label_rows = {label: index for index, label in enumerate(labels)}
     colors = {"+": "#2866A7", "-": "#A34952"}
     plot_rows = hits.select("tf", start_col, end_col, strand_col).drop_nulls().rows()
@@ -274,6 +284,193 @@ def plot_variant_effects(
         left=0.09, right=0.98, top=1 - 0.12 * margin_scale, bottom=0.22 * margin_scale, hspace=0.10
     )
     fig.align_ylabels(axes)
+    return fig, axes
+
+
+def _attribution_motif_lanes(hits, position_mode, origin, magnitudes, highlighted, limit):
+    start_col, end_col, strand_col = _tf_hit_columns(position_mode)
+    candidates = []
+    for hit in hits.select("motif_id", "tf", "p_value", start_col, end_col, strand_col).drop_nulls().iter_rows():
+        motif_id, tf, p_value, start, end, strand = hit
+        footprint = slice(start - origin, end - origin)
+        overlap = highlighted[footprint]
+        if overlap.any():
+            strength = float(magnitudes[footprint][overlap].max())
+            candidates.append((-strength, p_value, start, end, motif_id, tf, strand))
+
+    selected = sorted(candidates)[:limit]
+    lane_ends = []
+    lanes = []
+    # Leave room for labels that extend beyond the logo's footprint.
+    gap = max(1, round(len(highlighted) * 0.03))
+    for _, _, start, end, motif_id, tf, strand in sorted(selected, key=lambda hit: hit[2:]):
+        lane = next(
+            (index for index, last_end in enumerate(lane_ends) if start >= last_end + gap),
+            len(lane_ends),
+        )
+        if lane == len(lane_ends):
+            lane_ends.append(end)
+        else:
+            lane_ends[lane] = end
+        lanes.append((lane, start, end, motif_id, tf, strand))
+    return lanes, max(1, len(lane_ends))
+
+
+def _draw_attribution_motifs(ax, lanes, lane_count, matrices, spans, logo) -> None:
+    import numpy as np
+    import pandas as pd
+
+    colors = {base: _ALT_COLORS[base] for base in _DNA_ALPHABET}
+    for lane, start, end, motif_id, tf, strand in lanes:
+        probabilities = matrices[motif_id]
+        if strand == "-":
+            probabilities = probabilities[::-1, ::-1]
+
+        # Information-content logo against a uniform DNA background.
+        log_probabilities = np.log2(
+            probabilities, out=np.zeros_like(probabilities), where=probabilities > 0
+        )
+        information = 2 + (probabilities * log_probabilities).sum(axis=1, keepdims=True)
+        heights = probabilities * np.maximum(information, 0)
+        inset = ax.inset_axes(
+            [start - 0.5, lane + 0.24, end - start, 0.66], transform=ax.transData
+        )
+        for left, right in spans:
+            overlap_start = max(start, left)
+            overlap_end = min(end, right)
+            if overlap_start < overlap_end:
+                inset.axvspan(
+                    overlap_start - start - 0.5, overlap_end - start - 0.5, **_HIGHLIGHT_STYLE
+                )
+        if heights.any():
+            logo(
+                pd.DataFrame(heights, columns=list(_DNA_ALPHABET)),
+                ax=inset,
+                color_scheme=colors,
+                vpad=0,
+                baseline_width=0,
+            )
+        inset.set_xlim(-0.5, end - start - 0.5)
+        inset.set_ylim(0, 2.05)
+        inset.set_xticks([])
+        inset.set_yticks([])
+        for spine in inset.spines.values():
+            spine.set_color("#718096")
+            spine.set_linewidth(0.8)
+        ax.text(
+            (start + end - 1) / 2, lane + 0.17, f"{tf} ({strand})",
+            ha="center", va="top", fontsize=8, clip_on=True,
+        )
+
+    if not lanes:
+        ax.text(
+            0.5, 0.5, "No motif hits overlap high attribution",
+            ha="center", va="center", transform=ax.transAxes,
+        )
+    ax.set_ylim(0, lane_count)
+    ax.set_yticks([])
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.set_title("Predicted TF motif matches (information content)", loc="left")
+
+
+def plot_attribution_logo(
+    ism: "ISM",
+    scorer_name: str,
+    *,
+    position_mode: Literal["region", "sequence", "genomic"],
+    figsize: tuple[float, float] | None,
+    show_tf: bool,
+    attribution_threshold: float | None,
+    max_motif_hits: int,
+):
+    """Draw an observed ISM logo with aligned motif matches under highlighted positions."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+
+    if attribution_threshold is not None and (
+        isinstance(attribution_threshold, bool)
+        or not isinstance(attribution_threshold, Real)
+        or not np.isfinite(attribution_threshold)
+        or attribution_threshold < 0
+    ):
+        raise ValueError("attribution_threshold must be finite and nonnegative.")
+    if type(max_motif_hits) is not int or max_motif_hits < 1:
+        raise ValueError("max_motif_hits must be a positive integer.")
+
+    _, xlabel, (origin, end) = _position_axis(ism, position_mode)
+    frame = ism.position_attributions(scorer_name)
+    attribution = frame.get_column("attribution").to_numpy()
+    sequence = ism.sequence.sequence[ism.region.start:ism.region.end]
+    if position_mode == "genomic":
+        coordinate = ism.sequence.coordinate_map.seq_to_source(ism.region.start)
+        if coordinate.strand == "-":
+            sequence = sequence[::-1].translate(_DNA_COMPLEMENT)
+            attribution = attribution[::-1]
+
+    finite = np.isfinite(attribution)
+    if not finite.any():
+        raise ValueError(f"{scorer_name!r} has no positions with three finite SNV scores.")
+    magnitudes = np.abs(attribution)
+    if attribution_threshold is None:
+        attribution_threshold = np.quantile(magnitudes[finite], 0.90)
+    highlighted = finite & (magnitudes > 0) & (magnitudes >= attribution_threshold)
+    edges = np.flatnonzero(np.diff(np.r_[False, highlighted, False])) + origin
+    spans = list(zip(edges[::2], edges[1::2]))
+
+    if show_tf:
+        hits, _ = _tf_hits_and_labels(ism)
+        lanes, lane_count = _attribution_motif_lanes(
+            hits, position_mode, origin, magnitudes, highlighted, max_motif_hits
+        )
+        matrices = getattr(ism, "_tf_matrices", {})
+        if any(motif_id not in matrices for _, _, _, motif_id, _, _ in lanes):
+            raise ValueError("Call tf_annotate() again to load the motif matrices for logos.")
+
+    try:
+        from logomaker import Logo
+    except ImportError as exc:
+        raise ImportError(
+            "Attribution logos require Logomaker. Install gena-expression with the 'logos' extra."
+        ) from exc
+
+    heights = [3.1, 0.45 + 1.2 * lane_count] if show_tf else [3.1]
+    if figsize is None:
+        figsize = (16.0, sum(heights) + 0.75)
+    fig, axes = plt.subplots(
+        nrows=len(heights), sharex=True, figsize=figsize, height_ratios=heights, squeeze=False
+    )
+    axes = axes[:, 0]
+    ax = axes[0]
+    for left, right in spans:
+        ax.axvspan(left - 0.5, right - 0.5, **_HIGHLIGHT_STYLE)
+
+    # Keep glyphs only for the observed base, with unsupported positions left blank.
+    values = np.zeros((len(sequence), len(_DNA_ALPHABET)))
+    for index in np.flatnonzero(finite):
+        values[index, _DNA_ALPHABET.index(sequence[index])] = attribution[index]
+    if values.any():
+        Logo(
+            pd.DataFrame(values, index=range(origin, end), columns=list(_DNA_ALPHABET)),
+            ax=ax,
+            color_scheme={base: _ALT_COLORS[base] for base in _DNA_ALPHABET},
+            vpad=0,
+            baseline_width=0,
+            flip_below=True,
+        )
+    limit = float(magnitudes[finite].max()) or 1.0
+    ax.set_ylim(-1.08 * limit, 1.08 * limit)
+    ax.axhline(0, color="#475569", linewidth=0.8)
+    ax.set_ylabel("Reference-base attribution")
+    ax.set_title(f"ISM attribution | {scorer_name}", loc="left")
+    ax.spines[["top", "right"]].set_visible(False)
+
+    if show_tf:
+        _draw_attribution_motifs(axes[1], lanes, lane_count, matrices, spans, Logo)
+    axes[-1].set_xlim(origin - 0.5, end - 0.5)
+    axes[-1].set_xlabel(xlabel)
+    axes[-1].ticklabel_format(axis="x", style="plain", useOffset=False)
+    fig.tight_layout()
     return fig, axes
 
 

@@ -14,7 +14,7 @@ helpers called by its methods.
 | --- | --- |
 | `core.py` | `ISM`, mutation generation, pair construction, scoring, queries, and Parquet export |
 | `motifs.py` | MEME parsing, reference motif matching, and genomic coordinate projection |
-| `plotting.py` | Lollipop, substitution-matrix, and motif-interval plotting helpers |
+| `plotting.py` | Lollipop, substitution-matrix, motif-interval, and attribution-logo plotting |
 | `__init__.py` | Exports `ISM` |
 
 Coordinates follow the package-wide 0-based, half-open convention. Read the
@@ -279,6 +279,42 @@ plot(
 The plot uses ALT bases as colors, REF bases as marker shapes, and returns
 `(figure, axes_array)`.
 
+### `position_attributions(scorer_name)`
+
+Return a Polars DataFrame with one row per position in the ISM region. Columns
+are `position`, `position_in_region`, `ref`, `n_scored`, and `attribution`. The
+score column should contain ALT-minus-REF effects. Attribution is `-sum(delta) / 4`
+because the unchanged reference contributes a zero effect to the four-base mean.
+A positive value means the three substitutions lower the predicted score on
+average. Positions with fewer than three finite SNV scores have null attribution.
+
+### `plot_attribution(...)`
+
+Install the optional logo renderer from the API directory with
+`python -m pip install '.[logos]'`. After scoring the substitutions, request the motif panel with `show_tf=True`.
+
+```python
+ism.tf_annotate("H14CORE-CLUSTERED_meme_format.meme")
+fig, axes = ism.plot_attribution("expression_delta", show_tf=True)
+```
+
+The upper panel draws each reference letter with height equal to its
+attribution magnitude and places it above or below zero according to the sign.
+With `show_tf=True`, a lower panel draws motif logos in bits against a uniform
+DNA background. The panels share their position axis. On a reverse-strand
+genomic projection, the letters and motifs are oriented to the genomic axis.
+
+- `attribution_threshold=None` highlights nonzero positions at or above the
+  90th percentile of finite absolute attributions. Set a numeric threshold to
+  compare figures using the same cutoff. Adjacent highlighted bases share a
+  filled frame.
+- The motif panel shows hits that overlap at least one highlighted base and
+  shades the corresponding part of each motif. `max_motif_hits=12` limits the
+  display to hits with the strongest overlapping attribution, using the
+  motif p-value to break ties.
+- `position_mode` and `figsize` follow the other plots. The method returns
+  a Matplotlib `(figure, axes_array)`.
+
 ### `plot_substitution_matrix(...)`
 
 ```python
@@ -302,9 +338,6 @@ scores.
 
 Unsampled substitutions remain masked. At least one finite substitution score
 is required. Returns `(figure, axes)`.
-
-The plotting helpers in `gena_expression.ism.plotting` are used by
-`ISM.plot()`, `ISM.tf_plot()`, and `ISM.plot_substitution_matrix()`.
 
 ## Typical lifecycle
 

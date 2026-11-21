@@ -44,6 +44,12 @@ class _Motif:
 
 
 @dataclass(frozen=True)
+class MotifLibrary:
+    background: np.ndarray
+    motifs: list[_Motif]
+
+
+@dataclass(frozen=True)
 class _GenomicInterval:
     chrom: str
     start: int
@@ -85,7 +91,7 @@ def genomic_interval(coordinate_map: CoordinateMap, start: int, end: int) -> _Ge
     return _GenomicInterval(first.chrom, first.source_start, segments[-1].source_end, first.strand)
 
 
-def _read_meme(path: str | Path) -> tuple[np.ndarray, list[_Motif]]:
+def read_meme(path: str | Path) -> MotifLibrary:
     lines = [line.strip() for line in Path(path).read_text(encoding="utf-8-sig").splitlines() if line.strip()]
     if not lines or not lines[0].startswith("MEME version "):
         raise ValueError(f"{path!s} does not start with a MEME version header.")
@@ -155,7 +161,7 @@ def _read_meme(path: str | Path) -> tuple[np.ndarray, list[_Motif]]:
         probabilities /= probabilities.sum(axis=1, keepdims=True)
         tf = alternate[0] if alternate else identifier.split(".H14CORE.", 1)[0]
         motifs.append(_Motif(identifier, tf, probabilities))
-    return background, motifs
+    return MotifLibrary(background, motifs)
 
 
 def _score_tail(scores: np.ndarray, background: np.ndarray) -> np.ndarray:
@@ -173,18 +179,19 @@ def scan_motifs(
     sequence: str,
     coordinate_map: CoordinateMap,
     region: Feature,
-    motif_file: str | Path,
+    motif_file: str | Path | MotifLibrary,
     *,
     p_value_threshold: float,
     peak_intervals: list[tuple[int, int]] | None,
 ) -> pl.DataFrame:
     """Scan reference windows and return one row per motif, start, and strand."""
-    background, motifs = _read_meme(motif_file)
+    library = motif_file if isinstance(motif_file, MotifLibrary) else read_meme(motif_file)
+    background = library.background
     bases = np.fromiter(
         (_BASE_INDEX.get(base, -1) for base in sequence[region.start:region.end]), dtype=np.int8
     )
     motifs_by_width: dict[int, list[_Motif]] = defaultdict(list)
-    for motif in motifs:
+    for motif in library.motifs:
         motifs_by_width[motif.probabilities.shape[0]].append(motif)
 
     rows = []

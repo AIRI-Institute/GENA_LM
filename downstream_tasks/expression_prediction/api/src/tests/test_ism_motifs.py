@@ -132,3 +132,121 @@ def test_invalid_annotation_options_and_meme_schema(tmp_path):
     path.write_text(path.read_text().replace("ALPHABET= ACGT", "ALPHABET= ACGU"), encoding="utf-8")
     with pytest.raises(ValueError, match="MEME DNA alphabet"):
         ism.tf_annotate(path)
+
+
+def test_position_attribution_signed_mean_and_incomplete_coverage():
+    ism = ISM(
+        AnnotatedSequence("ACGTN"), center=0, region=(0, 5), condition="test", n_deletions=5
+    )
+    ism.variants = ism.variants.with_columns(
+        pl.when(pl.col("mutation_type") == "deletion").then(99.0)
+        .when((pl.col("position") == 0) & (pl.col("alt") == "C")).then(-8.0)
+        .when((pl.col("position") == 0) & (pl.col("alt") == "T")).then(0.0)
+        .when((pl.col("position") == 2) & (pl.col("alt") == "C")).then(float("nan"))
+        .when(pl.col("position") < 3).then(4.0)
+        .otherwise(None)
+        .alias("expression_delta")
+    )
+
+    assert ism.position_attributions("expression_delta").rows() == [
+        (0, 0, "A", 3, 1.0),
+        (1, 1, "C", 3, -3.0),
+        (2, 2, "G", 2, None),
+        (3, 3, "T", 0, None),
+        (4, 4, "N", 0, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("position_mode", "bounds", "highlight_lefts", "glyphs"),
+    [
+        (
+            "region", (-0.5, 6.5), [-0.5, 4.5],
+            [(0, "A", 3.0), (1, "C", -3.0), (5, "G", -1.5)],
+        ),
+        (
+            "genomic", (101.5, 108.5), [102.5, 106.5],
+            [(103, "C", -1.5), (107, "G", -3.0), (108, "T", 3.0)],
+        ),
+    ],
+)
+def test_attribution_logo_shades_matching_motif_bases(
+    tmp_path, position_mode, bounds, highlight_lefts, glyphs
+):
+    from matplotlib import pyplot as plt
+    from matplotlib.colors import to_rgba
+    from matplotlib.patches import PathPatch, Rectangle
+
+    from gena_expression.ism.plotting import _ALT_COLORS
+
+    pytest.importorskip("logomaker")
+    ism = _ism(CoordinateMap([CoordinateSegment(0, 9, "genome", "chr3", 101, 110, "-")]))
+    path = _meme_file(tmp_path)
+    ism.tf_annotate(path, p_value_threshold=1 / 64)
+    path.unlink()  # Logos use the matrices that were loaded for the scan.
+    ism.variants = ism.variants.with_columns(
+        pl.col("position").replace_strict(
+            {1: -4.0, 2: 4.0, 6: 2.0}, default=0.0
+        ).alias("expression_delta")
+    )
+
+    fig, (attribution_ax, motif_ax) = ism.plot_attribution(
+        "expression_delta", position_mode=position_mode, show_tf=True, attribution_threshold=1
+    )
+    try:
+        fig.canvas.draw()
+        assert attribution_ax.get_xlim() == motif_ax.get_xlim() == bounds
+        assert attribution_ax.get_shared_x_axes().joined(attribution_ax, motif_ax)
+        shaded_regions = [patch for patch in attribution_ax.patches if isinstance(patch, Rectangle)]
+        assert [patch.get_x() for patch in shaded_regions] == highlight_lefts
+
+        reference_letters = []
+        for patch in attribution_ax.patches:
+            if isinstance(patch, PathPatch):
+                box = patch.get_path().get_extents()
+                base = next(
+                    base for base, color in _ALT_COLORS.items() if patch.get_facecolor() == to_rgba(color)
+                )
+                sign = 1 if box.y0 + box.y1 > 0 else -1
+                height = sign * box.height
+                reference_letters.append((round((box.x0 + box.x1) / 2), base, height))
+        assert sorted(reference_letters) == [
+            (position, base, pytest.approx(height)) for position, base, height in glyphs
+        ]
+
+        assert len(motif_ax.child_axes) == 2
+        letters = []
+        for child in motif_ax.child_axes:
+            spans = [patch for patch in child.patches if isinstance(patch, Rectangle)]
+            assert len(spans) == 1
+            # Compare in display coordinates to verify that the inset's fill
+            # occupies exactly the same horizontal interval as its upper fill.
+            child_span = spans[0].get_transform().transform([[0, 0], [1, 1]])[:, 0]
+            assert any(
+                child_span == pytest.approx(patch.get_transform().transform([[0, 0], [1, 1]])[:, 0])
+                for patch in shaded_regions
+            )
+            colored = [patch for patch in child.patches if isinstance(patch, PathPatch)]
+            letters.append("".join(
+                next(base for base, color in _ALT_COLORS.items() if patch.get_facecolor() == to_rgba(color))
+                for patch in sorted(colored, key=lambda patch: patch.get_path().get_extents().x0)
+            ))
+        assert letters == ["ACG", "CGT"]
+    finally:
+        plt.close(fig)
+
+
+def test_logo_without_motif_overlap_and_zero_effects(tmp_path):
+    from matplotlib import pyplot as plt
+
+    pytest.importorskip("logomaker")
+    ism = _ism()
+    ism.tf_annotate(_meme_file(tmp_path), p_value_threshold=1 / 64)
+    ism.variants = ism.variants.with_columns(pl.lit(0.0).alias("expression_delta"))
+    fig, (attribution_ax, motif_ax) = ism.plot_attribution("expression_delta", show_tf=True)
+    try:
+        assert not attribution_ax.patches
+        assert not motif_ax.child_axes
+        assert [text.get_text() for text in motif_ax.texts] == ["No motif hits overlap high attribution"]
+    finally:
+        plt.close(fig)

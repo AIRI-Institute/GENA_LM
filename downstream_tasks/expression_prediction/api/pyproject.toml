@@ -23,6 +23,9 @@ dependencies = [
     "pybigwig==0.3.25"
 ]
 
+[project.optional-dependencies]
+logos = ["logomaker>=0.8.7,<0.9"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["gena_expression*"]

@@ -120,6 +120,7 @@ class ISM:
         }
         self.variants = pl.DataFrame(records, schema=schema)
         self.tf_hits = None
+        self._tf_matrices = {}
 
     @property
     def scorer_names(self) -> tuple[str, ...]:
@@ -723,7 +724,7 @@ class ISM:
         per position. Peak intervals and hit start/end are sequence-local, 0-based, and
         half-open. Genomic columns are null where projection is discontinuous.
         """
-        from .motifs import scan_motifs
+        from .motifs import read_meme, scan_motifs
 
         if (
             isinstance(p_value_threshold, bool)
@@ -743,15 +744,23 @@ class ISM:
                     raise ValueError("Peak intervals must be nonempty and within the sequence.")
                 validated_peaks.append((start, end))
 
-        self.tf_hits = scan_motifs(
+        library = read_meme(motif_file)
+        hits = scan_motifs(
             self.sequence.sequence,
             self.sequence.coordinate_map,
             self.region,
-            motif_file,
+            library,
             p_value_threshold=float(p_value_threshold),
             peak_intervals=validated_peaks,
         )
-        return self.tf_hits
+        matched_ids = set(hits.get_column("motif_id"))
+        self._tf_matrices = {
+            motif.identifier: motif.probabilities
+            for motif in library.motifs
+            if motif.identifier in matched_ids
+        }
+        self.tf_hits = hits
+        return hits
 
     def tf_plot(
         self,
@@ -786,6 +795,62 @@ class ISM:
             position_mode=position_mode,
             figsize=figsize,
             show_tf=show_tf,
+        )
+
+    def position_attributions(self, scorer_name: str):
+        """Return signed reference-base attribution and SNV coverage across the region.
+
+        Scores are taken as ALT minus REF. The attribution is the negative sum
+        of the three SNV effects divided by four, including the zero effect of
+        the reference base. Positions with fewer than three finite SNV scores
+        have null attribution.
+        """
+        if scorer_name not in self.scorer_names:
+            raise KeyError(f"Unknown scorer {scorer_name!r}; available: {self.scorer_names!r}.")
+
+        pl = _require_polars()
+        score = pl.col(scorer_name).cast(pl.Float64)
+        by_position = (
+            self.variants
+            .filter((pl.col("mutation_type") == "substitution") & score.is_finite())
+            .group_by("position")
+            .agg(pl.len().alias("n_scored"), (-0.25 * score).sum().alias("attribution"))
+        )
+        start, end = self.region.start, self.region.end
+        positions = pl.DataFrame({
+            "position": range(start, end),
+            "position_in_region": range(end - start),
+            "ref": list(self.sequence.sequence[start:end]),
+        })
+        return (
+            positions.join(by_position, on="position", how="left", maintain_order="left")
+            .with_columns(
+                pl.col("n_scored").fill_null(0),
+                pl.when(pl.col("n_scored") == 3).then(pl.col("attribution")).alias("attribution"),
+            )
+        )
+
+    def plot_attribution(
+        self,
+        scorer_name: str,
+        *,
+        position_mode: Literal["region", "sequence", "genomic"] = "region",
+        figsize: tuple[float, float] | None = None,
+        show_tf: bool = False,
+        attribution_threshold: float | None = None,
+        max_motif_hits: int = 12,
+    ):
+        """Draw signed reference-base letters and optional aligned TF motif logos."""
+        from .plotting import plot_attribution_logo
+
+        return plot_attribution_logo(
+            self,
+            scorer_name,
+            position_mode=position_mode,
+            figsize=figsize,
+            show_tf=show_tf,
+            attribution_threshold=attribution_threshold,
+            max_motif_hits=max_motif_hits,
         )
 
     def plot_substitution_matrix(
